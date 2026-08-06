@@ -2,6 +2,50 @@
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-08-06
+
+### Mobile
+- **The build sidebar becomes an overlay drawer on phones.** At 768px and below the persistent sidebar is replaced by a fixed drawer with a floating toggle, a dimmed backdrop, and auto-close on navigation, backdrop tap, or Escape; opening a build shows the drawer so its navigation is reachable. Settings and Loadout overlays were lifted out of the sidebar shell (a transformed ancestor had been dragging fixed modals along with the drawer), and every modal is now capped to the viewport width so nothing spills off-screen. Desktop is untouched — the responsive rules only apply at phone widths, and the Electron window never gets that small.
+- **Every screen now stacks cleanly on a phone instead of squishing.** Config, Gear, Skills, Hero Traits, the tree screens, Slates, and Pact Spirits lay out at natural height as a long scroll rather than cramming their internal sections side-by-side; the talent and Dance of the Deep trees render full-size with touch pan, slate cells own their drag gesture so placing works by touch, and the pact-spirit picker gains a close button.
+
+### Talent trees
+- **The tree selector now shows each god's icon.** God/goddess selector cards and the slot-rail slots carry full-bleed tree art behind their text (with an accent-tinted scrim for legibility), and the static points display is now a real fill meter — purple as you allocate, amber once you pass the cap.
+- **Shared, consistent screen headers.** The tree selector and tree viewer now use one `ScreenHeader` component, fixing headers that had drifted apart in padding and cards that visibly resized when moving between the two screens; a border seam at the sidebar/header corner and the tree card's Remove/Shift button widths were also corrected.
+- **Selena's Dance of the Deep tree is back to its authored layout.** The trait had regressed to a generic flat node list during an earlier data recrawl; its real tree-allocation topology is restored (and the flat-schema fallback now warns loudly instead of silently degrading), with the Dance Step sub-variants — Crimson Dash, Agonizing Revival, Eternal Sleep — corrected in the glossary. As in 0.6.0, the trait is browsable but still not DPS-modeled.
+- **SS13 post-launch data refresh.** A live re-crawl brings in the real Dance of the Deep tree data and icons (replacing a pre-release placeholder), pact-spirit and ethereal-prism icon/affix corrections, a Memory Revival rebalance, and Sweet Dream / corrosion-base content changes across 38 craft base types — the last of which had never had a working import path.
+
+### Preview Mode
+- **Preview Mode is now a display toggle inside the normal app, not a separate stripped-down shell.** Previously entering preview bypassed the persistent sidebar entirely; now the sidebar always renders (showing empty slots in preview, never touching your real build), the Preview button turns into an active Exit Preview control that returns you to wherever you entered from, and identity comes from a subtle diagonal watermark on the tree canvas. Allocating a node while previewing provably never reaches your saved build.
+
+### Build management
+- **Build cards and the sidebar now show character identity.** A build card reads e.g. "Lv 100 Selena — Dance of the Deep" (hero trait in gold) instead of a list of tree names, and the same identity line sits above Save / Save As — so imported builds, whose share codes carry no name, are finally identifiable at a glance. It degrades gracefully to level-only while the catalog is still loading or for an unknown trait.
+
+### Loading & gear editor
+- **Real loading states everywhere.** A shared spinner replaces the drifted placeholders that used to imply the wrong thing while data loaded — the tree selector's hardcoded card grid, Skills' false "no results", Gear's "0 items" header and inert rows, and the empty pact-spirit board — and every load path now has an explicit failure branch, so there are no stuck spinners and an empty result is never mistaken for a loading one. A new bottom-left load-progress pill fills as each catalog settles and then fades to "Loaded".
+- **Gear editor actions and custom item names.** The gear editor now carries Rename, Duplicate, and Remove actions alongside Save/Cancel, and you can give an item a custom display name (up to 60 characters) that shows in equipment slots, Items in Build, and note mentions while the editor, preview, and tooltips keep the true name. The name survives save, duplicate, and the share-code round trip — carried additively through the frozen build code, so builds without a renamed item still encode byte-for-byte identically. The editor column is now a fixed viewport-derived width, so opening it no longer shifts the layout.
+
+### Engine & DPS
+- **The Crit Multiplier breakdown now attributes every source of Crit Damage.** It previously summed a stat key that doesn't exist, so it only ever showed the 150% base — your gear, tree, support, and base Crit Damage sources are now all itemized. Tyrant's Iron Fist's "Crit Damage per Mana consumed recently" is likewise now folded into the real Crit Damage pool with a labeled "Mana Consumed" source. Computed values are unchanged (byte-identical goldens); this is a reporting fix.
+- **Crit Rating per Mana consumed gets the same treatment** — Tyrant's Iron Fist's Crit Rating bonus now shows a labeled Mana Consumed source in the Crit Rating breakdown instead of being folded in silently, again with no change to the resulting crit chance.
+- **Per-Mana affixes now badge Consumed instead of Inactive.** Compensatory Life (spell-damage-per-mana) and mana-regen-per-mana-consumed affixes were contributing but showing an Inactive badge; they now correctly read Consumed. Badge-only — no DPS changes.
+
+### Fixes
+- **Fixed a crash that could wipe unsaved build progress.** A real user lost all in-memory work when rapid place/remove clicks on a legendary slate briefly desynced the slate's view of a slot, and — with no error boundary anywhere in the app — a single uncaught render error unmounted the whole interface. Fixed in two layers: every persisted-key lookup in the slate screen is now guarded, and a root error boundary catches anything that still slips through, offering recovery that generates a real build code (or raw JSON download) from the untouched in-memory build so your progress is never lost to a render crash.
+
+### Security
+- **Backend hardened against path traversal and DNS-rebinding** (from an owner-reviewed security scan). Season-tree file reads/writes and the untrusted slate slug are now normalized and traversal-guarded (CWE-22), and a Host-header check rejects non-loopback requests on the network path while leaving the in-process web build's worker dispatch exempt (CWE-352). Full backend suite green.
+
+### Project
+- **The app is unchanged for users, but the game dataset now lives outside the public repo.** `data/` is no longer tracked in the source tree; it's pulled from a private source at build time, and the CDN that serves the web build's data now enforces an origin allowlist. The application code stays MIT-licensed, while the game dataset carries its own separate terms (`DATA-LICENSE.md`).
+
+### Under the hood
+- Dead-code cleanup (Phases 1–5): removed the deprecated legacy compute chain, ~18 unused API endpoints and their client wrappers, the orphaned form-upload IPC chain (and the `python-multipart` dependency), and a batch of zero-caller Python symbols, the hand-curated `node_modifier_pool`, and the retired manual tree-editing surface. Live compute path untouched; goldens byte-identical.
+- Added a GitHub Actions CI workflow (typecheck, vitest, pytest, plus a skip-count guard).
+- Added a Playwright E2E harness covering both the web (dist + Pyodide) and Electron targets.
+- Desktop packaging fixed to positive file globs and prod deps trimmed to `electron-updater`, cutting the packaged app from ~123MB to 3.9MB.
+- Trimmed the web bundles (`backend-py.zip` 596→498KB, `engine-data.zip` 1.8→1.1MB) and switched the data zip to content-hashed immutable caching.
+- Fixed a cross-drive relative-path crash in a test fixture index on Windows CI.
+
 ## [0.6.2] - 2026-07-24
 
 ### Theme & readability
