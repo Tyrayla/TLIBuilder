@@ -1245,6 +1245,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: center;
 }
 
+/* Mobile-only allocate/deallocate mode toggle (rendered only ≤768px from TreeViewerScreen). */
+.tree-mode-toggle {
+  margin-right: 10px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
 .tree-search-input {
   background: var(--bg-card);
   border: 1px solid var(--border);

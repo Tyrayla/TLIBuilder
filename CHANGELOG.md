@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Mobile
+- **Tap-to-remove toggle for the talent tree.** On phones there's no right-click, so removing a talent point meant a long-press — which also opened the node tooltip and felt awkward. A new mobile-only toolbar toggle flips a node tap between adding and removing points, so deallocating is now a single tap (with the same cascade behavior as a desktop right-click). Desktop is unchanged (left-click adds, right-click removes), and the toggle auto-resets if you widen back to desktop.
+
 ## [0.6.3] - 2026-08-06
 
 ### Mobile

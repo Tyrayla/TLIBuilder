@@ -559,6 +559,20 @@ export default function TreeViewerScreen({
   const [placingPrism, setPlacingPrism] = useState<CraftedPrism | null>(null)
   const [editingPlaced, setEditingPlaced] = useState<PlacedPrism | null>(null)
   const [hoverPlaceCell, setHoverPlaceCell] = useState<{ col: number; row: number } | null>(null)
+  // Mobile (≤768px) has no right-click, so removing points meant a long-press — which fights the tooltip.
+  // `deallocMode` is a mobile-only toggle that flips a plain node TAP to deallocate instead of allocate.
+  // Gated on `mobile` everywhere it's read, so desktop can never deallocate on a left-click.
+  const [mobile, setMobile] = useState(
+    () => (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches) ?? false,
+  )
+  const [deallocMode, setDeallocMode] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia?.('(max-width: 768px)')
+    if (!mq) return
+    const onChange = () => { setMobile(mq.matches); if (!mq.matches) setDeallocMode(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
   useEffect(() => {
     api.getEtherealPrism().then(r => { setPrismCatalog(r.items ?? []); setEtherealCat(r.catalog ?? null) }).catch(() => {})
   }, [])
@@ -978,7 +992,10 @@ export default function TreeViewerScreen({
   }, [hoveredNodeId, nodeStates, nodeIndex, treePrism])
 
   const handleNodeInteract = (node: TreeNode, isRight: boolean) => {
-    handleClick(node.id, isRight ? 'deallocate' : 'allocate')
+    // isRight = right-click/long-press (always deallocate). On mobile with the toggle on, a plain tap
+    // deallocates too — so removing points no longer needs a long-press.
+    const deallocate = isRight || (mobile && deallocMode)
+    handleClick(node.id, deallocate ? 'deallocate' : 'allocate')
   }
 
   const handleReset = () => {
@@ -1207,6 +1224,13 @@ export default function TreeViewerScreen({
           >Reselect</button>
           {/* Hidden while placing a prism so the placement banner can't overlap (and be clicked through to) these. */}
           {!placingPrism && <>
+            {mobile && (
+              <button
+                className={'btn btn-sm tree-mode-toggle ' + (deallocMode ? 'btn-danger' : 'btn-accent')}
+                onClick={() => setDeallocMode(m => !m)}
+                title="Mobile only: switch whether tapping a node adds or removes points, so removing no longer needs a long-press. Long-press still opens the tooltip."
+              >{deallocMode ? '− Tap removes' : '+ Tap adds'}</button>
+            )}
             <div className="tree-search-bar">
               <input
                 className="tree-search-input"
@@ -1611,7 +1635,7 @@ export default function TreeViewerScreen({
                           unlocked={isColUnlocked(col)}
                           mult={prismMult(treePrism.rolls, src.node_type)}
                           prismId={treePrism.id}
-                          onAlloc={add => allocateReflected(col, row, src, add)} />
+                          onAlloc={add => allocateReflected(col, row, src, (mobile && deallocMode) ? false : add)} />
                       )
                     })}
                   </>
