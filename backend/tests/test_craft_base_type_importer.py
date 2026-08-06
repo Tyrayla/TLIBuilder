@@ -94,3 +94,48 @@ def test_import_crawler_craft_base_types_filters_nameless():
     result = import_crawler_craft_base_types(items)
     assert len(result) == 1
     assert result[0]["item_id"] == "belt"
+
+
+def test_sweet_dream_affixes_dedicated_pane_shape():
+    # Historical dedicated-pane shape: Modifier/Tier/Level/Weight, same as corrosion_base.
+    data = {"name": "Ring", "sweet_dream_affixes": [
+        {"Modifier": "+(10-20) % Critical Damage", "Tier": "1", "Level": "80", "Weight": "100"}]}
+    r = import_crawler_craft_base_type(data)
+    assert len(r["sweet_dream_affixes"]) == 1
+    sd = r["sweet_dream_affixes"][0]
+    assert sd["modifier_text"] == "+(10-20) % Critical Damage"
+    assert sd["affix_kind"] == "numeric"
+
+
+def test_sweet_dream_affixes_shared_affix_pane_fallback_shape():
+    # 2026-07-30 fallback shape filtered from the shared #Affix pane: Affix Effect/Source/Type.
+    data = {"name": "Ring", "sweet_dream_affixes": [
+        {"Affix Effect": "+(10-20) % Critical Damage", "Source": "Ring", "Type": "Sweet Dream Affix"}]}
+    r = import_crawler_craft_base_type(data)
+    assert len(r["sweet_dream_affixes"]) == 1
+    sd = r["sweet_dream_affixes"][0]
+    assert sd["modifier_text"] == "+(10-20) % Critical Damage"
+    assert sd["affix_kind"] == "numeric"
+
+
+def test_sweet_dream_affixes_both_shapes_produce_same_parsed_result():
+    dedicated_pane = {"name": "Ring", "sweet_dream_affixes": [
+        {"Modifier": "+(10-20) % Critical Damage", "Tier": "1", "Level": "80", "Weight": "100"}]}
+    shared_pane_fallback = {"name": "Ring", "sweet_dream_affixes": [
+        {"Affix Effect": "+(10-20) % Critical Damage", "Source": "Ring", "Type": "Sweet Dream Affix"}]}
+
+    r1 = import_crawler_craft_base_type(dedicated_pane)["sweet_dream_affixes"][0]
+    r2 = import_crawler_craft_base_type(shared_pane_fallback)["sweet_dream_affixes"][0]
+
+    assert r1["modifier_text"] == r2["modifier_text"]
+    assert r1["expression"] == r2["expression"]
+    assert r1["affix_kind"] == r2["affix_kind"]
+    assert r1["numeric_values"] == r2["numeric_values"]
+
+
+def test_sweet_dream_affixes_blank_text_skipped():
+    data = {"name": "Ring", "sweet_dream_affixes": [
+        {"Modifier": "", "Tier": "1"},
+        {"Affix Effect": "", "Type": "Sweet Dream Affix"}]}
+    r = import_crawler_craft_base_type(data)
+    assert r["sweet_dream_affixes"] == []

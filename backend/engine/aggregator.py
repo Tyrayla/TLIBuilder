@@ -152,20 +152,6 @@ _ATTACK_AGGRESSION_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("movement_speed_inc",      0.10, "+10% Movement Speed (Attack Aggression)"),
 ]
 
-_NODE_TYPE_LABELS = {
-    "micro": "Micro",
-    "medium": "Medium",
-    "legendary_medium": "Legendary",
-}
-
-_SLATE_KIND_LABELS = {
-    "pedigree":                       "Pedigree",
-    "fallen_starlight":               "Starlight",
-    "corner_of_divinity":             "Corner",
-    "spark_of_moth_fire":             "Moth",
-    "when_sparks_set_prairie_ablaze": "Prairie",
-}
-
 _COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze"})
 _MOTH_DELTAS: dict[str, tuple[int, int]] = {
     "above": (-1, 0),
@@ -177,18 +163,6 @@ _MOTH_DELTAS: dict[str, tuple[int, int]] = {
 def _slate_positions(slate: dict) -> list[tuple[int, int]]:
     # cells are stored as absolute board positions, not relative offsets
     return [tuple(c) for c in slate.get("cells", [])]
-
-def _node_type_display(node_type: str) -> str:
-    return _NODE_TYPE_LABELS.get(node_type, node_type.replace("_", " ").title())
-
-def _normalize_node_type(raw: str) -> str:
-    """Normalize season node_type strings to filter recipe keys.
-
-    Season data: "Micro Talent", "Medium Talent", "Legendary Medium Talent"
-    Filter keys: "micro", "medium", "legendary_medium"
-    """
-    s = raw.lower().replace(" talent", "").strip().replace(" ", "_")
-    return s
 
 # node_id format: "{tree_slug}_c{col}_r{row}"
 _NODE_ID_RE = re.compile(r"^(.+)_c\d+_r\d+$")

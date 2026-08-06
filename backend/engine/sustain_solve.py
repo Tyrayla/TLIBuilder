@@ -66,10 +66,3 @@ def solve_steady_pool_pct(source, condition_state, pool, restoration_inputs, rat
         else:
             hi = mid
     return round((0.5 * (lo + hi)) / LIFE_PCT_QUANTUM) * LIFE_PCT_QUANTUM
-
-
-def solve_steady_life_pct(source, condition_state, restoration_inputs, rates, reservation=None,
-                          uptime_mode=None) -> float:
-    """Back-compat wrapper — solves the Life pool (see solve_steady_pool_pct)."""
-    return solve_steady_pool_pct(source, condition_state, "life", restoration_inputs, rates,
-                                 reservation, uptime_mode)

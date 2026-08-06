@@ -1,1 +1,2 @@
 pytest>=7.0
+httpx2>=2.9  # FastAPI/Starlette TestClient — required by test_host_header_guard.py

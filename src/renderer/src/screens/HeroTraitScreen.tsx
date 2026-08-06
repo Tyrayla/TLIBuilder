@@ -7,6 +7,7 @@ import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import LoadingState from '../components/LoadingState'
 import { ModifierBadge, useTextModifierStatus } from '../components/ModifierBadge'
 import { CoverageBadge } from '../components/CoverageBadge'
 import { coverageRank, passesModeledOnly } from '../utils/coverage'
@@ -636,12 +637,16 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
 
   const loading = !referenceResolved && allTraits.length === 0
 
-  // Auto-select first trait when none selected
+  // Auto-select the first trait only for a brand-new (never-saved) build. Builds now LAND on
+  // this screen when opened, so an unconditional auto-select would silently write a trait into
+  // an opened trait-less build — marking it dirty and clearing tree allocations for a
+  // DPS-affecting change the user never made.
+  const buildId = useBuildStore(s => s.buildId)
   useEffect(() => {
-    if (!loading && traitId === null && allTraits.length > 0) {
+    if (!loading && traitId === null && buildId === null && allTraits.length > 0) {
       setTraitData(allTraits[0].trait_id, [1, 1, 1, 1], [])
     }
-  }, [loading, traitId, allTraits])
+  }, [loading, traitId, buildId, allTraits])
 
   const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
 
@@ -744,7 +749,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   if (loading) {
     return (
       <div className="hero-trait-screen">
-        <div className="hero-trait-body"><div className="panel-empty">Loading traits…</div></div>
+        <div className="hero-trait-body"><LoadingState label="Loading hero traits…" /></div>
       </div>
     )
   }

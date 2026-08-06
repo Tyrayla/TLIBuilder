@@ -17,9 +17,10 @@ tsconfig.*.tsbuildinfo
 dev-err.txt
 dev-out.txt
 
-# Local user data
-data/builds/*
-!data/builds/.gitkeep
+# Game dataset — NOT tracked in this repo. Fetched from the private tli-data repo at build
+# time via `npm run fetch:data` (see README "Development setup"). This also covers
+# data/builds/, which is local user runtime data.
+data/
 
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/
@@ -44,6 +45,17 @@ web-data/
 dist-web/
 src/renderer/public/backend-py.zip
 
+# Playwright E2E artifacts (traces, screenshots, error contexts)
+test-results/
+playwright-report/
+
 # Private dev vault (handoffs, plans, agent notes). Tracked in a SEPARATE private repo, never here.
 docs/local/
 
+# Planner draft scratch — authoritative plans are published to <umbrella>/shared/plans/, not here.
+plans/
+
+
+# Mobile audit screenshot sweeps (regenerate via e2e/mobile-audit.mjs)
+e2e/mobile-audit*/
+e2e/*.png

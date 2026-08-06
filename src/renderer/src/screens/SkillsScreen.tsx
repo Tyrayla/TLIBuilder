@@ -28,6 +28,7 @@ import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
 import { dec } from '../utils/num'
 import { CoverageBadge } from '../components/CoverageBadge'
+import LoadingState from '../components/LoadingState'
 import { coverageRank, passesModeledOnly } from '../utils/coverage'
 
 // djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
@@ -343,9 +344,23 @@ export default function SkillsScreen(_props: Props) {
 
   // Prefer the shared reference cache (already tooltip-enriched); fetch only if it isn't loaded yet.
   const allItems = cachedSkills ?? fetchedItems
+  const [fetchSettled, setFetchSettled] = useState(false)
+  const [fetchFailed, setFetchFailed] = useState(false)
   useEffect(() => {
-    if (!cachedSkills) api.getSkills().then(r => setFetchedItems(r.skills))
+    if (!cachedSkills) {
+      api.getSkills()
+        .then(r => setFetchedItems(r.skills))
+        .catch(() => setFetchFailed(true))
+        .finally(() => setFetchSettled(true))
+    }
   }, [cachedSkills])
+  // Pre-load, the empty catalog used to render as a false "No skills match your search". When the
+  // shared cache is absent this screen's own fetch is the authority: spinner until IT settles
+  // (even if the reference-store load already failed — that just means this fetch is the retry),
+  // then failure text only if this fetch also failed.
+  const skillsSettled = cachedSkills !== null || fetchSettled
+  const skillsLoading = allItems.length === 0 && !skillsSettled
+  const skillsFailed = allItems.length === 0 && fetchSettled && fetchFailed
 
   const getEquipped = (slot: number) => equippedSkills.find(s => s.slot === slot) ?? null
   const getSupport = (skill: EquippedSkill, idx: number) =>
@@ -761,7 +776,11 @@ export default function SkillsScreen(_props: Props) {
             </label>
           </div>
           <div className="skill-catalog-list">
-            {sortedSkillCatalog.length === 0 && (
+            {skillsLoading && <LoadingState label="Loading skills…" />}
+            {skillsFailed && (
+              <div className="skill-catalog-empty">Couldn't load the skill catalog — restart to retry.</div>
+            )}
+            {!skillsLoading && !skillsFailed && sortedSkillCatalog.length === 0 && (
               <div className="skill-catalog-empty">No skills match your search</div>
             )}
             {sortedSkillCatalog.map(item => (
@@ -1217,7 +1236,11 @@ export default function SkillsScreen(_props: Props) {
           </label>
         </div>
         <div className="skill-catalog-list" style={{ flex: 1 }}>
-          {supportCatalogItems.length === 0 && (
+          {skillsLoading && <LoadingState label="Loading supports…" />}
+          {skillsFailed && (
+            <div className="skill-catalog-empty">Couldn't load the skill catalog — restart to retry.</div>
+          )}
+          {!skillsLoading && !skillsFailed && supportCatalogItems.length === 0 && (
             <div className="skill-catalog-empty">No compatible supports for this slot</div>
           )}
           {sortedSupportCatalog.map(item => (

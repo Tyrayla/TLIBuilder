@@ -14,6 +14,18 @@ app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
 
 const isDev = process.env.NODE_ENV === 'development'
 const isVerbose = process.env.VERBOSE === 'true'
+
+// E2E harness overrides (set only by e2e/fixtures/electron.ts): an isolated userData dir and a
+// dedicated backend port, so a test run never touches real settings and never port-kills a live
+// dev backend on 8766. Hard-gated to the unpackaged app — a shipped build must never let an env
+// var redirect userData or point killPortProcess() at an arbitrary port. Data-dir isolation needs
+// no code here — the dev-mode spawn env inherits process.env, so a TLI_DATA_DIR set at launch
+// reaches the Python backend directly.
+const _e2ePortRaw = app.isPackaged ? NaN : parseInt(process.env.TLI_E2E_PYTHON_PORT || '', 10)
+const E2E_PYTHON_PORT = Number.isInteger(_e2ePortRaw) && _e2ePortRaw >= 1024 && _e2ePortRaw <= 65535 ? _e2ePortRaw : null
+const E2E_USERDATA = app.isPackaged ? undefined : process.env.TLI_E2E_USERDATA
+if (E2E_USERDATA) app.setPath('userData', E2E_USERDATA)
+
 let PYTHON_PORT = 8765
 let pythonProcess: ChildProcess | null = null
 let isDirtyMain = false
@@ -100,8 +112,10 @@ function killPortProcess(port: number): void {
     const output = execFileSync('netstat', ['-ano'], { encoding: 'utf8' })
     let killed = 0
     for (const line of output.split('\n')) {
-      if (line.includes(`:${port}`) && line.includes('LISTENING')) {
-        const parts = line.trim().split(/\s+/)
+      const parts = line.trim().split(/\s+/)
+      // Exact match on the LOCAL-address port column — a substring test (`:${port}`) also matches
+      // longer ports (:876 vs :8765) and the foreign-address column, over-killing listeners.
+      if (parts[1]?.endsWith(`:${port}`) && line.includes('LISTENING')) {
         const pid = parts[parts.length - 1]
         if (pid && /^\d+$/.test(pid)) {
           try {
@@ -171,7 +185,7 @@ function startPython(): Promise<number> {
     // whatever holds their port on startup; sharing one port meant running both made each kill the other's
     // backend and both frontends ended up talking to a single backend (e.g. the dev app showing the installed
     // app's saved builds). Give dev its own port so they coexist cleanly.
-    PYTHON_PORT = app.isPackaged ? 8765 : 8766
+    PYTHON_PORT = E2E_PYTHON_PORT ?? (app.isPackaged ? 8765 : 8766)
     killPortProcess(PYTHON_PORT)
 
     const dataDir = bootstrapDataDir()
@@ -399,20 +413,6 @@ app.whenReady().then(async () => {
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(30000),
       })
-      const data = await res.json().catch(() => null)
-      return { ok: res.ok, status: res.status, data }
-    } catch (e) {
-      return { ok: false, status: 0, data: null, error: String(e) }
-    }
-  })
-
-  ipcMain.handle('api-form-upload', async (_event, path: string, fileBytes: Uint8Array, fileName: string) => {
-    const url = `http://127.0.0.1:${PYTHON_PORT}/api${path}`
-    try {
-      const form = new FormData()
-      form.append('file', new Blob([Buffer.from(fileBytes)]), fileName)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await fetch(url, { method: 'POST', body: form as any })
       const data = await res.json().catch(() => null)
       return { ok: res.ok, status: res.status, data }
     } catch (e) {

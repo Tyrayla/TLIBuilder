@@ -230,3 +230,55 @@ def test_null_icon_url_trait_still_produced_not_dropped():
     result = import_crawler_hero_traits([_NULL_ICON_TRAIT])
     assert len(result) == 1
     assert result[0]["trait_id"] == "dance_of_the_deep"
+
+
+# Positive path: all 8 hand-authored _DANCE_OF_THE_DEEP_LAYOUT node names present as advanced
+# traits → _dance_of_the_deep_tree_fields takes the tree-schema branch (allocation_mode:"tree"),
+# not the generic flat advanced_traits fallback covered by the null-icon tests above.
+_DANCE_OF_THE_DEEP_FULL = {
+    "name": "Dance of the Deep",
+    "max_level": 8,
+    "traits": [
+        {
+            "name": "Dance of the Deep",
+            "required_level": 1,
+            "levels": [
+                {"level": 1, "description": "0.1 % additional damage per 1 Grace"},
+                {"level": 2, "description": "0.2 % additional damage per 1 Grace"},
+                {"level": 3, "description": "0.3 % additional damage per 1 Grace"},
+                {"level": 4, "description": "0.4 % additional damage per 1 Grace"},
+                {"level": 5, "description": "0.5 % additional damage per 1 Grace Artificial Moon: +2 % Cast Speed"},
+            ],
+            "description": None,
+            "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/HeroTraits/Carino/DanceOfTheDeep.webp",
+        },
+        {"name": "Silencing Severance", "required_level": 45, "levels": [],
+         "description": "silencing severance effect", "icon_url": ""},
+        {"name": "Drenched Hem", "required_level": 45, "levels": [],
+         "description": "drenched hem effect", "icon_url": ""},
+        {"name": "The Paradise I Curse", "required_level": 45, "levels": [],
+         "description": "the paradise i curse effect", "icon_url": ""},
+        {"name": "The Cycle I Resist", "required_level": 45, "levels": [],
+         "description": "the cycle i resist effect", "icon_url": ""},
+        {"name": "Crimson Endless Dance", "required_level": 60, "levels": [],
+         "description": "crimson endless dance effect", "icon_url": ""},
+        {"name": "Dreambreaker's Gyre", "required_level": 75, "levels": [],
+         "description": "dreambreaker's gyre effect", "icon_url": ""},
+        {"name": "Layered Hem", "required_level": 75, "levels": [],
+         "description": "layered hem effect", "icon_url": ""},
+        {"name": "Lonely Ensemble", "required_level": 75, "levels": [],
+         "description": "lonely ensemble effect", "icon_url": ""},
+    ],
+    "glossary": [],
+}
+
+
+def test_dance_of_the_deep_full_layout_takes_tree_schema_path():
+    r = import_crawler_hero_trait(_DANCE_OF_THE_DEEP_FULL)
+    assert r["allocation_mode"] == "tree"
+    assert r["tree_root_id"] == "dance_of_the_deep"
+    assert len(r["tree_nodes"]) == 9
+    assert "advanced_traits" not in r
+    hub = r["tree_nodes"][0]
+    assert (hub["column"], hub["row"], hub["x"], hub["y"]) == (4, 0, 0.5, 0.1)
+    assert len(r["tree_connections"]) == 8

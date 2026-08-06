@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  frontend:
+    name: Typecheck + Vitest
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
+  backend:
+    name: Pytest + skip-count guard
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch private game data
+        env:
+          TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+        run: node scripts/fetch-data.mjs
+
+      - name: Run backend test suite
+        working-directory: backend
+        run: python -m pytest -q | Tee-Object -FilePath pytest-output.txt
+
+      - name: Skip-count guard
+        working-directory: backend
+        shell: pwsh
+        run: |
+          $match = Select-String -Path pytest-output.txt -Pattern '(\d+) skipped' | Select-Object -Last 1
+          if (-not $match) {
+            Write-Host "No 'skipped' summary line found; treating skip count as 0."
+            $skipped = 0
+          } else {
+            $skipped = [int]$match.Matches[0].Groups[1].Value
+          }
+          Write-Host "Skipped tests: $skipped"
+          # Baseline measured 2026-07-28: 752 skipped (Phase 0 of docs/TEST_EXPANSION_PLAN.md
+          # has not un-gated these yet). Ceiling gives normal headroom but catches a regression
+          # like a blanket season-skip silently reintroducing itself. Ratchet this down once
+          # Phase 0 lands and the real skip count drops toward its target (~100).
+          $ceiling = 800
+          if ($skipped -gt $ceiling) {
+            Write-Error "Skip count ($skipped) exceeds ceiling ($ceiling) -- a blanket skip regression may have reappeared. See docs/TEST_EXPANSION_PLAN.md Phase 0."
+            exit 1
+          }

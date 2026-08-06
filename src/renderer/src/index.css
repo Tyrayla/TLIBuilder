@@ -429,7 +429,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .build-card-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .build-name { font-size: 15px; font-weight: 600; color: #ffffff; }
-.build-tree { font-size: 11px; color: var(--fg-faint); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.build-hero { font-size: 11px; color: var(--fg-faint); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.build-hero-name { color: var(--gold); }
+/* Wraps rather than ellipsizing — at narrow sidebar widths the full identity must stay readable. */
+.sidebar-hero { font-size: 11px; color: var(--fg-faint); padding: 0 6px 6px; line-height: 1.5; overflow-wrap: break-word; }
+.sidebar-hero-name { color: var(--gold); }
+.sidebar-hero-none { color: var(--fg-dim); }
 .build-pts  { font-size: 12px; color: var(--ok); flex-shrink: 0; }
 .build-card-actions { display: flex; gap: 8px; }
 
@@ -525,20 +530,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .tree-selector { overflow: hidden; }
 
-.screen-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--bg-panel);
-  flex-shrink: 0;
-}
-
 .selector-body {
   display: flex;
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 .tree-main {
@@ -547,6 +544,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .tree-overview-search {
@@ -615,9 +614,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
     color-mix(in srgb, var(--tree-accent) 30%, var(--bg-card)) 0%,
     color-mix(in srgb, var(--tree-accent) 12%, var(--bg-card)) 45%,
     color-mix(in srgb, var(--tree-accent)  5%, var(--bg-card)) 100%);
-  border: 2px solid;
   border-radius: 5px;
   overflow: hidden;
+  /* No border/ring at all — selection is signalled purely by the background gradient going
+     brighter (.tree-card-selected below). A ring here previously consumed layout space (border)
+     or, even as a non-consuming box-shadow, still traced a visible outline the owner doesn't want;
+     the accent tint alone is the identity now. Keeping .tree-card free of any per-child bleed
+     hacks was the actual point of the earlier box-shadow experiment — that holds either way. */
   transition: transform 0.12s, box-shadow 0.12s;
   min-height: 0;
   position: relative;
@@ -643,7 +646,34 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   transform: scale(0.97);
 }
 
-.tree-card-accent { width: 100%; height: 6px; flex-shrink: 0; }
+.tree-card-accent { width: 100%; height: 6px; flex-shrink: 0; position: relative; z-index: 1; }
+
+/* Full-bleed god/goddess icon: sits behind the text as the card's primary visual, not a small inline
+   glyph. It paints above the card's own gradient background (step 6 of the CSS stacking order beats
+   step 3) but must be kept below the text — hence the explicit z-index:1 given to every text-bearing
+   child below, since a position:absolute image otherwise outranks even earlier in-flow siblings. */
+.tree-card-bg-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+/* Tint/scrim over the icon so centered text stays legible and the column still reads by its accent
+   colour — an ::after paints above the (earlier, same z-index) <img> by tree order, still below text. */
+.tree-card-has-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--tree-accent) 20%, transparent) 0%,
+    color-mix(in srgb, var(--tree-accent) 10%, transparent) 50%,
+    color-mix(in srgb, var(--tree-accent) 38%, #05070c) 100%);
+}
 
 .tree-card-name {
   flex: 1;
@@ -655,15 +685,20 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   font-weight: 600;
   padding: 5px 6px;
   line-height: 1.3;
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
 }
 
 .tree-card-btn {
-  padding: 6px 0;
+  padding: 4px 0;
   font-size: 11px;
   font-weight: 700;
   color: #ffffff;
   text-align: center;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 .tree-card-btn-select {
   background: #14233a;
@@ -695,6 +730,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   cursor: pointer;
   flex-shrink: 0;
   line-height: 1.3;
+  position: relative;
+  z-index: 1;
 }
 .tree-card-shift:hover { background: #2a2000; color: #ffd060; }
 
@@ -709,6 +746,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 10px 8px;
   border-right: 1px solid var(--bg-panel);
   background: var(--bg-deep);
+  /* Above the preview watermark (a sibling z-index:0 layer in .selector-body/.viewer-body) — a
+     positioned z-index:0 element otherwise paints above non-positioned static siblings regardless
+     of DOM order, so an opaque background alone isn't enough to stay on top of it. */
+  position: relative;
+  z-index: 1;
 }
 
 .slot-sidebar-overview {
@@ -735,51 +777,54 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin-bottom: 6px;
 }
 .slot-sidebar-preview:hover { background: #221050; color: #bbaaff; }
+/* Reads as "Exit Preview" (red/danger, same palette as .tree-card-btn-remove) while actually
+   browsing in preview — clicking it exits back to wherever preview was entered from. */
+.slot-sidebar-preview.active {
+  background: #3a1c1c;
+  color: #ff8888;
+  border-color: #7a3a3a;
+}
+.slot-sidebar-preview.active:hover { background: #3a1515; color: #ffaaaa; }
 
-/* ── Preview mode header ──────────────────────────────────────────────────── */
+/* ── Preview watermark ────────────────────────────────────────────────────── */
+/* Sole signal that a screen is in preview mode — both TreeSelectorScreen and TreeViewerScreen
+   render through the plain ScreenHeader now, no bespoke badge/back-button. */
 
-.preview-mode-header {
-  min-height: 82px;
-  padding: 12px 16px;
-  align-items: center;
-  border-bottom: 2px solid #2a1a5a;
-  background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-surface) 100%);
+.preview-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.preview-header-content {
-  flex: 1;
+/* Centered + oversized (200% both axes) BEFORE rotating, so the tiled block still covers every
+   corner of the container edge-to-edge after the -24deg rotation regardless of the container's
+   aspect ratio — the previous fixed top/left/width/height offsets left the bottom-right mostly
+   uncovered on a wide canvas. */
+.preview-watermark-tiles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  transform: translate(-50%, -50%) rotate(-24deg);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  text-align: center;
+  justify-content: center;
+  gap: 56px;
+  opacity: 0.12;
 }
 
-.preview-header-badge {
-  display: inline-block;
-  font-size: 10px;
+.preview-watermark-line {
+  white-space: nowrap;
   font-weight: 800;
-  letter-spacing: 2.5px;
-  color: #9988ee;
+  letter-spacing: 12px;
+  font-size: 38px;
+  color: #b6acff;
   text-transform: uppercase;
-  background: #1a1040;
-  padding: 3px 12px;
-  border-radius: 4px;
-  border: 1px solid #4a3a8a;
 }
-
-.preview-header-title {
-  font-size: 26px;
-  font-weight: 800;
-  color: #ffffff;
-  line-height: 1;
-}
-
-.preview-header-sub {
-  font-size: 12px;
-  color: #7766aa;
-  font-style: italic;
-}
+.preview-watermark-line:nth-child(even) { padding-left: 120px; }
 
 .slot-sidebar-btn {
   display: flex;
@@ -792,8 +837,33 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   text-align: center;
   transition: border-color 0.1s, background 0.1s;
   flex: 1;
+  position: relative;
+  overflow: hidden;
 }
 .slot-sidebar-btn:hover { border-color: var(--border-strong); }
+
+/* Full-bleed tree icon for a filled slot, same treatment as .tree-card-bg-icon — sits behind
+   .slot-sidebar-btn-body (promoted to z-index:1 below) via a --slot-accent scrim. */
+.slot-sidebar-bg-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+.slot-sidebar-btn.has-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--slot-accent) 14%, transparent) 0%,
+    color-mix(in srgb, var(--slot-accent) 22%, transparent) 50%,
+    color-mix(in srgb, var(--slot-accent) 55%, #05070c) 100%);
+}
 
 .slot-sidebar-name {
   font-size: 16px;
@@ -802,6 +872,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   word-break: break-word;
   text-align: center;
   width: 100%;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
 }
 
 .slot-sidebar-btn-body {
@@ -810,6 +881,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: center;
   gap: 3px;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .slot-sidebar-points {
@@ -824,18 +897,44 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   justify-content: center;
   gap: 6px;
   margin-top: 4px;
-  padding: 8px;
+  padding: 4px 10px;
   border-radius: 5px;
   background: #2a2550;
   border: 1px solid var(--border);
-  color: #9988ee;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
+  line-height: 1.25;
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.slot-sidebar-total-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #5a4bb8, #7d6be0);
+  transition: width 0.15s;
+}
+
+.slot-sidebar-total.over .slot-sidebar-total-fill {
+  background: linear-gradient(90deg, #8a4a00, #ffb347);
+}
+
+/* Text stays a fixed, near-white colour with a dark shadow regardless of the fill/accent theme
+   underneath it (purple normally, amber once over-cap) — matching the bar's own palette made the
+   label/value nearly disappear once the fill reached full width. */
+.slot-sidebar-total-label,
+.slot-sidebar-total-value,
+.slot-sidebar-total-warn {
+  position: relative;
+  z-index: 1;
+  color: #f4f2ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.85);
 }
 
 .slot-sidebar-total-label {
-  color: var(--fg-muted);
   font-weight: 600;
   text-transform: uppercase;
   font-size: 10px;
@@ -845,15 +944,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .slot-sidebar-total.over {
   background: #2a1500;
   border-color: #8a4a00;
-  color: #ffb347;
-}
-
-.slot-sidebar-total.over .slot-sidebar-total-label {
-  color: #ffb347;
 }
 
 .slot-sidebar-total-warn {
-  color: #ff5555;
   font-size: 14px;
 }
 
@@ -1121,19 +1214,30 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .tree-viewer { display: flex; flex-direction: column; }
 
-.viewer-header {
+/* Single shared header rule for TreeSelectorScreen and TreeViewerScreen (via
+   components/ScreenHeader.tsx) — both screens' preview modes render through this same header too
+   now (no more bespoke preview-mode-header/preview-viewer-header variants; preview identity comes
+   from the watermark instead). The old independent .screen-header/.viewer-header rules used to
+   drift apart in padding; one shared rule can't. */
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 14px;
+  /* Measured live in the dev server: TreeViewerScreen's non-preview header (core-talent circle
+     badge + label) renders at 120px border-box height, the tallest of the two real usages —
+     TreeSelectorScreen's plain-text header only needs 68px. min-height pins both to the tallest
+     case so neither the header row nor (via the shared flex column beneath it) SlotSidebar's
+     4 slot cards grow/shrink depending on which screen is showing. */
+  min-height: 120px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--bg-panel);
   gap: 12px;
   flex-shrink: 0;
 }
 
-.viewer-header-left   { flex: 1; display: flex; align-items: center; gap: 8px; }
-.viewer-header-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.viewer-header-right  { display: flex; align-items: center; gap: 12px; }
+.app-header-left   { flex: 1; display: flex; align-items: center; gap: 8px; }
+.app-header-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.app-header-right  { display: flex; align-items: center; gap: 12px; }
 
 .tree-search-bar {
   position: relative;
@@ -1183,6 +1287,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 .viewer-main {
@@ -1191,6 +1296,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .viewer-canvas {
@@ -1198,6 +1305,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   overflow: hidden;
   padding: 4px 8px;
   min-height: 0;
+  position: relative;
 }
 
 .viewer-status {
@@ -1529,7 +1637,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   flex-direction: column;
   background: var(--bg-abyss);
-  border-right: 1px solid var(--bg-surface);
+  /* --bg-panel, not --bg-surface: every other sidebar/chrome divider in the app (including
+     .slot-sidebar's own border-right) uses --bg-panel. The mismatch here was the seam reported on
+     tree-selector/tree-viewer — this border runs the full app height and crosses .app-header's
+     border-bottom at a T-junction; two different border tones meeting there read as a visual notch. */
+  border-right: 1px solid var(--bg-panel);
   padding: 10px 8px;
   overflow-y: auto;
   gap: 2px;
@@ -1950,50 +2062,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .changelog-body a { color: #7090e8; text-decoration: none; }
 .changelog-body a:hover { text-decoration: underline; }
 
-/* ── Debug toolbar ────────────────────────────────────────────────────────── */
-
-.debug-toggle {
-  background: var(--bg-surface);
-  color: #8888cc;
-  border: 1px solid var(--border);
-}
-.debug-toggle.active {
-  background: var(--border);
-  color: #aaaaff;
-  border-color: #5555aa;
-}
-
-.debug-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 5px 14px;
-  background: var(--bg-deep);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.debug-tools { display: flex; gap: 6px; }
-
-.debug-tool-btn {
-  background: var(--bg-surface);
-  color: #8888cc;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-}
-.debug-tool-btn.active {
-  background: var(--border);
-  color: #c0c0ff;
-  border-color: #6666cc;
-}
-.debug-tool-btn:hover:not(.active) { background: var(--bg-panel); }
-
-.debug-hint {
-  font-size: 11px;
-  color: #6666aa;
-  font-style: italic;
-}
-
 /* ── Stat Sheet ─────────────────────────────────────────────────────────────── */
 
 .stat-sheet {
@@ -2255,7 +2323,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-slots-panel {
   flex: 22;
   min-width: 160px;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -2386,7 +2453,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-build-panel {
   flex: 22;
   min-width: 160px;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -2461,7 +2527,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-customize-panel {
   width: 280px;
   flex-shrink: 0;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -2774,11 +2839,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-customize-actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--bg-panel);
   flex-shrink: 0;
-  justify-content: flex-end;
 }
 
 .gear-confirm-btn { background: #4a3a10; color: #e0b860; }
@@ -3125,12 +3190,34 @@ span.gear-affix-label {
 
 .gear-craft-actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 10px;
   border-top: 1px solid var(--bg-panel);
   flex-shrink: 0;
 }
-.gear-craft-actions .btn { flex: 1; }
+/* Action rows stack: [Save/Add | Cancel] and, while editing, [Duplicate | Remove]. Columns align. */
+.gear-actions-row { display: flex; gap: 8px; }
+.gear-actions-row .btn { flex: 1; }
+.gear-remove-btn { background: #3a1a1a; color: #ff8a8a; }
+.gear-remove-btn:hover { background: #4a2020; }
+/* Rename = gold (label/identity accent), Duplicate = steel blue — visually distinct from Cancel's gray. */
+.gear-rename-btn { background: #43370f; color: var(--gold); }
+.gear-rename-btn:hover { background: #55461a; }
+.gear-dup-btn { background: #1e3750; color: #7db4e8; }
+.gear-dup-btn:hover { background: #274763; }
+
+/* Inline rename input on Items-in-Build rows. */
+.gear-build-rename-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 3px 6px;
+}
 
 /* ── Vorax Gear ───────────────────────────────────────────────────────────── */
 
@@ -3367,7 +3454,8 @@ span.gear-affix-label {
 }
 .gear-catalog-item:hover { background: var(--bg-inset); border-color: var(--border); }
 .gear-catalog-item--selected { background: var(--bg-surface); border-color: #4a4a8a; }
-.gear-catalog-item--loading { cursor: default; opacity: 0.85; }
+/* Index loaded but full catalog still in flight: rows are visibly inert, not clickable-looking. */
+.gear-catalog-item--loading { cursor: default; opacity: 0.55; pointer-events: none; }
 
 .gear-catalog-item-name {
   font-size: 12px;
@@ -3492,7 +3580,6 @@ span.gear-affix-label {
 .skill-slots-panel {
   flex: 20;
   min-width: 150px;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -3691,7 +3778,6 @@ span.gear-affix-label {
   flex-direction: column;
   border-right: 1px solid var(--bg-panel);
   overflow: hidden;
-  background: var(--bg-deep);
 }
 
 .skill-center-empty {
@@ -4480,7 +4566,6 @@ span.gear-affix-label {
 .skill-support-panel {
   flex: 36;
   min-width: 180px;
-  background: var(--bg-deep);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -5557,3 +5642,370 @@ span.gear-affix-label {
 .verif-article-body li { margin: 1px 0; }
 .verif-article-body h1, .verif-article-body h2, .verif-article-body h3, .verif-article-body h4 { margin: 11px 0 4px; font-size: 13px; color: var(--fg-faint); }
 .verif-article-foot { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--bg-panel); font-size: 11px; color: var(--fg-dim); }
+
+/* ============================================================================
+   Mobile M0 (<=768px): the sidebar collapses into an overlay drawer, modals fit
+   the viewport, touch targets grow. Desktop is unaffected - the Electron window
+   minimum is 1100px wide, so none of this block ever fires there.
+   ========================================================================== */
+.sidebar-mobile-toggle { display: none; }
+.sidebar-mobile-backdrop { display: none; }
+
+@media (max-width: 768px) {
+  /* Floating drawer toggle - bottom-left, thumb-reachable, above content but below modals. */
+  .sidebar-mobile-toggle {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; bottom: 14px; left: 12px; z-index: 95;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--bg-btn); color: var(--fg); font-size: 18px;
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+  .sidebar-mobile-backdrop {
+    display: block; position: fixed; left: 0; right: 0; top: 30px; bottom: 0;
+    background: rgba(0, 0, 0, 0.5); z-index: 85;
+  }
+  .sidebar-shell {
+    position: fixed; top: 30px; bottom: 0; left: 0; z-index: 90;
+    height: auto;              /* the base rule's height:100% would drop `bottom` and push the
+                                  Back-to-Builds row below the fold */
+    width: 250px !important;   /* overrides the inline resizable width - resize is desktop-only */
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
+  }
+  .sidebar-shell.mobile-open { transform: none; }
+  /* While the drawer is open its own bottom-left corner (Back to Builds) sits where the toggle
+     floats — hide the toggle; backdrop tap, nav tap, or Escape closes. */
+  .sidebar-mobile-toggle.is-open { display: none; }
+  .sidebar-resize-handle { display: none; }
+
+  /* Comfortable touch targets in the drawer. */
+  .sidebar-nav-btn { padding: 10px; font-size: 13px; }
+
+  /* No modal may exceed the viewport - kills the 420-460px min-widths on phones. */
+  .modal-card { min-width: 0; width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
+  .share-modal-card, .import-export-modal, .loadout-modal-card, .stat-editor-card {
+    min-width: 0; max-width: calc(100vw - 24px);
+  }
+}
+
+/* ── Slate board layout (desktop base) — colors stay inline in SlateScreen.tsx
+   like the rest of that screen; the LAYOUT lives here so the mobile rules
+   below can restack it without !important. ── */
+.slate-body { display: flex; flex: 1; overflow: hidden; }
+.slate-left {
+  width: 320px; flex-shrink: 0;
+  background: #12121e; border-right: 1px solid #2a2a4a;
+  padding: 14px 16px;
+  display: flex; flex-direction: column;
+}
+.slate-board-wrap {
+  flex: 1; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: auto;
+}
+.slate-bonuses { position: absolute; top: 12px; right: 12px; z-index: 5; }
+.slate-bonuses-panel { width: 240px; max-height: calc(100vh - 160px); }
+
+/* ============================================================================
+   Mobile M1 (<=768px): per-screen stacking. Every failure below was the same
+   shape - a no-wrap flex row of panes with fixed widths / min-width floors,
+   clipped by an overflow:hidden ancestor. Rows become columns, floors drop,
+   and the stacked body scrolls vertically.
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Config: 3 hard-coded condition columns squeezed beside a fixed 300px aside
+     rendered as color slivers. Stack: conditions single-column, mods below. */
+  .config-body { flex-direction: column; overflow-y: auto; }
+  .config-conditions { flex: none; }
+  .cond-grid { overflow-y: visible; flex: none; }
+  .cond-columns { flex-direction: column; }
+  .config-custommods { width: auto; }
+
+  /* Gear: 4 side-by-side panels needed 760px minimum. Stack them at natural
+     height — owner preference is one long page scroll over squished internal
+     sections. Only the 300+-item catalog keeps its own bounded scroll. */
+  .gear-body { flex-direction: column; overflow-y: auto; }
+  .gear-slots-panel, .gear-build-panel, .gear-customize-panel {
+    flex: none; width: auto; min-width: 0; max-height: none;
+  }
+  .gear-catalog { flex: none; width: auto; min-width: 0; max-height: 80vh; }
+  /* Internal flex:1 scrollers collapse to 0 in a natural-height stack — let them flow. */
+  .gear-customize-affixes { flex: none; overflow-y: visible; }
+  .gear-preview-card { max-height: none; }
+
+  /* Skills: slot column + catalog + supports needed 550px; the support panel
+     was clipped entirely. Stack in slot -> catalog -> supports order. */
+  .skills-body { flex-direction: column; overflow-y: auto; }
+  .skill-slots-panel, .skill-center-panel, .skill-support-panel {
+    flex: none; width: auto; min-width: 0;
+  }
+  .skill-center-panel, .skill-support-panel { max-height: 75vh; }
+
+  /* Hero traits: base column + N tier columns in one 32px-gapped row. Stack
+     the row and let tier columns wrap; drop the 240px dropdown floor. */
+  .hero-trait-header { flex-wrap: wrap; }
+  .ht-dd { min-width: 0; }
+  .hero-trait-body { padding: 12px; }
+  .trait-main-row { flex-direction: column; align-items: stretch; gap: 16px; }
+  .trait-v-divider { display: none; }
+  .trait-tiers-row { flex-wrap: wrap; gap: 16px; justify-content: center; }
+
+  /* Tree selector: 192px slot rail + one column per god = sliver cards. The
+     rail becomes a 2-wide grid on top; god columns wrap two-up below. */
+  .selector-body { flex-direction: column; overflow-y: auto; }
+  .slot-sidebar { width: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+  .tree-main { flex: none; }
+  .tree-overview-search .tree-search-input { width: 100%; }
+  .tree-grid { flex-wrap: wrap; overflow: visible; }
+  .tree-group-col { flex: 1 1 42%; min-width: 150px; }
+
+  /* Slate board: fixed 320px palette beside a 452px board. Stack; the board
+     pane keeps overflow:auto so the full-size grid pans with touch. */
+  .slate-body { flex-direction: column; overflow-y: auto; }
+  .slate-left { width: auto; flex: none; border-right: none; }
+  .slate-board-wrap { flex: none; min-height: 480px; justify-content: flex-start; }
+}
+
+/* ============================================================================
+   Mobile M1.1 (<=768px): owner-feedback fixes from live phone testing.
+   ========================================================================== */
+/* Slate drag: cells must own the touch gesture or the browser claims it for
+   scrolling and cancels the pointer drag. Global (harmless on desktop). */
+.slate-cell { touch-action: none; }
+
+@media (max-width: 768px) {
+  /* Gear: the craft/customize editor column was omitted from the stack rules -
+     flex-basis:0% in a column resolves to height 0, so + Create Item appeared
+     to do nothing. */
+  .gear-editor-column { flex: none; width: auto; min-width: 0; max-height: none; overflow: visible; }
+
+  /* Skills: the Assign footer sat below the scrolling catalog, offscreen.
+     Reorder the flex column so it sits directly under the search/sort rows. */
+  .skill-center-catalog-header { order: -4; }
+  .skill-search-bar { order: -3; }
+  .skill-sort-row { order: -2; }
+  .skill-center-catalog-footer { order: -1; border-top: none; border-bottom: 1px solid var(--bg-panel); }
+
+  /* Config: the Custom Modifiers editor is an absolutely-positioned textarea -
+     in the stacked auto-height column it collapsed to 0px. Give it a real box,
+     and trim the desktop padding. */
+  .build-overview { padding: 10px; }
+  .cmods-editor { min-height: 160px; }
+
+  /* Slate board: bonuses panel overlaid the board; stack it above instead. */
+  .slate-board-wrap { flex-direction: column; align-items: stretch; }
+  .slate-bonuses { position: static; align-self: flex-end; padding: 8px 8px 0; }
+  .slate-bonuses-panel { width: 100%; max-height: 40vh; }
+
+  /* Pact spirits: 205px card + 10 fixed-size node columns can't share 390px.
+     Stack card above nodes and shrink the fixed node circles to fit. */
+  .pact-spirit-body { flex-direction: column; overflow-y: auto; }
+  .pact-spirit-right-panel { width: auto; }
+  .pact-spirit-row { grid-template-columns: 1fr; }
+  .pact-node.node-inner { width: 22px; height: 22px; }
+  .pact-node.node-mid { width: 32px; height: 32px; }
+  .pact-node.node-outer { width: 38px; height: 38px; }
+
+  /* Hero trait tree (Dance of the Deep): the 1000x760 viewBox squeezed to
+     390px made 54-unit nodes ~21px. Render the SVG oversized and pan. */
+  .htt-row { overflow-x: auto; }
+  .htt-tree-svg { width: 680px; min-width: 680px; max-height: none; }
+  .htt-memory-rail { flex-wrap: wrap; }
+
+  /* Talent selector: tree cards squeezed flex:1 clipped their own Remove
+     button; give cards natural height. */
+  .tree-subtrees { flex: none; }
+  .tree-card { flex: none; min-height: 56px; overflow: visible; }
+  .tree-overview-search { flex-wrap: wrap; }
+
+  /* Talent viewer: header was pinned to 120px tall and couldn't wrap; the
+     820x586 canvas squeezed nodes to ~12px. Stack the body, let the header
+     wrap, and render the SVG near full size with two-axis pan. */
+  .app-header { min-height: 0; flex-wrap: wrap; gap: 6px; }
+  .app-header-left, .app-header-center, .app-header-right { flex: 1 1 100%; }
+  .tree-search-bar .tree-search-input { width: 100%; }
+  .viewer-body { flex-direction: column; overflow-y: auto; }
+  .viewer-main { flex: none; }
+  .viewer-canvas { overflow: auto; min-height: 62vh; }
+  .viewer-canvas svg { width: 760px; min-width: 760px; height: auto; }
+}
+
+/* ── Craft editor (all platforms): section labels pin to the top of the slot
+   scroller so BASE/PREFIXES/SUFFIXES never scroll out of reach. Opaque canvas
+   fill so slot rows pass underneath invisibly. ── */
+.gear-craft-section-label {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--bg);
+}
+
+@media (max-width: 768px) {
+  /* Pact spirits: rows kept desktop flex:1/min-height:0 and crushed, letting
+     node strips slide behind the next card. Natural height + breathing room. */
+  .pact-spirit-row { flex: none; min-height: min-content; row-gap: 6px; padding-bottom: 14px; }
+  .pact-nodes-area { align-content: start; }
+}
+
+/* ── Unified editor shell (all platforms, all three editors — crafted, Vorax,
+   AND the legendary customize panel, which shares the class): content is never
+   squeezed into an internal scrollbox by the preview. Slots/affixes render at
+   full natural height, the preview flows after them, and the PANEL scrolls
+   only when the window is genuinely too short. ── */
+.gear-customize-panel.gear-craft-mode { overflow-y: auto; }
+.gear-craft-mode .gear-craft-slots-scroll,
+.gear-craft-mode .gear-customize-affixes { flex: none; overflow: visible; min-height: 0; }
+.gear-craft-mode .gear-preview-card { flex-shrink: 0; }
+.gear-craft-mode .gear-craft-actions,
+.gear-craft-mode .gear-customize-actions {
+  position: sticky; bottom: 0; z-index: 3;
+  background: var(--bg);
+  padding: 10px;
+  border-top: 1px solid var(--bg-panel);
+}
+
+/* Visual unification across all three editors (crafted / Vorax / legendary —
+   gear-craft-mode marks the SHARED EDITOR SHELL, not just crafting): the panel
+   sits on the app canvas, the preview is a bg-card card on it, section labels
+   are quiet inset headers (no full-bleed bars), one 10px content inset, one
+   action-row style. */
+.gear-craft-mode .gear-craft-section-label {
+  border-bottom: 1px solid var(--border);
+  margin: 6px 10px 2px;
+  padding: 6px 0 4px;
+  letter-spacing: 1.2px;
+}
+.gear-craft-mode .gear-customize-affixes { padding: 8px 10px; }
+.gear-craft-mode .gear-customize-header { padding: 8px 10px; }
+.gear-craft-mode .gear-customize-actions { justify-content: stretch; }
+.gear-craft-mode .gear-customize-actions .btn { flex: 1; }
+.gear-craft-mode .gear-confirm-btn { background: var(--bg-btn); color: var(--fg); }
+.gear-craft-mode .gear-preview-card {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 8px 10px 10px 0;
+  padding: 12px 14px;
+}
+@media (max-width: 768px) {
+  .gear-craft-mode .gear-preview-card { margin: 8px 10px; }
+}
+
+/* Pact spirit picker close button - mobile-only escape hatch. */
+.pact-picker-close { display: none; }
+@media (max-width: 768px) {
+  .pact-picker-close {
+    display: block; width: 100%; margin-bottom: 8px;
+    padding: 10px; border-radius: 6px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface); color: var(--fg); font-size: 13px;
+  }
+}
+
+/* ── Gear desktop layout: Equipment + Items in Build condensed into ONE column,
+   and the freed width goes to the craft editor, which lays its slot list and
+   the item preview side by side - no more preview pushing slots out of view.
+   The wrapper is display:contents by default so mobile stacking is untouched. ── */
+.gear-left-stack { display: contents; }
+
+@media (min-width: 769px) {
+  /* Viewport-derived FIXED width — must not reflow when the editor opens/closes beside it
+     (selecting an item used to visibly shift the Equipment/Items-in-Build column). */
+  .gear-left-stack { display: flex; flex-direction: column; flex: 0 0 clamp(220px, 19vw, 380px); min-width: 0; }
+  .gear-left-stack .gear-slots-panel { flex: 0 1 auto; width: auto; min-width: 0; }
+  .gear-left-stack .gear-build-panel { flex: 1 1 0; width: auto; min-width: 0; min-height: 120px; }
+
+  /* Editor shell: a bounded two-column grid. The ENTIRE form (header, corruption,
+     slots, actions) lives in column 1 at one uniform width; the preview is a
+     parallel column 2 spanning every row. Capped so it never balloons. Applies
+     to the legendary customize panel too — deliberately, so all three editors
+     share one look. */
+  /* Grows with the window (weighted against the catalog) so wide screens widen
+     the PREVIEW column — the form column caps at 440px and the preview takes
+     the rest, keeping affix lines on one line wherever the width allows. The
+     catalog keeps a readable floor so item names don't truncate at 1280. */
+  /* CONSTANT width, derived only from the viewport — never from content. Opening or closing
+     the editor/craft view must not move the Equipment column OR the catalog. (Sums stay under
+     the 1100px Electron window minimum: sidebar + left clamp + 480 + catalog 240.) */
+  .gear-editor-column { flex: 0 0 auto; width: clamp(480px, 45vw, 860px); min-width: 0; }
+  .gear-catalog { min-width: 240px; }
+  .gear-customize-panel.gear-craft-mode {
+    width: auto;
+    display: grid;
+    grid-template-columns: minmax(290px, 380px);
+    column-gap: 12px;
+    align-content: start;
+    justify-content: start;
+  }
+  .gear-customize-panel.gear-craft-mode:has(.gear-preview-card) {
+    grid-template-columns: minmax(290px, 380px) minmax(250px, 480px);
+  }
+  .gear-craft-mode > * { grid-column: 1; min-width: 0; }
+  .gear-craft-mode .gear-preview-card {
+    grid-column: 2;
+    grid-row: 1 / 99;
+    align-self: start;
+    position: sticky; top: 0;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+}
+
+/* ── Canonical loading state (components/LoadingState.tsx) — replaces the old
+   pre-load placeholder layouts, which drifted from reality and read as data. ── */
+.loading-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 20px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: tli-spin 0.8s linear infinite;
+}
+@keyframes tli-spin { to { transform: rotate(360deg); } }
+
+/* ── Global load-progress pill (components/LoadProgressBar.tsx) ── */
+.load-progress-pill {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 80;                 /* under the mobile drawer (85+) and all modals */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+.load-progress-pill--done { opacity: 0; transition: opacity 0.6s ease 0.8s; }
+.load-progress-track {
+  width: 110px;
+  height: 5px;
+  background: var(--bg-inset);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.load-progress-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+.load-progress-label { font-size: 10px; color: var(--fg-muted); white-space: nowrap; }
+@media (max-width: 768px) {
+  /* Sit above the drawer toggle, which owns the bottom-left corner on phones. */
+  .load-progress-pill { bottom: 66px; }
+}

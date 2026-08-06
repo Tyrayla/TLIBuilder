@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react'
-import { api, TreeSlot } from '../api/client'
+import { api, iconUrl, TreeSlot } from '../api/client'
 import { GROUPS, canAddTree, findShiftCandidate } from '../treeGroups'
 import SlotSidebar from '../components/SlotSidebar'
+import ScreenHeader from '../components/ScreenHeader'
+import LoadingState from '../components/LoadingState'
 import { useBuildStore } from '../store/buildStore'
+
+const EMPTY_SLOTS: null[] = [null, null, null, null]
 
 interface Props {
   treeColors: Record<string, string>
+  treeIcons?: Record<string, string | null>
   onSelectTree: (treeName: string) => void
   onRemoveTree: (slotIndex: number) => void
   onSlotClick: (slotIndex: number) => void
   onSlotReorder: (fromSlot: number, toSlot: number) => void
   onGoToTree?: (slotIndex: number) => void
-  onBack: () => void
   onGoToSelector: () => void
   onShiftUp: (fromSlot: number) => void
   onPreview: () => void
@@ -33,12 +37,13 @@ function contextLabel(slots: (TreeSlot | null)[]): string {
 }
 
 export default function TreeSelectorScreen({
-  treeColors, onSelectTree, onRemoveTree, onSlotClick,
-  onSlotReorder, onGoToTree, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
+  treeColors, treeIcons = {}, onSelectTree, onRemoveTree, onSlotClick,
+  onSlotReorder, onGoToTree, onGoToSelector, onShiftUp, onPreview, previewMode = false,
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
+  const [localIcons, setLocalIcons] = useState<Record<string, string | null>>(treeIcons)
 
   // Cross-tree node search: matches maps tree name → match count (null = not searching).
   const [search, setSearch] = useState('')
@@ -54,61 +59,63 @@ export default function TreeSelectorScreen({
     return () => clearTimeout(t)
   }, [search])
 
+  const [treesFailed, setTreesFailed] = useState(false)
+  const [treesResolved, setTreesResolved] = useState(false)
   useEffect(() => {
     if (Object.keys(treeColors).length === 0) {
       api.getTrees().then(trees => {
         const colors: Record<string, string> = {}
-        trees.forEach(t => { colors[t.name] = t.color })
+        const icons: Record<string, string | null> = {}
+        trees.forEach(t => { colors[t.name] = t.color; icons[t.name] = t.icon_url ?? null })
         setLocalColors(colors)
-      })
+        setLocalIcons(icons)
+        setTreesResolved(true)
+      }).catch(() => setTreesFailed(true))
     } else {
       setLocalColors(treeColors)
+      setLocalIcons(treeIcons)
+      setTreesResolved(true)
     }
-  }, [treeColors])
+  }, [treeColors, treeIcons])
+  // The card grid's names come from the hardcoded GROUPS registry, but colors/art/validity come
+  // from the catalog — rendering the grid before that lands shows wrong-colored, art-less,
+  // clickable stand-ins. Show a spinner until the fetch actually settles (an explicit resolved
+  // flag, not emptiness — a legitimately empty catalog must not spin forever).
+  const treesLoading = !treesFailed && !treesResolved
 
   const shiftCandidate = findShiftCandidate(slots)
 
-  const normalHeader = (
-    <div className="screen-header">
-      <button className="btn-back" onClick={onBack}>← Build Overview</button>
-      <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500 }}>
-        {contextLabel(slots)}
-      </h2>
-    </div>
-  )
-
-  const previewHeader = (
-    <div className="screen-header preview-mode-header">
-      <button className="btn-back" onClick={onBack} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-        ← Build Overview
-      </button>
-      <div className="preview-header-content">
-        <div className="preview-header-badge">◈ PREVIEW MODE</div>
-        <div className="preview-header-title">Browse Trees</div>
-        <div className="preview-header-sub">
-          Click any tree to explore its nodes — nothing is saved to your build
-        </div>
-      </div>
-      <div style={{ width: 60, flexShrink: 0 }} />
-    </div>
+  // Preview mode renders through the same ScreenHeader now — no bespoke header, no background
+  // watermark on this screen (the card grid fills nearly the whole area, so a tiled watermark
+  // barely showed through anyway). The header text alone is the preview signal here.
+  const header = (
+    <ScreenHeader
+      left={
+        <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500, margin: 0 }}>
+          {previewMode
+            ? <><strong style={{ color: '#bbaaff' }}>Preview Mode</strong> — browse freely, nothing is saved to your build</>
+            : contextLabel(slots)}
+        </h2>
+      }
+    />
   )
 
   return (
     <div className="screen tree-selector">
-      {previewMode ? previewHeader : normalHeader}
+      {header}
       <div className="selector-body">
-        {!previewMode && (
-          <SlotSidebar
-            slots={slots}
-            activeSlot={activeSlot}
-            treeColors={localColors}
-            onOverview={onGoToSelector}
-            onSlotClick={onSlotClick}
-            onPreview={onPreview}
-            dragDropEnabled
-            onSlotReorder={onSlotReorder}
-          />
-        )}
+        <SlotSidebar
+          slots={previewMode ? EMPTY_SLOTS : slots}
+          activeSlot={previewMode ? -1 : activeSlot}
+          treeColors={localColors}
+          treeIcons={localIcons}
+          onOverview={onGoToSelector}
+          onSlotClick={onSlotClick}
+          onPreview={onPreview}
+          inPreview={previewMode}
+          dragDropEnabled={!previewMode}
+          onSlotReorder={onSlotReorder}
+        />
         <div className="tree-main">
           <div className="tree-overview-search">
             <div className="tree-search-bar">
@@ -128,12 +135,18 @@ export default function TreeSelectorScreen({
               </span>
             )}
           </div>
+          {treesLoading ? (
+            <LoadingState label="Loading talent trees…" />
+          ) : treesFailed ? (
+            <div className="panel-empty">Couldn't load the tree catalog — restart to retry.</div>
+          ) : (
           <div className="tree-grid">
             {GROUPS.map(({ primary, trees }) => (
               <div key={primary} className="tree-group-col">
                 <TreeCard
                   name={primary}
                   color={localColors[primary] || '#e94560'}
+                  icon={iconUrl('talent_tree_selector', localIcons[primary])}
                   isPrimary
                   selectedSlot={previewMode ? -1 : slotOf(primary, slots)}
                   selectable={previewMode ? true : canAddTree(primary, slots)}
@@ -152,6 +165,7 @@ export default function TreeSelectorScreen({
                         key={name}
                         name={name}
                         color={localColors[name] || '#0f3460'}
+                        icon={iconUrl('talent_tree_selector', localIcons[name])}
                         selectedSlot={previewMode ? -1 : slotOf(name, slots)}
                         selectable={previewMode ? true : canAddTree(name, slots)}
                         onSelect={() => onSelectTree(name)}
@@ -169,6 +183,7 @@ export default function TreeSelectorScreen({
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>
@@ -176,12 +191,13 @@ export default function TreeSelectorScreen({
 }
 
 function TreeCard({
-  name, color, isPrimary: isPrim, selectedSlot, selectable,
+  name, color, icon, isPrimary: isPrim, selectedSlot, selectable,
   onSelect, onRemove, onGoToTree, shiftCandidate, onShiftUp, previewMode = false,
   searchActive = false, searchMatchCount = 0,
 }: {
   name: string
   color: string
+  icon?: string | null
   isPrimary?: boolean
   selectedSlot: number
   selectable: boolean
@@ -202,11 +218,6 @@ function TreeCard({
   const isSearchHit = searchActive && searchMatchCount > 0
   const isSearchMiss = searchActive && searchMatchCount === 0
 
-  // Fill-led: an unselected card carries no outline at all — its own colour tint separates it from the
-  // canvas (see .tree-card in index.css). Selection is signalled by the card's OWN accent as the border,
-  // not by a generic blue, so the selected card stays inside its column's colour identity.
-  const borderColor = isSearchHit ? '#e9c046' : isSelected ? color : 'transparent'
-
   function handleClick() {
     if (isSelectable) onSelect()
     else if (isSelected && onGoToTree) onGoToTree()
@@ -214,29 +225,32 @@ function TreeCard({
 
   return (
     <div
-      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}`}
-      style={{ borderColor, cursor: isClickable ? 'pointer' : 'default', '--tree-accent': color } as React.CSSProperties}
+      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}${icon ? ' tree-card-has-icon' : ''}`}
+      style={{ cursor: isClickable ? 'pointer' : 'default', '--tree-accent': color } as React.CSSProperties}
       onClick={isClickable ? handleClick : undefined}
     >
+      {icon && <img className="tree-card-bg-icon" src={icon} alt="" />}
       <div className="tree-card-accent" style={{ background: color }} />
       <div className="tree-card-name" style={{ color: isLocked ? '#8a97a6' : '#ffffff' }}>
         {name}
       </div>
       {isSearchHit && <span className="tree-card-match-badge">{searchMatchCount}</span>}
-      {isSelected && (
-        <div
-          className="tree-card-btn tree-card-btn-remove"
-          onClick={e => { e.stopPropagation(); onRemove() }}
-        >
-          Remove
-        </div>
-      )}
+      {/* Shift renders above Remove — Remove always sits last/at the very bottom of the card,
+          whether or not a shift candidate is also present on this card. */}
       {shiftCandidate && onShiftUp && (
         <div
           className="tree-card-shift"
           onClick={e => { e.stopPropagation(); onShiftUp(shiftCandidate.fromSlot) }}
         >
           ↑ Move to Slot 2
+        </div>
+      )}
+      {isSelected && (
+        <div
+          className="tree-card-btn tree-card-btn-remove"
+          onClick={e => { e.stopPropagation(); onRemove() }}
+        >
+          Remove
         </div>
       )}
     </div>

@@ -214,6 +214,22 @@ def test_g_flat_phys_raises_dps_and_crit_per_consumed_raises_crit():
     assert _pf["total"] == pytest.approx(2 * 19.5)
     assert tyrant["offense"]["crit_chance"] > base["offense"]["crit_chance"]      # +Crit Rating per Mana consumed
     assert tyrant["offense"]["crit_multiplier"] > base["offense"]["crit_multiplier"]  # +Crit Damage per Mana consumed
+    # NUMERIC PIN (engine refactor: post-loop fold in offense.py → in-loop injection into crit_dmg_inc in compute.py).
+    # consumed_recently_mana = 300/s × 4s = 1200; floor(1200/890) = 1 stack × 5% = +0.05 crit_dmg_inc → base 1.50 + 0.05.
+    # EXACT pin (not just ">") proves the in-loop injection is byte-identical to the old post-loop fold.
+    assert tyrant["offense"]["crit_multiplier"] == pytest.approx(1.55)
+    _cdi = tyrant["stats"]["crit_dmg_inc"]
+    assert _cdi["total"] == pytest.approx(0.05)
+    assert len(_cdi["sources"]) >= 1                       # the labeled "Mana Consumed" source now appears in-loop
+    assert "crit_dmg_inc_per_mana_consumed" in set(tyrant["consumed_stats"])  # badges Consumed, not Inactive
+    # NUMERIC PIN (companion refactor: the crit-RATING term moved from the same offense.py post-loop fold to an
+    # in-loop injection into crit_rating_inc in compute.py). Same 1 stack × 5% = +0.05 crit_rating_inc.
+    # EXACT pin proves the in-loop injection is byte-identical to the old post-loop fold for the rating half too.
+    assert tyrant["offense"]["crit_chance"] == pytest.approx(0.126)
+    _cri = tyrant["stats"]["crit_rating_inc"]
+    assert _cri["total"] == pytest.approx(0.05)
+    assert len(_cri["sources"]) >= 1                       # the labeled "Mana Consumed" source now appears in-loop
+    assert "crit_rating_inc_per_mana_consumed" in set(tyrant["consumed_stats"])  # badges Consumed, not Inactive
 
 
 def test_per_n_consumed_is_discrete_floored():
@@ -267,6 +283,25 @@ def test_compensatory_mana_regen_per_mana_consumed_raises_regen():
     base = run([])
     comp = run(["+5 % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %"])
     assert comp["recovery"]["mana_regen_per_sec"] > base["recovery"]["mana_regen_per_sec"]
+
+
+def test_h_spelldmg_manaregen_per_consumed_badge_consumed():
+    # REGRESSION (bug-221-class): the shared spell_dmg/mana_regen per-mana-consumed loop in compute.py now marks
+    # its keys in consumed_stats — Compensatory Life's two per-consumed affixes badge Consumed, not Inactive
+    # (previously the fold applied the bonus but never logged it as consumed, so the UI showed the mod Inactive).
+    g = [{"item_name": "T", "contributions": [
+        {"stat": "mana_consumed_flat_per_sec", "display_value": 300, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
+        {"stat": "mana_regen_flat", "display_value": 99999, "unit": "", "slot": "helmet", "item_name": "T", "text": "r"}]}]
+    req = make_request("chain_lightning", 14, gear=g)
+    req["custom_mods"] = [
+        "+5 % Spell Damage for every 100 Mana consumed recently, up to 216 %",
+        "+(3-4) % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %",
+    ]
+    r = engine_stats(EngineStatsRequest(**req))
+    r = r if isinstance(r, dict) else r.model_dump()
+    cs = set(r["consumed_stats"])
+    assert "spell_dmg_inc_per_mana_consumed" in cs
+    assert "mana_regen_speed_inc_per_mana_consumed" in cs
 
 
 def test_steady_state_life_solves_to_equilibrium():

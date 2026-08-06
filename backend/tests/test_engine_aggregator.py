@@ -4,7 +4,7 @@ Scope: aggregation logic only; uses synthetic season_trees and filter_data dicts
 instead of real file I/O.
 """
 import pytest
-from engine.models import BuildInput, BuildSource, SkillConfig, EnemyConfig, SourceEntry
+from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.aggregator import aggregate, _tree_slug_from_node_id
 
 
@@ -16,8 +16,6 @@ def _build(slots=None, slates=None, season="test") -> BuildInput:
     return BuildInput(
         slots=slots or [],
         slates=slates or [],
-        skill=SkillConfig("t", "attack", ["attack"], ["physical"], 1),
-        enemy=EnemyConfig(),
         season=season,
     )
 

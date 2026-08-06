@@ -14,12 +14,6 @@ _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
 _CONDITIONS_PATH = os.path.join(_DATA_ROOT, 'conditions.json')
 _OVERRIDES_PATH = os.path.join(_DATA_ROOT, 'condition_phrase_overrides.json')
 
-_SOURCE_FILES = {
-    "legendary": "_legendary_gear",
-    "grafts":    "_grafts",
-    "craft":     "_craft_base_types",
-}
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -212,11 +206,6 @@ def delete_definition(key: str):
     return {"ok": True}
 
 
-@router.get("/derived-keys")
-def get_derived_keys():
-    return _read_conditions().get("derived_keys", {})
-
-
 class DerivedKeyIn(BaseModel):
     bool_key: str
     stack_key: str
@@ -244,7 +233,6 @@ def delete_derived_key(bool_key: str):
 
 @router.get("/sources")
 def get_sources():
-    from models.conditions import CONDITIONS_BY_KEY
     active = season_manager.get_active_season()
     if not active:
         return {"season": None, "entries": []}
@@ -268,11 +256,6 @@ def get_source_items(text: str):
     if not active:
         return {"items": []}
     return {"items": _collect_items_for_condition(active, text)}
-
-
-@router.get("/overrides")
-def get_overrides():
-    return _read_overrides()
 
 
 class OverrideIn(BaseModel):

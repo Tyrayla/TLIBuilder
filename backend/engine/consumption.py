@@ -75,10 +75,6 @@ class ConsumptionResult:
     window: float = RECENTLY_WINDOW_S
     flags: list = field(default_factory=list)    # surfaced approximations (e.g. the use-vs-cast follow-up)
 
-    @property
-    def any_consumption(self) -> bool:
-        return (self.life_per_sec > 1e-9 or self.mana_per_sec > 1e-9 or self.energy_shield_per_sec > 1e-9)
-
 
 def _pool_per_sec(source: BuildSource, pool: str, current: float, pool_max: float, rates: dict) -> float:
     """consumed/sec for one pool from its typed consume-rate stats. `rates` = {"any": generic use/cast rate,

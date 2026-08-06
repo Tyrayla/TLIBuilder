@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict
 from models.passive_node import PassiveNode, NodeType
 from models.core_talent import CoreTalentSlot
 
@@ -28,12 +28,6 @@ class PassiveTree:
 
     def add_core_talent_slot(self, slot: CoreTalentSlot):
         self.core_talent_slots.append(slot)
-
-    def nodes_in_column(self, col: int) -> List[PassiveNode]:
-        return sorted(
-            [n for n in self.nodes.values() if n.column == col],
-            key=lambda n: n.row,
-        )
 
     def points_in_column(self, col: int) -> int:
         return (sum(n.current_points for n in self.nodes.values() if n.column == col)

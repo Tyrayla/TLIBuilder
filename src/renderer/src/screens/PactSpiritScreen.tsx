@@ -7,6 +7,7 @@ import {
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import EditableRollValue from '../components/EditableRollValue'
+import LoadingState from '../components/LoadingState'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDeltaList } from '../components/tooltip/useDamageDelta'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
@@ -193,6 +194,8 @@ function FatePicker({ tier, pool, installed, microCount, medCount, dualCounts, i
 
 export default function PactSpiritScreen(_props: Props) {
   const spiritData = useBuildStore(s => s.allSpirits)
+  const spiritsResolved = useBuildStore(s => s.spiritsResolved)
+  const spiritsFetchFailed = useBuildStore(s => s.spiritsFetchFailed)
   const pactSpirits = useBuildStore(s => s.pactSpirits)
   const setPactSpirits = useBuildStore(s => s.setPactSpirits)
   const fates = useBuildStore(s => s.fates)
@@ -448,10 +451,21 @@ export default function PactSpiritScreen(_props: Props) {
       </div>
 
       <div className="pact-spirit-body">
+        {/* Pre-load, the empty slot grid read as a confident "no spirits" board. Spirits come from
+            App's getPactSpirits() fetch into the store — spinner until it settles, error if it failed. */}
+        {!spiritsResolved ? (
+          <LoadingState label="Loading pact spirits…" />
+        ) : spiritsFetchFailed ? (
+          <div className="panel-empty">Couldn't load pact spirits — restart to retry.</div>
+        ) : (
         <div className="pact-spirit-grid">{([0, 1, 2] as const).map(renderRow)}</div>
+        )}
 
         {activeSlot !== null && (
           <div ref={panelRef} className="pact-spirit-right-panel">
+            {/* Mobile-only (hidden by CSS on desktop): the stacked picker fills the screen there,
+                so it needs an explicit way out besides tapping another slot. */}
+            <button className="pact-picker-close" onClick={() => setActiveSlot(null)}>✕ Close</button>
             <div className="pact-spirit-search-row">
               <input className="pact-spirit-search" placeholder="Search spirits…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
             </div>

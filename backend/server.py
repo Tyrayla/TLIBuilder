@@ -15,7 +15,6 @@ from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
 from persistence import builds_manager
 from persistence import folders_manager
-from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
 from engine.skill_scope import detect_skill_scope
@@ -70,6 +69,13 @@ def _expand_named_buffs(text: str) -> list[str]:
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
 _VERBOSE = False
+# True ONLY when this module is served over a real network socket by uvicorn (set in __main__ right
+# before uvicorn.run, after _SERVER_PORT is the real bound port). The in-process ASGI dispatch used by
+# the Pyodide web-build worker (src/renderer/src/web/computeWorker.ts) imports this module and calls
+# `app` directly with a headerless scope and never runs __main__, so this stays False there. The
+# DNS-rebinding Host-header guard below keys off this flag so it applies to the network path ONLY —
+# the in-browser worker has no network exposure and thus no rebinding surface to defend.
+_SERVED_OVER_NETWORK = False
 # TLI_DEV_MODE=1 is set by Electron in dev; defaults to off (fail-closed).
 # To enable dev routes when running server.py standalone: set TLI_DEV_MODE=1.
 IS_DEV = os.environ.get("TLI_DEV_MODE", "0") == "1"
@@ -120,6 +126,35 @@ async def _gate_dev_routes(request: Request, call_next):
     return await call_next(request)
 
 
+def _loopback_host_allowlist(port: int) -> frozenset[str]:
+    """The exact Host header values a network-served backend accepts: the loopback host:port(s) it
+    actually binds to. 127.0.0.1 is the real bind address; localhost is the equivalent name that
+    legitimate desktop clients also use (src/main/index.ts and src/renderer/src/api/client.ts both
+    reach the backend at http://127.0.0.1:<port>, so they send Host: 127.0.0.1:<port>). [::1] is
+    included deliberately so an IPv6-loopback client is not silently broken — it is a loopback literal
+    that cannot be DNS-rebound, so allowing it adds no rebinding surface. Host is matched case-
+    insensitively (HTTP authority is case-insensitive); the port is read from _SERVER_PORT, the same
+    source of truth used at bind time, so the allowlist always tracks the real bound port."""
+    return frozenset(f"{h}:{port}" for h in ("127.0.0.1", "localhost", "[::1]"))
+
+
+@app.middleware("http")
+async def _validate_host_header(request: Request, call_next):
+    # DNS-rebinding defense (CWE-352): a remote page that rebinds its own hostname to 127.0.0.1 can
+    # reach this backend on the loopback interface and, being "same-origin", read/modify local state
+    # (/api/builds, season changes, and in dev /api/dev/* file read+write). The browser still sends
+    # the ATTACKER's hostname in the Host header, so we reject any Host that is not the exact loopback
+    # host:port we bound to. CORS cannot help here because the rebound request is same-origin.
+    # Guarded by _SERVED_OVER_NETWORK so this runs on the uvicorn NETWORK path ONLY: the in-process
+    # Pyodide web-worker dispatch (headerless scope, no network exposure) leaves the flag False and is
+    # never subject to this check — that is the web-build compute path and must keep working untouched.
+    if _SERVED_OVER_NETWORK:
+        host = (request.headers.get("host") or "").strip().lower()
+        if host not in _loopback_host_allowlist(_SERVER_PORT):
+            return JSONResponse({"detail": "Invalid host header"}, status_code=400)
+    return await call_next(request)
+
+
 # Bundled entity icons (talent-tree node icons, hero-trait icons; pact-spirit etc. added later). Paired
 # by basename: a record's `icon_url` ends in "<file>.webp", served here from data/images/icons/<category>/.
 # makedirs guards the first-run case before bootstrapDataDir has populated userData. check_dir=False so a
@@ -130,21 +165,6 @@ app.mount("/icons", StaticFiles(directory=_ICONS_DIR, check_dir=False), name="ic
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _tree_from_config(name: str, config: dict) -> PassiveTree:
-    tree = PassiveTree(name)
-    for n in config["nodes"]:
-        tree.add_node(PassiveNode(
-            id=n["id"],
-            node_type=NodeType(n["node_type"]),
-            column=n["column"],
-            row=n["row"],
-            max_points=n["max_points"],
-        ))
-    for conn in config["connections"]:
-        tree.add_connection(conn["from"], conn["to"])
-    return tree
-
 
 def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
     from models.core_talent import CoreTalent, CoreTalentSlot
@@ -267,7 +287,16 @@ def _core_effect_status(effect: str) -> dict:
 
 @app.get("/api/trees")
 def get_trees():
-    return [{"name": name, "color": entry["color"]} for name, entry in TREES.items()]
+    active = season_manager.get_active_season()
+    icons = (season_manager.load_talent_tree_selector_icons(active) if active else None) or {}
+    return [
+        {
+            "name": name,
+            "color": entry["color"],
+            "icon_url": icons.get(name.replace(" ", "_")),
+        }
+        for name, entry in TREES.items()
+    ]
 
 
 @app.get("/api/tree-search")
@@ -359,73 +388,7 @@ def get_tree(name: str):
 # test_ethereal_prism_catalog.py; the client mirror must stay in lockstep with them.
 
 
-# ── Tree editing (debug tools) ─────────────────────────────────────────────────
-
-class NodeEditRequest(BaseModel):
-    id: str
-    column: int
-    row: int
-    node_type: str
-    max_points: int
-
-
-@app.post("/api/tree/{name}/node")
-def upsert_node(name: str, req: NodeEditRequest):
-    if name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = _build_tree(name)
-    tree_config_manager.upsert_node(name, base_tree, req.model_dump())
-    return {"ok": True}
-
-
-@app.delete("/api/tree/{name}/node/{node_id}")
-def remove_node(name: str, node_id: str):
-    if name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = _build_tree(name)
-    tree_config_manager.remove_node(name, base_tree, node_id)
-    return {"ok": True}
-
-
-class ConnectionRequest(BaseModel):
-    src: str
-    dst: str
-
-
-@app.post("/api/tree/{name}/connection")
-def toggle_connection(name: str, req: ConnectionRequest):
-    if name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = _build_tree(name)
-    tree_config_manager.toggle_connection(name, base_tree, req.src, req.dst)
-    return {"ok": True}
-
-
-# ── Modifier pool ──────────────────────────────────────────────────────────────
-
-@app.get("/api/modifier-pool")
-def get_modifier_pool():
-    from models.node_modifier_pool import NODE_MODIFIER_POOL
-    from models.stat_meta import STAT_META
-    from tools.node_type_filter_builder import load_filter
-    _ALL_TYPES = ["micro", "medium", "legendary_medium"]
-    filt = load_filter()
-    stats_map: dict = filt["stats"] if filt else {}
-    result = []
-    for stat, mod in NODE_MODIFIER_POOL.items():
-        meta = STAT_META.get(stat)
-        node_types = stats_map.get(stat.value, _ALL_TYPES)
-        result.append({
-            "stat": stat.value,
-            "display_name": meta.display_name if meta else stat.value,
-            "unit": meta.unit if meta else "",
-            "micro_increment": mod.micro_increment,
-            "medium_increment": mod.medium_increment,
-            "legendary_increment": mod.legendary_increment,
-            "node_types": node_types,
-        })
-    return result
-
+# ── Slate pool ─────────────────────────────────────────────────────────────────
 
 def _collect_pool(tree_names: list[str]) -> dict:
     magic_pool: list[dict] = []
@@ -620,50 +583,6 @@ def decode_build_code(req: BuildCodeDecodeRequest):
 
 # ── Engine ─────────────────────────────────────────────────────────────────────
 
-class SkillConfigRequest(BaseModel):
-    name:          str
-    skill_type:    str           # "attack" | "spell"
-    tags:          list[str]
-    damage_types:  list[str]
-    base_level:    int
-    extra_levels:  int   = 0
-    base_dmg_min:  float = 0.0
-    base_dmg_max:  float = 0.0
-    base_csr:      float = 0.0
-
-class EnemyConfigRequest(BaseModel):
-    fire_resistance:       float = 0.0
-    cold_resistance:       float = 0.0
-    lightning_resistance:  float = 0.0
-    erosion_resistance:    float = 0.0
-    armor:                 float = 0.0
-
-class EngineComputeRequest(BaseModel):
-    slots:      list[SlotData | None]
-    slates:     list[dict] = []
-    prisms:     list[dict] = []
-    skill:      SkillConfigRequest
-    enemy:      EnemyConfigRequest = EnemyConfigRequest()
-    conditions: list[str] = []
-
-@app.post("/api/engine/compute")
-def engine_compute(req: EngineComputeRequest):
-    # DEPRECATED: legacy path (engine.pipeline). No renderer caller; /api/engine/stats (offense.py)
-    # is the source of truth. Known-divergent additional pooling — see docs/ADDITIONAL_DAMAGE_POOLING.md.
-    from engine.resolver import compute
-    from engine.models import BuildInput, SkillConfig, EnemyConfig
-    result = compute(BuildInput(
-        slots=[s.model_dump() if s else None for s in req.slots],
-        slates=req.slates,
-        skill=SkillConfig(**req.skill.model_dump()),
-        enemy=EnemyConfig(**req.enemy.model_dump()),
-        season=season_manager.get_active_season() or "",
-        conditions=req.conditions,
-    ))
-    from dataclasses import asdict
-    return asdict(result)
-
-
 class SkillEngineInput(BaseModel):
     skill_id: str
     level:    int = 1
@@ -786,7 +705,11 @@ def engine_stats(req: EngineStatsRequest):
             if node_id:
                 m = re.match(r"^(.+)_c\d+_r\d+$", node_id)
                 if m:
-                    needed_slugs.add(m.group(1))
+                    # Normalize the slate-derived slug exactly like the treeName branch above.
+                    # selectedNodeId is untrusted (carried through a shared tli1_ code); without
+                    # _slug() a value like "../../secret_c1_r1" would reach load_season_tree as a
+                    # path segment (CWE-22). _slug() is idempotent on a legitimate slug.
+                    needed_slugs.add(_slug(m.group(1)))
     for prism in (req.prisms or []):                       # a Prism reflects nodes of its own tree
         if prism.get("treeName"):
             needed_slugs.add(_slug(prism["treeName"]))
@@ -1394,41 +1317,6 @@ def export_stat_meta():
     return {"ok": True, "stat_count": len(STAT_META), "path": out_path}
 
 
-@app.delete("/api/dev/node-type-filter")
-def clear_node_type_filter():
-    from tools.node_type_filter_builder import _FILTER_PATH
-    import os
-    if os.path.exists(_FILTER_PATH):
-        os.remove(_FILTER_PATH)
-    return {"ok": True}
-
-
-@app.get("/api/dev/stat-recipes/{tree_name}/{node_type}")
-def get_stat_recipes(tree_name: str, node_type: str):
-    from tools.node_type_filter_builder import load_filter
-    from models.stat_meta import STAT_META
-    from models.stat import Stat
-    filt = load_filter()
-    if not filt:
-        return []
-    recipes = filt.get("recipes", {}).get(tree_name, {}).get(node_type, [])
-    result = []
-    for r in recipes:
-        try:
-            stat_enum = Stat(r["stat"])
-            meta = STAT_META.get(stat_enum)
-            display_name = meta.display_name if meta else r["stat"]
-        except ValueError:
-            display_name = r["stat"]
-        result.append({
-            "stat": r["stat"],
-            "rank1": r["rank1"],
-            "values": r["values"],
-            "display_name": display_name,
-        })
-    return result
-
-
 # ── Seasons ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/seasons")
@@ -1462,55 +1350,6 @@ def set_active_season(req: SetActiveSeasonRequest):
 def delete_season(season_name: str):
     season_manager.delete_season(season_name)
     return {"ok": True}
-
-
-class ImportSeasonRequest(BaseModel):
-    season_name: str
-    nodes: list[dict]
-
-
-@app.post("/api/dev/import-season")
-def import_season(req: ImportSeasonRequest):
-    from tools.season_importer import build_slug_map, import_nodes
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-    slug_map = build_slug_map()
-    tree_data = import_nodes(req.nodes, slug_map)
-    trees_imported: list[str] = []
-    skipped: list[str] = []
-    for slug, data in tree_data.items():
-        if slug not in slug_map:
-            skipped.append(slug)
-            continue
-        tree_name = slug_map[slug]
-        canonical_slug = tree_name.lower().replace(" ", "_")
-        data["season"] = req.season_name
-        season_manager.save_season_tree(req.season_name, tree_name, canonical_slug, data)
-        trees_imported.append(tree_name)
-    return {"ok": True, "trees_imported": sorted(trees_imported), "skipped": sorted(skipped)}
-
-
-class ImportNewGodTalentsRequest(BaseModel):
-    season_name: str
-    items: list[dict]
-
-
-@app.post("/api/dev/import-new-god-talents")
-def import_new_god_talents(req: ImportNewGodTalentsRequest):
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-    talents = [
-        {
-            "name": item.get("name", ""),
-            "item_id": item.get("item_id", ""),
-            "effects": item.get("effect_lines", []),
-            "note": " ".join(item.get("note_lines", [])),
-        }
-        for item in req.items
-        if item.get("name")
-    ]
-    season_manager.save_new_god_talents(req.season_name, talents)
-    return {"ok": True, "count": len(talents)}
 
 
 class ImportCrawlerTreeRequest(BaseModel):
@@ -1567,48 +1406,6 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
     }
 
 
-class ImportLegendaryGearRequest(BaseModel):
-    season_name: str
-    file_data: dict
-
-
-@app.post("/api/dev/import-legendary-gear")
-def import_legendary_gear(req: ImportLegendaryGearRequest):
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-    raw = req.file_data
-    items_raw = raw.get("items", [])
-    if not isinstance(items_raw, list):
-        raise HTTPException(status_code=400, detail="file_data.items must be a list")
-
-    def _clean_affix(affix: dict) -> dict:
-        return {k: v for k, v in affix.items() if k != "source_line"}
-
-    items = [
-        {
-            "item_id": item.get("item_id", ""),
-            "name": item.get("name", ""),
-            "required_level": item.get("required_level"),
-            "affix_count": item.get("affix_count"),
-            "affixes": [_clean_affix(a) for a in (item.get("affixes") or [])],
-        }
-        for item in items_raw
-        if isinstance(item, dict) and item.get("item_id")
-    ]
-
-    stored = {
-        "season": req.season_name,
-        "set_name": raw.get("set_name", "Legendary Gear"),
-        "extract_date": raw.get("extract_date"),
-        "parsed_item_count": raw.get("parsed_item_count", len(items)),
-        "items": items,
-    }
-    season_manager.save_legendary_gear(req.season_name, stored)
-    from engine.coverage import invalidate_legendary_coverage_cache
-    invalidate_legendary_coverage_cache()
-    return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
-
-
 class ImportCrawlerLegendaryGearRequest(BaseModel):
     season_name: str
     items: list[dict]
@@ -1632,11 +1429,6 @@ def import_crawler_legendary_gear_endpoint(req: ImportCrawlerLegendaryGearReques
 
 # ── Skills ─────────────────────────────────────────────────────────────────────
 
-class ImportSkillsRequest(BaseModel):
-    season_name: str
-    file_data: dict
-
-
 class ImportCrawlerSkillsRequest(BaseModel):
     season_name: str
     items: list[dict]
@@ -1648,7 +1440,8 @@ def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
     if not req.season_name.strip():
         raise HTTPException(400, "season_name must not be empty")
     items = import_crawler_skills(req.items)
-    # RAW: preserved entries keep their stored slim modifier-line dicts (see import-skills below).
+    # RAW: preserved entries keep their stored slim modifier-line dicts (a normalized view saved
+    # back would strip the minted identities).
     existing = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
     merged = merge_skills(existing.get("skills", []), items)
     season_manager.save_skills(req.season_name, {
@@ -1657,32 +1450,6 @@ def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
         "skills": merged,
     })
     return {"ok": True, "added": len(items), "total": len(merged)}
-
-
-@app.post("/api/dev/import-skills")
-def import_skills(req: ImportSkillsRequest):
-    from tools.skill_importer import parse_skill_file, merge_skills
-
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-
-    try:
-        incoming = parse_skill_file(req.file_data)
-    except (ValueError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    # Load existing skills for this season and merge — RAW: preserved entries must keep their stored
-    # slim modifier-line dicts (a normalized view saved back would strip the minted identities).
-    existing_data = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
-    merged = merge_skills(existing_data.get("skills", []), incoming)
-
-    stored = {
-        "season": req.season_name,
-        "skill_count": len(merged),
-        "skills": merged,
-    }
-    season_manager.save_skills(req.season_name, stored)
-    return {"ok": True, "added": len(incoming), "total": len(merged)}
 
 
 @app.get("/api/skills")
@@ -1745,11 +1512,6 @@ def clear_skills():
 
 # ── Hero Traits ────────────────────────────────────────────────────────────────
 
-class ImportHeroTraitRequest(BaseModel):
-    season_name: str
-    file_data: dict
-
-
 class ImportCrawlerHeroTraitsRequest(BaseModel):
     season_name: str
     items: list[dict]
@@ -1773,34 +1535,6 @@ def import_crawler_hero_traits_endpoint(req: ImportCrawlerHeroTraitsRequest):
         "traits": merged,
     })
     return {"ok": True, "added": len(items), "total": len(merged), "heroes": heroes}
-
-
-@app.post("/api/dev/import-hero-traits")
-def import_hero_traits(req: ImportHeroTraitRequest):
-    from tools.hero_trait_importer import parse_hero_trait_file, merge_hero_traits
-
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-
-    try:
-        incoming = parse_hero_trait_file(req.file_data)
-    except (ValueError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    existing_data = season_manager.load_hero_traits(req.season_name, raw=True) or {"traits": []}
-    merged = merge_hero_traits(existing_data.get("traits", []), incoming)
-
-    # Derive unique hero count from merged traits
-    heroes = len({t["hero"] for t in merged if t.get("hero")})
-
-    stored = {
-        "season": req.season_name,
-        "hero_count": heroes,
-        "trait_count": len(merged),
-        "traits": merged,
-    }
-    season_manager.save_hero_traits(req.season_name, stored)
-    return {"ok": True, "hero": incoming.get("hero", ""), "total": len(merged), "heroes": heroes}
 
 
 @app.get("/api/hero-traits")
@@ -2608,28 +2342,6 @@ def _resolve_affix(affix: dict) -> dict:
     return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
 
 
-class ResolveModRequest(BaseModel):
-    text: str
-
-
-@app.post("/api/resolve-mod")
-def resolve_mod(req: ResolveModRequest):
-    """Resolve a single freeform modifier text string to stat contributions.
-
-    Used by the frontend for real-time validation feedback as the user types.
-    Returns a list of resolved stat contributions (may be empty if unresolved).
-    """
-    results = _parse_custom_mod_text(req.text)
-    resolved = [
-        {
-            **r,
-            "display_name": _get_stat_display_name(r["stat_key"]) or r["stat_key"],
-        }
-        for r in results
-    ]
-    return {"text": req.text, "resolved": resolved}
-
-
 @app.get("/api/legendary-gear")
 def get_legendary_gear():
     active = season_manager.get_active_season()
@@ -2681,17 +2393,6 @@ def get_legendary_gear():
     return {"season": active, "items": items}
 
 
-@app.get("/api/divinity-slates")
-def get_divinity_slates():
-    active = season_manager.get_active_season()
-    if not active:
-        return {"season": None, "items": []}
-    data = season_manager.load_divinity_slates(active)
-    if not data:
-        return {"season": active, "items": []}
-    return {"season": active, "items": data.get("items", [])}
-
-
 @app.delete("/api/dev/hero-traits")
 def clear_hero_traits():
     active = season_manager.get_active_season()
@@ -2730,14 +2431,6 @@ def get_pact_spirits():
     if not data:
         return {"season": active, "spirits": []}
     return {"season": active, "spirits": data.get("spirits", [])}
-
-
-@app.delete("/api/dev/pact-spirits")
-def clear_pact_spirits():
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_pact_spirits(active)
-    return {"ok": True}
 
 
 # ── Craft Base Types ───────────────────────────────────────────────────────────
@@ -3043,16 +2736,6 @@ def map_modifiers(req: MapModifiersRequest):
     return {"results": results}
 
 
-@app.delete("/api/dev/craft-base-types")
-def clear_craft_base_types():
-    global _craft_bases_cache
-    _craft_bases_cache = None
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_craft_base_types(active)
-    return {"ok": True}
-
-
 # ── Grafts ─────────────────────────────────────────────────────────────────────
 
 class ImportCrawlerGraftsRequest(BaseModel):
@@ -3101,14 +2784,6 @@ def get_grafts():
     return {"season": active, "grafts": _resolve_grafts(data.get("grafts", []))}
 
 
-@app.delete("/api/dev/grafts")
-def clear_grafts():
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_grafts(active)
-    return {"ok": True}
-
-
 # ── Belt Blends (Blending Rituals) ───────────────────────────────────────────────
 
 class ImportCrawlerBeltBlendsRequest(BaseModel):
@@ -3135,14 +2810,6 @@ def get_belt_blends():
     if not data:
         return {"season": active, "blends": [], "glossary": {}}
     return {"season": active, "blends": data.get("blends", []), "glossary": data.get("glossary", {})}
-
-
-@app.delete("/api/dev/belt-blends")
-def clear_belt_blends():
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_belt_blends(active)
-    return {"ok": True}
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -3241,17 +2908,6 @@ def import_memory_revival_endpoint(req: ImportSingletonRequest):
     return {"ok": True, "count": parsed["affix_count"]}
 
 
-@app.get("/api/memory-revival")
-def get_memory_revival():
-    active = season_manager.get_active_season()
-    if not active:
-        return {"season": None, "affixes": []}
-    data = season_manager.load_memory_revival(active)
-    if not data:
-        return {"season": active, "affixes": []}
-    return {"season": active, "affixes": data.get("affixes", [])}
-
-
 @app.post("/api/dev/import-tower-sequence")
 def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     from tools.singleton_importer import import_tower_sequence
@@ -3260,17 +2916,6 @@ def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     parsed = import_tower_sequence(req.data, req.season_name)
     season_manager.save_tower_sequence(req.season_name, parsed)
     return {"ok": True, "count": parsed["entry_count"]}
-
-
-@app.get("/api/tower-sequence")
-def get_tower_sequence():
-    active = season_manager.get_active_season()
-    if not active:
-        return {"season": None, "entries": []}
-    data = season_manager.load_tower_sequence(active)
-    if not data:
-        return {"season": active, "entries": []}
-    return {"season": active, "entries": data.get("entries", [])}
 
 
 class DiffSeasonsRequest(BaseModel):
@@ -3394,6 +3039,9 @@ if __name__ == "__main__":
     vlog(f"[server] __main__ start — preferred port: {args.port}")
     _SERVER_PORT = find_free_port(args.port)
     vlog(f"[server] find_free_port selected: {_SERVER_PORT}")
+    # Now that we hold the real bound port, arm the DNS-rebinding Host-header guard for the network
+    # path. Only reachable here (never on import), so the in-process web-worker dispatch stays exempt.
+    _SERVED_OVER_NETWORK = True
     vlog(f"[server] calling uvicorn.run — lifespan will print ready signal")
     uvicorn.run(app, host="127.0.0.1", port=_SERVER_PORT, log_level="warning")
     vlog(f"[server] uvicorn.run returned (process exiting)")

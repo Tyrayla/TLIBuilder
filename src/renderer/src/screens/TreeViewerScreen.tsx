@@ -3,6 +3,9 @@ import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } fr
 import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
   PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls, EtherealCatalog, EtherealConfig } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
+import ScreenHeader from '../components/ScreenHeader'
+import LoadingState from '../components/LoadingState'
+import PreviewWatermark from '../components/PreviewWatermark'
 import PrismOverlay, { RARE_TINT, condensePrismImplicit } from '../components/PrismOverlay'
 import { isPrimary } from '../treeGroups'
 import { useBuildStore } from '../store/buildStore'
@@ -14,6 +17,8 @@ import {
   useDamageDelta, withNodePoints, withPrismBoxPoints, withNodeStatesMap, type LabeledDelta,
 } from '../components/tooltip/useDamageDelta'
 import { nodeThreshold, diffAdded, diffRemoved, nodeStatesSignature } from '../utils/passiveTreeDiff'
+
+const EMPTY_SLOTS: null[] = [null, null, null, null]
 
 const COLS = 7
 const ROWS = 5
@@ -75,7 +80,6 @@ function sumPoints(states: Record<string, number>) {
 // unit-testable — see that file's header for the nodeThreshold/max_points independence note). Single
 // definition; allocPrimitives/repairAllocations/the hover preview below all call the imported versions.
 
-const NODE_TYPES = ['Micro Talent', 'Medium Talent', 'Legendary Medium Talent'] as const
 // Prism reflected effect = source effect × (1 + roll/100), where the roll is the prism's value for the SOURCE
 // node's tier (matches the engine in node_resolver.resolve_nodes).
 const PRISM_TIER_KEY: Record<string, keyof PrismRolls> = {
@@ -84,17 +88,6 @@ const PRISM_TIER_KEY: Record<string, keyof PrismRolls> = {
 function prismMult(rolls: PrismRolls, nodeType: string): number {
   return 1 + (rolls[PRISM_TIER_KEY[nodeType] ?? 'micro'] ?? -100) / 100
 }
-type NodeTypeStr = typeof NODE_TYPES[number]
-
-
-
-
-function nextType(t: NodeTypeStr): NodeTypeStr {
-  const i = NODE_TYPES.indexOf(t)
-  return NODE_TYPES[(i + 1) % NODE_TYPES.length]
-}
-function maxPointsFor(t: NodeTypeStr) { return t === 'Legendary Medium Talent' ? 1 : 3 }
-
 // Rarity ring colors keyed by node type — the node's own border (kept distinct from the allocation
 // progress arc rendered outside it).
 const RARITY_RING_COLOR: Record<string, string> = {
@@ -113,8 +106,6 @@ function nodeTextColor(node: TreeNode, states: Record<string, number>, locked: b
   return locked ? '#748295' : full ? '#ffffff' : '#dce5ee'   // matches the --fg-body rung
 }
 
-type DebugTool = 'create' | 'type' | 'link'
-
 // A hypothetical multi-node change the hover preview is pricing — a forward "path-to-here" allocation, or
 // a reverse cascade removal. `after` is the COMPLETE resulting node-states map (for withNodeStatesMap);
 // `changed` is the diff (added or removed points) keyed by node id, purely for ring/connector membership.
@@ -127,11 +118,9 @@ interface TreeNodeGProps {
   pts: number
   textColor: string
   locked: boolean
-  isLinkSrc: boolean
   isHit: boolean
   isSearching: boolean
   processing: boolean
-  debugMode: boolean
   onInteract: (node: TreeNode, isRight: boolean) => void
   maxOverride?: number      // raised cap from an Ethereal Prism's over-allocation affix
   inPrismBox?: boolean      // node sits inside a placed Ethereal Prism's effect area
@@ -163,7 +152,7 @@ interface TreeNodeGProps {
 // enough to skip the other 34 on a hover-only re-render (previewAdd/previewRemove are already primitive
 // booleans, so those compare fine on their own).
 function TreeNodeGImpl({
-  node, cx, cy, pts, textColor, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
+  node, cx, cy, pts, textColor, locked, isHit, isSearching, processing, onInteract,
   maxOverride, inPrismBox, previewAdd, previewRemove, forwardPreview, reversePreview, onHoverChange,
 }: TreeNodeGProps) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
@@ -241,7 +230,7 @@ function TreeNodeGImpl({
       <g
         {...tip.triggerProps}
         style={{
-          cursor: (locked && !debugMode) || processing ? 'default' : 'pointer',
+          cursor: locked || processing ? 'default' : 'pointer',
           opacity: isSearching && !isHit ? 0.15 : 1,
         }}
         onClick={e => { e.preventDefault(); onInteract(node, false) }}
@@ -280,8 +269,8 @@ function TreeNodeGImpl({
             when unlocked, a bottom-up violet WIPE clipped to the same circle — the fill level IS the meter now
             (replaces the old separate progress arc). Border is the rarity ring, alone on its radius. */}
         <circle cx={cx} cy={cy} r={NODE_R}
-          fill={isLinkSrc ? '#2a4a2a' : bodyFill}
-          stroke={isLinkSrc ? '#6be946' : rarityColor}
+          fill={bodyFill}
+          stroke={rarityColor}
           strokeWidth={node.node_type === 'Legendary Medium Talent' ? 5 : 4}
         />
         {!locked && pts > 0 && (
@@ -482,21 +471,20 @@ interface Props {
   treeName: string
   treeColor: string
   treeColors: Record<string, string>
+  treeIcons?: Record<string, string | null>
   onBack: () => void
   onSlotClick: (slotIndex: number) => void
   onReselect: () => void
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
   onPreview?: () => void
   previewMode?: boolean
-  devMode?: boolean
-  deprecatedTools?: boolean
 }
 
 export default function TreeViewerScreen({
-  treeName, treeColor, treeColors,
+  treeName, treeColor, treeColors, treeIcons,
   onBack, onSlotClick, onReselect,
   onSlotReorder, onPreview,
-  previewMode = false, devMode = false, deprecatedTools = false,
+  previewMode = false,
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
@@ -560,12 +548,6 @@ export default function TreeViewerScreen({
   const [search, setSearch] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Debug state
-  const [debugMode, setDebugMode] = useState(false)
-  const [debugTool, setDebugTool] = useState<DebugTool>('create')
-  const [linkFrom, setLinkFrom] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<{ nodeId: string } | null>(null)
-
   // ── Prisms ─────────────────────────────────────────────────────────────────
   const prisms = useBuildStore(s => s.prisms)
   const prismInventory = useBuildStore(s => s.prismInventory)
@@ -599,11 +581,6 @@ export default function TreeViewerScreen({
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
-
-  useEffect(() => {
-    if (!deprecatedTools) { setDebugMode(false); setLinkFrom(null) }
-  }, [deprecatedTools])
-
 
   // Prism reflected-box points count toward the budget + column thresholds (they cost points in-game).
   const total = sumPoints(nodeStates) + (treePrism ? sumPoints(treePrism.boxAllocations) : 0)
@@ -1000,74 +977,8 @@ export default function TreeViewerScreen({
     return { after, changed, cost: Object.values(changed).reduce((a, b) => a + b, 0) }
   }, [hoveredNodeId, nodeStates, nodeIndex, treePrism])
 
-  // ── Debug handlers ─────────────────────────────────────────────────────────
-
-  const handleCreateOnEmpty = async (col: number, row: number) => {
-    if (!treeData) return
-    const id = `${treeData.node_prefix}c${col}_r${row}`
-    try {
-      await api.upsertNode(treeName, { id, column: col, row, node_type: 'Micro Talent', max_points: 3 })
-      flash(`Created ${id}`, true)
-      loadTree()
-    } catch (e) { flash(String(e)) }
-  }
-
-  const handleDeleteNode = async (nodeId: string) => {
-    setConfirmDelete(null)
-    try {
-      await api.removeNode(treeName, nodeId)
-      flash(`Deleted ${nodeId}`, true)
-      loadTree()
-    } catch (e) { flash(String(e)) }
-  }
-
-  const handleTypeNode = async (node: TreeNode) => {
-    const newType = nextType(node.node_type as NodeTypeStr)
-    const newMax = maxPointsFor(newType)
-    try {
-      await api.upsertNode(treeName, {
-        id: node.id, column: node.column, row: node.row,
-        node_type: newType, max_points: newMax,
-      })
-      flash(`${node.id} → ${newType}`, true)
-      loadTree()
-    } catch (e) { flash(String(e)) }
-  }
-
-  const handleLinkNode = async (nodeId: string) => {
-    if (!treeData) return
-    if (linkFrom === null) {
-      setLinkFrom(nodeId)
-      flash(`Link from: ${nodeId} — click destination`)
-    } else if (linkFrom === nodeId) {
-      setLinkFrom(null)
-      flash('Link cancelled')
-    } else {
-      const a = treeData.nodes.find(n => n.id === linkFrom)
-      const b = treeData.nodes.find(n => n.id === nodeId)
-      setLinkFrom(null)
-      // Always send lower-column as "from"
-      const [src, dst] = a && b && a.column > b.column
-        ? [nodeId, linkFrom]
-        : [linkFrom, nodeId]
-      try {
-        await api.toggleConnection(treeName, src, dst)
-        flash(`Connection toggled: ${src} → ${dst}`, true)
-        loadTree()
-      } catch (e) { flash(String(e)) }
-    }
-  }
-
   const handleNodeInteract = (node: TreeNode, isRight: boolean) => {
-    if (!debugMode) {
-      handleClick(node.id, isRight ? 'deallocate' : 'allocate')
-      return
-    }
-    switch (debugTool) {
-      case 'create': setConfirmDelete({ nodeId: node.id }); break
-      case 'type':   handleTypeNode(node); break
-      case 'link':   handleLinkNode(node.id); break
-    }
+    handleClick(node.id, isRight ? 'deallocate' : 'allocate')
   }
 
   const handleReset = () => {
@@ -1265,85 +1176,69 @@ export default function TreeViewerScreen({
 
   // ── Header ─────────────────────────────────────────────────────────────────
 
-  const header = previewMode ? (
-    <div className="viewer-header preview-viewer-header">
-      <div className="viewer-header-left">
-        <button className="btn-back" onClick={onBack}>← Back to Preview</button>
-        {coreTalentWidget}
-      </div>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-        <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
-        <span className="viewer-tree-name" style={{ color: treeColor, fontSize: 20 }}>{treeName}</span>
-      </div>
-      <div className="viewer-header-right">
-        <span style={{ fontSize: 11, color: '#555577', fontStyle: 'italic' }}>explore freely — nothing saved</span>
-        <span className="viewer-points">Points: {total}</span>
-      </div>
-    </div>
-  ) : (
-    <div className="viewer-header">
-      <div className="viewer-header-left">
-        <button className="btn-back" onClick={onBack}>← Back</button>
-        <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
-        {coreTalentWidget}
-      </div>
-      {treeData && (
+  // Preview mode renders through the exact same header as the normal viewer now — no bespoke
+  // header block, just a "Preview Mode" label prefixed onto the tree name plus the background
+  // watermark below (this is the screen the owner wants the watermark on — "it needs to appear
+  // in each tree", not the selector grid). The one real behavioral gate that must survive the
+  // merge: prisms stay excluded from preview (a real inventory mechanic tied to the actual build,
+  // same reason treePrism is undefined in preview).
+  const header = (
+    <ScreenHeader
+      left={
         <>
-          <div className="viewer-header-center">
-            {/* Token classes, not inline hexes — these two sat side by side in two unrelated hand-rolled
-                palettes (solid #3a1a1a vs solid #1a1a3a) and read as buttons from two different apps.
-                Reselect is a neutral navigation action, so it takes --secondary; only Reset is destructive. */}
-            <button
-              className="btn btn-sm btn-danger"
-              onClick={handleReset}
-            >Reset</button>
-            <button
-              className="btn btn-sm btn-secondary"
-              onClick={onReselect}
-              title="Clear this tree and pick a different one"
-            >Reselect</button>
-            {/* Hidden while placing a prism so the placement banner can't overlap (and be clicked through to) these. */}
-            {!placingPrism && <>
-              <div className="tree-search-bar">
-                <input
-                  className="tree-search-input"
-                  type="text"
-                  placeholder="Search nodes…"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-                {search && (
-                  <button className="tree-search-clear" onClick={() => setSearch('')}>✕</button>
-                )}
-              </div>
-              {isSearching && (
-                <span className="tree-search-count">
-                  {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
-                </span>
+          {previewMode && <strong style={{ color: '#bbaaff', marginRight: 8 }}>Preview Mode</strong>}
+          <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
+          {coreTalentWidget}
+        </>
+      }
+      center={treeData && (
+        <>
+          {/* Token classes, not inline hexes — these two sat side by side in two unrelated hand-rolled
+              palettes (solid #3a1a1a vs solid #1a1a3a) and read as buttons from two different apps.
+              Reselect is a neutral navigation action, so it takes --secondary; only Reset is destructive. */}
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={handleReset}
+          >Reset</button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={onReselect}
+            title="Clear this tree and pick a different one"
+          >Reselect</button>
+          {/* Hidden while placing a prism so the placement banner can't overlap (and be clicked through to) these. */}
+          {!placingPrism && <>
+            <div className="tree-search-bar">
+              <input
+                className="tree-search-input"
+                type="text"
+                placeholder="Search nodes…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="tree-search-clear" onClick={() => setSearch('')}>✕</button>
               )}
-              {!isPrimary(treeName) && (
-                <button
-                  className="btn btn-sm btn-accent"
-                  style={{ marginLeft: 14 }}
-                  onClick={() => { setPlacingPrism(null); setExpandedSlot(null); setPrismOverlayOpen(true) }}
-                  title="Craft and install prisms"
-                >◈ Add Prism</button>
-              )}
-            </>}
-          </div>
-          <div className="viewer-header-right">
-            {devMode && deprecatedTools && (
-              <button
-                className={`btn btn-sm debug-toggle${debugMode ? ' active' : ''}`}
-                onClick={() => { setDebugMode(d => !d); setLinkFrom(null) }}
-                title="Toggle debug tools"
-              >⚙ Debug</button>
+            </div>
+            {isSearching && (
+              <span className="tree-search-count">
+                {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
+              </span>
             )}
-            <span className="viewer-points">Points: {total}</span>
-          </div>
+            {!previewMode && !isPrimary(treeName) && (
+              <button
+                className="btn btn-sm btn-accent"
+                style={{ marginLeft: 14 }}
+                onClick={() => { setPlacingPrism(null); setExpandedSlot(null); setPrismOverlayOpen(true) }}
+                title="Craft and install prisms"
+              >◈ Add Prism</button>
+            )}
+          </>}
         </>
       )}
-    </div>
+      right={treeData && (
+        <span className="viewer-points">Points: {total}</span>
+      )}
+    />
   )
 
   // Stable identity for TreeNodeG's `onInteract` prop (2026-07-16 review-performance fix, part 2).
@@ -1380,15 +1275,12 @@ export default function TreeViewerScreen({
     return (
       <div className="screen tree-viewer">
         {header}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-          Loading {treeName}…
-        </div>
+        <LoadingState label={`Loading ${treeName}…`} />
       </div>
     )
   }
 
   const nodeMap = Object.fromEntries(treeData.nodes.map(n => [n.id, n]))
-  const occupiedKeys = new Set(treeData.nodes.map(n => `${n.column},${n.row}`))
 
   // ── Prism reflection geometry ──────────────────────────────────────────────
   // Inverse Image: point-reflect through the tree centre (3,2): mirror(c,r)=(6−c,4−r). The prism's 3×3 box
@@ -1495,7 +1387,7 @@ export default function TreeViewerScreen({
     setPlacingPrism(null)
   }
 
-  // `handleNodeInteract` closes over debugMode/debugTool/handleClick/tryLocalAllocate/etc — none of it
+  // `handleNodeInteract` closes over handleClick/tryLocalAllocate/etc — none of it
   // useCallback'd, and stabilizing that whole ~8-function allocation chain (so ITS identity only changes
   // when something it actually depends on changes) is a much larger refactor than this fix round calls for.
   // Standard workaround: fold the placingPrism branch in HERE (not at the render site, where a ternary
@@ -1504,7 +1396,7 @@ export default function TreeViewerScreen({
   // near the top of the component) — updated every render (always current, never stale) so `stableInteract`,
   // itself declared with an EMPTY dep array, only ever reads through the ref. The returned function's
   // identity is then permanently stable — it's the ref indirection, not the dep array, doing the work,
-  // since the real behavior legitimately changes every render (debugMode, placingPrism, etc). This
+  // since the real behavior legitimately changes every render (placingPrism, etc). This
   // assignment itself is NOT a hook — plain code, safe to sit after the early returns above.
   const currentInteract: (node: TreeNode, isRight: boolean) => void =
     placingPrism ? (n) => placePrismAt(n) : handleNodeInteract
@@ -1544,59 +1436,33 @@ export default function TreeViewerScreen({
     setPrisms(prisms.map(p => p.id === treePrism.id ? { ...p, boxAllocations: next } : p))
   }
 
-  const debugHint: Record<DebugTool, string> = {
-    create: 'Click empty slot to create node; click existing node to delete it',
-    type:   'Click any node to cycle its type (Micro → Medium → Legendary)',
-    link:   linkFrom
-      ? `Linking from ${linkFrom} — click another node to toggle connection`
-      : 'Click a node to start a link, then click the target (lower col → higher col)',
-  }
-
   return (
     <div className="screen tree-viewer">
       {header}
 
-      {debugMode && (
-        <div className="debug-toolbar">
-          <div className="debug-tools">
-            {(['create', 'type', 'link'] as DebugTool[]).map(t => (
-              <button
-                key={t}
-                className={`btn btn-sm debug-tool-btn${debugTool === t ? ' active' : ''}`}
-                onClick={() => { setDebugTool(t); setLinkFrom(null) }}
-              >
-                {t === 'create' && '+ Create'}
-                {t === 'type'   && '◎ Type'}
-                {t === 'link'   && '⟷ Link'}
-              </button>
-            ))}
-          </div>
-          <span className="debug-hint">{debugHint[debugTool]}</span>
-        </div>
-      )}
-
       <div className="viewer-body">
-        {!previewMode && (
-          <SlotSidebar
-            slots={slots}
-            activeSlot={activeSlot}
-            treeColors={treeColors}
-            onOverview={onBack}
-            onSlotClick={onSlotClick}
-            onPreview={onPreview}
-            viewerMode
-            dragDropEnabled
-            onSlotReorder={onSlotReorder}
-          />
-        )}
+        <SlotSidebar
+          slots={previewMode ? EMPTY_SLOTS : slots}
+          activeSlot={previewMode ? -1 : activeSlot}
+          treeColors={treeColors}
+          treeIcons={treeIcons}
+          onOverview={onBack}
+          onSlotClick={onSlotClick}
+          onPreview={onPreview}
+          inPreview={previewMode}
+          viewerMode
+          dragDropEnabled={!previewMode}
+          onSlotReorder={onSlotReorder}
+        />
 
         <div className="viewer-main">
           <div className="viewer-canvas" style={{ background: CANVAS_BG }}>
+            {previewMode && <PreviewWatermark />}
             <svg
               viewBox={`0 0 ${VW} ${VH}`}
               width="100%"
               height="100%"
-              style={{ display: 'block' }}
+              style={{ display: 'block', position: 'relative', zIndex: 1 }}
               onContextMenu={e => e.preventDefault()}
             >
               {COL_LABELS.map((label, col) => {
@@ -1627,10 +1493,8 @@ export default function TreeViewerScreen({
                 const dist = Math.sqrt(dx * dx + dy * dy)
                 const ox = dist ? dx / dist * NODE_R : 0
                 const oy = dist ? dy / dist * NODE_R : 0
-                const isLinked = debugMode && debugTool === 'link' &&
-                  (from === linkFrom || to === linkFrom)
-                // Preview overlays win over the plain lit/dim state coloring, but never over the debug link
-                // highlight. Re-examined 2026-07-16: this tie-break was originally justified by a false
+                // Preview overlays win over the plain lit/dim state coloring.
+                // Re-examined 2026-07-16: this tie-break was originally justified by a false
                 // invariant ("thr(n) === n.max_points always" — not true, see nodeThreshold's doc comment in
                 // utils/passiveTreeDiff.ts) and that justification undersold how often an edge lands in BOTH
                 // diffs. hoveredNodeId itself is a member of both forwardPreview.changed and
@@ -1654,8 +1518,7 @@ export default function TreeViewerScreen({
                 // threshold) — dimmed DOWN when it isn't, so the allocated set reads as one connected shape
                 // instead of 25 nodes read one at a time.
                 const satisfied = (nodeStates[from] ?? 0) >= nodeThreshold(n1)
-                const stroke = isLinked ? '#e9c046'
-                  : inReverse ? '#e94560'
+                const stroke = inReverse ? '#e94560'
                   : inForward ? '#6be946'
                   // Both retuned for the lifted canvas: the unsatisfied dim (#2a3050) was set against a
                   // near-black #101014 and all but disappeared once the canvas came up, taking the "this
@@ -1665,36 +1528,11 @@ export default function TreeViewerScreen({
                   <line key={i}
                     x1={x1 + ox} y1={y1 + oy} x2={x2 - ox} y2={y2 - oy}
                     stroke={stroke}
-                    strokeWidth={isLinked ? 3.5 : 3}
+                    strokeWidth={3}
                     strokeLinecap="round"
                   />
                 )
               })}
-
-              {debugMode && debugTool === 'create' &&
-                Array.from({ length: COLS }, (_, col) =>
-                  Array.from({ length: ROWS }, (_, row) => {
-                    if (occupiedKeys.has(`${col},${row}`)) return null
-                    const cx = nodeX(col), cy = nodeY(row)
-                    return (
-                      <g key={`ghost-${col}-${row}`}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => handleCreateOnEmpty(col, row)}
-                      >
-                        <circle cx={cx} cy={cy} r={NODE_R}
-                          fill="rgba(80,200,120,0.08)"
-                          stroke="rgba(80,200,120,0.45)"
-                          strokeWidth={1.5}
-                          strokeDasharray="5 3"
-                        />
-                        <text x={cx} y={cy + 6} textAnchor="middle"
-                          fill="rgba(80,200,120,0.55)" fontSize={20} fontWeight="bold"
-                          style={{ pointerEvents: 'none' }}>+</text>
-                      </g>
-                    )
-                  })
-                ).flat()
-              }
 
               {treeData.nodes.map(node => {
                 // Nodes the prism overrides (anchor) or copies (reflected box) are drawn in the prism layer below.
@@ -1704,7 +1542,6 @@ export default function TreeViewerScreen({
                 const pts = nodeStates[node.id] ?? 0
                 const locked = !isColUnlocked(node.column)
                 const textColor = nodeTextColor(node, nodeStates, locked)
-                const isLinkSrc = debugMode && debugTool === 'link' && linkFrom === node.id
                 const isHit = !isSearching || searchHits.has(node.id)
                 return (
                   <TreeNodeG
@@ -1715,11 +1552,9 @@ export default function TreeViewerScreen({
                     pts={pts}
                     textColor={textColor}
                     locked={locked}
-                    isLinkSrc={isLinkSrc}
                     isHit={isHit}
                     isSearching={isSearching}
                     processing={processing}
-                    debugMode={debugMode}
                     onInteract={stableInteract}
                     maxOverride={ethMaxOverrides[node.id]}
                     inPrismBox={ethBoxNodeIds.has(node.id)}
@@ -1887,25 +1722,6 @@ export default function TreeViewerScreen({
           }}
           onRemovePlaced={removePrism}
         />
-      )}
-
-      {/* Confirm delete dialog */}
-      {confirmDelete && (
-        <div className="modal-backdrop" onClick={() => setConfirmDelete(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-accent" />
-            <h3 className="modal-title">Delete Node?</h3>
-            <p style={{ padding: '10px 20px', color: '#aaa', fontSize: 13 }}>
-              Delete <strong style={{ color: '#ff6b6b' }}>{confirmDelete.nodeId}</strong> and all its connections?
-            </p>
-            <div className="modal-actions">
-              <button className="btn btn-danger" onClick={() => handleDeleteNode(confirmDelete.nodeId)}>
-                Delete
-              </button>
-              <button className="btn btn-primary" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
       )}
 
     </div>

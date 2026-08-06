@@ -891,6 +891,10 @@ def compute(
                 _per = source.total(_key)
                 if not _per:
                     continue
+                # Read in the loop (outside the offense recording window) → record the keys this fold reads so the
+                # gear line badges Consumed, not Inactive — same bookkeeping the physical-flat and crit per-consumed
+                # folds already do. Pure badge marking; changes no computed value.
+                source.consumed_stats.update({_key, f"{_key}_unit", f"{_key}_cap"})
                 _amt = _floored(_cons_now.consumed_recently_mana, source.total(f"{_key}_unit")) * _per
                 _cap = source.total(f"{_key}_cap")
                 if _cap:
@@ -925,6 +929,47 @@ def compute(
                         label=(_orig.label if _orig else "Gear · Item"), points=1,
                         text=(_orig.text if _orig else "damage per Life consumed recently"),
                         source_name=(_orig.source_name if _orig else "Life Consumed")))
+
+            # Increased Crit Damage per-Mana-consumed (Tyrant's Iron Fist): "+X% Critical Strike Damage for every N
+            # Mana consumed recently" is INCREASED Crit Damage → fold per-unit × consumed-recently-mana (discrete
+            # N-chunks; this affix has no cap) into the REAL crit_dmg_inc pool in-loop, so it's summed by
+            # offense._CRIT_DMG_STATS AND shows a labeled source in the crit-multiplier breakdown (replaces the old
+            # display-only post-loop fold in offense.py). One-directional (crit doesn't feed consumption).
+            _cd_per = source.total("crit_dmg_inc_per_mana_consumed")
+            if _cd_per:
+                # Read in the loop (outside the offense recording window) → record so the gear line badges Consumed, not Inactive.
+                source.consumed_stats.update({"crit_dmg_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed_unit"})
+                _cd_amt = _floored(_cons_now.consumed_recently_mana,
+                                   source.total("crit_dmg_inc_per_mana_consumed_unit")) * _cd_per
+                if _cd_amt:
+                    _orig = next((e for e in source.source_log if e.stat == "crit_dmg_inc_per_mana_consumed"), None)
+                    source.add_with_source("crit_dmg_inc", _cd_amt, SourceEntry(
+                        stat="crit_dmg_inc", amount=_cd_amt,
+                        source_type=(_orig.source_type if _orig else "gear"),
+                        label=(_orig.label if _orig else "Gear · Item"), points=1,
+                        text=(_orig.text if _orig else "Critical Strike Damage per Mana consumed recently"),
+                        source_name=(_orig.source_name if _orig else "Mana Consumed")))
+
+            # Increased Crit Rating per-Mana-consumed (Tyrant's Iron Fist): "+X% Critical Strike Rating for every N
+            # Mana consumed recently" is INCREASED Crit Rating → fold per-unit × consumed-recently-mana (discrete
+            # N-chunks; this affix has no cap) into the REAL crit_rating_inc pool in-loop, so it's summed by
+            # offense._CRIT_RATING_INC_STATS AND shows a labeled source in the crit-rating breakdown (replaces the old
+            # display-only post-loop fold in offense.py). One-directional (crit doesn't feed consumption). Sibling of
+            # the crit_dmg_inc block above; reads the same _cons_now.consumed_recently_mana (proven == post-loop).
+            _crr_per = source.total("crit_rating_inc_per_mana_consumed")
+            if _crr_per:
+                # Read in the loop (outside the offense recording window) → record so the gear line badges Consumed, not Inactive.
+                source.consumed_stats.update({"crit_rating_inc_per_mana_consumed", "crit_rating_inc_per_mana_consumed_unit"})
+                _crr_amt = _floored(_cons_now.consumed_recently_mana,
+                                    source.total("crit_rating_inc_per_mana_consumed_unit")) * _crr_per
+                if _crr_amt:
+                    _orig = next((e for e in source.source_log if e.stat == "crit_rating_inc_per_mana_consumed"), None)
+                    source.add_with_source("crit_rating_inc", _crr_amt, SourceEntry(
+                        stat="crit_rating_inc", amount=_crr_amt,
+                        source_type=(_orig.source_type if _orig else "gear"),
+                        label=(_orig.label if _orig else "Gear · Item"), points=1,
+                        text=(_orig.text if _orig else "Critical Strike Rating per Mana consumed recently"),
+                        source_name=(_orig.source_name if _orig else "Mana Consumed")))
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS

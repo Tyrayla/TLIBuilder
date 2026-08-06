@@ -49,19 +49,6 @@ def _flat_number(text: str) -> float | None:
     return _eval_token(m.group(0).replace(" ", "")) if m else None
 
 
-_RANGE_PCT = re.compile(r"\(?\s*([\d.]+)\s*[‐-―\-]\s*([\d.]+)\s*\)?\s*%")
-
-
-def _flat_dmg_value(text: str) -> list[float]:
-    """Value for a non-scaling damage line: the tier-MID of a '(a-b)%' range (matches the engine's
-    tier-midpoint convention, e.g. activation-medium ranges), else the first signed number."""
-    m = _RANGE_PCT.search(text)
-    if m:
-        return [(float(m.group(1)) + float(m.group(2))) / 2]
-    v = _flat_number(text)
-    return [v] if v is not None else []
-
-
 # ── Contributions ─────────────────────────────────────────────────────────────
 @dataclass
 class StatContribution:

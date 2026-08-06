@@ -4,6 +4,7 @@ import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import type { ConditionDef, CurseConflict } from '../api/client'
 import CustomModsPanel from '../components/CustomModsPanel'
+import LoadingState from '../components/LoadingState'
 import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
 import { TARGET_LEVELS, presetTargetConfig, NONPHYS_ARMOR_FACTOR, type TargetLevel } from '../utils/targetPresets'
 
@@ -403,7 +404,7 @@ export default function BuildOverviewScreen() {
 
       <div className="config-body">
         <div className="config-conditions">
-      {loading && <div className="panel-empty">Loading…</div>}
+      {loading && <LoadingState label="Loading conditions…" />}
       {referenceResolved && conditionsFailed && (
         <div className="panel-empty" style={{ color: '#ff6b6b' }}>Couldn't load condition data — restart to retry.</div>
       )}

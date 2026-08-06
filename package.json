@@ -14,22 +14,34 @@
     "build:release": "npm run build:backend && npm run build && electron-builder --win",
     "build:web": "python backend/tools/export_backend_bundle.py && vite build --config vite.web.config.mts --mode web && node -e \"require('fs').renameSync('dist-web/index.web.html','dist-web/index.html')\"",
     "build:web:data": "python backend/tools/export_web_data.py && python backend/tools/export_engine_bundle.py",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
-    "test": "vitest run"
+    "fetch:data": "node scripts/fetch-data.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p e2e/tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "npm run build && npm run build:web && playwright test -c e2e",
+    "test:e2e:web": "npm run build:web && playwright test -c e2e --project=web",
+    "test:e2e:electron": "npm run build && set PW_NO_WEBSERVER=1&& playwright test -c e2e --project=electron"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@floating-ui/react": "^0.27.19",
+    "@lexical/react": "^0.45.0",
+    "@playwright/test": "^1.62.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@types/react-test-renderer": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",
+    "dompurify": "^3.4.11",
     "electron": "^31.0.2",
     "electron-builder": "^24.13.3",
     "electron-vite": "^5.0.0",
+    "lexical": "^0.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-test-renderer": "^18.3.1",
     "typescript": "^5.5.2",
     "vite": "^5.3.1",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "zustand": "^5.0.13"
   },
   "build": {
     "appId": "com.tlibuilder.app",
@@ -38,11 +50,10 @@
       "buildResources": "build"
     },
     "files": [
+      "out/**",
+      "resources/**",
       "!**/.vscode/*",
-      "!src/*",
-      "!electron.vite.config.{js,ts,mjs,cjs}",
-      "!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
-      "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+      "!**/*.map"
     ],
     "win": {
       "executableName": "TLIBuilder",
@@ -58,8 +69,12 @@
         "to": "data",
         "filter": [
           "**/*",
-          "!builds/.gitkeep"
+          "!builds/**"
         ]
+      },
+      {
+        "from": "DATA-LICENSE.md",
+        "to": "data/DATA-LICENSE.md"
       }
     ],
     "nsis": {
@@ -78,12 +93,6 @@
     }
   },
   "dependencies": {
-    "@floating-ui/react": "^0.27.19",
-    "@lexical/react": "^0.45.0",
-    "@types/dompurify": "^3.0.5",
-    "dompurify": "^3.4.11",
-    "electron-updater": "^6.8.3",
-    "lexical": "^0.45.0",
-    "zustand": "^5.0.13"
+    "electron-updater": "^6.8.3"
   }
 }

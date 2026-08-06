@@ -1,22 +1,24 @@
 import React, { useState } from 'react'
-import { TreeSlot } from '../api/client'
+import { iconUrl, TreeSlot } from '../api/client'
 import { MAX_TALENT_POINTS, slotPointTotal, totalAllocatedPoints } from '../utils/talentPoints'
 
 interface Props {
   slots: (TreeSlot | null)[]
   activeSlot: number
   treeColors: Record<string, string>
+  treeIcons?: Record<string, string | null>
   onOverview: () => void
   onSlotClick: (slotIndex: number) => void
   onPreview?: () => void
+  inPreview?: boolean
   viewerMode?: boolean
   dragDropEnabled?: boolean
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
 }
 
 export default function SlotSidebar({
-  slots, activeSlot, treeColors, onOverview, onSlotClick,
-  onPreview, viewerMode = false, dragDropEnabled = false, onSlotReorder,
+  slots, activeSlot, treeColors, treeIcons = {}, onOverview, onSlotClick,
+  onPreview, inPreview = false, viewerMode = false, dragDropEnabled = false, onSlotReorder,
 }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
   const totalPoints = totalAllocatedPoints(slots)
@@ -28,14 +30,18 @@ export default function SlotSidebar({
         Overview
       </button>
       {onPreview && (
-        <button className="slot-sidebar-preview" onClick={onPreview}>
-          Preview
+        <button
+          className={`slot-sidebar-preview${inPreview ? ' active' : ''}`}
+          onClick={onPreview}
+        >
+          {inPreview ? 'Exit Preview' : 'Preview'}
         </button>
       )}
       {slots.map((slot, i) => {
         const isActive = activeSlot === i
         const isDragOver = dragOverSlot === i
         const color = slot ? (treeColors[slot.treeName] ?? null) : null
+        const icon = slot ? iconUrl('talent_tree_selector', treeIcons[slot.treeName]) : null
 
         let btnStyle: React.CSSProperties = {}
         let nameColor = '#555566'
@@ -47,7 +53,8 @@ export default function SlotSidebar({
           btnStyle = {
             borderColor: isActive && viewerMode ? '#ffffff' : color + 'aa',
             background: color + '18',
-          }
+            '--slot-accent': color,
+          } as React.CSSProperties
           nameColor = color
         } else if (isActive && viewerMode) {
           btnStyle = { borderColor: '#ffffff', background: 'rgba(200,200,216,0.05)' }
@@ -57,7 +64,7 @@ export default function SlotSidebar({
         return (
           <button
             key={i}
-            className={`slot-sidebar-btn${isActive ? ' active' : ''}${slot ? ' filled' : ''}`}
+            className={`slot-sidebar-btn${isActive ? ' active' : ''}${slot ? ' filled' : ''}${icon ? ' has-icon' : ''}`}
             style={{ ...btnStyle, cursor: dragDropEnabled && slot ? 'grab' : 'default' }}
             onClick={() => onSlotClick(i)}
             draggable={dragDropEnabled && !!slot}
@@ -91,9 +98,10 @@ export default function SlotSidebar({
               }
             } : undefined}
           >
+            {icon && <img className="slot-sidebar-bg-icon" src={icon} alt="" />}
             <div className="slot-sidebar-btn-body">
               <span className="slot-sidebar-name" style={{ color: nameColor }}>
-                {slot?.treeName ?? 'Empty'}
+                {slot?.treeName ?? (inPreview ? 'Preview Mode' : 'Empty')}
               </span>
               {slot && (
                 <span className="slot-sidebar-points">{slotPointTotal(slot)} pts</span>
@@ -106,6 +114,10 @@ export default function SlotSidebar({
         className={`slot-sidebar-total${overBudget ? ' over' : ''}`}
         title={overBudget ? `Exceeds the assumed in-game maximum of ${MAX_TALENT_POINTS} talent points (pending verification)` : undefined}
       >
+        <div
+          className="slot-sidebar-total-fill"
+          style={{ width: `${Math.min(100, (totalPoints / MAX_TALENT_POINTS) * 100)}%` }}
+        />
         {overBudget && <span className="slot-sidebar-total-warn">⚠</span>}
         <span className="slot-sidebar-total-label">Points</span>
         <span className="slot-sidebar-total-value">{totalPoints} / {MAX_TALENT_POINTS}</span>

@@ -96,7 +96,10 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
     worker!.onerror = (e) => { try { (window as unknown as Record<string, unknown>).__tliComputeError = e.message } catch { /* */ } reject(new Error(`worker crashed: ${e.message}`)) }
   })
   // Read the saved builds from IndexedDB (main thread owns storage), then seed the worker with them at init.
-  const backendUrl = new URL('backend-py.zip', self.location.origin + import.meta.env.BASE_URL).href
+  // ?v= is the zip's content hash (vite define) — busts browser/CDN caches exactly when the backend changes,
+  // replacing the old cache:'reload' workaround that re-downloaded the zip on every visit.
+  const zipVersion = typeof __BACKEND_ZIP_VERSION__ !== 'undefined' ? __BACKEND_ZIP_VERSION__ : 'dev'
+  const backendUrl = new URL(`backend-py.zip?v=${zipVersion}`, self.location.origin + import.meta.env.BASE_URL).href
   void idbGetSnapshot().then(persistSnapshot => worker!.postMessage({ type: 'init', backendUrl, dataBase, season, persistSnapshot }))
   return readyPromise
 }

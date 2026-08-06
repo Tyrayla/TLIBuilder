@@ -45,8 +45,6 @@ _NYI_RE = re.compile(
 # Restoration tonic lines → structured restoration entries fed to the recovery stage (NOT NYI). A line is
 # "Restores <body> within/in N s" and the body may carry MULTIPLE pool parts (Compound Tonic: "39% Max Life and
 # 47 Mana") — every part is captured so nothing is silently dropped.
-_RESTORE_RE = re.compile(
-    r"restores?\s+([\d.]+)\s*(%?)\s*(?:max\s+)?(life|mana)\b.*?(?:within|in)\s+([\d.]+)\s*s", re.I)
 _RESTORE_LINE_RE = re.compile(r"restores?\b(.*?)(?:within|in)\s+([\d.]+)\s*s", re.I)
 _RESTORE_PART_RE = re.compile(r"([\d.]+)\s*(%?)\s*(?:max\s+)?(life|mana)\b", re.I)
 # Per-level anchors on a restoration line, e.g. "(Lv1:41) (Lv21:61) (Lv41:71)" — the % value scales with the

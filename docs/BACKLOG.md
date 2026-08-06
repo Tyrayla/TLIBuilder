@@ -78,7 +78,8 @@ spirit working after the reimport.
 ## Shipped — Web-hosted version (2026-06-16)
 TLI Builder runs in the browser at **tlibuilder.com** (Cloudflare Pages app + `tlibuilder-data` Pages project for
 catalogs/icons/engine-data; info page at **about.tlibuilder.com** off the `gh-pages` branch). The pure-Python engine
-runs in a Pyodide Web Worker (Path B: `import server` with bundled fastapi/pydantic wheels); catalogs/icons load from
+runs in a Pyodide Web Worker (Path B: `import server`; fastapi/pydantic wheels are micropip-installed at init, not
+vendored); catalogs/icons load from
 the data CDN. Builds + last-session save persist client-side via **main-thread IndexedDB** (the worker snapshots
 `/persist` and the main thread owns storage; in-worker IDBFS was unreliable in Brave). Verified in Chrome/Edge/Brave.
 Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see §7.
@@ -267,6 +268,23 @@ for Thunder Spike specifically — see below. Full detail: `data/verification/sh
   Core Organ pages (`tlidb-crawler`). Owner declined: crafting costs aren't data the engine uses; the Core
   Organ item itself doesn't matter (only the legendary name it unlocks); multi-slot applicability is already
   captured (e.g. the Vorax chest page already lists all eligible chest/gloves directly). Not re-proposing.
+
+## 0g. Crit-multiplier per-source breakdown (shipped 2026-07-28 — follow-ups)
+Shipped (commit `e0c02db`, `team1-live`): the crit-DAMAGE per-mana-consumed term (Tyrant's Iron Fist,
+`crit_dmg_inc_per_mana_consumed`) moved from a display-only post-loop fold in `offense.py` into an in-loop
+injection into the real `crit_dmg_inc` pool inside `compute.py`'s consumption loop, so it now shows a labeled
+breakdown source instead of being folded invisibly into the total. Two follow-ups surfaced during that work,
+explicitly out of scope of it:
+1. **Consistency, engine-lane — move `crit_rating_inc_per_mana_consumed` in-loop too.** The crit-RATING sibling
+   (`offense.py:1583-1588`) is still a post-loop fold — no breakdown source, and it's now the lone post-loop
+   holdout among the per-consumed folds. Follow-up: move it in-loop the same way, so it also earns a breakdown
+   source. Same pattern as the crit-damage change; will need a filled `.claude/rules/engine-task-spec.md` before
+   any code is written.
+2. **Pre-existing latent bug, bug-221 class — spell_dmg / mana_regen per-consumed loop doesn't mark `consumed_stats`.**
+   The shared spell_dmg / mana_regen per-mana consumption loop in `compute.py` (around line 889) does NOT mark its
+   stat keys in `consumed_stats`, so Compensatory Life / mana-regen-per-mana-consumed affixes badge "Inactive" in
+   the UI despite actually contributing to the computed stats. Pre-existing, not introduced by and out of scope of
+   the crit-multiplier work above. Fix: mark those keys consumed the same way the other per-consumed folds already do.
 
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
@@ -541,6 +559,23 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   state-transition pieces into exported helpers (mirroring `sortBuilds`/`sortFolders`) for unit tests, or RTL
   flows. Deferred from the 2026-07-15 review council (correctness reviewer flagged; pure helpers are covered,
   handlers are not).
+- **Deferred test coverage — TreeViewerScreen.tsx preview-guard sites.** 5 `previewMode` store-mutation guard sites
+  (`if (!previewMode)` gating `updateSlotNodeStates`/`updateSlotCoreTalentSelections`); only 2 are covered by a
+  behavioral test (the node-allocate interaction path, `src/renderer/src/__tests__/App.previewWiring.test.tsx`).
+  The other 3 remain untested: `handleReset`, `handleCoreTalentSelect`, and the prism-overlay `onUpdatePlaced`
+  re-validation path. Accepted gap, not urgent — the 2 tested sites cover the primary/most-traveled interaction —
+  tracked so it isn't forgotten (2026-07-31).
+- **SlateScreen.tsx — shared lookup-helper cleanup (crash-fix review, 2026-08-02).** The 2026-08-02 crash fix added
+  ~13 individual guard sites across 4 lookup tables (`LEGENDARY_META`, `LEGENDARY_ORIENTATIONS`, `SLOT_CONFIG`,
+  `MOTH_DELTA`) — each call site does its own `?? fallback`. A shared helper (e.g. `legendaryMeta(kind)` /
+  `orientationsFor(kind)` style lookup functions) would read cleaner than the current inline repetition.
+  Readability cleanup, not urgent.
+- **SlateScreen.tsx — `handleRotate` divide-by-zero site is currently unreachable, but undocumented (crash-fix
+  review, 2026-08-02).** `handleRotate` does `(creator.orientationIndex + 1) % getOrientationCount(creator.kind)`,
+  and `getOrientationCount()` now returns `0` for an unrecognized kind (part of the same crash fix) — a `%0` would
+  produce `NaN`. Currently unreachable because the Rotate button is gated on `count > 1`, so this can't be hit with
+  the present UI. Worth a defensive comment at the `%` site noting that invariant, or a regression test, so a
+  future refactor that changes the gating condition doesn't silently reopen the NaN path.
 
 ## 6. Stats engine v2 (open items)
 - Source coloring (crafted gear by rarity #mods, talents by tree branch); hero-memory base values by rarity
@@ -687,7 +722,66 @@ accuracy review surfaced two follow-ups:
   mapping is pure given the text) so repeated lines across gear/talents/supports + successive recomputes are
   near-free. Pairs with the build-hash result-cache idea.
 - **Web compute: extract a pure `compute_stat_sheet(dict)->dict`** (future optimization). The web build runs the
-  engine in Pyodide by reusing the whole backend (`import server`) with bundled fastapi/pydantic wheels (Path B,
-  chosen for low risk). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a
+  engine in Pyodide by reusing the whole backend (`import server`; fastapi/pydantic micropip-installed at init —
+  Path B, chosen for low risk; owner decision 2026-08-03: keep fastapi for desktop/web consistency). Shipping-weight
+  pass 2026-08-03: backend-py.zip ships a tools/ allowlist only, engine-data.zip skips CDN-catalog-only files, and
+  the zip URL carries a ?v= content hash (replaced the cache:'reload' every-visit re-download workaround — do not
+  re-add it). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a
   fastapi-free module would shave ~2 MB (cached) + ~1 s one-time init off the web worker. Only worth it if web
   init/payload becomes a problem.
+
+## 10. E2E testing (Playwright, `e2e/`) — Phase 3 partial (2026-08-04)
+
+Harness + first journeys landed (`e2e/`: web = dist-web + Pyodide via static server on 8800, electron =
+`_electron.launch` on `out/main/index.js` with isolated temp userData/data/port). Green: web smoke (worker boot,
+tree load, persistence across reload), electron smoke (IPC round trip, isolated port + data dir), journeys
+build-code round trip + unsaved-changes guard. Run: `npm run test:e2e`. Remaining from
+`docs/TEST_EXPANSION_PLAN.md` Phase 3:
+
+- **New-build-to-DPS journey** — create → tree → gear → skill+support → finite non-zero DPS on Calcs.
+- **Persistence across restart (electron)** — save → close → relaunch (worker-scoped `e2eDirs` already persists
+  state across launches; needs the journey itself).
+- **Folder CRUD + drag-and-drop journey** (BuildSelectScreen).
+- **`data-testid` pass** — journeys currently use structural class selectors (`.modal-card`, `.build-card`,
+  `.build-sidebar`, `textarea.share-code-area`) against plan step 3; add testids and migrate.
+- **Hermetic web target** — the web build still fetches catalogs from the live CDN (`VITE_STATIC_DATA_BASE`);
+  serve a local mirror of `web-data/` + catalog exports so CI needs no network.
+- **CI job** — run the web project per push once a workflow exists; electron nightly.
+
+### Findings surfaced by the E2E work (app-side, owner-acknowledged 2026-08-04)
+
+- **Fresh builds are instantly dirty.** "+ New Build" shows `Save *` before any user edit — something in the
+  condition/loadout bootstrap bumps `buildVersion` past `loadedVersionRef` right after `startNewBuild()`. Means the
+  unsaved-changes guard (renderer modal + native close prompt) arms on untouched builds. Same applies after an
+  import. Find the bump and fold it into the loaded snapshot.
+- **Build codes: surface the hero/trait identity on import.** Excluding build name/id from `tli1_` codes is correct
+  and stays. Wanted soon: the character identity (hero trait name) should show up for an imported build (e.g. the
+  sidebar showing the trait/hero name instead of the bare "New Build" placeholder). Owner-requested 2026-08-04;
+  not started.
+
+### Loading states instead of placeholder content (owner-requested 2026-08-04, queued next after mobile M1)
+
+Talent screen, gear, and other catalog-driven screens render placeholder images/layouts while data loads,
+and those placeholders have drifted badly out of date ("currently they are very wrong"). Replace them with
+explicit loading indicators (spinner/skeleton that conveys NO information) so nothing wrong is ever shown
+pre-load, rather than trying to keep placeholder content in sync with the real layouts.
+
+### Gear follow-ups (owner-requested 2026-08-05, after the mobile M1 commit)
+
+- **Editor action rows**: when editing an existing build item, add a second action row - Duplicate under
+  Add to Build/Save, Remove-from-build under Cancel. Consider retiring the per-row duplicate/remove icons
+  on the Items in Build list once it lands.
+- **Custom item naming**: any build item (Vorax, crafted, legendary) can be renamed by the player so
+  creators can label items ("Timemark 7 Ring", "Early Resists"). Name field in the editor; names already
+  ride in EquippedGearItem.name so codec impact should be nil - verify KNOWN_BUILD_KEYS untouched.
+
+### Mobile M1 — shipped 2026-08-05 (this commit)
+
+Shipped: per-screen <=768px stacking (config, gear, skills, hero traits incl. oversized pannable
+Dance-of-the-Deep tree, tree selector/viewer with wrapping header + pannable canvas, slates incl.
+touch-drag via touch-action, pact spirits incl. mobile picker close), drawer-open build landing on
+Hero Traits (all platforms), unified gear editor shell (crafted/Vorax/legendary: natural-height form,
+parallel sticky preview card on desktop, uniform edges/surfaces), Equipment+Items-in-Build condensed
+to one desktop column, duplicate actions for build items and slate templates, gear/skills panel
+backgrounds matched to the app canvas. Deferred to M2 (see items above): tap tooltips, tree pinch-zoom,
+folder DnD alternatives, hermetic CDN, testid pass, remaining e2e journeys, loading-state replacement.

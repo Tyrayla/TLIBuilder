@@ -24,6 +24,7 @@ import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import { CoverageBadge } from '../components/CoverageBadge'
 import { CoverageLegend } from '../components/CoverageLegend'
+import LoadingState from '../components/LoadingState'
 import { coverageRank, passesModeledOnly } from '../utils/coverage'
 
 // A damage-delta request plus the band label it should display under.
@@ -364,10 +365,55 @@ function SlotDropdownPortal({ slotId, rect, equippedItems, currentIdx, slotMap, 
 
 // ── Customization Panel ───────────────────────────────────────────────────────
 
+// Second action row (Rename / Duplicate / Remove from Build) shown while editing an existing
+// build item — all item actions live in the editor, keeping the Items-in-Build rows clean.
+interface EditActions {
+  // Keys EditActionRows so its local rename state resets when a different item opens.
+  itemKey: number
+  displayName: string
+  onRename: (next: string) => void
+  onDuplicate: () => void
+  onRemove: () => void
+}
+
+// Rename swaps the row into an inline input; committing sets the item's DISPLAY name only —
+// the true item name stays visible in the editor header, preview, and tooltips.
+function EditActionRows({ actions }: { actions: EditActions }) {
+  const [renaming, setRenaming] = useState(false)
+  const [draft, setDraft] = useState('')
+  if (renaming) {
+    const commit = () => { actions.onRename(draft); setRenaming(false) }
+    return (
+      <div className="gear-actions-row">
+        <input
+          className="gear-build-rename-input"
+          value={draft}
+          autoFocus
+          placeholder="Display name…"
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') setRenaming(false)
+          }}
+        />
+      </div>
+    )
+  }
+  return (
+    <div className="gear-actions-row">
+      <button className="btn btn-sm gear-rename-btn" onClick={() => { setDraft(actions.displayName); setRenaming(true) }}>✎ Rename</button>
+      <button className="btn btn-sm gear-dup-btn" onClick={actions.onDuplicate}>⧉ Duplicate</button>
+      <button className="btn btn-sm gear-remove-btn" onClick={actions.onRemove}>Remove</button>
+    </div>
+  )
+}
+
 interface CustomizePanelProps {
   item: LegendaryGearItem | EquippedGearItem | null
   customizations: CustomizedAffix[]
   isEditing: boolean
+  editActions?: EditActions
   onCustomizationChange: (customizations: CustomizedAffix[]) => void
   onConfirm: () => void
   onCancel: () => void
@@ -498,7 +544,7 @@ function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
   )
 }
 
-function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, previewDeltas, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
+function CustomizePanel({ item, customizations, isEditing, editActions, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, previewDeltas, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
   const baseTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const custPanelId = useId()
   const consumedStats = useConsumedStatSet() // for inert-modifier badges on affix rows
@@ -901,7 +947,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
   }
 
   return (
-    <div className="gear-customize-panel">
+    <div className="gear-customize-panel gear-craft-mode">
       <div className="gear-customize-header">
         {typeLabel && <div className="gear-customize-type">{typeLabel}</div>}
         <div className="gear-customize-name">{item.name}<CoverageLegend /></div>
@@ -1014,10 +1060,13 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
 
       <ItemPreviewCard name={previewName} lines={previewLines} deltas={previewDeltas} />
       <div className="gear-customize-actions">
-        <button className="btn btn-sm btn-primary gear-confirm-btn" onClick={onConfirm}>
-          {isEditing ? 'Save' : 'Add to Build'}
-        </button>
-        <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
+        <div className="gear-actions-row">
+          <button className="btn btn-sm btn-primary gear-confirm-btn" onClick={onConfirm}>
+            {isEditing ? 'Save' : 'Add to Build'}
+          </button>
+          <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
+        </div>
+        {editActions && <EditActionRows key={editActions.itemKey} actions={editActions} />}
       </div>
     </div>
   )
@@ -1800,6 +1849,7 @@ interface VoraxEditorPanelProps {
   graft: Graft
   catalog: LegendaryGearItem[]
   catalogIndex: LegendaryGearIndexItem[]
+  editActions?: EditActions
   onAddToBuild: (item: EquippedGearItem) => void
   onClose: () => void
   onBack: () => void
@@ -1807,7 +1857,7 @@ interface VoraxEditorPanelProps {
   onSaveBuildItem?: (item: EquippedGearItem) => void
 }
 
-function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose, onBack, initialState, onSaveBuildItem }: VoraxEditorPanelProps) {
+function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBuild, onClose, onBack, initialState, onSaveBuildItem }: VoraxEditorPanelProps) {
   const [baseSlots, setBaseSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot]>(
     () => initialState?.baseSlots ?? [emptyVoraxSlot(), emptyVoraxSlot()]
   )
@@ -1972,7 +2022,7 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
   const voraxPreviewDeltas = useGearPreviewDeltas(voraxPreviewItem, VORAX_GRAFT_SLOTS[graft.item_id]?.[0])
 
   return (
-    <div className="gear-customize-panel">
+    <div className="gear-customize-panel gear-craft-mode">
       <div className="gear-craft-editing-header">
         <div className="gear-craft-editing-header-top">
           <span className="gear-craft-base-name">{getVoraxDisplayName(graft)} (Vorax)</span>
@@ -2071,14 +2121,17 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
 
       <ItemPreviewCard name={voraxPreviewName} lines={voraxPreviewLines} deltas={voraxPreviewDeltas} />
       <div className="gear-craft-actions">
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={handleAddToBuild}
-          disabled={baseSlots.every(s => !s.affix) && prefixSlots.every(s => !s.affix) && suffixSlots.every(s => !s.affix)}
-        >
-          {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
-        </button>
-        <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+        <div className="gear-actions-row">
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={handleAddToBuild}
+            disabled={baseSlots.every(s => !s.affix) && prefixSlots.every(s => !s.affix) && suffixSlots.every(s => !s.affix)}
+          >
+            {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
+          </button>
+          <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+        </div>
+        {editActions && <EditActionRows key={editActions.itemKey} actions={editActions} />}
       </div>
     </div>
   )
@@ -2198,6 +2251,7 @@ interface CraftEditorProps {
   craftBases: CraftBaseType[]
   craftBasesLoaded: boolean
   craftBasesFailed: boolean
+  editActions?: EditActions
   grafts: Graft[]
   onSelectVorax: (g: Graft) => void
   craftBaseItems: CraftBaseItemGroup[]
@@ -2220,7 +2274,7 @@ interface CraftEditorProps {
   onCorrosionTypeChange: (type: 'none' | 'desecration' | 'mutation') => void
 }
 
-function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, previewDeltas, onSaveBuildItem, corrosionType, onCorrosionTypeChange }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, editActions, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, previewDeltas, onSaveBuildItem, corrosionType, onCorrosionTypeChange }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -2466,7 +2520,7 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
   }
 
   return (
-    <div className="gear-customize-panel">
+    <div className="gear-customize-panel gear-craft-mode">
       <div className="gear-craft-editing-header">
         <div className="gear-craft-editing-header-top">
           {classification && <span className="gear-craft-classification">{classification}</span>}
@@ -2547,11 +2601,14 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
       </div>
       <ItemPreviewCard name={previewName} lines={previewLines} deltas={previewDeltas} />
       <div className="gear-craft-actions">
-        {/* Allow white items: only a base is required, not any affix (0-stat bases are valid for testing). */}
-        <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={!baseType}>
-          {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
-        </button>
-        <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+        <div className="gear-actions-row">
+          {/* Allow white items: only a base is required, not any affix (0-stat bases are valid for testing). */}
+          <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={!baseType}>
+            {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
+          </button>
+          <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+        </div>
+        {editActions && <EditActionRows key={editActions.itemKey} actions={editActions} />}
       </div>
     </div>
   )
@@ -2918,8 +2975,39 @@ export default function GearScreen(_props: Props) {
     setSelectedRandomAffixes(item.selected_random_affixes ?? {})
   }
 
+  // Rename sets the item's DISPLAY name only (true `name` untouched — tooltips/editor/preview
+  // keep it so the item stays identifiable). Empty or same-as-original clears the label.
+  const renameBuildItem = (idx: number, nextRaw: string) => {
+    // Clamp: the label is user-controlled, rides in share payloads, and renders in OTHER
+    // users' apps on import — strip control chars and cap the length.
+    const next = nextRaw.replace(/\p{C}/gu, '').trim().slice(0, 60)
+    const cur = useBuildStore.getState().gear
+    setGear(cur.map((g, i) => i === idx
+      ? { ...g, displayName: next && next !== g.name ? next : undefined }
+      : g))
+  }
+
+  // Clone a build item so small variants can be compared side by side. The copy must not
+  // claim the original's equipment slot — the user assigns it (or swaps) explicitly.
+  const handleDuplicateBuildItem = (idx: number) => {
+    // Live store read (see commitRename) — a just-blurred rename must survive into the copy.
+    const cur = useBuildStore.getState().gear
+    // Duplicating the row that's open in the editor copies the LIVE draft the preview shows
+    // (mirroring handleSaveBuildItem) — but the display label lives on the committed item, so
+    // carry it across explicitly or the copy would lose its name.
+    const source = idx === editingBuildIdx && previewItem
+      ? { ...previewItem, beltBlend, displayName: cur[idx]?.displayName }
+      : cur[idx]
+    const copy = JSON.parse(JSON.stringify(source)) as EquippedGearItem
+    copy.slot = null
+    const next = [...cur]
+    next.splice(idx + 1, 0, copy)
+    setGear(next)
+    if (editingBuildIdx !== null && editingBuildIdx > idx) setEditingBuildIdx(editingBuildIdx + 1)
+  }
+
   const handleRemoveBuildItem = (idx: number) => {
-    const next = [...gear]
+    const next = [...useBuildStore.getState().gear]
     next.splice(idx, 1)
     setGear(next)
     if (editingBuildIdx === idx) {
@@ -2950,7 +3038,7 @@ export default function GearScreen(_props: Props) {
     // customizations (previewItem), preserving the item's slot and the staged belt blend (bug-223). Falls back
     // to the slider-only merge if there's no preview draft (non-legendary build item without catalog backing).
     const edited = previewItem
-      ? { ...previewItem, slot: orig.slot, beltBlend }
+      ? { ...previewItem, slot: orig.slot, beltBlend, displayName: orig.displayName }
       : { ...orig, customizations, beltBlend }
     setGear(gear.map((g, i) => i === editingBuildIdx ? edited : g))
     setEditingBuildIdx(null)
@@ -2965,6 +3053,19 @@ export default function GearScreen(_props: Props) {
     setVoraxInitialState(null)
     resetCorrosion()
   }
+
+  // Second action row (Rename / Duplicate / Remove) for whichever editor has a build item open.
+  const editActions: EditActions | undefined = editingBuildIdx !== null ? {
+    itemKey: editingBuildIdx,
+    displayName: gear[editingBuildIdx]?.displayName ?? gear[editingBuildIdx]?.name ?? '',
+    onRename: (next: string) => renameBuildItem(editingBuildIdx, next),
+    onDuplicate: () => handleDuplicateBuildItem(editingBuildIdx),
+    onRemove: () => {
+      handleRemoveBuildItem(editingBuildIdx)
+      if (craftOpen) closeCraft()
+      else handleCancel()
+    },
+  } : undefined
 
   const handleSlotAssign = (slot: GearSlot, buildItemIdx: number | null) => {
     let next = gear.map((item, i) => {
@@ -3245,10 +3346,13 @@ export default function GearScreen(_props: Props) {
     <div className="screen gear-screen">
       <div className="gear-header">
         <h2 className="title-accent" style={{ fontSize: 20 }}>Gear</h2>
-        <span className="gear-header-count">{catalogIndex.length} items</span>
+        <span className="gear-header-count">{legendaryIndex === null ? '' : `${catalogIndex.length} items`}</span>
       </div>
 
       <div className="gear-body">
+        {/* Panels 1+2 share one column (desktop) — frees width for the craft editor's side-by-side
+            preview. On mobile the wrapper is display:contents and the panels stack as before. */}
+        <div className="gear-left-stack">
         {/* Panel 1: Equipment Slots */}
         <div className="gear-slots-panel">
           <div className="gear-slots-title">Equipment</div>
@@ -3277,7 +3381,7 @@ export default function GearScreen(_props: Props) {
                         className={`gear-slot-item-name ${getItemQualityClass(equipped)}`}
                         onClick={e => openSlotDropdown(slotDef.id, e)}
                       >
-                        {equipped.name}
+                        {equipped.displayName ?? equipped.name}
                       </button>
                     )}
                   </GearHoverTooltip>
@@ -3315,7 +3419,7 @@ export default function GearScreen(_props: Props) {
                     className="gear-build-item-name"
                     onClick={() => handleSelectBuildItem(i)}
                   >
-                    <span className={`gear-build-item-label ${getItemQualityClass(item)}`}>{item.name}</span>
+                    <span className={`gear-build-item-label ${getItemQualityClass(item)}`}>{item.displayName ?? item.name}</span>
                     {getItemSlots(item).map(slotId => (
                       <span key={slotId} className="gear-build-item-slot">
                         {SLOT_ORDER.find(s => s.id === slotId)?.label}
@@ -3332,6 +3436,7 @@ export default function GearScreen(_props: Props) {
             </div>
           ))}
         </div>
+        </div>
 
         {/* Panel 3: Customize or Craft */}
         <div className="gear-editor-column">
@@ -3343,18 +3448,20 @@ export default function GearScreen(_props: Props) {
               graft={selectedGraft}
               catalog={catalog}
               catalogIndex={catalogIndex}
+              editActions={editActions}
               onAddToBuild={item => setGear([...gear, withBeltBlend(item)])}
               onClose={closeCraft}
               onBack={() => { setSelectedGraft(null); setVoraxInitialState(null) }}
               initialState={voraxInitialState}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot }) : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot, displayName: orig.displayName }) : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : craftOpen ? (
             <CraftEditorPanel
               craftBases={craftBases}
               craftBasesLoaded={craftBasesLoaded}
+              editActions={editActions}
               craftBasesFailed={referenceResolved && failedCatalogs.has('craftBaseTypes')}
               craftBaseItems={craftBaseItems}
               grafts={grafts}
@@ -3376,7 +3483,7 @@ export default function GearScreen(_props: Props) {
               corrosionType={craftCorrosionType}
               onCorrosionTypeChange={setCraftCorrosionType}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot }) : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot, displayName: orig.displayName }) : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : (
@@ -3384,6 +3491,7 @@ export default function GearScreen(_props: Props) {
               item={customizeItem}
               customizations={customizations}
               isEditing={isEditing}
+              editActions={editActions}
               onCustomizationChange={setCustomizations}
               onConfirm={isEditing ? handleSaveBuildItem : handleAddFromCatalog}
               onCancel={handleCancel}
@@ -3440,7 +3548,7 @@ export default function GearScreen(_props: Props) {
             </label>
           </div>
           <div className="gear-catalog-list">
-            {loading && <div className="gear-empty">Loading…</div>}
+            {loading && <LoadingState label="Loading gear catalog…" />}
             {referenceResolved && legendaryIndex === null && (
               <div className="gear-empty" style={{ color: '#ff6b6b' }}>Couldn't load gear catalog — restart to retry.</div>
             )}

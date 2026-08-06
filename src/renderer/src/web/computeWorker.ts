@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Pyodide backend worker (web build only). Loads Pyodide + the backend Python + the engine-data bundle, then
 // serves the FastAPI app as a general in-browser backend: it dispatches ANY (method, path, body) through the
-// real ASGI app, so every endpoint (engine/stats, trees, resolve-mod, build-code, slate-pool, …) works exactly
+// real ASGI app, so every endpoint (engine/stats, trees, build-code, slate-pool, …) works exactly
 // like the server — off the main thread so the UI never blocks. Protocol:
 //   main -> worker: { type:'init', backendUrl, dataBase, season, persistSnapshot } | { type:'request', id, method, path, bodyJson }
 //   worker -> main: { type:'progress', msg } | { type:'ready' } | { type:'persist', snapshot }
@@ -70,13 +70,13 @@ async function init(msg: InitMsg): Promise<void> {
 
   progress('Loading Python packages…')
   await py.loadPackage('micropip')
-  await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi', 'python-multipart'])`)
+  await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi'])`)
 
   progress('Loading game data…')
   const [backendZip, dataZip] = await Promise.all([
-    // 'reload' bypasses the HTTP cache: backend-py.zip has a fixed filename, and some browsers (Brave) serve a
-    // stale copy to worker fetches despite must-revalidate — which would run an outdated backend after a deploy.
-    fetchBytes(msg.backendUrl, 'reload'),
+    // backendUrl carries a ?v=<content-hash> cache-buster (pyodideCompute), so normal HTTP caching is safe —
+    // a new deploy changes the URL, and unchanged deploys hit the browser cache instead of re-downloading.
+    fetchBytes(msg.backendUrl),
     fetchBytes(`${msg.dataBase}/engine-data.zip`),
   ])
   py.FS.mkdir('/be'); py.unpackArchive(backendZip, 'zip', { extractDir: '/be' })

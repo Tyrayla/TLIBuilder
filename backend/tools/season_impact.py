@@ -252,7 +252,15 @@ def _load_fixture_index() -> dict[str, str]:
             if not fn.endswith(".json"):
                 continue
             abspath = os.path.join(root, fn)
-            relpath = os.path.relpath(abspath, _BACKEND).replace("\\", "/")
+            try:
+                relpath = os.path.relpath(abspath, _BACKEND).replace("\\", "/")
+            except ValueError:
+                # abspath and _BACKEND on different Windows drives — e.g. the CI runner,
+                # where pytest's tmp_path (monkeypatched _FIXTURES_DIR) lands on C: while
+                # the repo checkout is on D:. os.path.relpath refuses cross-drive. Fall
+                # back to a fixtures-relative key; only the basename stem is used
+                # downstream, so the key's prefix is immaterial.
+                relpath = os.path.relpath(abspath, _FIXTURES_DIR).replace("\\", "/")
             with open(abspath, encoding="utf-8") as f:
                 index[relpath] = f.read()
     return index

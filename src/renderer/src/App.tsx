@@ -3,6 +3,7 @@ import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, 
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { snapshotAllAreas } from './utils/loadoutAreas'
 import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
+import { getBuildPayload } from './utils/buildPayload'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -11,6 +12,7 @@ import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
+import ErrorBoundary from './components/ErrorBoundary'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
 import HeroTraitScreen from './screens/HeroTraitScreen'
@@ -29,6 +31,9 @@ import SkillsScreen from './screens/SkillsScreen'
 import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
+
+// Where a build lands when created or opened — picking the character is the natural first step.
+const BUILD_LANDING_SCREEN: Screen = 'hero-traits'
 
 interface CascadeModal {
   removingSlot: number
@@ -72,11 +77,11 @@ function App() {
   const [appError, setAppError] = useState('')
   const [screen, setScreen] = useState<Screen>('build-select')
   const [treeColors, setTreeColors] = useState<Record<string, string>>({})
+  const [treeIcons, setTreeIcons] = useState<Record<string, string | null>>({})
   const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
   const [previewTree, setPreviewTree] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
   const [devMode, setDevMode] = useState(false)
-  const [deprecatedTools, setDeprecatedTools] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
@@ -129,8 +134,10 @@ function App() {
         setAppReady(true)
         api.getTrees().then(trees => {
           const colors: Record<string, string> = {}
-          trees.forEach(t => { colors[t.name] = t.color })
+          const icons: Record<string, string | null> = {}
+          trees.forEach(t => { colors[t.name] = t.color; icons[t.name] = t.icon_url ?? null })
           setTreeColors(colors)
+          setTreeIcons(icons)
         })
         api.getPactSpirits()
           .then(res => {
@@ -261,7 +268,7 @@ function App() {
     useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
-    setScreen('build-overview')
+    setScreen(BUILD_LANDING_SCREEN)
   }
 
   // ── Build import sanitizers ───────────────────────────────────────────────
@@ -442,7 +449,7 @@ function App() {
     useBuildStore.getState().flushActiveLoadout()
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
-    setScreen('build-overview')
+    setScreen(BUILD_LANDING_SCREEN)
   }
 
   const goToTreeSelector = () => {
@@ -623,37 +630,6 @@ function App() {
     finally { setSaveModalSaving(false) }
   }
 
-  const getBuildPayload = () => {
-    useBuildStore.getState().flushActiveLoadout()
-    const s = useBuildStore.getState()
-    return {
-      name: s.buildName,
-      loadouts: s.loadouts,
-      activeLoadoutId: s.activeLoadoutId,
-      characterLevel: s.characterLevel,
-      slots: s.slots,
-      slates: s.slates, slateInventory: s.slateInventory,
-      prisms: s.prisms, prismInventory: s.prismInventory,
-      conditionState: s.conditionState,
-      gear: s.gear,
-      skills: s.skills,
-      traitId: s.traitId,
-      traitSlotLevels: s.traitSlotLevels,
-      advancedTraitSelections: s.advancedTraitSelections,
-      traitTreeAllocations: s.traitTreeAllocations,
-      traitSkillSupports: s.traitSkillSupports,
-      licoricePreparedSkill: s.licoricePreparedSkill,
-      elixirIngredients: s.elixirIngredients,
-      heroMemories: s.heroMemories,
-      pactSpirits: s.pactSpirits,
-      fates: s.fates,
-      undetermined: s.undetermined,
-      notes: s.notes,
-      customMods: s.customMods,
-      targetConfig: s.targetConfig,
-    }
-  }
-
   const handleSidebarNav = (target: string) => {
     if (target === 'tree-selector') {
       goToTreeSelector()
@@ -685,7 +661,7 @@ function App() {
   // ── Sidebar-less screens ──────────────────────────────────────────────────
 
   if (screen === 'dev-tools') {
-    return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} onSeasonChange={() => {
+    return <DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
@@ -716,38 +692,6 @@ function App() {
   }
 
 
-  if (screen === 'preview-selector') {
-    return (
-      <TreeSelectorScreen
-        treeColors={treeColors}
-        onSelectTree={handlePreviewTree}
-        onRemoveTree={() => {}}
-        onSlotClick={() => {}}
-        onSlotReorder={() => {}}
-        onBack={() => setScreen(previewSource)}
-        onGoToSelector={() => {}}
-        onShiftUp={() => {}}
-        onPreview={() => {}}
-        previewMode
-      />
-    )
-  }
-
-  if (screen === 'preview-viewer' && previewTree) {
-    return (
-      <TreeViewerScreen
-        treeName={previewTree}
-        treeColor={treeColors[previewTree] ?? '#e94560'}
-        treeColors={treeColors}
-        onBack={() => setScreen('preview-selector')}
-        onSlotClick={() => {}}
-        onReselect={() => setScreen('preview-selector')}
-        previewMode
-      />
-    )
-  }
-
-
   // ── Screens with sidebar ──────────────────────────────────────────────────
 
   let screenContent: React.ReactNode = <div style={{ color: '#888', padding: 20 }}>Unknown screen state</div>
@@ -759,12 +703,12 @@ function App() {
       <>
         <TreeSelectorScreen
           treeColors={treeColors}
+          treeIcons={treeIcons}
           onSelectTree={handleSelectTree}
           onRemoveTree={handleRemoveTree}
           onSlotClick={handleSlotClick}
           onSlotReorder={handleSlotReorder}
           onGoToTree={handleSlotClick}
-          onBack={() => setScreen('build-overview')}
           onGoToSelector={() => {}}
           onShiftUp={handleShiftUp}
           onPreview={goToPreview}
@@ -783,18 +727,46 @@ function App() {
             treeName={slot.treeName}
             treeColor={treeColors[slot.treeName] ?? '#e94560'}
             treeColors={treeColors}
+            treeIcons={treeIcons}
             onBack={() => setScreen('tree-selector')}
             onSlotClick={handleSlotClick}
             onReselect={handleReselect}
             onSlotReorder={handleSlotReorder}
             onPreview={goToPreview}
-            devMode={devMode}
-            deprecatedTools={deprecatedTools}
           />
           {cascadeOverlay}
         </>
       )
     }
+  } else if (screen === 'preview-selector') {
+    screenContent = (
+      <TreeSelectorScreen
+        treeColors={treeColors}
+        treeIcons={treeIcons}
+        onSelectTree={handlePreviewTree}
+        onRemoveTree={() => {}}
+        onSlotClick={() => {}}
+        onSlotReorder={() => {}}
+        onGoToSelector={() => {}}
+        onShiftUp={() => {}}
+        onPreview={() => setScreen(previewSource)}
+        previewMode
+      />
+    )
+  } else if (screen === 'preview-viewer' && previewTree) {
+    screenContent = (
+      <TreeViewerScreen
+        treeName={previewTree}
+        treeColor={treeColors[previewTree] ?? '#e94560'}
+        treeColors={treeColors}
+        treeIcons={treeIcons}
+        onBack={() => setScreen('preview-selector')}
+        onSlotClick={() => {}}
+        onReselect={() => setScreen('preview-selector')}
+        onPreview={() => setScreen(previewSource)}
+        previewMode
+      />
+    )
   } else if (screen === 'import-export') {
     screenContent = (
       <ImportExportOverlay
@@ -844,7 +816,13 @@ function App() {
             onGoBack={goToBuildSelect}
           />
           <div className="app-content">
-            {screenContent}
+            {/* Inner boundary, keyed on screen — a crash confined to one screen's render can
+                recover by navigating away (remounts this boundary) without a full page reload,
+                and the persistent BuildSidebar/nav stays alive throughout. Defense-in-depth on
+                top of the root boundary in main.tsx, not a replacement for it. */}
+            <ErrorBoundary key={screen}>
+              {screenContent}
+            </ErrorBoundary>
           </div>
         </div>
       </div>

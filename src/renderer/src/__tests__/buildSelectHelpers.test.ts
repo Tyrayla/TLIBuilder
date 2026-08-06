@@ -7,7 +7,8 @@ import {
   isSelfOrDescendant,
   httpErrorStatus
 } from '../screens/BuildSelectScreen'
-import type { Build, BuildFolder } from '../api/client'
+import { characterSummary } from '../utils/characterSummary'
+import type { Build, BuildFolder, HeroTrait } from '../api/client'
 
 function build(id: string, updatedAt?: number): Build {
   return { id, name: id, slots: [], updatedAt }
@@ -200,5 +201,26 @@ describe('httpErrorStatus', () => {
 
   it('returns null for non-Error input (undefined)', () => {
     expect(httpErrorStatus(undefined)).toBeNull()
+  })
+})
+
+describe('characterSummary', () => {
+  const trait = { trait_id: 'dance_of_the_deep', hero: 'Selena', variant_name: 'Dance of the Deep' } as HeroTrait
+  const traits = [trait]
+
+  it('resolves hero and trait name with the level condition', () => {
+    const b = { ...build('b1'), traitId: 'dance_of_the_deep', conditionState: { level: 100 } }
+    expect(characterSummary(b, traits)).toEqual({ level: 100, identity: 'Selena · Dance of the Deep' })
+  })
+
+  it('degrades to level-only when the traitId is unknown or the catalog has not loaded', () => {
+    const unknown = { ...build('b2'), traitId: 'not_a_trait', conditionState: { level: 87 } }
+    expect(characterSummary(unknown, traits)).toEqual({ level: 87, identity: null })
+    const unloaded = { ...build('b3'), traitId: 'dance_of_the_deep', conditionState: { level: 87 } }
+    expect(characterSummary(unloaded, null)).toEqual({ level: 87, identity: null })
+  })
+
+  it('defaults to level 90 with no trait when the build predates the conditions framework', () => {
+    expect(characterSummary(build('b4'), traits)).toEqual({ level: 90, identity: null })
   })
 })

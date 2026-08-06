@@ -501,31 +501,6 @@ export interface TreeData {
   node_prefix: string
 }
 
-export interface NodeEditData {
-  id: string
-  column: number
-  row: number
-  node_type: string
-  max_points: number
-}
-
-export interface ModPoolEntry {
-  stat: string
-  display_name: string
-  unit: string
-  micro_increment: number
-  medium_increment: number
-  legendary_increment: number
-  node_types: string[]
-}
-
-export interface StatRecipe {
-  stat: string
-  rank1: number
-  values: number[]
-  display_name: string
-}
-
 export interface TiedCandidate {
   stat: string
   display_name: string
@@ -1159,18 +1134,6 @@ export interface CustomModStatus {
   text: string
   resolved: boolean
   stat_display: string | null
-}
-
-export interface ResolveModResult {
-  stat_key: string
-  amount: number
-  text: string
-  display_name: string
-}
-
-export interface ResolveModResponse {
-  text: string
-  resolved: ResolveModResult[]
 }
 
 export interface StatSheetResponse {
@@ -1885,18 +1848,6 @@ export function buildTraitEffects(
   return out
 }
 
-export interface MemoryRevivalAffix {
-  tier: number
-  modifier: string
-  level: number
-  weight: number
-}
-
-export interface TowerSequenceEntry {
-  affix: string
-  source: string
-}
-
 // One split effect line of a skill/support tooltip (from backend engine.tooltip.build_tooltip).
 // `scaling` lines carry per-level resolved display strings in `values_by_level`; `special`/`flavor`
 // lines are shown verbatim via `text`. `badge_text` is the canonical string fed to the badge resolver.
@@ -2554,6 +2505,9 @@ export interface CustomizedAffix {
 export interface EquippedGearItem {
   item_id: string
   name: string
+  // Player-given label. Display-only: shown in equipment slots / Items in Build / note mentions,
+  // while tooltips, the editor, and the preview keep the true `name` so items stay identifiable.
+  displayName?: string
   required_level: number
   affixes: LegendaryAffix[]
   customizations: CustomizedAffix[]
@@ -2678,7 +2632,7 @@ export interface SeasonDiff {
 }
 
 export const api = {
-  getTrees: () => get<{ name: string; color: string }[]>('/trees'),
+  getTrees: () => get<{ name: string; color: string; icon_url?: string | null }[]>('/trees'),
 
   // Cross-tree node search for the overview — trees with nodes matching the query + per-tree match count.
   searchTrees: (q: string) => get<{ name: string; match_count: number }[]>(`/tree-search?q=${encodeURIComponent(q)}`),
@@ -2702,16 +2656,6 @@ export const api = {
   shareBuildCode,
   fetchSharedBuildCode,
 
-  // Tree editing (debug tools)
-  upsertNode: (tree: string, node: NodeEditData) =>
-    post<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/node`, node),
-  removeNode: (tree: string, nodeId: string) =>
-    del<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/node/${encodeURIComponent(nodeId)}`),
-  toggleConnection: (tree: string, src: string, dst: string) =>
-    post<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/connection`, { src, dst }),
-
-  getModifierPool: () => get<ModPoolEntry[]>('/modifier-pool'),
-
   // Dev tools
   rebuildNodeTypeFilter: () => post<RebuildFilterResult>('/dev/rebuild-node-type-filter', {}),
   exportStatMeta: () => post<{ ok: boolean; stat_count: number; path: string }>('/dev/export-stat-meta', {}),
@@ -2719,35 +2663,14 @@ export const api = {
   getNodeTypeFilterOverrides: () => get<{ overrides: Record<string, FilterOverride> }>('/dev/node-type-filter/overrides'),
   addNodeTypeFilterOverride: (text: string, stat: string) => post<{ ok: boolean; key: string }>('/dev/node-type-filter/overrides', { text, stat }),
   deleteNodeTypeFilterOverride: (key: string) => del<{ ok: boolean }>(`/dev/node-type-filter/overrides/${encodeURIComponent(key)}`),
-  getStatRecipes: (treeName: string, nodeType: string) =>
-    get<StatRecipe[]>(`/dev/stat-recipes/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
-  clearNodeTypeFilter: () => del<{ ok: boolean }>('/dev/node-type-filter'),
-
   // Seasons
   listSeasons: () => get<SeasonSummary[]>('/seasons'),
-  getActiveSeason: () => get<{ name: string | null }>('/active-season'),
   setActiveSeason: (name: string | null) => post<{ ok: boolean }>('/active-season', { name }),
   deleteSeason: (name: string) => del<{ ok: boolean }>(`/seasons/${encodeURIComponent(name)}`),
-  importSeason: (seasonName: string, nodes: object[]) =>
-    post<{ ok: boolean; trees_imported: string[]; skipped: string[] }>(
-      '/dev/import-season', { season_name: seasonName, nodes }
-    ),
-  importNewGodTalents: (seasonName: string, items: object[]) =>
-    post<{ ok: boolean; count: number }>(
-      '/dev/import-new-god-talents', { season_name: seasonName, items }
-    ),
-  importLegendaryGear: (seasonName: string, fileData: object) =>
-    post<{ ok: boolean; count: number; set_name: string }>(
-      '/dev/import-legendary-gear', { season_name: seasonName, file_data: fileData }
-    ),
   importCrawlerLegendaryGear: (seasonName: string, items: object[]) =>
     post<{ ok: boolean; count: number }>(
       '/dev/import-crawler-legendary-gear',
       { season_name: seasonName, items }
-    ),
-  importSkills: (seasonName: string, fileData: object) =>
-    post<{ ok: boolean; added: number; total: number }>(
-      '/dev/import-skills', { season_name: seasonName, file_data: fileData }
     ),
   importCrawlerSkills: (seasonName: string, items: object[]) =>
     post<{ ok: boolean; added: number; total: number }>(
@@ -2764,10 +2687,6 @@ export const api = {
       { season_name: seasonName, tree_name: treeName, crawler_data: crawlerData }
     ),
 
-  importHeroTrait: (seasonName: string, fileData: object) =>
-    post<{ ok: boolean; hero: string; total: number; heroes: number }>(
-      '/dev/import-hero-traits', { season_name: seasonName, file_data: fileData }
-    ),
   importCrawlerHeroTraits: (seasonName: string, items: object[]) =>
     post<{ ok: boolean; added: number; total: number; heroes: number }>(
       '/dev/import-crawler-hero-traits', { season_name: seasonName, items }
@@ -2780,7 +2699,6 @@ export const api = {
       '/dev/import-crawler-pact-spirits', { season_name: seasonName, items }
     ),
   getPactSpirits: () => get<{ season: string | null; spirits: PactSpirit[] }>('/pact-spirits'),
-  clearPactSpirits: () => del<{ ok: boolean }>('/dev/pact-spirits'),
 
   importCrawlerCraftBaseTypes: (seasonName: string, items: object[]) =>
     post<{ ok: boolean; count: number }>(
@@ -2794,14 +2712,12 @@ export const api = {
   validateCustomMods: (texts: string[]) =>
     post<{ statuses: CustomModStatus[] }>('/validate-custom-mods', { texts }),
   getCraftBaseItems: () => get<{ season: string | null; base_types: CraftBaseItemGroup[] }>('/craft-base-items'),
-  clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
 
   importCrawlerGrafts: (seasonName: string, items: object[]) =>
     post<{ ok: boolean; count: number }>(
       '/dev/import-crawler-grafts', { season_name: seasonName, items }
     ),
   getGrafts: () => get<{ season: string | null; grafts: Graft[] }>('/grafts'),
-  clearGrafts: () => del<{ ok: boolean }>('/dev/grafts'),
 
   // Belt Blends (Blending Rituals) — a single scraper file: { entries, glossary }.
   importCrawlerBeltBlends: (seasonName: string, data: object) =>
@@ -2809,7 +2725,6 @@ export const api = {
       '/dev/import-crawler-belt-blends', { season_name: seasonName, data }
     ),
   getBeltBlends: () => get<{ season: string | null; blends: BeltBlend[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
-  clearBeltBlends: () => del<{ ok: boolean }>('/dev/belt-blends'),
 
   importDestiny: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),
@@ -2831,11 +2746,9 @@ export const api = {
 
   importMemoryRevival: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-memory-revival', { season_name: seasonName, data }),
-  getMemoryRevival: () => get<{ season: string | null; affixes: MemoryRevivalAffix[] }>('/memory-revival'),
 
   importTowerSequence: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-tower-sequence', { season_name: seasonName, data }),
-  getTowerSequence: () => get<{ season: string | null; entries: TowerSequenceEntry[] }>('/tower-sequence'),
 
   diffSeasons: (seasonA: string, seasonB: string) =>
     post<SeasonDiff>('/dev/diff-seasons', { season_a: seasonA, season_b: seasonB }),
@@ -2843,25 +2756,6 @@ export const api = {
   getSlatePool: (primaryTree: string) =>
     get<SlatePool>(`/slate-pool/${encodeURIComponent(primaryTree)}`),
   getSlatePoolAll: () => get<SlatePool>('/slate-pool-all'),
-
-  engineCompute: (payload: {
-    slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
-    slates?: SavedSlate[]
-    conditions?: string[]
-    skill: {
-      name: string; skill_type: string; tags: string[]; damage_types: string[]
-      base_level: number; extra_levels?: number
-      base_dmg_min?: number; base_dmg_max?: number; base_csr?: number
-    }
-    enemy?: {
-      fire_resistance?: number; cold_resistance?: number
-      lightning_resistance?: number; erosion_resistance?: number; armor?: number
-    }
-  }) => post<{
-    avg_hit: number; min_hit: number; max_hit: number
-    crit_chance: number; crit_multiplier: number; effective_dps: number
-    breakdown: Record<string, unknown>
-  }>('/engine/compute', payload),
 
   engineStats: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
@@ -2885,9 +2779,6 @@ export const api = {
   // call per item (dozens) and flood the single backend / Pyodide worker. Returns results in request order.
   engineStatsBatch: (payloads: Record<string, unknown>[]): Promise<{ results: StatSheetResponse[] }> =>
     post<{ results: StatSheetResponse[] }>('/engine/stats-batch', { requests: payloads }),
-
-  resolveMod: (text: string) =>
-    post<ResolveModResponse>('/resolve-mod', { text }),
 
   // Map raw modifier texts (spirit/memory/talent/slate) to engine stat key(s). Deterministic per
   // data version; the renderer caches results in mappingStore. Gear carries stat_key already.
@@ -2920,8 +2811,6 @@ export const api = {
     get<{ season: string | null; entries: ConditionSourceEntry[] }>('/dev/conditions/sources'),
   devGetConditionSourceItems: (text: string) =>
     get<{ items: { source: string; item_name: string; affix_text: string }[] }>(`/dev/conditions/source-items?text=${encodeURIComponent(text)}`),
-  devGetConditionOverrides: () =>
-    get<Record<string, unknown>>('/dev/conditions/overrides'),
   devSaveConditionOverride: (conditionText: string, expression: unknown) =>
     post<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression }),
   devDeleteConditionOverride: (conditionText: string) =>

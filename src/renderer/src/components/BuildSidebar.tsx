@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs, SIDEBAR_MIN, SIDEBAR_MAX } from '../store/uiPrefsStore'
@@ -6,6 +6,8 @@ import SettingsOverlay from './SettingsOverlay'
 import LoadoutOverlay from './LoadoutOverlay'
 import type { OffenseResult } from '../api/client'
 import { dec } from '../utils/num'
+import { characterSummary } from '../utils/characterSummary'
+import { characterLevelFrom } from '../utils/conditions'
 
 interface Props {
   screen: string
@@ -130,8 +132,30 @@ function LoadoutBar({ onManage }: { onManage: (v: 'list' | 'create') => void }) 
 
 export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave, onSaveAs, onGoBack }: Props) {
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
+    || screen === 'preview-selector' || screen === 'preview-viewer'
   const [showSettings, setShowSettings] = useState(false)
   const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
+  // ≤768px the sidebar collapses into an overlay drawer (see the mobile block in index.css);
+  // the floating toggle opens it and any navigation closes it. Desktop ignores all of this.
+  // Starts OPEN on mobile: the sidebar mounts when a build opens, and the drawer doubling as the
+  // build's landing menu beats dropping the user on a screen with no visible navigation.
+  const [mobileOpen, setMobileOpen] = useState(
+    () => (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches) ?? false,
+  )
+  const nav = (target: string) => { setMobileOpen(false); onNav(target) }
+  useEffect(() => {
+    if (!mobileOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mobileOpen])
+  // Live character identity for the OPEN build — also what identifies a freshly imported build
+  // (codes carry no name, so the header alone would just read "New Build"). Level subscribes as a
+  // primitive so unrelated condition edits don't re-render the whole sidebar.
+  const traitId = useBuildStore(s => s.traitId)
+  const level = useBuildStore(s => characterLevelFrom(s.conditionState))
+  const heroTraits = useReferenceStore(s => s.heroTraits)
+  const { identity } = characterSummary({ traitId }, heroTraits)
   const sidebarWidth = useUiPrefs(s => s.sidebarWidth)
   const setSidebarWidth = useUiPrefs(s => s.setSidebarWidth)
 
@@ -154,10 +178,23 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
   }
 
   return (
-    <div className="sidebar-shell" style={{ width: sidebarWidth }}>
+    <>
+    <button
+      className={`sidebar-mobile-toggle${mobileOpen ? ' is-open' : ''}`}
+      aria-label="Open menu"
+      aria-expanded={mobileOpen}
+      onClick={() => setMobileOpen(o => !o)}
+    >☰</button>
+    {mobileOpen && <div className="sidebar-mobile-backdrop" onClick={() => setMobileOpen(false)} />}
+    <div className={`sidebar-shell${mobileOpen ? ' mobile-open' : ''}`} style={{ width: sidebarWidth }}>
     <div className="build-sidebar">
+      <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
+      <div className="sidebar-divider" />
       <div className="sidebar-build-name" title={buildName || 'New Build'}>
         {buildName || 'New Build'}
+      </div>
+      <div className="sidebar-hero" title={identity ? `Lv ${level} ${identity}` : `Lv ${level} · no hero trait`}>
+        Lv {level}{identity ? <> <span className="sidebar-hero-name">{identity}</span></> : <span className="sidebar-hero-none"> · no hero trait</span>}
       </div>
       <div className="sidebar-save-row">
         <button className="sidebar-save-btn" onClick={onSave}>
@@ -166,7 +203,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
         <button className="sidebar-save-btn" onClick={onSaveAs}>Save As</button>
       </div>
 
-      <DpsBox onNav={onNav} />
+      <DpsBox onNav={nav} />
 
       <div className="sidebar-divider" />
 
@@ -174,33 +211,35 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <div className="sidebar-divider" />
 
-      <NavBtn label="Config" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
-      <NavBtn label="Calcs" active={screen === 'stats'} onClick={() => onNav('stats')} />
-      <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
+      <NavBtn label="Config" active={screen === 'build-overview'} onClick={() => nav('build-overview')} />
+      <NavBtn label="Calcs" active={screen === 'stats'} onClick={() => nav('stats')} />
+      <NavBtn label="Notes" active={screen === 'notes'} onClick={() => nav('notes')} />
 
       <div className="sidebar-divider" />
 
-      <NavBtn label="Talent Tree" active={isTreeActive} onClick={() => onNav('tree-selector')} />
-      <NavBtn label="Slates" active={screen === 'slate-board'} onClick={() => onNav('slate-board')} />
-      <NavBtn label="Gear" active={screen === 'gear'} onClick={() => onNav('gear')} />
-      <NavBtn label="Skills" active={screen === 'skills'} onClick={() => onNav('skills')} />
-      <NavBtn label="Hero Trait" active={screen === 'hero-traits'} onClick={() => onNav('hero-traits')} />
-      <NavBtn label="Pact Spirits" active={screen === 'pact-spirits'} onClick={() => onNav('pact-spirits')} />
+      <NavBtn label="Talent Tree" active={isTreeActive} onClick={() => nav('tree-selector')} />
+      <NavBtn label="Slates" active={screen === 'slate-board'} onClick={() => nav('slate-board')} />
+      <NavBtn label="Gear" active={screen === 'gear'} onClick={() => nav('gear')} />
+      <NavBtn label="Skills" active={screen === 'skills'} onClick={() => nav('skills')} />
+      <NavBtn label="Hero Trait" active={screen === 'hero-traits'} onClick={() => nav('hero-traits')} />
+      <NavBtn label="Pact Spirits" active={screen === 'pact-spirits'} onClick={() => nav('pact-spirits')} />
 
       <div className="sidebar-divider" />
 
-      <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => onNav('import-export')} />
+      <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => nav('import-export')} />
+      {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
+      {/* Intentional trailing filler — keeps the nav packed at the top now that nothing sits at the bottom. */}
       <div className="sidebar-spacer" />
-
-      {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
-      <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
-
-      {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
-      {loadoutView && <LoadoutOverlay initialView={loadoutView} onClose={() => setLoadoutView(null)} />}
     </div>
       <div className="sidebar-resize-handle" onMouseDown={startResize} title="Drag to resize the sidebar" />
     </div>
+    {/* Overlays live OUTSIDE .sidebar-shell: on mobile the shell is fixed+transformed (a stacking
+        and containing block), which would trap the modals' z-index and drag them offscreen with
+        the drawer. As siblings they layer against the page like every other modal. */}
+    {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
+    {loadoutView && <LoadoutOverlay initialView={loadoutView} onClose={() => setLoadoutView(null)} />}
+    </>
   )
 }
