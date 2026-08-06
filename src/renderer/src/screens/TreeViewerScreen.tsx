@@ -567,8 +567,9 @@ export default function TreeViewerScreen({
   )
   const [deallocMode, setDeallocMode] = useState(false)
   useEffect(() => {
-    const mq = window.matchMedia?.('(max-width: 768px)')
-    if (!mq) return
+    // Guard `window` itself (not just matchMedia) — the vitest suite renders this in a `node` env.
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(max-width: 768px)')
     const onChange = () => { setMobile(mq.matches); if (!mq.matches) setDeallocMode(false) }
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
