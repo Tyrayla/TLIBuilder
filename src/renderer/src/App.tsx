@@ -64,6 +64,19 @@ function ensureLoadouts(
       .filter(l => l && typeof l.id === 'string')
       .map(l => ({ id: l.id, name: l.name ?? 'Loadout', data: l.data ?? {}, inherit: l.inherit ?? {} }))
     if (loadouts.length > 0) {
+      // Migrate pre-`traitTreeAllocations`-area builds: the field used to be build-global, so an
+      // older loadout's `trait` snapshot won't have it. Seed it from the top-level value for the
+      // loadout(s) that share the build's trait; others default to [] (their value was never stored).
+      const topAllocs = Array.isArray((payload as { traitTreeAllocations?: unknown }).traitTreeAllocations)
+        ? (payload as { traitTreeAllocations: string[] }).traitTreeAllocations
+        : []
+      const topTraitId = (payload as { traitId?: unknown }).traitId
+      for (const l of loadouts) {
+        const trait = l.data.trait as Record<string, unknown> | undefined
+        if (trait && trait.traitTreeAllocations === undefined) {
+          l.data = { ...l.data, trait: { ...trait, traitTreeAllocations: trait.traitId === topTraitId ? topAllocs : [] } }
+        }
+      }
       const activeLoadoutId = loadouts.find(l => l.id === srcActiveId)?.id ?? loadouts[0].id
       return { loadouts, activeLoadoutId }
     }

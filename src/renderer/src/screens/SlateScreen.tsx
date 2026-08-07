@@ -1129,6 +1129,7 @@ export default function SlateScreen({ treeColors }: Props) {
   const setSlates = useBuildStore(s => s.setSlates)
   const slateInventory = useBuildStore(s => s.slateInventory)
   const setSlateInventory = useBuildStore(s => s.setSlateInventory)
+  const activeLoadoutId = useBuildStore(s => s.activeLoadoutId)
   const [placed, setPlaced] = useState<PlacedSlate[]>(
     () => (slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
@@ -1172,6 +1173,16 @@ export default function SlateScreen({ treeColors }: Props) {
     if (changed) setSlateInventory([...byId.values()])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed, editingSlateId])
+
+  // Re-seed the local board when the active loadout changes. The `placed` initializer only runs on
+  // mount, so a loadout switch (which swaps store.slates) would otherwise leave the board showing the
+  // previous loadout until you navigate away and back. The store→local reseed here is followed by the
+  // local→store sync effect above finding them equal (no spurious dirty bump / loop).
+  useEffect(() => {
+    setPlaced((useBuildStore.getState().slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
+    setMode({ type: 'idle' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLoadoutId])
 
   useEffect(() => {
     const handler = () => setMode(prev => {

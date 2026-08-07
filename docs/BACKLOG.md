@@ -785,3 +785,63 @@ parallel sticky preview card on desktop, uniform edges/surfaces), Equipment+Item
 to one desktop column, duplicate actions for build items and slate templates, gear/skills panel
 backgrounds matched to the app canvas. Deferred to M2 (see items above): tap tooltips, tree pinch-zoom,
 folder DnD alternatives, hermetic CDN, testid pass, remaining e2e journeys, loading-state replacement.
+
+### Compendium-import round-trip follow-ups (2026-08-07)
+
+Surfaced testing imported TLI Compendium builds (via the private build-crosswalk converter).
+Converter-side issues were fixed in that tool. The tlibuilder items below split into **fixed
+in this change** and **still open**.
+
+**Fixed in this change (dev):**
+- Loadout switch not refreshing the viewed tree — `TreeViewerScreen` now re-seeds `nodeStates`/
+  `coreTalentSelections` on `activeLoadoutId` change (was keyed only on `treeName`).
+- `traitTreeAllocations` is now a per-loadout `trait`-area field (`loadoutAreas.ts`) with a load
+  migration, so tree-mode hero-trait allocations swap with loadouts.
+- Crash guards: `GearTooltipBody` `affixes.slice` and `noteEntities` `.map` now tolerate gear
+  items without `affixes`.
+
+**Still open:**
+- **Selena "Dance of the Deep" trait UI redo.** Text is cut off at the bottom of the trait
+  panel; and the Artificial Moon needs a proper home in tree mode. Currently the base-trait level
+  in tree mode has no UI control (defaults to 1, per the existing note), so `showArtificialMoon`
+  (base level 5) never triggers for tree traits — decide how tree-mode base level + Artificial
+  Moon should surface, and fix the panel/tree layout clipping.
+- **Hero-trait base values are wrong for most rarities.** The tlidb-sourced base values are
+  incorrect for most rarities; ours should match in-game. Re-source/correct (data-scraper +
+  verification).
+- **Hero memory inventory + creation system.** Build a proper hero-memory inventory (create /
+  move between slots) mirroring the gear inventory model, and **update memory levels based on the
+  socketed hero trait** (the trait gates/scales memory levels).
+
+### Compendium-import round-trip #2 (2026-08-07)
+
+**Fixed in this change (dev):**
+- Slate page stale on loadout switch — `SlateScreen` now re-seeds the local board from
+  `store.slates` on `activeLoadoutId` change (same class of bug as the tree screen).
+
+**Still open — slates (need visual iteration; the hard subsystem):**
+- **Slate positioning still off.** Placed-slate cells are computed from the geometry shape +
+  the Compendium `placements[]` (row,col) as anchor, but the anchor-reference semantics
+  between the two tools don't fully line up (shapes land near-but-not-exactly right, some
+  overlap). Needs a visual place-identical-slates-in-both-tools diff to pin the exact
+  reference cell / origin convention per shape+orientation.
+- **`treeType` semantics for divinity slates.** Converter sets `treeType` = the affix's
+  `slateType`, which can be the talent's *source* tree (e.g. "Arcanist") rather than the god
+  board the slate sits on (Compendium `god`, e.g. "Knowledge"). Decide which Builder wants and
+  map accordingly.
+- **Empty placed slates become typeless `base` slates.** A Compendium slate with no affix
+  selected has no `slateType` → `treeType: "None"`. Either derive from `god`, or don't allow a
+  typeless placed slate.
+
+**Still open — loadout-scoped inventories (owner-requested feature):**
+- Make **slate inventory** (and later **hero-memory inventory**) **loadout-contained** rather
+  than build-global. Add a view mode the user can toggle: default = **current loadout**, option
+  = **entire build** (the aggregate of all loadouts' slates). Data-model: move `slateInventory`
+  into the `slates` loadout area (like `traitTreeAllocations`); UI: the mode toggle + aggregate
+  view. Converter then emits `slateInventory` per loadout.
+
+**Still open — crafted gear editor:**
+- Imported crafted gear resolves for DPS + shows rendered rolls in the tooltip, but the craft
+  **editor's** prefix/suffix selectors are empty (imported affixes aren't matched to catalog
+  craft-affix options), so the item isn't re-editable without re-rolling. Match imported affixes
+  to the catalog pool (by expression/tier/affix_type) to populate the editor.

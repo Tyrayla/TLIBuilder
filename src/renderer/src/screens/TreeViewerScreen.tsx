@@ -488,6 +488,7 @@ export default function TreeViewerScreen({
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
+  const activeLoadoutId = useBuildStore(s => s.activeLoadoutId)
   const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
   const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
   // Core-talent effect badges (roadmap #4), the same 4-state scheme as every other modifier, driven by
@@ -596,6 +597,17 @@ export default function TreeViewerScreen({
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
+
+  // Re-seed the local view when the active loadout changes. Switching loadouts swaps the resolved
+  // `slots` under the SAME `treeName`, so the treeName-keyed effect above doesn't fire — without this
+  // the tree keeps showing the previous loadout's points until you switch to another tree and back.
+  useEffect(() => {
+    if (previewMode) return
+    setNodeStates(slots[activeSlot]?.nodeStates ?? {})
+    setCoreTalentSelections(slots[activeSlot]?.coreTalentSelections ?? {})
+    setExpandedSlot(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLoadoutId])
 
   // Prism reflected-box points count toward the budget + column thresholds (they cost points in-game).
   const total = sumPoints(nodeStates) + (treePrism ? sumPoints(treePrism.boxAllocations) : 0)
