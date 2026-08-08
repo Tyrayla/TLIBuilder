@@ -3,7 +3,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import type { OffenseResult, DamageRow, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost } from '../api/client'
-import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
+import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from '../components/HeroTraitShared'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -3181,7 +3181,11 @@ export default function PlayerStatsScreen() {
   const heroTraitsCatalog = useReferenceStore(s => s.heroTraits)
   const traitNodeTooltip = useMemo(() => {
     const trait = (heroTraitsCatalog ?? []).find((t: HeroTrait) => t.trait_id === traitId)
-    const lvl = (i: number) => Math.max(1, Math.min(5, Math.abs(traitSlotLevels?.[i] ?? 1)))
+    // Phase B: fixed-tier advanced slots are DERIVED from the socketed memories (match the engine). Tree traits
+    // keep their stored levels.
+    const stored = traitSlotLevels ?? [1, 1, 1, 1]
+    const levels = trait && trait.allocation_mode !== 'tree' ? deriveTraitSlotLevels(heroMemories, stored) : stored
+    const lvl = (i: number) => Math.max(1, Math.min(5, Math.abs(levels?.[i] ?? 1)))
     return (sourceName: string) => {
       if (!trait) return null
       if (sourceName === trait.variant_name) {
@@ -3199,7 +3203,7 @@ export default function PlayerStatsScreen() {
       }
       return null
     }
-  }, [heroTraitsCatalog, traitId, traitSlotLevels])
+  }, [heroTraitsCatalog, traitId, traitSlotLevels, heroMemories])
 
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null

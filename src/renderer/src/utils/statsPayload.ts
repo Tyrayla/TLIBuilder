@@ -2,6 +2,7 @@ import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   LegendaryAffix, CustomizedAffix, EffectInput,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects, withGuaranteedPicks,
+  deriveTraitSlotLevels,
   traitGrantsSkillSlot, TRAIT_SKILL_SLOT, TRAIT_SKILL_ID,
   computeSkillSlotEligibility, computeInvalidSkillSlots,
 } from '../api/client'
@@ -16,8 +17,8 @@ export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, bu
 export type BuildState = ReturnType<typeof useBuildStore.getState>
 
 // Effective hero-trait picks for the engine payload = user picks + always-granted guaranteed nodes (enabled tiers).
-function _effTraitPicks(s: BuildState): string[] {
-  return withGuaranteedPicks(s.traitId, s.traitSlotLevels, s.advancedTraitSelections,
+function _effTraitPicks(s: BuildState, slotLevels: number[]): string[] {
+  return withGuaranteedPicks(s.traitId, slotLevels, s.advancedTraitSelections,
     useReferenceStore.getState().heroTraits ?? [])
 }
 
@@ -131,6 +132,13 @@ export function buildEngineStatsPayload(s: BuildState) {
   const _invalidSlots = computeInvalidSkillSlots(s.skills, computeSkillSlotEligibility(s.traitId, s.slots, {
     slates: s.slates, gear: s.gear, beltBlends: useReferenceStore.getState().beltBlends ?? undefined, prisms: s.prisms,
   }))
+  // Phase B: for fixed-tier traits the advanced-slot levels are DERIVED from the socketed memories (SET to the
+  // memory's trait level; 0/inactive when a slot is empty). Tree-mode traits (Selena) drive advanced traits via
+  // allocations, so keep their stored levels. This derived array is the single source of truth for the payload's
+  // trait fields (trait_slot_levels + the two _effTraitPicks calls + buildTraitEffects).
+  const _heroTraitsCatalog = useReferenceStore.getState().heroTraits ?? []
+  const _isTreeTrait = _heroTraitsCatalog.find(t => t.trait_id === s.traitId)?.allocation_mode === 'tree'
+  const traitSlotLevels = _isTreeTrait ? s.traitSlotLevels : deriveTraitSlotLevels(s.heroMemories, s.traitSlotLevels)
   return {
     slots: s.slots,
     slates: s.slates,
@@ -149,12 +157,12 @@ export function buildEngineStatsPayload(s: BuildState) {
     // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status
     // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.
     trait_id: s.traitId,
-    trait_slot_levels: s.traitSlotLevels,
+    trait_slot_levels: traitSlotLevels,
     // Effective picks = user choices + always-granted guaranteed nodes (enabled tiers). Sent so both bespoke
     // modules and the generic resolver apply guaranteed nodes without persisting them into the saved selections.
-    advanced_trait_selections: _effTraitPicks(s),
-    trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, _effTraitPicks(s),
-      useReferenceStore.getState().heroTraits ?? []),
+    advanced_trait_selections: _effTraitPicks(s, traitSlotLevels),
+    trait_effects: buildTraitEffects(s.traitId, traitSlotLevels, _effTraitPicks(s, traitSlotLevels),
+      _heroTraitsCatalog),
     // Licorice Note: the Empower/Curse the trait prepares (Pungent cross-apply target). null → auto/none.
     licorice_prepared_skill: s.licoricePreparedSkill ?? null,
     // Licorice Note Ingredients: scent-bottle slot → [equipped ingredient names] (flattened from {category: name}).

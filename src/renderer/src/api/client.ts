@@ -1797,15 +1797,61 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): Effe
     const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(2)
     return mod.replace(RANGE_RE, val)
   }
+  // Wax & Wane (Phase B, in-game-verified): a revived memory's BASE STAT value is ×1.3 (30%), base stat ONLY,
+  // applied LOCALLY at the source here (before the global %-attribute pools) — mirrors foldLocalGearDefense.
+  const applyWax = (sel: MemorySlotSelection): MemorySlotSelection => {
+    if (sel.rolledValue != null) return { ...sel, rolledValue: Math.round(sel.rolledValue * 1.3) }
+    // No rolled value → the number lives in the modifier text; scale the leading +N.
+    return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + Math.round(parseFloat(n) * 1.3)) }
+  }
   for (const mem of memories) {
     if (!mem) continue
     const src = MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory'
     const push = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
-    if (mem.baseStat) push(mem.baseStat)
-    for (const fa of mem.fixedAffixes) { if (fa) push(fa) }
+    if (mem.baseStat) push(mem.revived && mem.waxAndWane ? applyWax(mem.baseStat) : mem.baseStat)
+    // The "+N to Hero Trait Level" fixed mod is NOT a DPS stat — it feeds the trait slot level
+    // (deriveTraitSlotLevels), so skip it here (avoids a spurious "not recognized" badge).
+    for (const fa of mem.fixedAffixes) { if (fa && !isTraitLevelMod(fa.modifier)) push(fa) }
     for (const ra of mem.randomAffixes) { if (ra) push(ra) }
+    // Revival mod (Phase B): an extra implicit-like affix on a revived memory — parsed as a normal stat modifier.
+    if (mem.revived && mem.revivalMod) push(mem.revivalMod)
   }
   return effects
+}
+
+// ── Hero-memory trait-level helpers (shared by the renderer + the payload builder) ──────────────────────
+// Per-rarity enhancement-level cap.
+export const MAX_LEVEL_BY_RARITY: Record<MemoryRarity, number> = { normal: 10, magic: 20, rare: 30, epic: 40, ultimate: 50 }
+// The "+N to Hero Trait Level" fixed mod: detect it and pull out N.
+const TRAIT_LEVEL_RE = /to Hero Trait Level/i
+export const isTraitLevelMod = (modifier: string): boolean => TRAIT_LEVEL_RE.test(modifier)
+export function traitLevelValue(sel: MemorySlotSelection | null): number {
+  if (!sel || !isTraitLevelMod(sel.modifier)) return 0
+  if (sel.rolledValue != null) return sel.rolledValue
+  const m = sel.modifier.match(/\+?(\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[1]) : 0
+}
+// Level-based trait-level baseline (cumulative, in-game-verified): +1 @lv1 (all), +2 @lv30 (rare+), +3 @lv50 (ultimate).
+export const levelTraitBaseline = (level: number): number => 1 + (level >= 30 ? 1 : 0) + (level >= 50 ? 1 : 0)
+// Total trait level a socketed memory grants — SET (not added), clamped 1..5: level baseline + selected
+// "+N to Hero Trait Level" fixed mods. In-game-verified (owner, 2026-08-08).
+export function memoryTraitLevel(m: CreatedHeroMemory): number {
+  const level = m.level ?? MAX_LEVEL_BY_RARITY[m.rarity]
+  const explicit = m.fixedAffixes.reduce((s, fa) => s + traitLevelValue(fa), 0)
+  return Math.max(1, Math.min(5, levelTraitBaseline(level) + explicit))
+}
+// Derive traitSlotLevels [base,45,60,75] from socketed memories: slots 1..3 (origin/discipline/progress) are
+// SET to their socketed memory's trait level, or 0 (INACTIVE) when the slot is empty. Base slot [0] is passed
+// through unchanged (the 4th "base/special" slot that would level it isn't modeled yet). `heroMemories` order
+// is [origin, discipline, progress] → traitSlotLevels[1,2,3].
+export function deriveTraitSlotLevels(heroMemories: (CreatedHeroMemory | null)[], stored: number[]): number[] {
+  const out = stored.slice(0, 4)
+  while (out.length < 4) out.push(1)
+  for (let i = 0; i < 3; i++) {
+    const m = heroMemories[i]
+    out[i + 1] = m ? memoryTraitLevel(m) : 0
+  }
+  return out
 }
 
 // Expand the level-scaling "( a / b / c / d / e )" notation in a hero-trait effect string to the value at

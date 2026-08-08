@@ -5,7 +5,8 @@
 // imported HeroTraitTree, and HeroTraitTree imported these pieces back from HeroTraitScreen).
 import React from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { CreatedHeroMemory, MemorySlotSelection, MemoryRarity, MEMORY_RARITY_COLORS, HeroMemoryType, iconUrl } from '../api/client'
+import { CreatedHeroMemory, MemorySlotSelection, MemoryRarity, MEMORY_RARITY_COLORS, HeroMemoryType, iconUrl,
+  MAX_LEVEL_BY_RARITY, memoryTraitLevel } from '../api/client'
 import { useFloatingTooltip } from './tooltip/useFloatingTooltip'
 import { useDamageDelta } from './tooltip/useDamageDelta'
 import { TooltipContributions } from './tooltip/TooltipContributions'
@@ -40,24 +41,13 @@ export function resolveMemoryEffect(sel: MemorySlotSelection): string {
   return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
 }
 
-// Per-rarity max enhancement level (owner spec). Shared so a tooltip can show x/max from a memory alone.
-export const MAX_LEVEL_BY_RARITY: Record<MemoryRarity, number> = { normal: 10, magic: 20, rare: 30, epic: 40, ultimate: 50 }
+// The memory trait-level helpers now live in api/client.ts (pure value layer, shared with the payload builder).
+// Re-export MAX_LEVEL_BY_RARITY for existing importers (HeroTraitScreen); others import from client directly.
+export { MAX_LEVEL_BY_RARITY }
 
 // Tier → rarity color (Compendium art): T0 ultimate/red, T1 epic/orange, T2 rare/purple, T3 magic/blue, T4+ normal/white.
 export const TIER_RARITY = ['ultimate', 'epic', 'rare', 'magic'] as const
 export const tierColor = (tier: number): string => MEMORY_RARITY_COLORS[TIER_RARITY[tier] ?? 'normal']
-
-// The "+N to Hero Trait Level" fixed mod shows as its own fixed line AND is summed into the TRAIT LEVEL total.
-const TRAIT_LEVEL_RE = /to Hero Trait Level/i
-export const isTraitLevelMod = (modifier: string): boolean => TRAIT_LEVEL_RE.test(modifier)
-export function traitLevelValue(sel: MemorySlotSelection | null): number {
-  if (!sel || !isTraitLevelMod(sel.modifier)) return 0
-  if (sel.rolledValue != null) return sel.rolledValue
-  const m = sel.modifier.match(/\+?(\d+(?:\.\d+)?)/)
-  return m ? parseFloat(m[1]) : 0
-}
-// Level-based trait-level baseline (cumulative): +1 @lv1 (all), +2 @lv30 (rare+), +3 @lv50 (ultimate).
-export const levelTraitBaseline = (level: number): number => 1 + (level >= 30 ? 1 : 0) + (level >= 50 ? 1 : 0)
 
 // A rarity-colored FILLED background behind the natural item art. In-game the ICON stays its natural color;
 // RARITY is shown by the card background behind it — so we tint the background, not the image.
@@ -88,8 +78,7 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
   const rc = MEMORY_RARITY_COLORS[memory.rarity]
   const cap = maxLevel ?? MAX_LEVEL_BY_RARITY[memory.rarity]
   const level = memory.level ?? cap
-  const explicitTrait = memory.fixedAffixes.reduce((s, fa) => s + traitLevelValue(fa), 0)
-  const traitLevel = levelTraitBaseline(level) + explicitTrait
+  const traitLevel = memoryTraitLevel(memory)   // SET value, clamped 1..5 (same as the engine)
   const baseSel = memory.baseStat
   const waxed = baseSel && memory.waxAndWane && baseSel.rolledValue != null
     ? { ...baseSel, rolledValue: Math.round(baseSel.rolledValue * 1.3) }

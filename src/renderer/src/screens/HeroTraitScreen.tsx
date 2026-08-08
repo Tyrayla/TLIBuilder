@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, HeroMemoryType, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
-  SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT, genMemoryId } from '../api/client'
+  SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT, genMemoryId,
+  deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -821,9 +822,17 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       : [1, 1, 1, 1]
   )
 
-  // A negative slot level = the node is DISABLED (the magnitude is its remembered level).
-  const nodeDisabled = (slotIdx: number) => safeSlotLevels[slotIdx] < 1
-  const nodeLevel = (slotIdx: number) => Math.max(1, Math.min(5, Math.abs(safeSlotLevels[slotIdx])))
+  // Phase B: for fixed-tier traits the advanced slots (45/60/75) are DERIVED from the socketed memories (SET to
+  // the memory's trait level; 0 = inactive when empty) so the DISPLAY matches the engine payload (same
+  // deriveTraitSlotLevels). Base slot [0] is passed through. Tree traits keep their stored levels (they use
+  // allocations, not tiers). The mutation helpers below still write the STORED array (selection/base only).
+  const displaySlotLevels = selectedTrait && selectedTrait.allocation_mode !== 'tree'
+    ? deriveTraitSlotLevels(heroMemories, safeSlotLevels)
+    : safeSlotLevels
+
+  // A slot level < 1 = the node is INACTIVE/disabled (empty memory slot, or a remembered-disabled base tier).
+  const nodeDisabled = (slotIdx: number) => displaySlotLevels[slotIdx] < 1
+  const nodeLevel = (slotIdx: number) => Math.max(1, Math.min(5, Math.abs(displaySlotLevels[slotIdx])))
   const baseLevel = nodeLevel(SLOT_BASE)
   const baseDisabled = nodeDisabled(SLOT_BASE)
   const baseEffects = selectedTrait?.levels[baseLevel - 1]?.effects ?? []
