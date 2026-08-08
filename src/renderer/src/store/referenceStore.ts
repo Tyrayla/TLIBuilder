@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import type {
   LegendaryGearIndexItem, LegendaryGearItem, CraftBaseItemGroup,
-  CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, ConditionDef, SkillItem, BeltBlend,
+  CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, HeroMemoryType, ConditionDef, SkillItem, BeltBlend,
 } from '../api/client'
 import { api, registerSkillTagVocabulary } from '../api/client'
 
 export interface HeroMemoryData {
+  memory_types: HeroMemoryType[]   // per-type catalog rows (name/internal_id/icon_url) — drives type icons
   base_stats: HeroMemoryAffix[]
   fixed_affixes: HeroMemoryAffix[]
   random_affixes: HeroMemoryAffix[]
@@ -23,6 +24,7 @@ interface ReferenceStore {
   grafts: Graft[] | null
   heroTraits: HeroTrait[] | null
   heroMemories: HeroMemoryData | null
+  memoryRevival: HeroMemoryAffix[] | null   // revival-mod pool (implicit-like affixes for revivaled memories)
   conditions: Record<string, ConditionDef[]> | null
   // Belt Blends (Blending Rituals) catalog — needed to resolve a belt's equipped blend talent_id → the
   // granted core talent's display name (source 4 of the four core-talent grant paths; see
@@ -60,6 +62,7 @@ function freshClearedState() {
     grafts: null as Graft[] | null,
     heroTraits: null as HeroTrait[] | null,
     heroMemories: null as HeroMemoryData | null,
+    memoryRevival: null as HeroMemoryAffix[] | null,
     conditions: null as Record<string, ConditionDef[]> | null,
     beltBlends: null as BeltBlend[] | null,
     skills: null as SkillItem[] | null,
@@ -98,6 +101,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
       track(api.getGrafts()),
       track(api.getHeroTraits()),
       track(api.getHeroMemories()),
+      track(api.getMemoryRevival()),
       track(api.getConditions()),
       track(api.getSkills()),
       track(api.getBeltBlends()),
@@ -111,7 +115,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     const [
       idxResult, catalogResult, baseItemsResult,
       baseTypesResult, graftsResult, traitsResult,
-      memoriesResult, conditionsResult, skillsResult,
+      memoriesResult, revivalResult, conditionsResult, skillsResult,
       beltBlendsResult,
     ] = results
 
@@ -150,11 +154,16 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     if (memoriesResult.status === 'fulfilled') {
       const r = memoriesResult.value
       updates.heroMemories = {
+        memory_types: r.memory_types,
         base_stats: r.base_stats,
         fixed_affixes: r.fixed_affixes,
         random_affixes: r.random_affixes,
       }
     } else { failed.add('heroMemories') }
+
+    if (revivalResult.status === 'fulfilled') {
+      updates.memoryRevival = revivalResult.value.affixes
+    } else { failed.add('memoryRevival') }
 
     if (conditionsResult.status === 'fulfilled') {
       updates.conditions = conditionsResult.value

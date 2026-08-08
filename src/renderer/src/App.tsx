@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId } from './api/client'
+import { MAX_LEVEL_BY_RARITY } from './components/HeroTraitShared'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { snapshotAllAreas } from './utils/loadoutAreas'
 import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
@@ -320,10 +321,18 @@ function App() {
       id: typeof o.id === 'string' && o.id ? o.id : genMemoryId(),   // backfill stable id for pre-inventory builds
       memoryType: o.memoryType,
       rarity,
+      // Clamp to the rarity's cap so legacy/hand-edited data can't yield "50/40" or an over-cap trait baseline.
+      level: typeof o.level === 'number' ? Math.max(1, Math.min(MAX_LEVEL_BY_RARITY[rarity], Math.floor(o.level))) : undefined,
       baseStat: sanitizeMemorySlot(o.baseStat),
       fixedAffixes: [sanitizeMemorySlot(fa[0]), sanitizeMemorySlot(fa[1])],
       randomAffixes: [sanitizeMemorySlot(ra[0]), sanitizeMemorySlot(ra[1])],
-      waxAndWane: o.waxAndWane === true,
+      // waxAndWane can only be enabled on a revivaled memory (see CreatedHeroMemory).
+      revivaled: o.revivaled === true,
+      revivalMod: o.revivaled === true ? sanitizeMemorySlot(o.revivalMod) : null,
+      waxAndWane: o.revivaled === true && o.waxAndWane === true,
+      // Preserve the user's DISPLAY label (sanitized like the rename path) so it survives save/load/import.
+      displayName: typeof o.displayName === 'string' && o.displayName.replace(/\p{C}/gu, '').trim()
+        ? o.displayName.replace(/\p{C}/gu, '').trim().slice(0, 60) : undefined,
     }
   }
 

@@ -2898,6 +2898,18 @@ def get_hero_memories():
     }
 
 
+@app.get("/api/memory-revival")
+def get_memory_revival():
+    active = season_manager.get_active_season()
+    empty = {"season": None, "affixes": []}
+    if not active:
+        return empty
+    data = season_manager.load_memory_revival(active)
+    if not data:
+        return {**empty, "season": active}
+    return {"season": active, "affixes": data.get("affixes", [])}
+
+
 @app.post("/api/dev/import-memory-revival")
 def import_memory_revival_endpoint(req: ImportSingletonRequest):
     from tools.singleton_importer import import_memory_revival

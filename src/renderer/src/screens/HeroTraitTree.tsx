@@ -12,7 +12,8 @@ import React, { useEffect } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroTraitTreeNode, CreatedHeroMemory, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
-import { TraitTooltipBody, MemorySlotCircle } from '../components/HeroTraitShared'
+import { TraitTooltipBody, MemorySlotCircle, memoryTypeIconUrl } from '../components/HeroTraitShared'
+import { useReferenceStore } from '../store/referenceStore'
 import {
   availableThresholds, canAllocate, allocate, deallocate, reconcile, badgeFor,
 } from '../utils/traitTree'
@@ -117,6 +118,7 @@ export default function HeroTraitTree({
   const nodes = trait.tree_nodes ?? []
   const connections = trait.tree_connections ?? []
   const rootId = trait.tree_root_id ?? ''
+  const memoryTypes = useReferenceStore(s => s.heroMemories?.memory_types) ?? null
   const thresholds = availableThresholds(characterLevel, heroMemories)
   const budget = thresholds.length
 
@@ -131,22 +133,19 @@ export default function HeroTraitTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budget, rootId, trait.trait_id])
 
-  // Horizontal strip along the bottom of the tree: the 3 memory sockets side-by-side, with the
-  // points readout alongside them (rather than stacked below, now that the rail itself is a row).
+  // Horizontal strip along the bottom of the tree (in-game layout): the 3 memory sockets side-by-side,
+  // with the points readout alongside them, kept close under the tree (small htt-row gap).
   const memoryRail = (
     <div className="htt-memory-rail">
       <div className="htt-memory-slots-row">
-        {MEMORY_RAIL.map(({ slot, threshold, label }) => {
+        {MEMORY_RAIL.map(({ slot, label }) => {
           const memory = heroMemories[slot] ?? null
           const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
-          const unlocked = characterLevel >= threshold
           return (
             <div key={slot} className="htt-memory-slot">
-              <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={slot} onOpen={() => openMemoryCreator(slot)} />
-              <div className={`trait-tier-label${unlocked ? '' : ' locked'}`}>Lv {threshold} · {label}</div>
-              <div className="htt-memory-hint">
-                {memory ? '1 point granted' : unlocked ? 'Socket a memory for a point' : 'Locked'}
-              </div>
+              <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={slot} slotLabel={label}
+                icon={memory ? memoryTypeIconUrl(memoryTypes, memory.memoryType) : null}
+                onOpen={() => openMemoryCreator(slot)} />
             </div>
           )
         })}

@@ -555,6 +555,10 @@ def save_memory_revival(season: str, data: dict) -> None:
     _save_singleton(season, "_memory_revival.json", data)
 
 
+def load_memory_revival(season: str) -> dict | None:
+    return _load_singleton(season, "_memory_revival.json")
+
+
 def delete_memory_revival(season: str) -> None:
     _delete_singleton(season, "_memory_revival.json")
 

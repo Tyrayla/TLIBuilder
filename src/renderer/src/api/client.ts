@@ -270,6 +270,9 @@ export interface SlateTemplate {
   slots: SavedSlateSlot[]
   treeType?: string
   mothDirection?: string
+  // User label/title (like gear's displayName) — DISPLAY name only; the true kind name stays in the card/tooltip.
+  // Cleared when the entered label is empty. Rides in the build/share payload.
+  displayName?: string
 }
 
 // ── Prisms ──────────────────────────────────────────────────────────────────
@@ -1750,13 +1753,27 @@ export interface CreatedHeroMemory {
   id: string
   memoryType: 'origin' | 'discipline' | 'progress'
   rarity: MemoryRarity
+  // Memory level (1..max-for-rarity: normal 10 / magic 20 / rare 30 / epic 40 / ultimate 50). Gates the
+  // +N-to-Hero-Trait-Level bonus (+1 @1, +2 @30, +3 @50) and which random affixes are unlocked (@20, @40).
+  // Selected/persisted now; the DPS effect (level→trait level) is wired in Phase B.
+  level?: number
   baseStat: MemorySlotSelection | null
   fixedAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
   randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
   // Wax & Wane: the base stat gains 30% increased power (value ×1.3) when enabled. Compendium ships it
-  // as a per-memory boolean; in Builder it's a toggle on the base stat. NOTE: only persisted/imported for
-  // now — the ×1.3 engine effect (in buildMemoryEffects) is deferred to Phase B, so this has no DPS impact yet.
+  // as a per-memory boolean; in Builder it's a toggle on the base stat. Can ONLY be enabled on a revivaled
+  // memory. NOTE: only persisted/selected for now — the ×1.3 engine effect (in buildMemoryEffects) is
+  // deferred to Phase B, so this has no DPS impact yet.
   waxAndWane?: boolean
+  // Revival: a revivaled memory carries one extra implicit-like affix (revivalMod) from the special revival
+  // pool, and is the ONLY memory that may enable waxAndWane. Build-level rule (surfaced as a warning in the
+  // creator, not hard-blocked): at most one EQUIPPED memory should be revivaled at a time. revivalMod's
+  // engine effect is deferred to Phase B.
+  revivaled?: boolean
+  revivalMod?: MemorySlotSelection | null
+  // User label/title (like gear's displayName) — a DISPLAY name only; the true "Memory of <Type>" name is
+  // kept in the card/tooltip. Cleared when empty or equal to the default name. Rides in the build/share payload.
+  displayName?: string
 }
 
 /** Generate a stable id for a created hero memory (mirrors the slate templateId scheme). */
@@ -2758,6 +2775,10 @@ export const api = {
 
   importMemoryRevival: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-memory-revival', { season_name: seasonName, data }),
+  getMemoryRevival: () => get<{
+    season: string | null
+    affixes: HeroMemoryAffix[]
+  }>('/memory-revival'),
 
   importTowerSequence: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-tower-sequence', { season_name: seasonName, data }),
