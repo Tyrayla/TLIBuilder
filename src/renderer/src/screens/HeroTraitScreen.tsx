@@ -716,9 +716,9 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onEdit, onDe
           {memory.level ? <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.7)' }}> · Lv {memory.level}</span> : null}
         </span>
       </div>
-      {(memory.revivaled || memory.waxAndWane) && (
+      {(memory.revived || memory.waxAndWane) && (
         <div style={{ fontSize: 9, color: '#f0d0a0', marginBottom: 4 }}>
-          {[memory.revivaled ? 'Revivaled' : '', memory.waxAndWane ? 'Wax & Wane' : ''].filter(Boolean).join(' · ')}
+          {[memory.revived ? 'Revived' : '', memory.waxAndWane ? 'Wax & Wane' : ''].filter(Boolean).join(' · ')}
         </div>
       )}
       <div style={{ fontSize: 10, marginBottom: 6, color: equipped ? '#bff0bf' : 'rgba(255,255,255,0.55)', fontWeight: equipped ? 700 : 400 }}>
@@ -879,7 +879,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const freshDraft = (memoryType: CreatedHeroMemory['memoryType']): CreatedHeroMemory => ({
     id: genMemoryId(), memoryType, rarity: 'epic', level: MAX_LEVEL_BY_RARITY.epic,
     baseStat: null, fixedAffixes: [null, null], randomAffixes: [null, null],
-    revivaled: false, revivalMod: null, waxAndWane: false,
+    revived: false, revivalMod: null, waxAndWane: false,
   })
   const editDraft = (m: CreatedHeroMemory): CreatedHeroMemory => ({
     ...m, fixedAffixes: [m.fixedAffixes[0], m.fixedAffixes[1]], randomAffixes: [m.randomAffixes[0], m.randomAffixes[1]],
@@ -1057,8 +1057,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     const typeLocked = creatorSlot !== null || heroMemories.some(m => m?.id === d.id)
     const affixSource = MEMORY_SOURCES[MEMORY_TYPE_TO_SLOT[d.memoryType]]
     const revivalPool: HeroMemoryAffix[] = memoryRevival.map(a => ({ ...a, source: 'revival' }))
-    // Only one EQUIPPED memory may be revivaled at a time — warn if another already is.
-    const otherEquippedRevivaled = heroMemories.some(m => m && m.id !== d.id && m.revivaled)
+    // Only one EQUIPPED memory may be revived at a time — warn if another already is.
+    const otherEquippedRevived = heroMemories.some(m => m && m.id !== d.id && m.revived)
     // A memory can't carry the same modifier twice within a pool group.
     const excludeIn = (group: (MemorySlotSelection | null)[], self: MemorySlotSelection | null) => new Set(
       group.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
@@ -1167,18 +1167,18 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
             : lockedHint(2))}
         </div>
 
-        {/* Revival: an extra implicit-like affix from the revival pool. Only a revivaled memory can have a
+        {/* Revival: an extra implicit-like affix from the revival pool. Only a revived memory can have a
             revival mod OR enable Wax & Wane. */}
         <div style={{ borderTop: '1px solid #2a2a44', marginTop: 8, paddingTop: 8 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#ddd', cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!d.revivaled}
-              onChange={e => setDraft({ ...d, revivaled: e.target.checked, revivalMod: e.target.checked ? (d.revivalMod ?? null) : null, waxAndWane: e.target.checked ? d.waxAndWane : false })} />
-            Revivaled <span style={{ fontSize: 11, color: '#888' }}>(adds a revival mod + enables Wax &amp; Wane)</span>
+            <input type="checkbox" checked={!!d.revived}
+              onChange={e => setDraft({ ...d, revived: e.target.checked, revivalMod: e.target.checked ? (d.revivalMod ?? null) : null, waxAndWane: e.target.checked ? d.waxAndWane : false })} />
+            Revived <span style={{ fontSize: 11, color: '#888' }}>(adds a revival mod + enables Wax &amp; Wane)</span>
           </label>
-          {d.revivaled && otherEquippedRevivaled && (
-            <div style={{ fontSize: 11, color: '#e0a94f', marginTop: 4 }}>⚠ Another equipped memory is already revivaled — only one equipped memory can be revivaled.</div>
+          {d.revived && otherEquippedRevived && (
+            <div style={{ fontSize: 11, color: '#e0a94f', marginTop: 4 }}>⚠ Another equipped memory is already revived — only one equipped memory can be revived.</div>
           )}
-          {d.revivaled && (
+          {d.revived && (
             <>
               <AffixRow label="Revival Mod" pool={revivalPool} source="revival" color={AFFIX_CAT_COLOR.revival}
                 current={d.revivalMod ?? null} onChange={sel => setDraft({ ...d, revivalMod: sel })} />

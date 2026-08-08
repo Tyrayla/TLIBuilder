@@ -24,7 +24,7 @@ interface ReferenceStore {
   grafts: Graft[] | null
   heroTraits: HeroTrait[] | null
   heroMemories: HeroMemoryData | null
-  memoryRevival: HeroMemoryAffix[] | null   // revival-mod pool (implicit-like affixes for revivaled memories)
+  memoryRevival: HeroMemoryAffix[] | null   // revival-mod pool (implicit-like affixes for revived memories)
   conditions: Record<string, ConditionDef[]> | null
   // Belt Blends (Blending Rituals) catalog — needed to resolve a belt's equipped blend talent_id → the
   // granted core talent's display name (source 4 of the four core-talent grant paths; see

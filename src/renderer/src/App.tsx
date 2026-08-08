@@ -317,6 +317,8 @@ function App() {
     const rarity: MemoryRarity = RARITIES.includes(o.rarity as MemoryRarity) ? o.rarity as MemoryRarity : 'epic'
     const fa = Array.isArray(o.fixedAffixes) ? o.fixedAffixes : []
     const ra = Array.isArray(o.randomAffixes) ? o.randomAffixes : []
+    // `revived` was formerly named `revivaled` — migrate the old key on load so pre-rename builds still read.
+    const revived = o.revived === true || o.revivaled === true
     return {
       id: typeof o.id === 'string' && o.id ? o.id : genMemoryId(),   // backfill stable id for pre-inventory builds
       memoryType: o.memoryType,
@@ -326,10 +328,10 @@ function App() {
       baseStat: sanitizeMemorySlot(o.baseStat),
       fixedAffixes: [sanitizeMemorySlot(fa[0]), sanitizeMemorySlot(fa[1])],
       randomAffixes: [sanitizeMemorySlot(ra[0]), sanitizeMemorySlot(ra[1])],
-      // waxAndWane can only be enabled on a revivaled memory (see CreatedHeroMemory).
-      revivaled: o.revivaled === true,
-      revivalMod: o.revivaled === true ? sanitizeMemorySlot(o.revivalMod) : null,
-      waxAndWane: o.revivaled === true && o.waxAndWane === true,
+      // waxAndWane can only be enabled on a revived memory (see CreatedHeroMemory).
+      revived,
+      revivalMod: revived ? sanitizeMemorySlot(o.revivalMod) : null,
+      waxAndWane: revived && o.waxAndWane === true,
       // Preserve the user's DISPLAY label (sanitized like the rename path) so it survives save/load/import.
       displayName: typeof o.displayName === 'string' && o.displayName.replace(/\p{C}/gu, '').trim()
         ? o.displayName.replace(/\p{C}/gu, '').trim().slice(0, 60) : undefined,

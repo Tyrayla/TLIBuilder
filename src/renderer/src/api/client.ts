@@ -1761,15 +1761,15 @@ export interface CreatedHeroMemory {
   fixedAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
   randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
   // Wax & Wane: the base stat gains 30% increased power (value ×1.3) when enabled. Compendium ships it
-  // as a per-memory boolean; in Builder it's a toggle on the base stat. Can ONLY be enabled on a revivaled
+  // as a per-memory boolean; in Builder it's a toggle on the base stat. Can ONLY be enabled on a revived
   // memory. NOTE: only persisted/selected for now — the ×1.3 engine effect (in buildMemoryEffects) is
   // deferred to Phase B, so this has no DPS impact yet.
   waxAndWane?: boolean
-  // Revival: a revivaled memory carries one extra implicit-like affix (revivalMod) from the special revival
+  // Revival: a revived memory carries one extra implicit-like affix (revivalMod) from the special revival
   // pool, and is the ONLY memory that may enable waxAndWane. Build-level rule (surfaced as a warning in the
-  // creator, not hard-blocked): at most one EQUIPPED memory should be revivaled at a time. revivalMod's
+  // creator, not hard-blocked): at most one EQUIPPED memory should be revived at a time. revivalMod's
   // engine effect is deferred to Phase B.
-  revivaled?: boolean
+  revived?: boolean
   revivalMod?: MemorySlotSelection | null
   // User label/title (like gear's displayName) — a DISPLAY name only; the true "Memory of <Type>" name is
   // kept in the card/tooltip. Cleared when empty or equal to the default name. Rides in the build/share payload.

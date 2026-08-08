@@ -104,7 +104,7 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
       <span>{resolveMemoryEffect(sel)}</span>
     </li>
   )
-  const hasBody = !!waxed || fixedLines.length > 0 || randomLines.length > 0 || !!(memory.revivaled && memory.revivalMod)
+  const hasBody = !!waxed || fixedLines.length > 0 || randomLines.length > 0 || !!(memory.revived && memory.revivalMod)
   return (
     <div className="memory-card" style={{ borderColor: `${rc}55` }}>
       <div className="memory-card-head">
@@ -135,7 +135,7 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
       {randomLines.length > 0 && (
         <ul className="memory-card-sec memory-card-affixes">{randomLines.map((s, i) => affixLine(s, `r${i}`))}</ul>
       )}
-      {memory.revivaled && memory.revivalMod && (
+      {memory.revived && memory.revivalMod && (
         <div className="memory-card-sec">
           <div className="memory-card-line"><span className="memory-card-revival-tag">REVIVAL</span> {resolveMemoryEffect(memory.revivalMod)}</div>
         </div>
