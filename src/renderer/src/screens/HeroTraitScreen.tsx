@@ -1299,12 +1299,29 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 node inside HeroTraitTree, so this whole block (and the trait-v-divider next to it) is
                 skipped in that mode. Level-selection state itself is untouched — the trait just stays
                 at whatever level it defaults to (1) since there's no UI here to change it in tree mode. */}
-            {selectedTrait.allocation_mode !== 'tree' && (
-              <>
-                <div className="trait-base-col">
-                  <div className={`trait-tier-label${baseDisabled ? ' locked' : ''}`}>
-                    Base Trait{baseDisabled ? ' (off)' : ''}
-                  </div>
+            {/* Dance of the Deep (Selena 2) and any future tree-mode trait: an allocatable tree replaces
+                the fixed grid entirely (the base trait appears as the always-allocated root node inside it). */}
+            {selectedTrait.allocation_mode === 'tree' ? (
+              <HeroTraitTree
+                trait={selectedTrait}
+                heroMemories={heroMemories}
+                openMemoryCreator={openMemoryCreator}
+                traitTreeAllocations={traitTreeAllocations}
+                setTraitTreeAllocations={setTraitTreeAllocations}
+                characterLevel={characterLevel}
+                resolveLevelAt={baseLevel}
+              />
+            ) : (
+            // Fixed-trait GRID: the base trait + the 3 memory slots sit on ONE aligned row (tg-mid); each
+            // level's trait options split — the first ABOVE the memory, the rest BELOW. Grid rows sync heights
+            // across columns so the memory/base row lines up no matter how many options a level has.
+            <div className="trait-grid">
+              {/* Base column: the base TRAIT sits on the memory row (tg-mid), inline with the 3 memory slots;
+                  the Base ("Special") memory placeholder is below it. No header label (owner). */}
+              <div className="tg-base" />
+              <div className="tg-above tg-base" />
+              <div className="tg-mid tg-base">
+                <div>
                   <TraitCircle
                     className="trait-circle selected trait-circle-base"
                     name={selectedTrait.variant_name}
@@ -1318,40 +1335,22 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                     onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
                     onContextMenu={() => disableNode(SLOT_BASE)}
                   />
-                  {/* Base ("Special") Hero Memory slot — BELOW the base trait (owner). This 4th memory type
-                      isn't in our data model yet, so it stays a placeholder until Phase B. */}
-                  <div className="memory-slot-circle disabled" title="Base memory — coming soon" style={{ marginTop: 10 }}>
-                    <span className="memory-slot-coming-soon">Base<br />(Soon)</span>
-                  </div>
-                  {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
-                  {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
-                    <div style={{ marginTop: 10 }}>
-                      <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
-                      <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
-                    </div>
-                  )}
                 </div>
+              </div>
+              <div className="tg-below tg-base">
+                {/* Base ("Special") memory slot — 4th memory type not in our data model yet; placeholder until Phase B. */}
+                <div className="memory-slot-circle disabled" title="Base memory — coming soon">
+                  <span className="memory-slot-coming-soon">Soon</span>
+                </div>
+                {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
+                  <div>
+                    <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
+                    <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
+                  </div>
+                )}
+              </div>
 
-                <div className="trait-v-divider" />
-              </>
-            )}
-
-            {/* Dance of the Deep (Selena 2) and any future tree-mode trait: an allocatable tree replaces
-                the fixed tier columns entirely. Everything else (base circle, level slider, Artificial
-                Moon, Licorice Note panels below) is untouched. */}
-            {selectedTrait.allocation_mode === 'tree' ? (
-              <HeroTraitTree
-                trait={selectedTrait}
-                heroMemories={heroMemories}
-                openMemoryCreator={openMemoryCreator}
-                traitTreeAllocations={traitTreeAllocations}
-                setTraitTreeAllocations={setTraitTreeAllocations}
-                characterLevel={characterLevel}
-                resolveLevelAt={baseLevel}
-              />
-            ) : (
-            /* Tier columns — one per unlock_level */
-            <div className="trait-tiers-row">
+              {/* One column per unlock level */}
               {LEVEL_THRESHOLDS.map(threshold => {
                 const group = selectedTrait.advanced_traits.filter(t => t.unlock_level === threshold)
                 if (group.length === 0) return null
@@ -1360,92 +1359,90 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 const slotLevel = nodeLevel(slotIdx)
                 const locked = characterLevel < threshold
                 const groups = buildGroups(group)
-                // Split-circle bubbles are ONLY for levels with multiple groups (i.e. Creative Genius) — they save
-                // the vertical space two groups would need. Every other trait keeps its standard stacked options.
+                // Split-circle bubbles are ONLY for levels with multiple option groups (i.e. Creative Genius).
                 const multiGroup = groups.length > 1
                 const memSlotIdx = THRESHOLD_TO_MEMORY_SLOT[threshold]
                 const memory = heroMemories[memSlotIdx] ?? null
                 const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
 
-                return (
-                  <div key={threshold} className="trait-tier-col">
-                    <div className={`trait-tier-label${locked || tierDisabled ? ' locked' : ''}`}>
-                      Level {threshold}{tierDisabled ? ' (off)' : ''}
-                    </div>
+                const renderGranted = (t: HeroAdvancedTrait) => (
+                  <TraitCircle key={t.name} className={`trait-circle selected${locked ? ' locked' : ''}`}
+                    name={t.name} icon={iconUrl('hero_trait', t.icon_url)} checked={!tierDisabled} locked={locked}
+                    disabled={tierDisabled} tipName={t.name} slotLevel={slotLevel} effects={t.effects ?? []}
+                    onSelect={() => !locked && enableTier(threshold)}
+                    onContextMenu={!tierDisabled && !locked ? () => disableNode(slotIdx) : undefined} />
+                )
+                const renderPick = (t: HeroAdvancedTrait, groupNames: string[]) => {
+                  const sel = advancedTraitSelections.includes(t.name)
+                  // Once a pick has been made in this group, fade the un-chosen options so the active one is clear.
+                  const faded = !sel && groupNames.some(n => advancedTraitSelections.includes(n))
+                  return (
+                    <TraitCircle key={t.name} className={`trait-circle${sel ? ' selected' : ''}${locked ? ' locked' : ''}${faded ? ' faded' : ''}`}
+                      name={t.name} icon={iconUrl('hero_trait', t.icon_url)} checked={sel} locked={locked}
+                      disabled={sel && tierDisabled} tipName={t.name} slotLevel={slotLevel} effects={t.effects ?? []}
+                      onSelect={() => selectInGroup(t.name, threshold, groupNames)}
+                      onContextMenu={sel && !locked ? () => disableNode(slotIdx) : undefined} />
+                  )
+                }
 
-                    {/* Node groups: a consistent divider line sits above them across every level (so single-option
-                        levels no longer float up). Guaranteed nodes render as a single circle; pick groups render
-                        as a split circle that expands on click. */}
+                // First option ABOVE the memory, the rest BELOW (owner). Creative Genius (multiGroup) keeps its
+                // combined split-circles together above.
+                let aboveContent: React.ReactNode = null
+                let belowContent: React.ReactNode = null
+                // Hide the "Granted"/"Pick One" caption once the tier is satisfied (granted is auto-active
+                // unless the tier is off; pick-one once a node is chosen).
+                const labelFor = (g: ReturnType<typeof buildGroups>[number]): string | null => {
+                  // "Pick One" removed (owner) — clicking once makes it obvious. "Granted" only shows when the
+                  // tier is off (so a disabled tier still reads as auto-granted once re-enabled).
+                  if (g.role === 'guaranteed') return tierDisabled ? 'Granted' : null
+                  return null
+                }
+                if (multiGroup) {
+                  aboveContent = (
                     <div className="ht-groups">
-                      {groups.map(g => g.role === 'guaranteed' ? (
-                        <div className="ht-group" key={`g${g.id}`}>
-                          <div className="ht-group-label">Granted</div>
-                          {g.nodes.map(t => (
-                            <TraitCircle
-                              key={t.name}
-                              className={`trait-circle selected${locked ? ' locked' : ''}`}
-                              name={t.name}
-                              icon={iconUrl('hero_trait', t.icon_url)}
-                              checked={!tierDisabled}
-                              locked={locked}
-                              disabled={tierDisabled}
-                              tipName={t.name}
-                              slotLevel={slotLevel}
-                              effects={t.effects ?? []}
-                              onSelect={() => !locked && enableTier(threshold)}
-                              onContextMenu={!tierDisabled && !locked ? () => disableNode(slotIdx) : undefined}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="ht-group" key={`p${g.id}`}>
-                          <div className="ht-group-label">Pick One</div>
-                          {multiGroup ? (
-                            // Creative Genius (multiple groups per level): combined split-circle that fans out.
-                            <PickGroup
-                              nodes={g.nodes}
-                              slotLevel={slotLevel}
-                              locked={locked}
-                              tierDisabled={tierDisabled}
-                              selectedNames={advancedTraitSelections}
-                              onSelect={name => selectInGroup(name, threshold, g.nodes.map(n => n.name))}
-                              onDisable={() => disableNode(slotIdx)}
-                            />
-                          ) : (
-                            // Standard layout: the options stacked as individual circles.
-                            g.nodes.map(t => {
-                              const sel = advancedTraitSelections.includes(t.name)
-                              return (
-                                <TraitCircle
-                                  key={t.name}
-                                  className={`trait-circle${sel ? ' selected' : ''}${locked ? ' locked' : ''}`}
-                                  name={t.name}
-                                  icon={iconUrl('hero_trait', t.icon_url)}
-                                  checked={sel}
-                                  locked={locked}
-                                  disabled={sel && tierDisabled}
-                                  tipName={t.name}
-                                  slotLevel={slotLevel}
-                                  effects={t.effects ?? []}
-                                  onSelect={() => selectInGroup(t.name, threshold, g.nodes.map(n => n.name))}
-                                  onContextMenu={sel && !locked ? () => disableNode(slotIdx) : undefined}
-                                />
-                              )
-                            })
-                          )}
+                      {groups.map(g => (
+                        <div className="ht-group" key={`${g.role}-${g.id}`}>
+                          {labelFor(g) && <div className="ht-group-label">{labelFor(g)}</div>}
+                          {g.role === 'guaranteed'
+                            ? g.nodes.map(renderGranted)
+                            : <PickGroup nodes={g.nodes} slotLevel={slotLevel} locked={locked} tierDisabled={tierDisabled}
+                                selectedNames={advancedTraitSelections}
+                                onSelect={name => selectInGroup(name, threshold, g.nodes.map(n => n.name))}
+                                onDisable={() => disableNode(slotIdx)} />}
                         </div>
                       ))}
                     </div>
-                    {/* Memory slot BELOW the nodes (owner: "split between the nodes") */}
-                    <MemorySlotCircle
-                      memory={memory}
-                      rarityColor={rarityColor}
-                      slot={memSlotIdx}
-                      slotLabel={MEMORY_TYPE_LABELS[MEMORY_TYPES[memSlotIdx]]}
-                      icon={memory ? memoryTypeIcon[memory.memoryType] : null}
-                      onOpen={() => openMemoryCreator(memSlotIdx)}
-                    />
-                  </div>
+                  )
+                } else {
+                  const g = groups[0]
+                  const isGranted = g.role === 'guaranteed'
+                  const groupNames = g.nodes.map(n => n.name)
+                  const render = (t: HeroAdvancedTrait) => isGranted ? renderGranted(t) : renderPick(t, groupNames)
+                  aboveContent = (
+                    <div className="ht-group">
+                      {labelFor(g) && <div className="ht-group-label">{labelFor(g)}</div>}
+                      {render(g.nodes[0])}
+                    </div>
+                  )
+                  belowContent = g.nodes.length > 1
+                    ? <div className="ht-group">{g.nodes.slice(1).map(render)}</div>
+                    : null
+                }
+
+                return (
+                  <React.Fragment key={threshold}>
+                    <div className={`trait-tier-label${locked || tierDisabled ? ' locked' : ''}`}>
+                      Level {threshold}{tierDisabled ? ' (off)' : ''}
+                    </div>
+                    <div className="tg-above">{aboveContent}</div>
+                    <div className="tg-mid">
+                      <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={memSlotIdx}
+                        slotLabel={MEMORY_TYPE_LABELS[MEMORY_TYPES[memSlotIdx]]}
+                        icon={memory ? memoryTypeIcon[memory.memoryType] : null}
+                        onOpen={() => openMemoryCreator(memSlotIdx)} />
+                    </div>
+                    <div className="tg-below">{belowContent}</div>
+                  </React.Fragment>
                 )
               })}
             </div>
