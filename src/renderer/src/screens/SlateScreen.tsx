@@ -1155,17 +1155,18 @@ export default function SlateScreen({ treeColors }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 
-  // Auto-keep every CONFIGURED slate in the build's inventory so it can be re-placed without rebuilding.
-  // Entries are keyed by the slate's STABLE templateId and UPSERTED — so editing a slate updates its single
-  // entry rather than spawning one per intermediate state. The slate currently being edited is skipped so its
-  // in-progress (intermediate) states aren't saved; it's upserted once editing ends / focus switches away.
+  // Auto-keep every placed slate in the build's inventory so it can be re-placed without rebuilding —
+  // INCLUDING slates with no modifiers yet (empty base slates, Corner of Divinity, and Moth/Prairie
+  // legendary slates that have no node slots at all). Entries are keyed by the slate's STABLE templateId
+  // and UPSERTED — so editing a slate updates its single entry rather than spawning one per intermediate
+  // state. Only the slate currently being edited is skipped so its in-progress states aren't saved; it's
+  // upserted once editing ends / focus switches away.
   useEffect(() => {
     const inv = useBuildStore.getState().slateInventory
     const byId = new Map(inv.map(t => [t.id, t]))
     let changed = false
     for (const sl of placed) {
       if (sl.id === editingSlateId) continue                                     // skip in-progress edits
-      if (!sl.slots.some(s => s.selectedNodeId || s.selectedCoreKey)) continue   // skip empty / Moth/Prairie
       const t = toTemplate(sl)
       const prev = byId.get(t.id)
       if (!prev || JSON.stringify(prev) !== JSON.stringify(t)) { byId.set(t.id, t); changed = true }

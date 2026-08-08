@@ -845,3 +845,32 @@ in this change** and **still open**.
   **editor's** prefix/suffix selectors are empty (imported affixes aren't matched to catalog
   craft-affix options), so the item isn't re-editable without re-rolling. Match imported affixes
   to the catalog pool (by expression/tier/affix_type) to populate the editor.
+
+### Share service — landing page for /b/<id> links (owner-requested 2026-08-08)
+
+Visiting a share link directly (e.g. `https://api.tlibuilder.com/b/iQpLezj`) should not dump
+raw JSON / 404 — it should serve a small landing page that either auto-opens the build in TLI
+Builder (deep link) or offers an "Open in TLI Builder" button (and, on the web app, opens the
+build directly). Lives in the `tlibuilder-code-share` repo (owner-committed). Consider: web-app
+route `tlibuilder.com/b/<id>` that fetches the code and calls the import path; and the api host
+redirecting/serving the button.
+
+### Build warnings / issues sidebar (owner-requested 2026-08-08)
+
+A clickable **warnings/issues indicator in the sidebar** the user can open to see any current
+problems with their build — e.g. entities dropped/unmapped on import, best-guess values that
+need review, or other validation issues. Motivating cases:
+- **Compendium import (via the build-crosswalk tool):** anything that couldn't be mapped
+  (a skill/support/spirit/legendary/slate-mod/hero-memory-affix not in the crosswalk) or was
+  imported as a best guess must be surfaced, never silently dropped. **Near-term:** the crosswalk
+  emitter now writes these as an "⚠ Import warnings" section into the build **notes** (owner said
+  that's fine until this sidebar exists). Longer-term this sidebar is the real home for them.
+- **Moth / Space Rift slates:** Compendium omits the copy-direction, so imported ones carry a
+  best-guess direction (owner believes Compendium is just wrong here). The user can already
+  re-customize the direction after import; the sidebar should just **flag** imported moths so the
+  user knows to check them.
+- General build validation (unallocated points, invalid combos, etc.) could feed the same panel.
+
+Design: a small badge/count in the sidebar → panel listing each issue with a jump-to-fix link
+where possible. Warnings would need a home in build state (or be re-derived), not just the notes
+string, once this lands. Until then, notes is the agreed carrier.

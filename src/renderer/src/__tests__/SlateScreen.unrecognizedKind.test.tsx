@@ -71,15 +71,12 @@ describe('SlateScreen unrecognized-kind edit (regression)', () => {
       renderer = TestRenderer.create(<SlateScreen treeColors={{}} onBack={() => {}} />)
     })
 
-    // Board CELL divs uniquely carry onClick + onContextMenu + onPointerDown together — the outer
-    // board wrapper div also has an onPointerDown (merged in from useFloatingTooltip's cursor-anchor
-    // triggerProps, expecting a real PointerEvent), but no onClick/onContextMenu, so this filter
-    // excludes it. Cells render row-major (row 0 col 0..5, row 1 col 0..5, ...), so index 0 is
+    // Board CELL divs are the only ones with className "slate-cell". (We used to filter on the
+    // onClick+onContextMenu+onPointerDown handler trio, but saved-slate InventoryTiles now share that
+    // signature since empty slates auto-save to the inventory too — the className is the precise
+    // selector.) Cells render row-major (row 0 col 0..5, row 1 col 0..5, ...), so index 0 is
     // (row 0, col 0) — where the fixture slate's single cell sits.
-    const cellDivs = renderer.root.findAll(n =>
-      typeof n.props.onPointerDown === 'function'
-      && typeof n.props.onClick === 'function'
-      && typeof n.props.onContextMenu === 'function')
+    const cellDivs = renderer.root.findAll(n => n.props.className === 'slate-cell')
     expect(cellDivs.length).toBe(36) // BOARD_ROWS(6) * BOARD_COLS(6), not exported from SlateScreen.tsx
 
     expect(() => {
