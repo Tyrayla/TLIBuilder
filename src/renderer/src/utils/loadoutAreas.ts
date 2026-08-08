@@ -14,13 +14,13 @@ export type LoadoutData = Partial<Record<AreaKey, AreaSnapshot>>
 // Each area → the store fields it owns. Field names match the buildStore keys 1:1.
 export const AREA_FIELDS: Record<AreaKey, string[]> = {
   talents: ['slots', 'activeSlot'],
-  slates: ['slates'],
+  slates: ['slates', 'slateInventory'],
   prisms: ['prisms'],
   gear: ['gear'],
   skills: ['skills'],
   trait: ['traitId', 'traitSlotLevels', 'advancedTraitSelections', 'traitTreeAllocations', 'traitSkillSupports', 'licoricePreparedSkill', 'elixirIngredients'],
   spirits: ['pactSpirits', 'fates', 'undetermined'],
-  memories: ['heroMemories'],
+  memories: ['heroMemories', 'memoryInventory'],
   conditions: ['conditionState'],
   level: ['characterLevel'],
   customMods: ['customMods'],
@@ -43,13 +43,13 @@ export const AREA_LABELS: Record<AreaKey, string> = {
 // no value for an area (e.g. a from-scratch loadout) so swaps + cache keys stay deterministic.
 export const DEFAULT_AREA_SNAPSHOT: Record<AreaKey, AreaSnapshot> = {
   talents: { slots: [null, null, null, null], activeSlot: 0 },
-  slates: { slates: [] },
+  slates: { slates: [], slateInventory: [] },
   prisms: { prisms: [] },
   gear: { gear: [] },
   skills: { skills: [] },
   trait: { traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitTreeAllocations: [], traitSkillSupports: [], licoricePreparedSkill: null, elixirIngredients: {} },
   spirits: { pactSpirits: [null, null, null], fates: {}, undetermined: [null, null, null] },
-  memories: { heroMemories: [null, null, null] },
+  memories: { heroMemories: [null, null, null], memoryInventory: [] },
   conditions: { conditionState: {} },
   level: { characterLevel: 100 },
   customMods: { customMods: [] },
@@ -102,12 +102,26 @@ export function resolvedPatch(loadouts: Loadout[], id: string): Record<string, u
   return patch
 }
 
+// Fields that live inside an ENGINE area (for per-loadout scoping + persistence) but are DISPLAY-ONLY —
+// the stats engine never reads them (see statsPayload.ts). They're stripped from the cache fingerprint so
+// editing them doesn't force an avoidable recompute (same intent as excluding the `notes` area entirely).
+// Area-level exclusion is too coarse: `slates`/`memories` also hold real engine inputs (slates/heroMemories).
+const FINGERPRINT_EXCLUDED_FIELDS = new Set(['slateInventory', 'memoryInventory'])
+
+function forFingerprint(snap: AreaSnapshot): AreaSnapshot {
+  let out = snap
+  for (const f of FINGERPRINT_EXCLUDED_FIELDS) {
+    if (f in out) { if (out === snap) out = { ...snap }; delete out[f] }
+  }
+  return out
+}
+
 // Stable fingerprint of a loadout's RESOLVED engine inputs (+ global uptimeMode) — for the stats cache.
 export function loadoutKeyFromResolved(loadouts: Loadout[], id: string, uptimeMode: string): string {
-  return JSON.stringify({ a: ENGINE_AREAS.map(area => resolveAreaSnapshot(loadouts, id, area)), u: uptimeMode })
+  return JSON.stringify({ a: ENGINE_AREAS.map(area => forFingerprint(resolveAreaSnapshot(loadouts, id, area))), u: uptimeMode })
 }
 
 // Same fingerprint computed from a live store state (the active loadout reflects unsaved edits here).
 export function loadoutKeyFromState(state: Record<string, unknown>, uptimeMode: string): string {
-  return JSON.stringify({ a: ENGINE_AREAS.map(area => readArea(state, area)), u: uptimeMode })
+  return JSON.stringify({ a: ENGINE_AREAS.map(area => forFingerprint(readArea(state, area))), u: uptimeMode })
 }

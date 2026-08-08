@@ -24,7 +24,7 @@ export function getBuildPayload(): Record<string, unknown> {
     traitSkillSupports: s.traitSkillSupports,
     licoricePreparedSkill: s.licoricePreparedSkill,
     elixirIngredients: s.elixirIngredients,
-    heroMemories: s.heroMemories,
+    heroMemories: s.heroMemories, memoryInventory: s.memoryInventory,
     pactSpirits: s.pactSpirits,
     fates: s.fates,
     undetermined: s.undetermined,

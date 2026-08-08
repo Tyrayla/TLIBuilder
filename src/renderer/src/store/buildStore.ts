@@ -40,6 +40,7 @@ export interface LoadedBuild {
   licoricePreparedSkill: string | null   // Licorice Note: skill_id of the Empower/Curse the trait prepares
   elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: ingredient name}
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  memoryInventory: CreatedHeroMemory[]   // owned/created memories palette (per-loadout, like slateInventory)
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>
   undetermined: (UndeterminedFate | null)[]
@@ -98,6 +99,7 @@ interface BuildStore {
   gear: EquippedGearItem[]
   characterLevel: number
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  memoryInventory: CreatedHeroMemory[]   // owned/created memories palette (per-loadout, like slateInventory)
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>            // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
   undetermined: (UndeterminedFate | null)[]       // one per spirit slot (index 0–2)
@@ -122,6 +124,7 @@ interface BuildStore {
   uptimeMode: 'max' | 'real'
   setUptimeMode: (m: 'max' | 'real') => void
   setHeroMemories: (memories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
+  setMemoryInventory: (memoryInventory: CreatedHeroMemory[]) => void
   setPactSpirits: (spirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
   setFates: (fates: Record<string, InstalledFate>) => void
   setUndetermined: (undetermined: (UndeterminedFate | null)[]) => void
@@ -202,6 +205,7 @@ const DEFAULT_BUILD: LoadedBuild = {
   licoricePreparedSkill: null,
   elixirIngredients: {},
   heroMemories: [null, null, null],
+  memoryInventory: [],
   pactSpirits: [null, null, null],
   fates: {},
   undetermined: [null, null, null],
@@ -293,6 +297,8 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   setTargetConfig: (targetConfig) => set((s) => ({ targetConfig, buildVersion: s.buildVersion + 1 })),
   setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
+  // Inventory is display/library only (not engine-relevant) — bump version just to mark the build dirty.
+  setMemoryInventory: (memoryInventory) => set((s) => ({ memoryInventory, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),
   setFates: (fates) => set((s) => ({ fates, buildVersion: s.buildVersion + 1 })),
   setUndetermined: (undetermined) => set((s) => ({ undetermined, buildVersion: s.buildVersion + 1 })),

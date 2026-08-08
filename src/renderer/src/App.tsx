@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout } from './api/client'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId } from './api/client'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { snapshotAllAreas } from './utils/loadoutAreas'
 import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
@@ -71,10 +71,26 @@ function ensureLoadouts(
         ? (payload as { traitTreeAllocations: string[] }).traitTreeAllocations
         : []
       const topTraitId = (payload as { traitId?: unknown }).traitId
+      // slateInventory used to be build-GLOBAL; it's now a per-loadout field in the `slates` area. Seed each
+      // loadout that predates the change from the former global value so no saved palette is lost. memoryInventory
+      // is brand new — seed from the (normally empty) top-level value (the memory-inventory UI that populates it
+      // lands in a later step; until then it stays as imported/empty).
+      const topSlateInv = Array.isArray((payload as { slateInventory?: unknown }).slateInventory)
+        ? (payload as { slateInventory: unknown[] }).slateInventory : []
+      const topMemInv = Array.isArray((payload as { memoryInventory?: unknown }).memoryInventory)
+        ? (payload as { memoryInventory: unknown[] }).memoryInventory : []
       for (const l of loadouts) {
         const trait = l.data.trait as Record<string, unknown> | undefined
         if (trait && trait.traitTreeAllocations === undefined) {
           l.data = { ...l.data, trait: { ...trait, traitTreeAllocations: trait.traitId === topTraitId ? topAllocs : [] } }
+        }
+        const slates = l.data.slates as Record<string, unknown> | undefined
+        if (slates && slates.slateInventory === undefined) {
+          l.data = { ...l.data, slates: { ...slates, slateInventory: topSlateInv } }
+        }
+        const memories = l.data.memories as Record<string, unknown> | undefined
+        if (memories && memories.memoryInventory === undefined) {
+          l.data = { ...l.data, memories: { ...memories, memoryInventory: topMemInv } }
         }
       }
       const activeLoadoutId = loadouts.find(l => l.id === srcActiveId)?.id ?? loadouts[0].id
@@ -275,7 +291,7 @@ function App() {
       slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
       gear: [], skills: [], characterLevel: 100,
       traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitTreeAllocations: [], traitSkillSupports: [], licoricePreparedSkill: null, elixirIngredients: {},
-      heroMemories: [null, null, null] as [null, null, null], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
+      heroMemories: [null, null, null] as [null, null, null], memoryInventory: [], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
       notes: '', customMods: [], targetConfig: DEFAULT_TARGET_CONFIG,
     }
     useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
@@ -301,11 +317,13 @@ function App() {
     const fa = Array.isArray(o.fixedAffixes) ? o.fixedAffixes : []
     const ra = Array.isArray(o.randomAffixes) ? o.randomAffixes : []
     return {
+      id: typeof o.id === 'string' && o.id ? o.id : genMemoryId(),   // backfill stable id for pre-inventory builds
       memoryType: o.memoryType,
       rarity,
       baseStat: sanitizeMemorySlot(o.baseStat),
       fixedAffixes: [sanitizeMemorySlot(fa[0]), sanitizeMemorySlot(fa[1])],
       randomAffixes: [sanitizeMemorySlot(ra[0]), sanitizeMemorySlot(ra[1])],
+      waxAndWane: o.waxAndWane === true,
     }
   }
 
@@ -445,6 +463,8 @@ function App() {
         sanitizeHeroMemory((build.heroMemories ?? [])[1]),
         sanitizeHeroMemory((build.heroMemories ?? [])[2]),
       ],
+      memoryInventory: (Array.isArray(build.memoryInventory) ? build.memoryInventory : [])
+        .map(sanitizeHeroMemory).filter((m): m is CreatedHeroMemory => m !== null),
       pactSpirits: [
         sanitizePactSpirit((build.pactSpirits ?? [])[0]),
         sanitizePactSpirit((build.pactSpirits ?? [])[1]),

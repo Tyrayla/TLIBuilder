@@ -431,6 +431,7 @@ export interface Build {
   licoricePreparedSkill?: string | null         // Licorice Note: Empower/Curse the trait prepares
   elixirIngredients?: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   heroMemories?: (unknown | null)[]
+  memoryInventory?: (unknown | null)[]   // owned/created memories palette (per-loadout, mirrors slateInventory)
   pactSpirits?: (unknown | null)[]
   fates?: Record<string, InstalledFate>           // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
   undetermined?: (UndeterminedFate | null)[]      // one per spirit slot
@@ -1745,11 +1746,22 @@ export interface MemorySlotSelection {
 }
 
 export interface CreatedHeroMemory {
+  // Stable identity for the memory inventory (upsert/socket/delete/duplicate by id, mirroring SlateTemplate.id).
+  id: string
   memoryType: 'origin' | 'discipline' | 'progress'
   rarity: MemoryRarity
   baseStat: MemorySlotSelection | null
   fixedAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
   randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
+  // Wax & Wane: the base stat gains 30% increased power (value ×1.3) when enabled. Compendium ships it
+  // as a per-memory boolean; in Builder it's a toggle on the base stat. NOTE: only persisted/imported for
+  // now — the ×1.3 engine effect (in buildMemoryEffects) is deferred to Phase B, so this has no DPS impact yet.
+  waxAndWane?: boolean
+}
+
+/** Generate a stable id for a created hero memory (mirrors the slate templateId scheme). */
+export function genMemoryId(): string {
+  return `memory-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 const MEMORY_NAMES: Record<CreatedHeroMemory['memoryType'], string> = {

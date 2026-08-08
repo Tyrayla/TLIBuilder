@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
-  SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT } from '../api/client'
+  SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT, genMemoryId } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -723,7 +723,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         randomAffixes: [existing.randomAffixes[0], existing.randomAffixes[1]],
       })
     } else {
-      setDraft({ memoryType, rarity: 'epic', baseStat: null, fixedAffixes: [null, null], randomAffixes: [null, null] })
+      setDraft({ id: genMemoryId(), memoryType, rarity: 'epic', baseStat: null, fixedAffixes: [null, null], randomAffixes: [null, null] })
     }
     setCreatorSlot(slotIdx)
   }
