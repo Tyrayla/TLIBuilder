@@ -31,7 +31,7 @@ _RAW = {
         {"modifier": "Points can be allocated to all Medium Talent within the area 2 additional time(s)", "type": "Prism Gauge - Legendary"},
         {"modifier": "Points can be allocated to all Medium Talent within the area 3 additional time(s)", "type": "Prism Gauge - Legendary"},
         {"modifier": "All Legendary Medium Talent within the area can ignore prerequisite point requirements", "type": "Prism Gauge - Legendary"},
-        {"modifier": "-8 % Defense Mutated Core Talents no longer replace the original talent, but add the following to the Core Talent in the current Talent Panel: Juggernaut", "type": ""},
+        {"modifier": "-8 % Defense Mutated Core Talents no longer replace the original talent, but add the following to the Core Talent in the current Talent Panel: [Juggernaut] Gains huge Defense", "type": ""},
     ],
 }
 
@@ -56,7 +56,10 @@ def test_random_affix_pools_split_and_dedupe():
     assert {"over_alloc", "ignore_prereq"} <= kinds
     oa = next(a for a in cat["advanced"] if a["kind"] == "over_alloc")
     assert oa["tier"] == "medium"
+    # do_not_replace must be keyed by the bracketed talent name (== the prism short_name the editor looks up),
+    # NOT the full "[Juggernaut] Gains huge Defense" tail — that mismatch hid DNR options for every prism.
     assert cat["do_not_replace"]["Juggernaut"][0]["penalty"] == "-8 % Defense"
+    assert all("Gains huge Defense" not in k for k in cat["do_not_replace"])
 
 
 def test_phantasmagoria_base_and_scaled_tagged_overalloc_counts_kept():
