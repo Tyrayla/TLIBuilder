@@ -80,9 +80,8 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
   const level = memory.level ?? cap
   const traitLevel = memoryTraitLevel(memory)   // SET value, clamped 1..5 (same as the engine)
   const baseSel = memory.baseStat
-  const waxed = baseSel && memory.waxAndWane && baseSel.rolledValue != null
-    ? { ...baseSel, rolledValue: Math.round(baseSel.rolledValue * 1.3) }
-    : baseSel
+  // Wax & Wane shows in-game as the base value + a blue "(+30%)" suffix (the ×1.3 is applied in the engine).
+  const waxed = !!baseSel && !!memory.revived && !!memory.waxAndWane
   const fixedLines = memory.fixedAffixes.filter((s): s is MemorySlotSelection => !!s)
   const randomLines = memory.randomAffixes.filter((s): s is MemorySlotSelection => !!s)
   const affixLine = (sel: MemorySlotSelection, key: string) => (
@@ -93,7 +92,7 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
       <span>{resolveMemoryEffect(sel)}</span>
     </li>
   )
-  const hasBody = !!waxed || fixedLines.length > 0 || randomLines.length > 0 || !!(memory.revived && memory.revivalMod)
+  const hasBody = !!baseSel || fixedLines.length > 0 || randomLines.length > 0 || !!(memory.revived && memory.revivalMod)
   return (
     <div className="memory-card" style={{ borderColor: `${rc}55` }}>
       <div className="memory-card-head">
@@ -110,11 +109,11 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
         <span>ENHANCEMENT LEVEL <b>{level}/{cap}</b></span>
         <span>TRAIT LEVEL <b>+{traitLevel}</b></span>
       </div>
-      {waxed && (
+      {baseSel && (
         <div className="memory-card-sec">
           <div className="memory-card-line">
-            {resolveMemoryEffect(waxed)}
-            {memory.waxAndWane && <span className="memory-card-wax"> ✦ Wax &amp; Wane</span>}
+            {resolveMemoryEffect(baseSel)}
+            {waxed && <span className="memory-card-wax" title="Wax & Wane">(+30%)</span>}
           </div>
         </div>
       )}

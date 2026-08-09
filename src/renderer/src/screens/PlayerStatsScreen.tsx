@@ -3181,10 +3181,9 @@ export default function PlayerStatsScreen() {
   const heroTraitsCatalog = useReferenceStore(s => s.heroTraits)
   const traitNodeTooltip = useMemo(() => {
     const trait = (heroTraitsCatalog ?? []).find((t: HeroTrait) => t.trait_id === traitId)
-    // Phase B: fixed-tier advanced slots are DERIVED from the socketed memories (match the engine). Tree traits
-    // keep their stored levels.
-    const stored = traitSlotLevels ?? [1, 1, 1, 1]
-    const levels = trait && trait.allocation_mode !== 'tree' ? deriveTraitSlotLevels(heroMemories, stored) : stored
+    // Phase B: advanced slots are DERIVED from the socketed memories (match the engine), uniformly for every
+    // trait including tree-styled ones (they differ only in allocation).
+    const levels = deriveTraitSlotLevels(heroMemories, traitSlotLevels ?? [1, 1, 1, 1])
     const lvl = (i: number) => Math.max(1, Math.min(5, Math.abs(levels?.[i] ?? 1)))
     return (sourceName: string) => {
       if (!trait) return null

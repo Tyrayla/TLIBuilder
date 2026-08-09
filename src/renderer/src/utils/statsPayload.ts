@@ -132,13 +132,12 @@ export function buildEngineStatsPayload(s: BuildState) {
   const _invalidSlots = computeInvalidSkillSlots(s.skills, computeSkillSlotEligibility(s.traitId, s.slots, {
     slates: s.slates, gear: s.gear, beltBlends: useReferenceStore.getState().beltBlends ?? undefined, prisms: s.prisms,
   }))
-  // Phase B: for fixed-tier traits the advanced-slot levels are DERIVED from the socketed memories (SET to the
-  // memory's trait level; 0/inactive when a slot is empty). Tree-mode traits (Selena) drive advanced traits via
-  // allocations, so keep their stored levels. This derived array is the single source of truth for the payload's
-  // trait fields (trait_slot_levels + the two _effTraitPicks calls + buildTraitEffects).
+  // Phase B: the advanced-slot levels are DERIVED from the socketed memories (SET to the memory's trait level;
+  // 0/inactive when a slot is empty) for EVERY trait — tree-styled traits (Selena) follow the same level rules,
+  // they only differ in ALLOCATION (which nodes are reachable). Single source of truth for the payload's trait
+  // fields (trait_slot_levels + the two _effTraitPicks calls + buildTraitEffects).
   const _heroTraitsCatalog = useReferenceStore.getState().heroTraits ?? []
-  const _isTreeTrait = _heroTraitsCatalog.find(t => t.trait_id === s.traitId)?.allocation_mode === 'tree'
-  const traitSlotLevels = _isTreeTrait ? s.traitSlotLevels : deriveTraitSlotLevels(s.heroMemories, s.traitSlotLevels)
+  const traitSlotLevels = deriveTraitSlotLevels(s.heroMemories, s.traitSlotLevels)
   return {
     slots: s.slots,
     slates: s.slates,

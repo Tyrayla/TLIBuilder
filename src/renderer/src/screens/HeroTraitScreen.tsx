@@ -822,13 +822,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       : [1, 1, 1, 1]
   )
 
-  // Phase B: for fixed-tier traits the advanced slots (45/60/75) are DERIVED from the socketed memories (SET to
-  // the memory's trait level; 0 = inactive when empty) so the DISPLAY matches the engine payload (same
-  // deriveTraitSlotLevels). Base slot [0] is passed through. Tree traits keep their stored levels (they use
-  // allocations, not tiers). The mutation helpers below still write the STORED array (selection/base only).
-  const displaySlotLevels = selectedTrait && selectedTrait.allocation_mode !== 'tree'
-    ? deriveTraitSlotLevels(heroMemories, safeSlotLevels)
-    : safeSlotLevels
+  // Phase B: the advanced slots (45/60/75) are DERIVED from the socketed memories (SET to the memory's trait
+  // level; 0 = inactive when empty) so the DISPLAY matches the engine payload (same deriveTraitSlotLevels) —
+  // uniformly for every trait, including tree-styled ones (they differ only in allocation). Base slot [0] is
+  // passed through. The mutation helpers below still write the STORED array (selection/base only).
+  const displaySlotLevels = deriveTraitSlotLevels(heroMemories, safeSlotLevels)
 
   // A slot level < 1 = the node is INACTIVE/disabled (empty memory slot, or a remembered-disabled base tier).
   const nodeDisabled = (slotIdx: number) => displaySlotLevels[slotIdx] < 1

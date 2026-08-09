@@ -4828,7 +4828,7 @@ span.gear-affix-label {
 }
 .memory-card-meta b { color: var(--fg-body); font-size: 12px; }
 .memory-card-line { font-size: 12px; color: var(--fg-body); }
-.memory-card-wax { font-size: 10px; color: var(--fg-muted); font-weight: 700; }
+.memory-card-wax { color: #5aa9ff; font-weight: 700; margin-left: 1px; }   /* Wax & Wane (+30%) — blue, like in-game */
 .memory-card-affixes { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 5px; }
 .memory-card-affix { display: flex; gap: 7px; align-items: baseline; font-size: 12px; color: var(--fg-body); }
 .memory-card-tierbadge {

@@ -10,7 +10,7 @@
 // passive-tree nodes).
 import React, { useEffect } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { HeroTrait, HeroTraitTreeNode, CreatedHeroMemory, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
+import { HeroTrait, HeroTraitTreeNode, CreatedHeroMemory, MEMORY_RARITY_COLORS, iconUrl, memoryTraitLevel } from '../api/client'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TraitTooltipBody, MemorySlotCircle, memoryTypeIconUrl } from '../components/HeroTraitShared'
 import { useReferenceStore } from '../store/referenceStore'
@@ -230,12 +230,18 @@ export default function HeroTraitTree({
           const isAllocatable = !isRoot && !isAllocated
             && canAllocate(n.node_id, traitTreeAllocations, connections, rootId, budget)
           const badge = badgeFor(n.node_id, traitTreeAllocations, thresholds)
+          // Phase B: an allocated node runs at the trait level of the memory whose threshold it consumed (the
+          // badge: 45→origin/60→discipline/75→progress), identical to how conventional traits map tier→memory.
+          // Unallocated/root nodes fall back to the base level. This keeps tree traits in sync with the rest.
+          const memIdx = badge != null ? (MEMORY_RAIL.find(r => r.threshold === badge)?.slot ?? -1) : -1
+          const govMem = memIdx >= 0 ? (heroMemories[memIdx] ?? null) : null
+          const nodeLevelAt = govMem ? memoryTraitLevel(govMem) : resolveLevelAt
           return (
             <TreeNodeCircle
               key={n.node_id}
               node={n} cx={nodeX(n)} cy={nodeY(n)} baseR={nodeR}
               isRoot={isRoot} isAllocated={isAllocated} isAllocatable={isAllocatable} badge={badge}
-              resolveLevelAt={resolveLevelAt}
+              resolveLevelAt={nodeLevelAt}
               onClick={() => handleClick(n.node_id)}
               onContextMenu={() => handleContextMenu(n.node_id)}
             />
