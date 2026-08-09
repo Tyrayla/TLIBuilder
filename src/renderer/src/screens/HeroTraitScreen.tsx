@@ -23,6 +23,9 @@ import HeroTraitTree from './HeroTraitTree'
 
 interface Props {
   onBack: () => void
+  // Called right after a brand-new build's DEFAULT trait is auto-selected (a default, not a user edit) so the
+  // dirty tracker can re-baseline — otherwise the auto-select's buildVersion bump marks the fresh build dirty.
+  onDefaultTraitApplied?: () => void
 }
 
 // A contiguous segment of the unified slider mapped to one tier's value range
@@ -776,7 +779,7 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, o
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HeroTraitScreen({ onBack: _onBack }: Props) {
+export default function HeroTraitScreen({ onBack: _onBack, onDefaultTraitApplied }: Props) {
   const traitId = useBuildStore(s => s.traitId)
   const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
   const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
@@ -837,8 +840,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   useEffect(() => {
     if (!loading && traitId === null && buildId === null && allTraits.length > 0) {
       setTraitData(allTraits[0].trait_id, [1, 1, 1, 1], [])
+      // This is a DEFAULT, not a user edit — let App re-baseline the dirty tracker so the fresh build
+      // isn't flagged dirty by the auto-select's buildVersion bump.
+      onDefaultTraitApplied?.()
     }
-  }, [loading, traitId, buildId, allTraits])
+  }, [loading, traitId, buildId, allTraits, setTraitData, onDefaultTraitApplied])
 
   const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId } from './api/client'
 import { MAX_LEVEL_BY_RARITY } from './components/HeroTraitShared'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
@@ -241,6 +241,14 @@ function App() {
   useEffect(() => {
     if (buildVersion > loadedVersionRef.current) setIsDirty(true)
   }, [buildVersion])
+
+  // Re-baseline the dirty tracker after a brand-new build's DEFAULT trait auto-selects on the landing screen.
+  // That auto-select bumps buildVersion (it IS a DPS change → needs recompute) but is NOT a user edit, so we
+  // move the baseline forward and keep the fresh build clean. Stable identity so it can sit in the screen's deps.
+  const rebaselineForDefault = useCallback(() => {
+    loadedVersionRef.current = useBuildStore.getState().buildVersion
+    setIsDirty(false)
+  }, [])
 
 
   if (!appReady) {
@@ -843,7 +851,7 @@ function App() {
   } else if (screen === 'skills') {
     screenContent = <SkillsScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'hero-traits') {
-    screenContent = <HeroTraitScreen onBack={() => setScreen('build-overview')} />
+    screenContent = <HeroTraitScreen onBack={() => setScreen('build-overview')} onDefaultTraitApplied={rebaselineForDefault} />
   } else if (screen === 'pact-spirits') {
     screenContent = <PactSpiritScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'notes') {
