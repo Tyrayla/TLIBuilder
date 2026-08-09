@@ -730,13 +730,16 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, o
           onChange={e => setRenameDraft(e.target.value)} onBlur={commitRename}
           onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false) }} />
       ) : (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        // Two rows so the (wider) Equip/Unequip button + the 3 icon buttons never overflow the 152px tile.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {equipped
-            ? <button className="btn btn-secondary" style={{ fontSize: 10, padding: '3px 10px' }} onClick={onUnequip}>Unequip</button>
-            : <button className="btn btn-primary" style={{ fontSize: 10, padding: '3px 10px' }} onClick={onEquip}>Equip</button>}
-          <button title="Rename" style={iconBtn} onClick={() => { setRenameDraft(memory.displayName ?? ''); setRenaming(true) }}>✎</button>
-          <button title="Duplicate" style={iconBtn} onClick={onDuplicate}>⧉</button>
-          <button title="Remove from inventory" style={{ ...iconBtn, color: '#e59' }} onClick={onDelete}>✕</button>
+            ? <button className="btn btn-secondary" style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-start' }} onClick={onUnequip}>Unequip</button>
+            : <button className="btn btn-primary" style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-start' }} onClick={onEquip}>Equip</button>}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button title="Rename" style={iconBtn} onClick={() => { setRenameDraft(memory.displayName ?? ''); setRenaming(true) }}>✎</button>
+            <button title="Duplicate" style={iconBtn} onClick={onDuplicate}>⧉</button>
+            <button title="Remove from inventory" style={{ ...iconBtn, color: '#e59' }} onClick={onDelete}>✕</button>
+          </div>
         </div>
       )}
     </div>
