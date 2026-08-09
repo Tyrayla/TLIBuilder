@@ -24,7 +24,8 @@ let staticSeason = ''
 let webCompute = false   // web build: dispatch backend calls through the Pyodide worker instead of HTTP/IPC
 type WebApi = typeof import('../web/pyodideCompute')
 let webApi: WebApi | null = null   // loaded once in initApi (web only) so get/post can call it synchronously
-// API path -> static filename (the 10 reference catalogs the app loads once at startup).
+// API path -> static filename (the reference catalogs served from the CDN on web: most load at startup;
+// crosswalk-tables is fetched on demand by the Compendium importer).
 const STATIC_CATALOGS: Record<string, string> = {
   '/skills': 'skills',
   '/legendary-gear': 'legendary_gear',
@@ -39,6 +40,7 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/verification-db': 'verification_db',
   '/glossary': 'glossary',
   '/help-db': 'help_db',
+  '/crosswalk-tables': 'crosswalk_tables',   // Import from Compendium (web: served from the data CDN)
 }
 function staticCatalogUrl(path: string): string | null {
   if (!STATIC_DATA_BASE || !staticSeason) return null
