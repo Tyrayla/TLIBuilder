@@ -1724,6 +1724,9 @@ export interface HeroMemoryAffix {
   level: number
   weight: number
   source: string
+  // Full effect text for tier-0 named revival mods (e.g. "Artificial Moon: Origin"), whose `modifier` is only
+  // the name — merged from the crawl glossary by the importer. Absent for mods whose `modifier` is already full text.
+  description?: string
 }
 
 export interface HeroMemoryType {

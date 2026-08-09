@@ -180,6 +180,14 @@ def import_hero_memories(data: dict, season_name: str) -> dict:
 
 def import_memory_revival(data: dict, season_name: str) -> dict:
     raw_items = _flatten_sections(data)
+    # Tier-0 named revival mods carry only a NAME in the section 'Modifier' (e.g. "Artificial Moon: Origin");
+    # their real effect text lives in the crawl's `glossary` (keyed by that name). Merge the glossary description
+    # in so the Builder gets the full text (rarity cap / penalty / base-slot wording) instead of a bare name.
+    # (T1/T2 mods already carry their full text in 'Modifier', so they have no separate glossary entry to merge.)
+    gloss = {
+        (g.get("name") or "").strip(): (g.get("description") or "").strip()
+        for g in (data.get("glossary") or [])
+    }
     affixes = []
     for it in raw_items:
         modifier = it.get("Modifier", "")
@@ -197,7 +205,11 @@ def import_memory_revival(data: dict, season_name: str) -> dict:
             weight = int(it.get("Weight", 0))
         except (ValueError, TypeError):
             weight = 0
-        affixes.append({"tier": tier, "modifier": modifier, "level": level, "weight": weight})
+        entry = {"tier": tier, "modifier": modifier, "level": level, "weight": weight}
+        desc = gloss.get(modifier.strip())
+        if desc and desc != modifier.strip():
+            entry["description"] = desc
+        affixes.append(entry)
     return {
         "season": season_name,
         "affix_count": len(affixes),
