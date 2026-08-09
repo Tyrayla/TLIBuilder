@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildMemoryEffects, memoryTraitLevel, deriveTraitSlotLevels,
+import { buildMemoryEffects, memoryTraitLevel, deriveTraitSlotLevels, waxBaseStat,
   type CreatedHeroMemory, type MemorySlotSelection } from '../api/client'
 
 // Phase B (in-game-verified): memory→trait-level SET formula, Wax & Wane ×1.3 base stat, revival-mod emission,
@@ -30,6 +30,13 @@ describe('deriveTraitSlotLevels', () => {
     const progress = mem({ memoryType: 'progress', rarity: 'ultimate', level: 50, fixedAffixes: [sel('+2 to Hero Trait Level'), null] }) // 5
     expect(deriveTraitSlotLevels([origin, null, progress], [3, 1, 1, 1])).toEqual([3, 2, 0, 5])
   })
+})
+
+describe('waxBaseStat (shared by the preview card AND the engine effect)', () => {
+  it('×1.3 on a rolled value (rounded)', () =>
+    expect(waxBaseStat(sel('+(50–100) Dexterity', 90)).rolledValue).toBe(117))
+  it('×1.3 on a leading text value when there is no rolled value', () =>
+    expect(waxBaseStat(sel('+90 Dexterity')).modifier).toBe('+117 Dexterity'))
 })
 
 describe('buildMemoryEffects', () => {

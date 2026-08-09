@@ -687,11 +687,11 @@ function TraitSkillSlot({ supports, allSkills, onChange }: {
 // A single memory tile in the inventory overlay. The box is FILLED by the rarity color (rarity is read
 // from the color, not text — no rarity/affix-count line), with the natural type icon on its rarity glow,
 // its equipped state ("Equipped · <slot>") or an Equip action, plus edit / duplicate / remove controls.
-function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onEdit, onDelete, onDuplicate, onRename }: {
+function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, onEdit, onDelete, onDuplicate, onRename }: {
   memory: CreatedHeroMemory
   equippedSlot: number | null   // socketed slot index, or null if not equipped
   icon?: string | null          // type icon (bundled webp); falls back to ◈ until icon data lands
-  onEquip: () => void; onEdit: () => void; onDelete: () => void; onDuplicate: () => void
+  onEquip: () => void; onUnequip: () => void; onEdit: () => void; onDelete: () => void; onDuplicate: () => void
   onRename: (next: string) => void   // sets the DISPLAY label only (true "Memory of <Type>" name kept in the card)
 }) {
   const color = MEMORY_RARITY_COLORS[memory.rarity]
@@ -731,9 +731,9 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onEdit, onDe
           onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false) }} />
       ) : (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {!equipped && (
-            <button className="btn btn-primary" style={{ fontSize: 10, padding: '3px 10px' }} onClick={onEquip}>Equip</button>
-          )}
+          {equipped
+            ? <button className="btn btn-secondary" style={{ fontSize: 10, padding: '3px 10px' }} onClick={onUnequip}>Unequip</button>
+            : <button className="btn btn-primary" style={{ fontSize: 10, padding: '3px 10px' }} onClick={onEquip}>Equip</button>}
           <button title="Rename" style={iconBtn} onClick={() => { setRenameDraft(memory.displayName ?? ''); setRenaming(true) }}>✎</button>
           <button title="Duplicate" style={iconBtn} onClick={onDuplicate}>⧉</button>
           <button title="Remove from inventory" style={{ ...iconBtn, color: '#e59' }} onClick={onDelete}>✕</button>
@@ -894,9 +894,19 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
 
   function openMemoryCreator(slotIdx: number) {
     const existing = heroMemories[slotIdx]
-    setDraft(existing ? editDraft(existing) : freshDraft(MEMORY_TYPES[slotIdx]))
-    setCreatorSlot(slotIdx)
-    setInventoryOpen(false)
+    if (existing) {
+      // Socketed → open the editor for it.
+      setDraft(editDraft(existing)); setCreatorSlot(slotIdx); setInventoryOpen(false)
+      return
+    }
+    // Empty slot: if the loadout already owns a memory of this type, open the inventory to equip one instead
+    // of jumping straight to Create. (Any type-T memory in inventory is unequipped here, since slot T is empty.)
+    const type = MEMORY_TYPES[slotIdx]
+    if (memoryInventory.some(m => m.memoryType === type)) {
+      setInventoryView('current'); setInventoryOpen(true); setDraft(null); setCreatorSlot(null)
+      return
+    }
+    setDraft(freshDraft(type)); setCreatorSlot(slotIdx); setInventoryOpen(false)
   }
   function openMemoryCreatorNew() { setDraft(freshDraft('origin')); setCreatorSlot(null) }
   function openMemoryEditor(mem: CreatedHeroMemory) { setDraft(editDraft(mem)); setCreatorSlot(null) }
@@ -956,6 +966,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     const next = [...heroMemories] as typeof heroMemories
     next[slot] = mem
     setHeroMemories(next)
+  }
+  // Unequip a memory (clear it from its socket); it stays in the inventory.
+  function unequipMemory(mem: CreatedHeroMemory) {
+    const socketed = useBuildStore.getState().heroMemories
+    setHeroMemories(socketed.map(m => (m?.id === mem.id ? null : m)) as typeof socketed)
   }
   function deleteFromInventory(id: string) {
     // If the memory is socketed, unequip it too — otherwise the socketed→inventory auto-sync re-adds it
@@ -1240,6 +1255,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
             <MemoryInventoryTile key={mem.id} memory={mem} equippedSlot={equippedSlotById.get(mem.id) ?? null}
               icon={memoryTypeIcon[mem.memoryType]}
               onEquip={() => equipMemory(mem)}
+              onUnequip={() => unequipMemory(mem)}
               onEdit={() => openMemoryEditor(mem)}
               onDelete={() => deleteFromInventory(mem.id)}
               onDuplicate={() => duplicateInInventory(mem.id)}

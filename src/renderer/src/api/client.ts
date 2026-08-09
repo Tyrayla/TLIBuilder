@@ -1787,6 +1787,15 @@ const MEMORY_NAMES: Record<CreatedHeroMemory['memoryType'], string> = {
   progress: 'Memory of Progress',
 }
 
+// Wax & Wane (Phase B, in-game-verified): a revived memory's BASE STAT value is ×1.3 (30%), base stat ONLY.
+// Returns a NEW selection with the boosted value so both the engine (buildMemoryEffects, applied locally at the
+// source before global %-attribute pools) and the preview card use identical math.
+export function waxBaseStat(sel: MemorySlotSelection): MemorySlotSelection {
+  if (sel.rolledValue != null) return { ...sel, rolledValue: Math.round(sel.rolledValue * 1.3) }
+  // No rolled value → the number lives in the modifier text; scale the leading +N.
+  return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + Math.round(parseFloat(n) * 1.3)) }
+}
+
 export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): EffectInput[] {
   const effects: EffectInput[] = []
   const RANGE_RE = /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g
@@ -1797,18 +1806,11 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): Effe
     const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(2)
     return mod.replace(RANGE_RE, val)
   }
-  // Wax & Wane (Phase B, in-game-verified): a revived memory's BASE STAT value is ×1.3 (30%), base stat ONLY,
-  // applied LOCALLY at the source here (before the global %-attribute pools) — mirrors foldLocalGearDefense.
-  const applyWax = (sel: MemorySlotSelection): MemorySlotSelection => {
-    if (sel.rolledValue != null) return { ...sel, rolledValue: Math.round(sel.rolledValue * 1.3) }
-    // No rolled value → the number lives in the modifier text; scale the leading +N.
-    return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + Math.round(parseFloat(n) * 1.3)) }
-  }
   for (const mem of memories) {
     if (!mem) continue
     const src = MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory'
     const push = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
-    if (mem.baseStat) push(mem.revived && mem.waxAndWane ? applyWax(mem.baseStat) : mem.baseStat)
+    if (mem.baseStat) push(mem.revived && mem.waxAndWane ? waxBaseStat(mem.baseStat) : mem.baseStat)
     // The "+N to Hero Trait Level" fixed mod is NOT a DPS stat — it feeds the trait slot level
     // (deriveTraitSlotLevels), so skip it here (avoids a spurious "not recognized" badge).
     for (const fa of mem.fixedAffixes) { if (fa && !isTraitLevelMod(fa.modifier)) push(fa) }

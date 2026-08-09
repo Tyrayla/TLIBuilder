@@ -6,7 +6,7 @@
 import React from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { CreatedHeroMemory, MemorySlotSelection, MemoryRarity, MEMORY_RARITY_COLORS, HeroMemoryType, iconUrl,
-  MAX_LEVEL_BY_RARITY, memoryTraitLevel } from '../api/client'
+  MAX_LEVEL_BY_RARITY, memoryTraitLevel, waxBaseStat } from '../api/client'
 import { useFloatingTooltip } from './tooltip/useFloatingTooltip'
 import { useDamageDelta } from './tooltip/useDamageDelta'
 import { TooltipContributions } from './tooltip/TooltipContributions'
@@ -80,8 +80,9 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
   const level = memory.level ?? cap
   const traitLevel = memoryTraitLevel(memory)   // SET value, clamped 1..5 (same as the engine)
   const baseSel = memory.baseStat
-  // Wax & Wane shows in-game as the base value + a blue "(+30%)" suffix (the ×1.3 is applied in the engine).
+  // Wax & Wane: show the BOOSTED base value (×1.3, same helper the engine uses) + a blue "(+30%)" indicator.
   const waxed = !!baseSel && !!memory.revived && !!memory.waxAndWane
+  const baseDisplay = waxed ? waxBaseStat(baseSel!) : baseSel
   const fixedLines = memory.fixedAffixes.filter((s): s is MemorySlotSelection => !!s)
   const randomLines = memory.randomAffixes.filter((s): s is MemorySlotSelection => !!s)
   const affixLine = (sel: MemorySlotSelection, key: string) => (
@@ -109,10 +110,10 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
         <span>ENHANCEMENT LEVEL <b>{level}/{cap}</b></span>
         <span>TRAIT LEVEL <b>+{traitLevel}</b></span>
       </div>
-      {baseSel && (
+      {baseDisplay && (
         <div className="memory-card-sec">
           <div className="memory-card-line">
-            {resolveMemoryEffect(baseSel)}
+            {resolveMemoryEffect(baseDisplay)}
             {waxed && <span className="memory-card-wax" title="Wax & Wane">(+30%)</span>}
           </div>
         </div>
