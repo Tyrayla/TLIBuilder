@@ -59,7 +59,7 @@ const MEMORY_LABEL: Record<string, string> = { origin: 'Origin', discipline: 'Di
 function resolveMemoryModifier(sel: { modifier: string; rolledValue: number | null }): string {
   const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
   if (sel.rolledValue == null) return mod
-  return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, String(sel.rolledValue))
+  return mod.replace(/\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g, String(sel.rolledValue))
 }
 
 // ── Token grammar: {{type:key}} (key may contain anything but `}`) ───────────────

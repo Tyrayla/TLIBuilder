@@ -22,7 +22,7 @@ traitSlotLevel(socketed memory) = clamp(1 + (memLevel>=30?1:0) + (memLevel>=50?1
 
 ## Notes / caveats / open questions
 
-DEFERRED (not modeled yet): the 4th 'Base/Special' memory slot. In-game, a revived mod lets you slot a chosen type (origin/discipline/progress) into the base slot to level the BASE trait (→ level 5 = Artificial Moon, the only path), but that slot's BASE + RANDOM affixes are reduced by a percentage while FIXED affixes are unpenalized. The exact penalty % is not yet recorded, and the 4th memory type is not in the data model, so base-slot leveling and the penalty are NOT implemented — traitSlotLevels[0] passes through unchanged. INTENDED behavior change shipped with Phase B: an advanced trait with no socketed memory now computes as inactive (previously it could contribute from a stored slot level).
+BASE/SPECIAL SLOT (now implemented, in-game-verified 2026-08-08): a REVIVED memory's revival mod may open ONE Base slot that accepts a NON-revived memory of the mod's NAMED type, up to the mod's rarity cap, at a value penalty. The mod TEXT is authoritative for the type (a Progress memory can carry an Origin enabler → base slot accepts Origin). Only one base slot, and only one revived memory total (so at most one enabler). Enabler tiers (sourced from the revival pool `description||modifier`): T0 'Artificial Moon: {type}' = Ultimate or lower, −60% flat, levels the base trait to Artificial Moon (lv5); T1 'Base Traits now have Base Trait slots … Epic or lower {type} … (−60–−55) %' (rolled); T2 '… Rare or lower {type} … (−35–−30) %' (rolled). The penalty scales the base-slot memory's Base Stat + Random affix VALUES by (1+rolled/100) (T0: 1−0.60=0.40; e.g. −57% = ×0.43, no rounding); FIXED affixes (incl. the trait-level fixed) are unpenalized. The base memory levels the BASE trait via the same memoryTraitLevel formula → traitSlotLevels[0] (Artificial Moon shows at lv5). Renderer-only: buildMemoryEffects(heroMemories, baseMemory) applies the penalty via scaleSelValue; deriveTraitSlotLevels(…, baseMemory) sets [0]; resolveBaseSlot/parseBaseSlotEnabler/activeBaseSlotEnabler gate contribution on a matching enabler being equipped. INTENDED behavior change shipped with Phase B (unchanged): an advanced trait with no socketed memory computes as inactive.
 
 ## Implementation (engine model)
 
@@ -36,5 +36,6 @@ Renderer-side (no backend/engine change; the engine already consumes trait_slot_
 
 ## Sources
 
-- Owner in-game confirmation (2026-08-08), including the in-game '(+30%)' Wax & Wane wording on the base-stat line
-- .wolf/engine-task-spec-hero-memory-phaseB.md (filled + reviewed engine-task-spec)
+- Owner in-game confirmation (2026-08-08), including the in-game '(+30%)' Wax & Wane wording on the base-stat line, and the base-slot rarity caps / penalties / one-slot-one-revived rules
+- Revival pool data (data/seasons/SS13/_memory_revival.json) — Artificial Moon: {Origin,Discipline,Progress} glossary text (Ultimate or lower, −60%) and the T1/T2 'Base Trait slots' mods (Epic/Rare or lower, negative penalty ranges)
+- .wolf/engine-task-spec-hero-memory-phaseB.md + .wolf/engine-task-spec-base-slot.md (filled engine-task-specs)

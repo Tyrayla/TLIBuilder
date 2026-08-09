@@ -6,9 +6,9 @@
 import React from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { CreatedHeroMemory, MemorySlotSelection, MemoryRarity, MEMORY_RARITY_COLORS, HeroMemoryType, iconUrl,
-  MAX_LEVEL_BY_RARITY, memoryTraitLevel, waxBaseStat } from '../api/client'
+  MAX_LEVEL_BY_RARITY, memoryTraitLevel, waxBaseStat, scaleSelValue } from '../api/client'
 import { useFloatingTooltip } from './tooltip/useFloatingTooltip'
-import { useDamageDelta } from './tooltip/useDamageDelta'
+import { useDamageDelta, type StateTransform } from './tooltip/useDamageDelta'
 import { TooltipContributions } from './tooltip/TooltipContributions'
 import { dec } from '../utils/num'
 
@@ -38,7 +38,8 @@ export function resolveMemoryEffect(sel: MemorySlotSelection): string {
   const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
   if (sel.rolledValue === null) return mod
   const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : dec(sel.rolledValue)
-  return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
+  // Optional leading '-' on each bound so a negative range (base-slot penalty "(-60–-55) %") resolves too.
+  return mod.replace(/\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g, val)
 }
 
 // The memory trait-level helpers now live in api/client.ts (pure value layer, shared with the payload builder).
@@ -71,26 +72,36 @@ export function MemoryIcon({ icon, tint, size, glyphSize }: {
 // hover tooltip on inventory tiles + slot circles. Sections are split by grey dividers; body text is white,
 // only the title/rarity keyword and the tier badges carry color. The "+N to Hero Trait Level" fixed mod shows
 // as its own fixed line AND feeds the additive TRAIT LEVEL total. maxLevel defaults to the rarity cap.
-export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
+export function MemoryPreviewCard({ memory, icon, maxLevel, footer, valueScale }: {
   memory: CreatedHeroMemory; icon: string | null; maxLevel?: number
   footer?: React.ReactNode   // e.g. the damage-delta contribution — rendered as a bottom divider section
+  // Base/Special-slot penalty: multiply the Base Stat + Random affix display VALUES by this (e.g. 0.4 for −60%),
+  // matching what the engine applies. Fixed affixes are shown unscaled. Omit (or 1) for a normal memory.
+  valueScale?: number
 }) {
   const rc = MEMORY_RARITY_COLORS[memory.rarity]
   const cap = maxLevel ?? MAX_LEVEL_BY_RARITY[memory.rarity]
   const level = memory.level ?? cap
   const traitLevel = memoryTraitLevel(memory)   // SET value, clamped 1..5 (same as the engine)
+  const scale = valueScale ?? 1
+  const scaled = (sel: MemorySlotSelection) => (scale !== 1 ? scaleSelValue(sel, scale) : sel)
   const baseSel = memory.baseStat
   // Wax & Wane: show the BOOSTED base value (×1.3, same helper the engine uses) + a blue "(+30%)" indicator.
   const waxed = !!baseSel && !!memory.revived && !!memory.waxAndWane
-  const baseDisplay = waxed ? waxBaseStat(baseSel!) : baseSel
+  const baseDisplay = baseSel ? scaled(waxed ? waxBaseStat(baseSel) : baseSel) : null
   const fixedLines = memory.fixedAffixes.filter((s): s is MemorySlotSelection => !!s)
   const randomLines = memory.randomAffixes.filter((s): s is MemorySlotSelection => !!s)
-  const affixLine = (sel: MemorySlotSelection, key: string) => (
+  // Base-slot penalty indicator, shown on each AFFECTED line (base stat + random affixes) — same blue "(±%)"
+  // treatment as Wax & Wane, so it's clear which lines are reduced and by how much. Fixed affixes get none.
+  const penaltyPct = Math.round((1 - scale) * 100)
+  const penaltyTag = scale !== 1
+    ? <span className="memory-card-wax" title="Base slot penalty">(-{penaltyPct}%)</span> : null
+  const affixLine = (sel: MemorySlotSelection, key: string, penalized = false) => (
     <li key={key} className="memory-card-affix">
       <span className="memory-card-tierbadge" style={{ color: tierColor(sel.tier ?? 0), borderColor: `${tierColor(sel.tier ?? 0)}66` }}>
         T{sel.tier ?? 0}
       </span>
-      <span>{resolveMemoryEffect(sel)}</span>
+      <span>{resolveMemoryEffect(sel)}{penalized ? penaltyTag : null}</span>
     </li>
   )
   const hasBody = !!baseSel || fixedLines.length > 0 || randomLines.length > 0 || !!(memory.revived && memory.revivalMod)
@@ -115,6 +126,7 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
           <div className="memory-card-line">
             {resolveMemoryEffect(baseDisplay)}
             {waxed && <span className="memory-card-wax" title="Wax & Wane">(+30%)</span>}
+            {scale !== 1 && penaltyTag}
           </div>
         </div>
       )}
@@ -122,7 +134,7 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer }: {
         <ul className="memory-card-sec memory-card-affixes">{fixedLines.map((s, i) => affixLine(s, `f${i}`))}</ul>
       )}
       {randomLines.length > 0 && (
-        <ul className="memory-card-sec memory-card-affixes">{randomLines.map((s, i) => affixLine(s, `r${i}`))}</ul>
+        <ul className="memory-card-sec memory-card-affixes">{randomLines.map((s, i) => affixLine(scaled(s), `r${i}`, scale !== 1))}</ul>
       )}
       {memory.revived && memory.revivalMod && (
         <div className="memory-card-sec">
@@ -176,10 +188,16 @@ export function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
 
 // A memory slot circle + its hover info tooltip (only when a memory is socketed). Used by both
 // HeroTraitScreen's fixed tier columns and HeroTraitTree's origin/discipline/progress rail.
-export function MemorySlotCircle({ memory, rarityColor, slot, onOpen, icon, slotLabel }: {
+export function MemorySlotCircle({ memory, rarityColor, slot, onOpen, icon, slotLabel, deltaStep, deltaKey, valueScale }: {
   memory: CreatedHeroMemory | null; rarityColor?: string; slot: number; onOpen: () => void
   icon?: string | null   // type icon (bundled webp); falls back to the ◈ glyph until icon data lands
   slotLabel?: string     // default slot name (Origin/Discipline/Progress) shown on top; a memory's label overrides it
+  // Override the "remove this memory" damage-delta step (the Base slot clears baseMemory, not heroMemories[slot]).
+  deltaStep?: StateTransform
+  // Override the delta cache key. REQUIRED when `slot` isn't unique among sibling circles (the Base slot reuses
+  // slot index 0, colliding with the Origin memory slot) — else both would share one cached contribution.
+  deltaKey?: string
+  valueScale?: number    // Base-slot penalty applied to the tooltip card's base + random values (e.g. 0.4 = −60%)
 }) {
   // Anchor to the circle and open ABOVE it (flips/shifts to stay on-screen) — with the rail at the bottom
   // of the tree, 'top' opens up into the tree area rather than off the bottom/top edge.
@@ -187,7 +205,7 @@ export function MemorySlotCircle({ memory, rarityColor, slot, onOpen, icon, slot
   // Contribution of this socketed memory: remove it and diff vs the current build.
   const delta = useDamageDelta(
     tip.open && memory
-      ? { key: `mem:rm:${slot}`, step: s => ({ ...s, heroMemories: s.heroMemories.map((m, i) => i === slot ? null : m) as typeof s.heroMemories }) }
+      ? { key: deltaKey ?? `mem:rm:${slot}`, step: deltaStep ?? (s => ({ ...s, heroMemories: s.heroMemories.map((m, i) => i === slot ? null : m) as typeof s.heroMemories })) }
       : null,
     tip.open && !!memory,
   )
@@ -215,7 +233,7 @@ export function MemorySlotCircle({ memory, rarityColor, slot, onOpen, icon, slot
       {memory && tip.open && (
         <FloatingPortal>
           <div className="memory-tooltip-card" {...tip.floatingProps}>
-            <MemoryPreviewCard memory={memory} icon={icon ?? null} footer={<TooltipContributions delta={delta} />} />
+            <MemoryPreviewCard memory={memory} icon={icon ?? null} valueScale={valueScale} footer={<TooltipContributions delta={delta} />} />
           </div>
         </FloatingPortal>
       )}

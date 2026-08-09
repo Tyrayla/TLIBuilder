@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildMemoryEffects, memoryTraitLevel, deriveTraitSlotLevels, waxBaseStat,
+  parseBaseSlotEnabler, resolveBaseSlot, activeBaseSlotEnabler, rarityWithinCap, scaleSelValue,
   type CreatedHeroMemory, type MemorySlotSelection } from '../api/client'
 
 // Phase B (in-game-verified): memory→trait-level SET formula, Wax & Wane ×1.3 base stat, revival-mod emission,
@@ -61,5 +62,112 @@ describe('buildMemoryEffects', () => {
     const fx = buildMemoryEffects([m])
     expect(fx.some(e => e.text.includes('Hero Trait Level'))).toBe(false)
     expect(fx.some(e => e.text.includes('Max Life'))).toBe(true)
+  })
+})
+
+// ── Base/Special slot (in-game-verified, owner 2026-08-08) ──────────────────────────────────────────────
+// Enabler selections: T0 name-only "Artificial Moon" carries its text in `description`; T1/T2 in `modifier`.
+const T0_ORIGIN: MemorySlotSelection = {
+  modifier: 'Artificial Moon: Origin', tier: 0, rolledValue: null,
+  description: 'Base Traits now have Special Memory slots that can be installed with an Ultimate or lower Origin Memory. Reduces the Base Stats and Random Affixes of Memories installed in this slot by 60%',
+}
+const T1_ORIGIN: MemorySlotSelection = {
+  modifier: 'Base Traits now have Base Trait slots that can be installed with a Epic or lower Origin Memory. Base Stats and the value of Random Affixes of the Memory installed in this slot: (-60--55) %',
+  tier: 1, rolledValue: -57,
+}
+
+describe('parseBaseSlotEnabler', () => {
+  it('T0 Artificial Moon → origin, ultimate cap, −60% (factor 0.4), artificialMoon', () => {
+    const e = parseBaseSlotEnabler(T0_ORIGIN)!
+    expect(e).toMatchObject({ type: 'origin', rarityCap: 'ultimate', penaltyPct: 60, artificialMoon: true })
+    expect(e.factor).toBeCloseTo(0.4)
+  })
+  it('T1 → epic cap, rolled −57% (factor 0.43), not artificialMoon', () => {
+    const e = parseBaseSlotEnabler(T1_ORIGIN)!
+    expect(e).toMatchObject({ type: 'origin', rarityCap: 'epic', artificialMoon: false })
+    expect(e.factor).toBeCloseTo(0.43)
+  })
+  it('the base-slot type comes from the mod TEXT, not the host memory', () => {
+    expect(parseBaseSlotEnabler(T0_ORIGIN)!.type).toBe('origin')
+  })
+  it('a normal revival mod is not an enabler', () => {
+    expect(parseBaseSlotEnabler(sel('+10 % Damage'))).toBeNull()
+  })
+  it('Artificial Moon fails SAFE to −60% if its description text is missing (never unpenalized)', () => {
+    // Name-only selection with NO description attached (e.g. an older build). Still a recognized AM enabler.
+    const e = parseBaseSlotEnabler({ modifier: 'Artificial Moon: Discipline', tier: 0, rolledValue: null })!
+    expect(e.type).toBe('discipline')
+    expect(e.factor).toBeCloseTo(0.4)
+    expect(e.penaltyPct).toBe(60)
+  })
+})
+
+describe('rarityWithinCap', () => {
+  it('respects the ordering', () => {
+    expect(rarityWithinCap('epic', 'ultimate')).toBe(true)
+    expect(rarityWithinCap('ultimate', 'epic')).toBe(false)
+    expect(rarityWithinCap('rare', 'rare')).toBe(true)
+  })
+})
+
+describe('resolveBaseSlot', () => {
+  // Host a T0 Origin enabler on a (revived) PROGRESS memory — the base slot still accepts ORIGIN (text wins).
+  const host = mem({ id: 'h', memoryType: 'progress', rarity: 'ultimate', revived: true, revivalMod: T0_ORIGIN })
+  it('resolves when an enabler is equipped and type + rarity match', () => {
+    const base = mem({ id: 'b', memoryType: 'origin', rarity: 'ultimate' })
+    expect(resolveBaseSlot([host, null, null], base)?.memory.id).toBe('b')
+  })
+  it('is null when the base memory type mismatches the enabler', () => {
+    expect(resolveBaseSlot([host, null, null], mem({ memoryType: 'discipline', rarity: 'rare' }))).toBeNull()
+  })
+  it('is null when no enabler is equipped', () => {
+    expect(resolveBaseSlot([null, null, null], mem({ memoryType: 'origin' }))).toBeNull()
+    expect(activeBaseSlotEnabler([null, null, null])).toBeNull()
+  })
+  it('is null when the base memory rarity exceeds the enabler cap (T1 = epic)', () => {
+    const t1host = mem({ id: 'h', memoryType: 'progress', revived: true, revivalMod: T1_ORIGIN })
+    expect(resolveBaseSlot([t1host, null, null], mem({ memoryType: 'origin', rarity: 'ultimate' }))).toBeNull()
+    expect(resolveBaseSlot([t1host, null, null], mem({ memoryType: 'origin', rarity: 'epic' }))).not.toBeNull()
+  })
+})
+
+describe('scaleSelValue (base-slot penalty)', () => {
+  it('scales a rolled value by the factor (exact — display caps decimals downstream)', () =>
+    expect(scaleSelValue(sel('+(50–100) Dexterity', 100), 0.4).rolledValue).toBe(40))
+  it('caps a scaled text-value to ≤2 non-zero decimals (no floating-point tail like 75.60000000000001)', () =>
+    expect(scaleSelValue(sel('+189 Max Mana'), 0.4).modifier).toBe('+75.6 Max Mana'))
+  it('scales a text value and trims trailing zeros', () =>
+    expect(scaleSelValue(sel('+100 Max Mana'), 0.43).modifier).toBe('+43 Max Mana'))
+})
+
+describe('buildMemoryEffects — base slot', () => {
+  const host = mem({ id: 'h', memoryType: 'progress', rarity: 'ultimate', revived: true, revivalMod: T0_ORIGIN })
+  const base = mem({
+    id: 'b', memoryType: 'origin', rarity: 'ultimate', level: 50,
+    baseStat: sel('+(50–100) Dexterity', 100),
+    fixedAffixes: [sel('+5 Strength'), null],
+    randomAffixes: [sel('+(10–20) % Damage', 20), null],
+  })
+  it('penalizes the base memory base + random values (×0.4) but not fixed', () => {
+    const fx = buildMemoryEffects([host, null, null], base)
+    expect(fx.some(e => e.text === '+40 Dexterity' && e.source.includes('Base'))).toBe(true)   // 100 × 0.4
+    expect(fx.some(e => e.text === '+8 % Damage')).toBe(true)                                    // 20 × 0.4
+    expect(fx.some(e => e.text === '+5 Strength')).toBe(true)                                    // fixed unscaled
+  })
+  it('contributes nothing when no enabler is equipped', () => {
+    const fx = buildMemoryEffects([null, null, null], base)
+    expect(fx.some(e => e.source.includes('Base'))).toBe(false)
+  })
+})
+
+describe('deriveTraitSlotLevels — base slot', () => {
+  const host = mem({ id: 'h', memoryType: 'progress', rarity: 'ultimate', revived: true, revivalMod: T0_ORIGIN })
+  it('sets base [0] from the base memory when validly socketed (ultimate lv50 → 3)', () => {
+    const base = mem({ memoryType: 'origin', rarity: 'ultimate', level: 50 })
+    expect(deriveTraitSlotLevels([host, null, null], [1, 1, 1, 1], base)[0]).toBe(3)
+  })
+  it('leaves base [0] at its stored value when no enabler is equipped', () => {
+    const base = mem({ memoryType: 'origin', rarity: 'ultimate', level: 50 })
+    expect(deriveTraitSlotLevels([null, null, null], [1, 1, 1, 1], base)[0]).toBe(1)
   })
 })

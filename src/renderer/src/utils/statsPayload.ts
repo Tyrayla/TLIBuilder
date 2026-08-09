@@ -137,7 +137,7 @@ export function buildEngineStatsPayload(s: BuildState) {
   // they only differ in ALLOCATION (which nodes are reachable). Single source of truth for the payload's trait
   // fields (trait_slot_levels + the two _effTraitPicks calls + buildTraitEffects).
   const _heroTraitsCatalog = useReferenceStore.getState().heroTraits ?? []
-  const traitSlotLevels = deriveTraitSlotLevels(s.heroMemories, s.traitSlotLevels)
+  const traitSlotLevels = deriveTraitSlotLevels(s.heroMemories, s.traitSlotLevels, s.baseMemory)
   return {
     slots: s.slots,
     slates: s.slates,
@@ -151,7 +151,7 @@ export function buildEngineStatsPayload(s: BuildState) {
     },
     gear: buildGearPayload(s.gear),
     character: buildCharacterContributions(s.gear, charLevel),
-    memory_effects: buildMemoryEffects(s.heroMemories),
+    memory_effects: buildMemoryEffects(s.heroMemories, s.baseMemory),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits, s.fates, s.undetermined), s.spiritEffectExclude),
     // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status
     // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.

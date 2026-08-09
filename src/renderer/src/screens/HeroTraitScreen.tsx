@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, HeroMemoryType, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT, genMemoryId,
-  deriveTraitSlotLevels } from '../api/client'
+  deriveTraitSlotLevels, activeBaseSlotEnabler, resolveBaseSlot, rarityWithinCap } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -113,12 +113,14 @@ function getTierOptions(pool: HeroMemoryAffix[], source: string, affixName: stri
     .sort((a, b) => a.tier - b.tier)
 }
 
+// Optional leading '-' on each bound so negative ranges (the base-slot penalty mod's "(-60–-55) %") are
+// recognized and roll like any other; positive ranges are unaffected.
 function hasRange(modifier: string): boolean {
-  return /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/.test(modifier)
+  return /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/.test(modifier)
 }
 
 function parseRange(modifier: string): { min: number; max: number } {
-  const m = modifier.match(/\((\d+(?:\.\d+)?)[–\-](\d+(?:\.\d+)?)\)/)
+  const m = modifier.match(/\((-?\d+(?:\.\d+)?)[–\-](-?\d+(?:\.\d+)?)\)/)
   return m ? { min: parseFloat(m[1]), max: parseFloat(m[2]) } : { min: 0, max: 0 }
 }
 
@@ -499,6 +501,16 @@ function TierSlider({ tiers, curTier, curValue, dp, onPick }: {
   )
 }
 
+// Attach the revival pool entry's full effect text to the picked selection. Name-only tier-0 mods ("Artificial
+// Moon: Origin") store their real wording in `description`; carrying it on the selection lets the base-slot
+// enabler parser (parseBaseSlotEnabler) read the type / rarity cap / penalty after save/load/import.
+function withRevivalDescription(sel: MemorySlotSelection, pool: HeroMemoryAffix[]): MemorySlotSelection {
+  const name = getAffixName(sel.modifier)
+  const match = pool.find(a => getAffixName(a.modifier) === name)
+  const desc = match?.description
+  return desc && desc !== sel.modifier ? { ...sel, description: desc } : { ...sel, description: undefined }
+}
+
 // One unified-slider affix row in the memory creator + its hover tooltip (resolved text).
 function AffixRow({ label, pool, source, current, excludeNames, color, hideSlider, minTier, onChange }: {
   label: string
@@ -687,12 +699,15 @@ function TraitSkillSlot({ supports, allSkills, onChange }: {
 // A single memory tile in the inventory overlay. The box is FILLED by the rarity color (rarity is read
 // from the color, not text — no rarity/affix-count line), with the natural type icon on its rarity glow,
 // its equipped state ("Equipped · <slot>") or an Equip action, plus edit / duplicate / remove controls.
-function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, onEdit, onDelete, onDuplicate, onRename }: {
+function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, onEdit, onDelete, onDuplicate, onRename,
+  baseEquipped, canEquipBase, onEquipBase, onUnequipBase }: {
   memory: CreatedHeroMemory
   equippedSlot: number | null   // socketed slot index, or null if not equipped
   icon?: string | null          // type icon (bundled webp); falls back to ◈ until icon data lands
   onEquip: () => void; onUnequip: () => void; onEdit: () => void; onDelete: () => void; onDuplicate: () => void
   onRename: (next: string) => void   // sets the DISPLAY label only (true "Memory of <Type>" name kept in the card)
+  // Base/Special slot: this memory is currently in the base slot, and/or is eligible to be equipped there.
+  baseEquipped?: boolean; canEquipBase?: boolean; onEquipBase?: () => void; onUnequipBase?: () => void
 }) {
   const color = MEMORY_RARITY_COLORS[memory.rarity]
   const iconBtn: React.CSSProperties = { fontSize: 11, lineHeight: 1, padding: '2px 6px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 4, color: '#ddd', cursor: 'pointer' }
@@ -722,8 +737,8 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, o
           {[memory.revived ? 'Revived' : '', memory.waxAndWane ? 'Wax & Wane' : ''].filter(Boolean).join(' · ')}
         </div>
       )}
-      <div style={{ fontSize: 10, marginBottom: 6, color: equipped ? '#bff0bf' : 'rgba(255,255,255,0.55)', fontWeight: equipped ? 700 : 400 }}>
-        {equipped ? `Equipped · ${MEMORY_SLOT_LABELS[equippedSlot!] ?? `Slot ${equippedSlot! + 1}`}` : 'Not equipped'}
+      <div style={{ fontSize: 10, marginBottom: 6, color: equipped || baseEquipped ? '#bff0bf' : 'rgba(255,255,255,0.55)', fontWeight: equipped || baseEquipped ? 700 : 400 }}>
+        {baseEquipped ? 'Equipped · Base slot' : equipped ? `Equipped · ${MEMORY_SLOT_LABELS[equippedSlot!] ?? `Slot ${equippedSlot! + 1}`}` : 'Not equipped'}
       </div>
       {renaming ? (
         <input className="gear-build-rename-input" autoFocus value={renameDraft} placeholder="Display name…"
@@ -735,6 +750,11 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, o
           {equipped
             ? <button className="btn btn-secondary" style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-start' }} onClick={onUnequip}>Unequip</button>
             : <button className="btn btn-primary" style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-start' }} onClick={onEquip}>Equip</button>}
+          {baseEquipped
+            ? <button className="btn btn-secondary" style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-start' }} onClick={onUnequipBase}>Unequip Base</button>
+            : canEquipBase
+              ? <button className="btn btn-secondary" style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-start' }} onClick={onEquipBase}>Equip → Base</button>
+              : null}
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button title="Rename" style={iconBtn} onClick={() => { setRenameDraft(memory.displayName ?? ''); setRenaming(true) }}>✎</button>
             <button title="Duplicate" style={iconBtn} onClick={onDuplicate}>⧉</button>
@@ -765,6 +785,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   // Trait-tier unlocks use the `level` condition (default 90) — the single character-level source.
   const characterLevel = characterLevelFrom(useBuildStore(s => s.conditionState))
   const heroMemories = useBuildStore(s => s.heroMemories)
+  const baseMemory = useBuildStore(s => s.baseMemory)
+  const setBaseMemory = useBuildStore(s => s.setBaseMemory)
   const memoryInventory = useBuildStore(s => s.memoryInventory)
   const setMemoryInventory = useBuildStore(s => s.setMemoryInventory)
   const loadouts = useBuildStore(s => s.loadouts)
@@ -800,6 +822,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const traitsFailed = useReferenceStore(s => s.failedCatalogs.has('heroTraits'))
 
   const [creatorSlot, setCreatorSlot] = useState<number | null>(null)
+  const [creatorBase, setCreatorBase] = useState(false)   // creating/editing the Base/Special-slot memory
   const [draft, setDraft] = useState<CreatedHeroMemory | null>(null)
   const [inventoryOpen, setInventoryOpen] = useState(false)
   const [inventoryView, setInventoryView] = useState<'current' | 'all'>('current')
@@ -829,7 +852,13 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   // level; 0 = inactive when empty) so the DISPLAY matches the engine payload (same deriveTraitSlotLevels) —
   // uniformly for every trait, including tree-styled ones (they differ only in allocation). Base slot [0] is
   // passed through. The mutation helpers below still write the STORED array (selection/base only).
-  const displaySlotLevels = deriveTraitSlotLevels(heroMemories, safeSlotLevels)
+  const displaySlotLevels = deriveTraitSlotLevels(heroMemories, safeSlotLevels, baseMemory)
+
+  // Base/Special slot: the enabler is the base-slot mod on the equipped revived memory (if any); the base slot
+  // is available only while an enabler is equipped. `baseSlot` is the validly-socketed base memory (type + rarity
+  // match the enabler), else null even if `baseMemory` holds a now-invalid one (e.g. the enabler was removed).
+  const baseEnabler = activeBaseSlotEnabler(heroMemories)
+  const baseSlot = resolveBaseSlot(heroMemories, baseMemory)
 
   // A slot level < 1 = the node is INACTIVE/disabled (empty memory slot, or a remembered-disabled base tier).
   const nodeDisabled = (slotIdx: number) => displaySlotLevels[slotIdx] < 1
@@ -911,9 +940,16 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     }
     setDraft(freshDraft(type)); setCreatorSlot(slotIdx); setInventoryOpen(false)
   }
-  function openMemoryCreatorNew() { setDraft(freshDraft('origin')); setCreatorSlot(null) }
-  function openMemoryEditor(mem: CreatedHeroMemory) { setDraft(editDraft(mem)); setCreatorSlot(null) }
-  function closeCreator() { setCreatorSlot(null); setDraft(null) }
+  function openMemoryCreatorNew() { setDraft(freshDraft('origin')); setCreatorSlot(null); setCreatorBase(false) }
+  function openMemoryEditor(mem: CreatedHeroMemory) { setDraft(editDraft(mem)); setCreatorSlot(null); setCreatorBase(false) }
+  function closeCreator() { setCreatorSlot(null); setCreatorBase(false); setDraft(null) }
+
+  // Whether an inventory memory may go in the Base/Special slot: an enabler is equipped, the memory is
+  // NON-revived, its type matches the enabler's, its rarity is within the enabler's cap, and it isn't already
+  // socketed in a normal slot (the same id can't occupy both — that would double-count it in the engine).
+  const baseEligible = (m: CreatedHeroMemory): boolean =>
+    !!baseEnabler && !m.revived && m.memoryType === baseEnabler.type && rarityWithinCap(m.rarity, baseEnabler.rarityCap)
+    && !heroMemories.some(hm => hm?.id === m.id)
 
   function confirmMemory() {
     if (!draft) return
@@ -922,12 +958,16 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     const byId = new Map(inv.map(m => [m.id, m]))
     byId.set(draft.id, draft)
     setMemoryInventory([...byId.values()])
-    // Keep any socketed copy in sync; else auto-equip into an empty "+"-targeted slot.
+    // Keep the equipped copy in sync (normal slot OR base slot); else auto-equip into the "+"-targeted slot.
     const socketIdx = heroMemories.findIndex(m => m?.id === draft.id)
-    if (socketIdx >= 0) {
+    if (baseMemory?.id === draft.id) {
+      setBaseMemory(draft)
+    } else if (socketIdx >= 0) {
       const next = [...heroMemories] as typeof heroMemories
       next[socketIdx] = draft
       setHeroMemories(next)
+    } else if (creatorBase && !baseMemory && baseEligible(draft)) {
+      setBaseMemory(draft)
     } else if (creatorSlot !== null && !heroMemories[creatorSlot]) {
       const next = [...heroMemories] as typeof heroMemories
       next[creatorSlot] = draft
@@ -949,7 +989,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   // sync). Upsert by id; only write when something actually changed so it can't loop. On a freshly loaded
   // build the socketed memories already share ids with the inventory, so this no-ops (no spurious dirty).
   useEffect(() => {
-    const socketed = heroMemories.filter((m): m is CreatedHeroMemory => !!m)
+    const socketed = [...heroMemories, baseMemory].filter((m): m is CreatedHeroMemory => !!m)
     if (socketed.length === 0) return
     const inv = useBuildStore.getState().memoryInventory
     const byId = new Map(inv.map(m => [m.id, m]))
@@ -960,7 +1000,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     }
     if (changed) setMemoryInventory([...byId.values()])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroMemories])
+  }, [heroMemories, baseMemory])
 
   // Equip a memory from the inventory into the slot matching its type (replacing whatever's there).
   function equipMemory(mem: CreatedHeroMemory) {
@@ -969,19 +1009,37 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     const next = [...heroMemories] as typeof heroMemories
     next[slot] = mem
     setHeroMemories(next)
+    // The same id can't occupy both a normal slot and the base slot (would double-count) — vacate the base slot.
+    if (useBuildStore.getState().baseMemory?.id === mem.id) setBaseMemory(null)
   }
   // Unequip a memory (clear it from its socket); it stays in the inventory.
   function unequipMemory(mem: CreatedHeroMemory) {
     const socketed = useBuildStore.getState().heroMemories
     setHeroMemories(socketed.map(m => (m?.id === mem.id ? null : m)) as typeof socketed)
   }
+
+  // ── Base/Special slot equip flow ──────────────────────────────────────────────
+  function equipBaseMemory(mem: CreatedHeroMemory) { if (baseEligible(mem)) setBaseMemory(mem) }
+  function unequipBaseMemory() { setBaseMemory(null) }
+  // The base "+": edit the socketed base memory, or (no base yet) open the inventory to equip an eligible one,
+  // or create a fresh memory locked to the enabler's type + rarity cap (non-revived).
+  function openBaseCreator() {
+    if (!baseEnabler) return
+    if (baseMemory) { setDraft(editDraft(baseMemory)); setCreatorBase(true); setCreatorSlot(null); setInventoryOpen(false); return }
+    if (memoryInventory.some(baseEligible)) { setInventoryView('current'); setInventoryOpen(true); setDraft(null); setCreatorSlot(null); return }
+    const rarity: MemoryRarity = rarityWithinCap('epic', baseEnabler.rarityCap) ? 'epic' : baseEnabler.rarityCap
+    setDraft({ ...freshDraft(baseEnabler.type), rarity, level: MAX_LEVEL_BY_RARITY[rarity] })
+    setCreatorBase(true); setCreatorSlot(null); setInventoryOpen(false)
+  }
+
   function deleteFromInventory(id: string) {
-    // If the memory is socketed, unequip it too — otherwise the socketed→inventory auto-sync re-adds it
-    // (the tile would vanish yet the memory keeps contributing and reappears on the next change).
+    // If the memory is socketed (normal OR base slot), unequip it too — otherwise the socketed→inventory
+    // auto-sync re-adds it (the tile would vanish yet the memory keeps contributing and reappears).
     const socketed = useBuildStore.getState().heroMemories
     if (socketed.some(m => m?.id === id)) {
       setHeroMemories(socketed.map(m => (m?.id === id ? null : m)) as typeof socketed)
     }
+    if (useBuildStore.getState().baseMemory?.id === id) setBaseMemory(null)
     setMemoryInventory(useBuildStore.getState().memoryInventory.filter(m => m.id !== id))
   }
   function duplicateInInventory(id: string) {
@@ -1003,6 +1061,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     if (socketed.some(m => m?.id === id)) {
       setHeroMemories(socketed.map(m => (m?.id === id ? relabel(m) : m)) as typeof socketed)
     }
+    const bm = useBuildStore.getState().baseMemory
+    if (bm?.id === id) setBaseMemory(relabel(bm))
   }
 
   // All-loadouts view GROUPED by the owning loadout's name (a header per loadout), deduped by id. The
@@ -1077,9 +1137,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     const fixedN = RARITY_FIXED_COUNT[rarity], randomN = RARITY_RANDOM_COUNT[rarity]
     // Best tier this rarity can reach: ultimate→T0, epic→T1, rare→T2, magic→T3, normal→T4+. Tiers below are hidden.
     const minTier = rarity === 'normal' ? 4 : TIER_RARITY.indexOf(rarity)
-    // Type is locked from a slot "+" (preset) and for an already-equipped memory (changing its type would
-    // orphan it from its slot). Free to choose only when building/editing an unequipped inventory memory.
-    const typeLocked = creatorSlot !== null || heroMemories.some(m => m?.id === d.id)
+    // Type is locked from a slot "+" (preset), from the base slot (fixed to the enabler's type), and for an
+    // already-equipped memory (changing its type would orphan it). Free only for an unequipped inventory memory.
+    const typeLocked = creatorSlot !== null || creatorBase || heroMemories.some(m => m?.id === d.id)
+    // Base/Special-slot memories are capped at the enabler's rarity and are always non-revived.
+    const rarityCapForDraft = creatorBase ? baseEnabler?.rarityCap : undefined
     const affixSource = MEMORY_SOURCES[MEMORY_TYPE_TO_SLOT[d.memoryType]]
     const revivalPool: HeroMemoryAffix[] = memoryRevival.map(a => ({ ...a, source: 'revival' }))
     // Only one EQUIPPED memory may be revived at a time — warn if another already is.
@@ -1141,12 +1203,17 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         <div className="memory-rarity-row">
           <span className="memory-rarity-label">Rarity</span>
           <div className="memory-rarity-pills">
-            {RARITY_ORDER.map(r => (
-              <button key={r} type="button" className={`memory-rarity-pill${rarity === r ? ' active' : ''}`}
+            {RARITY_ORDER.map(r => {
+              const capped = rarityCapForDraft ? !rarityWithinCap(r, rarityCapForDraft) : false
+              return (
+              <button key={r} type="button" disabled={capped}
+                className={`memory-rarity-pill${rarity === r ? ' active' : ''}`}
+                title={capped ? `The Base slot enabler allows ${RARITY_LABELS[rarityCapForDraft!]} or lower` : undefined}
                 style={{ color: MEMORY_RARITY_COLORS[r], borderColor: rarity === r ? MEMORY_RARITY_COLORS[r] : 'transparent',
-                  background: rarity === r ? `${MEMORY_RARITY_COLORS[r]}26` : 'var(--bg-deep)' }}
-                onClick={() => setDraftRarity(r)}>{RARITY_LABELS[r]}</button>
-            ))}
+                  background: rarity === r ? `${MEMORY_RARITY_COLORS[r]}26` : 'var(--bg-deep)', opacity: capped ? 0.35 : 1 }}
+                onClick={() => { if (!capped) setDraftRarity(r) }}>{RARITY_LABELS[r]}</button>
+              )
+            })}
           </div>
         </div>
 
@@ -1193,7 +1260,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         </div>
 
         {/* Revival: an extra implicit-like affix from the revival pool. Only a revived memory can have a
-            revival mod OR enable Wax & Wane. */}
+            revival mod OR enable Wax & Wane. A Base/Special-slot memory is always non-revived, so hide it there. */}
+        {!creatorBase && (
         <div style={{ borderTop: '1px solid #2a2a44', marginTop: 8, paddingTop: 8 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#ddd', cursor: 'pointer' }}>
             <input type="checkbox" checked={!!d.revived}
@@ -1206,7 +1274,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
           {d.revived && (
             <>
               <AffixRow label="Revival Mod" pool={revivalPool} source="revival" color={AFFIX_CAT_COLOR.revival}
-                current={d.revivalMod ?? null} onChange={sel => setDraft({ ...d, revivalMod: sel })} />
+                current={d.revivalMod ?? null}
+                onChange={sel => setDraft({ ...d, revivalMod: sel ? withRevivalDescription(sel, revivalPool) : null })} />
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#ddd', marginTop: 6, cursor: 'pointer' }}>
                 <input type="checkbox" checked={!!d.waxAndWane} onChange={e => setDraft({ ...d, waxAndWane: e.target.checked })} />
                 Wax &amp; Wane <span style={{ fontSize: 11, color: '#888' }}>(base stat ×1.3)</span>
@@ -1214,6 +1283,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
             </>
           )}
         </div>
+        )}
         </div>{/* /memory-creator-form */}
         <div className="memory-creator-preview">
           <MemoryPreviewCard memory={d} icon={memoryTypeIcon[d.memoryType]} maxLevel={maxLv}
@@ -1223,10 +1293,13 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
 
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={confirmMemory}>
-            {creatorSlot !== null && !heroMemories[creatorSlot] ? 'Create & Equip' : 'Save'}
+            {(creatorBase && !baseMemory) || (creatorSlot !== null && !heroMemories[creatorSlot]) ? 'Create & Equip' : 'Save'}
           </button>
           {creatorSlot !== null && heroMemories[creatorSlot] && (
             <button className="btn btn-danger" onClick={clearMemory}>Unequip</button>
+          )}
+          {creatorBase && baseMemory && (
+            <button className="btn btn-danger" onClick={() => { unequipBaseMemory(); closeCreator() }}>Unequip</button>
           )}
           <button className="btn btn-secondary" onClick={closeCreator}>Cancel</button>
         </div>
@@ -1262,7 +1335,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
               onEdit={() => openMemoryEditor(mem)}
               onDelete={() => deleteFromInventory(mem.id)}
               onDuplicate={() => duplicateInInventory(mem.id)}
-              onRename={(next) => renameMemory(mem.id, next)} />
+              onRename={(next) => renameMemory(mem.id, next)}
+              baseEquipped={baseMemory?.id === mem.id}
+              canEquipBase={!!baseEnabler && baseMemory?.id !== mem.id && baseEligible(mem)}
+              onEquipBase={() => equipBaseMemory(mem)}
+              onUnequipBase={unequipBaseMemory} />
           )
           const empty = inventoryView === 'all' ? aggregateGroups.length === 0 : memoryInventory.length === 0
           if (empty) {
@@ -1331,7 +1408,9 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
               <HeroTraitTree
                 trait={selectedTrait}
                 heroMemories={heroMemories}
+                baseMemory={baseMemory}
                 openMemoryCreator={openMemoryCreator}
+                openBaseCreator={openBaseCreator}
                 traitTreeAllocations={traitTreeAllocations}
                 setTraitTreeAllocations={setTraitTreeAllocations}
                 characterLevel={characterLevel}
@@ -1364,10 +1443,20 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 </div>
               </div>
               <div className="tg-below tg-base">
-                {/* Base ("Special") memory slot — 4th memory type not in our data model yet; placeholder until Phase B. */}
-                <div className="memory-slot-circle disabled" title="Base memory — coming soon">
-                  <span className="memory-slot-coming-soon">Soon</span>
-                </div>
+                {/* Base ("Special") memory slot — opened by a revived memory's enabler mod (Artificial Moon /
+                    Base Trait slot). HIDDEN entirely until an enabler is equipped; then it accepts one non-revived
+                    memory of the enabler's type, up to its rarity cap, at the enabler's value penalty, and levels
+                    the base trait (→ Artificial Moon at lv5). Labelled by the allowed type (Origin/Discipline/Progress). */}
+                {baseEnabler && (
+                  <MemorySlotCircle memory={baseSlot?.memory ?? null} slot={SLOT_BASE}
+                    rarityColor={baseSlot ? MEMORY_RARITY_COLORS[baseSlot.memory.rarity] : undefined}
+                    slotLabel={MEMORY_TYPE_LABELS[baseEnabler.type]}
+                    icon={baseSlot ? memoryTypeIcon[baseSlot.memory.memoryType] : null}
+                    valueScale={baseSlot ? baseSlot.enabler.factor : undefined}
+                    deltaKey="mem:rm:base"
+                    deltaStep={s => ({ ...s, baseMemory: null })}
+                    onOpen={openBaseCreator} />
+                )}
                 {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
                   <div>
                     <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>

@@ -292,7 +292,7 @@ function App() {
       slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
       gear: [], skills: [], characterLevel: 100,
       traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitTreeAllocations: [], traitSkillSupports: [], licoricePreparedSkill: null, elixirIngredients: {},
-      heroMemories: [null, null, null] as [null, null, null], memoryInventory: [], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
+      heroMemories: [null, null, null] as [null, null, null], baseMemory: null, memoryInventory: [], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
       notes: '', customMods: [], targetConfig: DEFAULT_TARGET_CONFIG,
     }
     useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
@@ -306,7 +306,11 @@ function App() {
     if (!s || typeof s !== 'object') return null
     const o = s as Record<string, unknown>
     if (typeof o.modifier !== 'string' || typeof o.tier !== 'number') return null
-    return { modifier: o.modifier, tier: o.tier, rolledValue: typeof o.rolledValue === 'number' ? o.rolledValue : null }
+    return {
+      modifier: o.modifier, tier: o.tier, rolledValue: typeof o.rolledValue === 'number' ? o.rolledValue : null,
+      // Preserve the enabler description (name-only revival mods) so base-slot parsing survives save/load/import.
+      ...(typeof o.description === 'string' && o.description ? { description: o.description } : {}),
+    }
   }
 
   const sanitizeHeroMemory = (m: unknown): CreatedHeroMemory | null => {
@@ -474,6 +478,7 @@ function App() {
         sanitizeHeroMemory((build.heroMemories ?? [])[1]),
         sanitizeHeroMemory((build.heroMemories ?? [])[2]),
       ],
+      baseMemory: sanitizeHeroMemory(build.baseMemory),
       memoryInventory: (Array.isArray(build.memoryInventory) ? build.memoryInventory : [])
         .map(sanitizeHeroMemory).filter((m): m is CreatedHeroMemory => m !== null),
       pactSpirits: [

@@ -3,6 +3,7 @@
 // `api` object can expose them, and getShareBase is re-exported below so existing
 // `import { getShareBase } from './client'` callers keep working.
 import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
+import { dec } from '../utils/num'
 
 let BASE = ''
 let ipcMode = false
@@ -434,6 +435,7 @@ export interface Build {
   licoricePreparedSkill?: string | null         // Licorice Note: Empower/Curse the trait prepares
   elixirIngredients?: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   heroMemories?: (unknown | null)[]
+  baseMemory?: unknown | null            // the Base/Special-slot memory (opened by a revived memory's enabler mod)
   memoryInventory?: (unknown | null)[]   // owned/created memories palette (per-loadout, mirrors slateInventory)
   pactSpirits?: (unknown | null)[]
   fates?: Record<string, InstalledFate>           // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
@@ -1749,6 +1751,10 @@ export interface MemorySlotSelection {
   modifier: string
   tier: number
   rolledValue: number | null
+  // Full effect text for name-only mods (tier-0 revival mods like "Artificial Moon: Origin", whose real
+  // wording lives in the revival-pool glossary). Carried on the selection so the base-slot enabler parser
+  // (parseBaseSlotEnabler) sees the rarity cap / penalty / type even after save/load/import. Optional.
+  description?: string
 }
 
 export interface CreatedHeroMemory {
@@ -1799,9 +1805,22 @@ export function waxBaseStat(sel: MemorySlotSelection): MemorySlotSelection {
   return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + Math.round(parseFloat(n) * 1.3)) }
 }
 
-export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): EffectInput[] {
+// Multiply a selection's numeric VALUE by `factor` (the base/special-slot penalty, e.g. 0.4 for −60%). Mirrors
+// waxBaseStat's shape but does NOT round — the base-slot penalty produces exact fractional values in-game (owner
+// 2026-08-08: "−57% = ×0.43 and I don't believe it rounds"). Only the base stat + random affixes are scaled by
+// the caller; fixed affixes are passed through unscaled.
+export function scaleSelValue(sel: MemorySlotSelection, factor: number): MemorySlotSelection {
+  if (sel.rolledValue != null) return { ...sel, rolledValue: sel.rolledValue * factor }
+  // No rolled value → the number lives in the modifier text; scale the leading +N and cap to ≤2 non-zero
+  // decimals (dec) so floating-point tails like "75.60000000000001" never reach the display or the engine text.
+  return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + dec(parseFloat(n) * factor)) }
+}
+
+export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[], baseMemory: CreatedHeroMemory | null = null): EffectInput[] {
   const effects: EffectInput[] = []
-  const RANGE_RE = /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g
+  // Accept an optional leading '-' on each bound so negative penalty ranges — e.g. the base-slot mod's
+  // "(-60–-55) %" — resolve to their rolled value too (positive ranges are unaffected).
+  const RANGE_RE = /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g
   const resolveModifier = (sel: MemorySlotSelection): string => {
     // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
     const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
@@ -1820,6 +1839,20 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): Effe
     for (const ra of mem.randomAffixes) { if (ra) push(ra) }
     // Revival mod (Phase B): an extra implicit-like affix on a revived memory — parsed as a normal stat modifier.
     if (mem.revived && mem.revivalMod) push(mem.revivalMod)
+  }
+  // Base/Special slot: a non-revived memory socketed into the base slot opened by a revived memory's enabler mod.
+  // Its Base Stat + Random affix VALUES are reduced by the enabler's penalty (×factor); Fixed affixes (incl. the
+  // trait-level fixed, excluded above) are untouched. Only contributes when a matching enabler is equipped.
+  const bs = resolveBaseSlot(memories, baseMemory)
+  if (bs) {
+    const mem = bs.memory
+    const src = (MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory') + ' (Base)'
+    const pushScaled = (sel: MemorySlotSelection) =>
+      effects.push({ text: resolveModifier(scaleSelValue(sel, bs.enabler.factor)), source: src })
+    const pushRaw = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
+    if (mem.baseStat) pushScaled(mem.baseStat)   // base memory is non-revived → never waxed
+    for (const fa of mem.fixedAffixes) { if (fa && !isTraitLevelMod(fa.modifier)) pushRaw(fa) }
+    for (const ra of mem.randomAffixes) { if (ra) pushScaled(ra) }
   }
   return effects
 }
@@ -1845,17 +1878,98 @@ export function memoryTraitLevel(m: CreatedHeroMemory): number {
   const explicit = m.fixedAffixes.reduce((s, fa) => s + traitLevelValue(fa), 0)
   return Math.max(1, Math.min(5, levelTraitBaseline(level) + explicit))
 }
+// ── Base/Special slot (in-game-verified, owner 2026-08-08) ──────────────────────────────────────────────
+// A REVIVED memory's revival mod may open a single Base ("Special") slot that accepts one NON-revived memory of
+// the mod's NAMED type, up to the mod's rarity cap, at a value penalty. Three enabler tiers (per type):
+//   T0 "Artificial Moon: {type}" — Ultimate or lower, −60% flat, levels the base trait to Artificial Moon (lv5).
+//   T1 "Base Traits now have Base Trait slots … Epic or lower {type} … (−60–−55) %" — rolled penalty.
+//   T2 "… Rare or lower {type} … (−35–−30) %" — rolled penalty.
+// The mod TEXT is authoritative for the type (a Progress memory may carry an Origin enabler → base slot = Origin).
+const RARITY_RANK: Record<MemoryRarity, number> = { normal: 0, magic: 1, rare: 2, epic: 3, ultimate: 4 }
+export const rarityWithinCap = (r: MemoryRarity, cap: MemoryRarity): boolean => RARITY_RANK[r] <= RARITY_RANK[cap]
+
+export interface BaseSlotEnabler {
+  type: CreatedHeroMemory['memoryType']
+  rarityCap: MemoryRarity
+  factor: number       // multiplier for the base-slot memory's base + random VALUES (e.g. 0.4 for −60%)
+  penaltyPct: number   // positive display %, e.g. 60
+  artificialMoon: boolean
+  text: string         // enabler mod text (for the tooltip)
+}
+
+// Parse a revival mod into a base-slot enabler, or null if it isn't one. Reads sel.description (the full glossary
+// text for name-only tier-0 mods) then falls back to sel.modifier (T1/T2 carry their full text there).
+export function parseBaseSlotEnabler(sel: MemorySlotSelection | null | undefined): BaseSlotEnabler | null {
+  if (!sel) return null
+  const mod = sel.modifier || ''
+  const text = sel.description || mod
+  const artificialMoon = /^\s*Artificial Moon\s*:/i.test(mod)
+  if (!artificialMoon && !/(Base Trait|Special Memory)\s+slots?/i.test(text)) return null
+  const typeM = text.match(/\b(Origin|Discipline|Progress)\b/i)
+  if (!typeM) return null
+  const type = typeM[1].toLowerCase() as CreatedHeroMemory['memoryType']
+  const capM = text.match(/\b(Ultimate|Epic|Rare|Magic|Normal)\s+or\s+lower\b/i)
+  const rarityCap = (capM ? capM[1].toLowerCase() : 'ultimate') as MemoryRarity
+  // Penalty. T1/T2: a rolled negative pct (e.g. −57) → factor = 1 + val/100. T0: "by 60%" (positive reduction)
+  // → factor = 1 − 60/100. Fallback to the range midpoint when neither is present (shouldn't happen).
+  let factor = 1
+  if (sel.rolledValue != null) {
+    factor = 1 + sel.rolledValue / 100
+  } else {
+    const byM = text.match(/by\s+(\d+(?:\.\d+)?)\s*%/i)
+    const rngM = mod.match(/\(\s*(-?\d+(?:\.\d+)?)\s*[–\-]\s*(-?\d+(?:\.\d+)?)\s*\)/)
+    if (byM) factor = 1 - parseFloat(byM[1]) / 100
+    else if (rngM) factor = 1 + ((parseFloat(rngM[1]) + parseFloat(rngM[2])) / 2) / 100
+    // Fail SAFE, not open: every "Artificial Moon" enabler is −60% in the data. If the description text (which
+    // carries the "by 60%") didn't attach, still penalize at the known flat rate rather than contribute unpenalized.
+    else if (artificialMoon) factor = 0.4
+  }
+  factor = Math.max(0, Math.min(1, factor))
+  return { type, rarityCap, factor, penaltyPct: Math.round((1 - factor) * 100), artificialMoon, text }
+}
+
+// The active base-slot enabler among the equipped memories (only a revived memory carries one; one total in-game).
+export function activeBaseSlotEnabler(heroMemories: (CreatedHeroMemory | null)[]): BaseSlotEnabler | null {
+  for (const m of heroMemories) {
+    if (m?.revived && m.revivalMod) {
+      const cfg = parseBaseSlotEnabler(m.revivalMod)
+      if (cfg) return cfg
+    }
+  }
+  return null
+}
+
+// Resolve the base slot: the base memory only contributes when a matching enabler is equipped and its type +
+// rarity satisfy the enabler (the UI enforces this; the guard keeps the engine honest if the enabler is removed).
+export function resolveBaseSlot(
+  heroMemories: (CreatedHeroMemory | null)[], baseMemory: CreatedHeroMemory | null | undefined,
+): { enabler: BaseSlotEnabler; memory: CreatedHeroMemory } | null {
+  if (!baseMemory) return null
+  // Defense in depth: the same id must not also sit in a normal slot, or it would count twice (base + normal).
+  // The UI already prevents this; this guard also protects hand-crafted / imported build JSON.
+  if (heroMemories.some(m => m?.id === baseMemory.id)) return null
+  const enabler = activeBaseSlotEnabler(heroMemories)
+  if (!enabler) return null
+  if (baseMemory.memoryType !== enabler.type) return null
+  if (!rarityWithinCap(baseMemory.rarity, enabler.rarityCap)) return null
+  return { enabler, memory: baseMemory }
+}
+
 // Derive traitSlotLevels [base,45,60,75] from socketed memories: slots 1..3 (origin/discipline/progress) are
-// SET to their socketed memory's trait level, or 0 (INACTIVE) when the slot is empty. Base slot [0] is passed
-// through unchanged (the 4th "base/special" slot that would level it isn't modeled yet). `heroMemories` order
-// is [origin, discipline, progress] → traitSlotLevels[1,2,3].
-export function deriveTraitSlotLevels(heroMemories: (CreatedHeroMemory | null)[], stored: number[]): number[] {
+// SET to their socketed memory's trait level, or 0 (INACTIVE) when the slot is empty. Base slot [0] is SET from
+// the base-slot memory's trait level when one is validly socketed (→ Artificial Moon at lv5), else passed through
+// unchanged (the base trait is always active). `heroMemories` order is [origin, discipline, progress] → [1,2,3].
+export function deriveTraitSlotLevels(
+  heroMemories: (CreatedHeroMemory | null)[], stored: number[], baseMemory: CreatedHeroMemory | null = null,
+): number[] {
   const out = stored.slice(0, 4)
   while (out.length < 4) out.push(1)
   for (let i = 0; i < 3; i++) {
     const m = heroMemories[i]
     out[i + 1] = m ? memoryTraitLevel(m) : 0
   }
+  const bs = resolveBaseSlot(heroMemories, baseMemory)
+  if (bs) out[0] = memoryTraitLevel(bs.memory)
   return out
 }
 

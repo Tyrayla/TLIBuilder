@@ -40,6 +40,9 @@ export interface LoadedBuild {
   licoricePreparedSkill: string | null   // Licorice Note: skill_id of the Empower/Curse the trait prepares
   elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: ingredient name}
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  // Optional (like traitTreeAllocations) so pre-existing LoadedBuild literals / fixtures don't need updating;
+  // `loadBuild` defaults it to null. The live BuildStore field below is always CreatedHeroMemory | null.
+  baseMemory?: CreatedHeroMemory | null   // the Base/Special slot memory (opened by a revived memory's enabler mod)
   memoryInventory: CreatedHeroMemory[]   // owned/created memories palette (per-loadout, like slateInventory)
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>
@@ -99,6 +102,7 @@ interface BuildStore {
   gear: EquippedGearItem[]
   characterLevel: number
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  baseMemory: CreatedHeroMemory | null   // the Base/Special slot memory (opened by a revived memory's enabler mod)
   memoryInventory: CreatedHeroMemory[]   // owned/created memories palette (per-loadout, like slateInventory)
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>            // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
@@ -124,6 +128,7 @@ interface BuildStore {
   uptimeMode: 'max' | 'real'
   setUptimeMode: (m: 'max' | 'real') => void
   setHeroMemories: (memories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
+  setBaseMemory: (baseMemory: CreatedHeroMemory | null) => void
   setMemoryInventory: (memoryInventory: CreatedHeroMemory[]) => void
   setPactSpirits: (spirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
   setFates: (fates: Record<string, InstalledFate>) => void
@@ -205,6 +210,7 @@ const DEFAULT_BUILD: LoadedBuild = {
   licoricePreparedSkill: null,
   elixirIngredients: {},
   heroMemories: [null, null, null],
+  baseMemory: null,
   memoryInventory: [],
   pactSpirits: [null, null, null],
   fates: {},
@@ -230,6 +236,7 @@ function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
 export const useBuildStore = create<BuildStore>((set, get) => ({
   ...DEFAULT_BUILD,
   traitTreeAllocations: DEFAULT_BUILD.traitTreeAllocations ?? [],
+  baseMemory: DEFAULT_BUILD.baseMemory ?? null,
   uptimeMode: 'max',   // global calc pref (not per-build) — persists across build loads
   allSpirits: [],
   spiritsResolved: false,
@@ -297,6 +304,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   setTargetConfig: (targetConfig) => set((s) => ({ targetConfig, buildVersion: s.buildVersion + 1 })),
   setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
+  setBaseMemory: (baseMemory) => set((s) => ({ baseMemory, buildVersion: s.buildVersion + 1 })),
   // Inventory is display/library only (not engine-relevant) — bump version just to mark the build dirty.
   setMemoryInventory: (memoryInventory) => set((s) => ({ memoryInventory, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),
@@ -353,6 +361,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     set((s) => ({
       ...data,
       traitTreeAllocations: data.traitTreeAllocations ?? [],
+      baseMemory: data.baseMemory ?? null,
       mainSkill: deriveMainSkill(data.skills),
       computedStats: EMPTY_STAT_SHEET,
       loadoutStatsCache: {},
