@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { api, Build } from '../api/client'
-import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
-import { checkBuildCompatibility } from '../utils/buildCompat'
+import ImportPanel from './ImportPanel'
 
 interface Props {
   isDirty: boolean
@@ -27,21 +26,11 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
   const [shareError, setShareError] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
 
-  const [importCode, setImportCode] = useState('')
-  const [importError, setImportError] = useState<string | null>(null)
-  const [importWarnings, setImportWarnings] = useState<string[]>([])
-  const [importConfirmed, setImportConfirmed] = useState(false)
-  const [importing, setImporting] = useState(false)
-
   const [dirtyPrompt, setDirtyPrompt] = useState(false)
   const [dirtySaveName, setDirtySaveName] = useState(buildName)
   const [dirtySaving, setDirtySaving] = useState(false)
-  // Cache of the last successfully validated + decoded build, so the dirty
-  // Save/Discard prompt can apply it directly instead of re-decoding. Cleared
-  // whenever the pasted code changes, so a stale decode can never be applied.
+  // The build ImportPanel produced, held so the dirty Save/Discard prompt can apply it after the user decides.
   const decodedBuildRef = useRef<Build | null>(null)
-
-  const importRef = useRef<HTMLTextAreaElement>(null)
 
   const handleGenerate = async () => {
     setExportLoading(true)
@@ -93,48 +82,11 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
     onClose()
   }
 
-  const doImport = async (code: string) => {
-    setImporting(true)
-    setImportError(null)
-    try {
-      // Accepts either a raw tli1_ code or a share link; a share link is
-      // resolved to a raw code here, then the existing decode path runs.
-      const resolved = await resolveImportInput(code)
-      const { build } = await api.decodeBuildCode(resolved)
-      const warnings = checkBuildCompatibility(build)
-      if (warnings.length && !importConfirmed) {
-        setImportWarnings(warnings)
-        setImportConfirmed(true)
-        return
-      }
-      // Validation (and any version-compatibility confirmation) has now
-      // passed. Only at this point do we know the import can proceed, so
-      // only now do we ask about unsaved changes — never before the code
-      // has been proven real.
-      const decoded = { ...(build as unknown as Build), name: 'New Build' }
-      decodedBuildRef.current = decoded
-      if (isDirty) {
-        setDirtySaveName(buildName)
-        setDirtyPrompt(true)
-        return
-      }
-      applyDecodedBuild(decoded)
-    } catch (e: unknown) {
-      if (e instanceof ShareFetchError) {
-        setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
-      } else {
-        const msg = e instanceof Error ? e.message : String(e)
-        setImportError(msg.includes('400') ? "This doesn't look like a TLI Builder code. Paste a tli1_… code or share link from TLI Builder — in-game build codes aren't supported." : 'Failed to import — try again.')
-      }
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const handleImportClick = () => {
-    const code = importCode.trim()
-    if (!code) return
-    doImport(code)
+  // ImportPanel produced a ready build → apply it, prompting about unsaved changes first if needed.
+  const proceedWithBuild = (decoded: Build) => {
+    decodedBuildRef.current = decoded
+    if (isDirty) { setDirtySaveName(buildName); setDirtyPrompt(true); return }
+    applyDecodedBuild(decoded)
   }
 
   const handleDirtySave = async () => {
@@ -228,41 +180,12 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
 
       {tab === 'import' && (
         <>
-          <p className="share-modal-hint">Paste a TLI Builder code (tli1_…) or share link to load a build. This will replace your current build. In-game build codes from Torchlight: Infinite aren't supported.</p>
-          <textarea
-            ref={importRef}
-            className="share-code-area share-code-area--input"
-            placeholder="Paste a tli1_… code or share link…"
-            value={importCode}
-            onChange={e => {
-              setImportCode(e.target.value)
-              setImportError(null)
-              setImportWarnings([])
-              setImportConfirmed(false)
-              // The code has changed since the last successful decode (if any) —
-              // that cached build must never be applied for different input.
-              decodedBuildRef.current = null
-            }}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleImportClick() }}
-          />
-          {importError && <p className="share-import-error">{importError}</p>}
-          {importWarnings.length > 0 && (
-            <div className="share-import-warning">
-              <p>⚠ This code may be from an older version:</p>
-              <ul>{importWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-              <p>Unsupported fields will be ignored. Click "Import Anyway" to proceed.</p>
+          <ImportPanel onImport={proceedWithBuild} autoFocus />
+          {!asScreen && (
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
             </div>
           )}
-          <div className="modal-actions">
-            <button
-              className="btn btn-primary"
-              onClick={handleImportClick}
-              disabled={importing || !importCode.trim()}
-            >
-              {importing ? 'Importing…' : importConfirmed ? 'Import Anyway' : 'Import'}
-            </button>
-            {!asScreen && <button className="btn btn-secondary" onClick={onClose}>Cancel</button>}
-          </div>
         </>
       )}
     </>

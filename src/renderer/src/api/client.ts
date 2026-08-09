@@ -2913,6 +2913,9 @@ export const api = {
     ),
   getGrafts: () => get<{ season: string | null; grafts: Graft[] }>('/grafts'),
 
+  // Compendium→Builder crosswalk bridge tables (Import from Compendium). Fetched on demand by the importer.
+  getCrosswalkTables: () => get<{ season: string | null; tables: Record<string, any>; treeNames: Record<string, string> }>('/crosswalk-tables'),
+
   // Belt Blends (Blending Rituals) — a single scraper file: { entries, glossary }.
   importCrawlerBeltBlends: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>(

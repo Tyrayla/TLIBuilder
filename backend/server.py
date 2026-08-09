@@ -2784,6 +2784,22 @@ def get_grafts():
     return {"season": active, "grafts": _resolve_grafts(data.get("grafts", []))}
 
 
+@app.get("/api/crosswalk-tables")
+def get_crosswalk_tables():
+    """Compendium→Builder crosswalk bridge tables for the active season (Import from Compendium). Returns {}
+    when the season has no crosswalk data — the importer then reports it can't convert that season. Also returns
+    treeNames (tree slug → display name) so the converter can set TreeSlot.treeName / slate treeType."""
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "tables": {}, "treeNames": {}}
+    tables = season_manager.load_crosswalk_tables(active)
+    tree_names = {}
+    if tables:  # only bother when the season actually has crosswalk data
+        for slug, data in season_manager.load_all_season_trees(active, raw=True).items():
+            tree_names[slug] = data.get("tree_name", slug)
+    return {"season": active, "tables": tables, "treeNames": tree_names}
+
+
 # ── Belt Blends (Blending Rituals) ───────────────────────────────────────────────
 
 class ImportCrawlerBeltBlendsRequest(BaseModel):

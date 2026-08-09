@@ -2010,6 +2010,44 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .import-export-tab:hover { color: var(--fg); }
 .import-export-tab.active { color: #c0a0ff; border-bottom-color: #8060cc; }
 
+/* ── Import panel: source sub-toggle (Builder Code | Compendium Build) ───────── */
+.import-source-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.import-source-tab {
+  flex: 1;
+  background: var(--bg-deep);
+  border: 1px solid var(--bg-panel);
+  border-radius: 6px;
+  color: var(--fg-faint);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+}
+.import-source-tab:hover { color: var(--fg); }
+.import-source-tab.active { color: #c0a0ff; border-color: #8060cc; background: #201a33; }
+
+.import-compendium-img {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin: 6px auto 0;
+  border: 1px solid var(--bg-panel);
+  border-radius: 6px;
+}
+/* Centered, app-styled trigger for the (hidden) native file input, spaced below the instructions image. */
+.import-file-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+/* Center the panel's primary action (Import / Import Anyway) to match the Compendium file button. */
+.import-panel-actions { justify-content: center; }
+
 /* ── Update Banner ─────────────────────────────────────────── */
 
 .update-banner {
