@@ -345,8 +345,11 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
     // collapses them and shows only whichever loadout is currently loaded.
     const memInv = lo.heroMemories?.inventory ?? []
     const toMemory = (m: any, i: number) => {
-      const rarity = MEMORY_RARITY_MAP[(m.rarity ?? '').toLowerCase()] ?? 'normal'
-      const memoryType = (m.memoryType ?? '').toLowerCase()
+      // String()-coerce before toLowerCase: this is untrusted Compendium JSON, and a non-string rarity/
+      // memoryType (number/bool/object) would otherwise throw and abort the WHOLE import instead of letting
+      // this one memory degrade (rarity → 'normal'; a bad memoryType is warned + dropped downstream).
+      const rarity = MEMORY_RARITY_MAP[String(m.rarity ?? '').toLowerCase()] ?? 'normal'
+      const memoryType = String(m.memoryType ?? '').toLowerCase()
       const level = MEMORY_MAX_LEVEL[rarity] ?? 10
       // Base stat: recompute the VALUE from OUR ground-truth table at the assumed rarity-max level (owner:
       // Compendium's exported value may be wrong). Keep Compendium's value only if the table lacks the stat.
