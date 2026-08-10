@@ -40,6 +40,11 @@ export interface ConvertContext {
   graftById: Map<string, any>
   treeXw: any
   treeNames: Record<string, string>
+  // Optional: recompute a memory base-stat's modifier TEXT from OUR ground-truth scaling table (source:
+  // MinMaxedARPG), given (memoryType, the affix's current text, rarity, level). Injected by the tlibuilder
+  // adapter; when absent (or it returns null) the importer keeps Compendium's exported value. Kept as an
+  // injected fn so the pure core stays free of tlibuilder imports and portable.
+  computeBaseStatText?: (memoryType: string, modifierText: string, rarity: string, level: number) => string | null
 }
 
 export interface ConvertResult {
@@ -76,6 +81,11 @@ const MEMORY_RARITY_MAP: Record<string, string> = {
 // assume fully built (the rarity's max) on import — matches Builder's create-default and the typical shared state.
 const MEMORY_MAX_LEVEL: Record<string, number> = {
   normal: 10, magic: 20, rare: 30, epic: 40, ultimate: 50,
+}
+// Base-stat tier by rarity — the rarity's max tier, matching the native creator (HeroTraitScreen minTier:
+// ultimate→0, epic→1, rare→2, magic→3, normal→4). Used when recomputing an imported memory's base stat.
+const BASE_TIER_BY_RARITY: Record<string, number> = {
+  ultimate: 0, epic: 1, rare: 2, magic: 3, normal: 4,
 }
 
 // Divinity slate treeType is ALWAYS one of the six god base trees (a Goddess-of-Knowledge slate
@@ -122,7 +132,7 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
   const {
     skills, spirits, traits, legendaries, slateMods, memAffix, legAffixTable, traitNodes, coreTalents,
     kismetTable, ingredientTable, prismTable, gearById, gearByName, skillTagsById, craftPoolByBaseItem,
-    graftById, treeXw, treeNames,
+    graftById, treeXw, treeNames, computeBaseStatText,
   } = ctx
   // Legendary explicits by normalized text (a Vorax graft can carry a legendary, e.g. "Rock Lizard's Skull") —
   // joined by name → canonical raw_text (Builder does the same join).
@@ -336,14 +346,25 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
     const memInv = lo.heroMemories?.inventory ?? []
     const toMemory = (m: any, i: number) => {
       const rarity = MEMORY_RARITY_MAP[(m.rarity ?? '').toLowerCase()] ?? 'normal'
+      const memoryType = (m.memoryType ?? '').toLowerCase()
+      const level = MEMORY_MAX_LEVEL[rarity] ?? 10
+      // Base stat: recompute the VALUE from OUR ground-truth table at the assumed rarity-max level (owner:
+      // Compendium's exported value may be wrong). Keep Compendium's value only if the table lacks the stat.
+      // The value lives in the text (rolledValue cleared) and tier is set to the rarity's max tier, matching
+      // the native creator's base-stat shape (ultimate→0 … normal→4).
+      const baseStat = memSlot(m.baseStat)
+      if (baseStat?.modifier && computeBaseStatText) {
+        const t = computeBaseStatText(memoryType, baseStat.modifier, rarity, level)
+        if (t) { baseStat.modifier = t; baseStat.rolledValue = null; baseStat.tier = BASE_TIER_BY_RARITY[rarity] ?? baseStat.tier }
+      }
       return {
         id: `${lo.id}:${(typeof m.id === 'string' && m.id) ? m.id : `import-${i}`}`,
-        memoryType: (m.memoryType ?? '').toLowerCase(),
+        memoryType,
         rarity,
         // Compendium doesn't export the enhancement level — assume fully built (the rarity's max), matching
         // Builder's create-default and the typical shared-build state. The user can adjust after import.
-        level: MEMORY_MAX_LEVEL[rarity] ?? 10,
-        baseStat: memSlot(m.baseStat), fixedAffixes: twoTuple(m.fixedAffixes), randomAffixes: twoTuple(m.randomAffixes),
+        level,
+        baseStat, fixedAffixes: twoTuple(m.fixedAffixes), randomAffixes: twoTuple(m.randomAffixes),
         // Wax & Wane can only exist on a REVIVALED memory, so a Compendium waxAndWane implies revived.
         // Compendium doesn't expose the revival mod itself in this data, so revivalMod stays null.
         revived: m.waxAndWane === true, revivalMod: null, waxAndWane: m.waxAndWane === true,

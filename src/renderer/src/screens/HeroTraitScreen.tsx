@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, HeroMemoryType, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT, genMemoryId,
-  deriveTraitSlotLevels, activeBaseSlotEnabler, resolveBaseSlot, rarityWithinCap } from '../api/client'
+  deriveTraitSlotLevels, activeBaseSlotEnabler, resolveBaseSlot, rarityWithinCap, heroMemoryBaseStatValue } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -542,6 +542,9 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
   const currentTierInfo = tierRanges.length > 0 ? posToTierValue(tierRanges, currentPos) : null
 
   const resolvedText = current ? resolveMemoryEffect(current) : null
+  // Base stat (hideSlider): the value lives in the modifier TEXT (rolledValue=null, level-driven), NOT in the
+  // tier/rolledValue the slider path reads — so parse it directly for the read-only value display.
+  const baseTextValue = current ? parseFloat(current.modifier.match(/^\+?(\d+(?:\.\d+)?)/)?.[1] ?? 'NaN') : NaN
   // The modeling-status badge depends only on the modifier TYPE, not the rolled value. Key it off a
   // value-INDEPENDENT text (the modifier template, value stripped) so dragging the slider doesn't re-request
   // the mapping and flap the badge — that flap reflowed the label and resized the flex slider (the flashing).
@@ -596,9 +599,14 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
               <span className="memory-affix-value-col">
                 {!hideSlider && sliderMax > 0
                   ? <EditableRollValue value={currentTierInfo.value} dp={editDp} range={editRange} color={color} onCommit={commitValue} />
-                  : <span className="memory-affix-slider-val" style={{ color }}>
-                      {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
-                    </span>}
+                  : (() => {
+                      // For the base stat, show the level-driven value from the modifier text; otherwise (a
+                      // single fixed-value affix) the tier value is the value.
+                      const v = hideSlider && !Number.isNaN(baseTextValue) ? baseTextValue : currentTierInfo.value
+                      return <span className="memory-affix-slider-val" style={{ color }}>
+                        {Number.isInteger(v) ? v : dec(v)}
+                      </span>
+                    })()}
               </span>
             </div>
           )}
@@ -1122,13 +1130,47 @@ export default function HeroTraitScreen({ onBack: _onBack, onDefaultTraitApplied
     )
   }
 
+  // Compute a base-stat selection for (type, stat name, rarity, level) from the season-stable scaling table
+  // (source: MinMaxedARPG), interpolated piecewise-linearly between the per-rarity anchors. Keeps a tier's
+  // modifier text as a FORMATTING TEMPLATE and substitutes the computed value into its leading +N; the value
+  // lives in the text (rolledValue=null, matching the pool's fixed base-stat shape) so wax/penalty scaling
+  // operates on the +N. Rounds to 1 decimal (source precision; anchor levels exact, between-anchor interpolated).
+  // Falls back to the old coarse tier-ladder heuristic only if the table lacks the stat (e.g. an old backend).
+  // Shared by the creator's live edits AND rarity/level changes so the base value always tracks all three axes.
+  const scaleBaseStat = (memoryType: CreatedHeroMemory['memoryType'], name: string, rarity: MemoryRarity, lvl: number): MemorySlotSelection | null => {
+    if (!memoryData) return null
+    const affixSource = MEMORY_SOURCES[MEMORY_TYPE_TO_SLOT[memoryType]]
+    const opts = getTierOptions(memoryData.base_stats, affixSource, name)
+    if (!opts.length) return null
+    const scaled = heroMemoryBaseStatValue(memoryData.base_stat_scaling, memoryType, name, rarity, lvl)
+    if (scaled != null) {
+      const minTier = rarity === 'normal' ? 4 : TIER_RARITY.indexOf(rarity)
+      const modifier = opts[0].modifier.replace(/^\+?\d+(?:\.\d+)?/, '+' + String(Math.round(scaled * 10) / 10))
+      return { modifier, tier: minTier, rolledValue: null }
+    }
+    // Fallback: coarse memory-level FRACTION → tier ladder (worst→best by value).
+    const ranges = buildTierRanges(opts)
+    if (!ranges.length) return null
+    const byVal = [...ranges].sort((a, b) => a.max - b.max)
+    const maxLv = MAX_LEVEL_BY_RARITY[rarity]
+    const frac = maxLv > 1 ? (lvl - 1) / (maxLv - 1) : 1
+    const r = byVal[Math.max(0, Math.min(byVal.length - 1, Math.round(frac * (byVal.length - 1))))]
+    const value = Math.round((r.min + r.max) / 2)
+    return { modifier: r.modifier, tier: r.tier, rolledValue: hasRange(r.modifier) ? value : null }
+  }
+
   // ── Creator modal (shared by slot "+", the overlay's Create, and Edit) ──────
   const setDraftRarity = (rarity: MemoryRarity) => {
     if (!draft) return
     const maxLv = MAX_LEVEL_BY_RARITY[rarity]
+    // Changing rarity defaults the level to the new rarity's MAX (owner) — going up raises to the new cap,
+    // going down lands on the lower cap; the user can then dial it back down if they want.
+    const newLevel = maxLv
     const fixedN = RARITY_FIXED_COUNT[rarity], randomN = RARITY_RANDOM_COUNT[rarity]
     setDraft({
-      ...draft, rarity, level: Math.min(draft.level ?? maxLv, maxLv),
+      ...draft, rarity, level: newLevel,
+      // Base stat re-scales to the new rarity's curve (at the new max level).
+      baseStat: draft.baseStat ? (scaleBaseStat(draft.memoryType, getAffixName(draft.baseStat.modifier), rarity, newLevel) ?? draft.baseStat) : null,
       // Trim affix selections the new rarity can't hold.
       fixedAffixes: [fixedN >= 1 ? draft.fixedAffixes[0] : null, fixedN >= 2 ? draft.fixedAffixes[1] : null],
       randomAffixes: [randomN >= 1 ? draft.randomAffixes[0] : null, randomN >= 2 ? draft.randomAffixes[1] : null],
@@ -1168,18 +1210,9 @@ export default function HeroTraitScreen({ onBack: _onBack, onDefaultTraitApplied
         </div>
       </div>
     )
-    // Base stat scales off the memory LEVEL. The affix `level` fields are item-levels (80+), not the 1..maxLv
-    // memory level, so map the memory-level FRACTION onto the tier ladder (worst→best by value): level 1 → the
-    // lowest tier, max level → the best. Coarse "moves with level" for now (precise base scaling = backlog rework).
-    const baseStatForLevel = (name: string, lvl: number): MemorySlotSelection | null => {
-      const ranges = buildTierRanges(getTierOptions(memoryData.base_stats, affixSource, name))
-      if (!ranges.length) return null
-      const byVal = [...ranges].sort((a, b) => a.max - b.max)          // worst → best
-      const frac = maxLv > 1 ? (lvl - 1) / (maxLv - 1) : 1
-      const r = byVal[Math.max(0, Math.min(byVal.length - 1, Math.round(frac * (byVal.length - 1))))]
-      const value = Math.round((r.min + r.max) / 2)
-      return { modifier: r.modifier, tier: r.tier, rolledValue: hasRange(r.modifier) ? value : null }
-    }
+    // Base stat scales off the memory LEVEL (and rarity) via the shared scaling helper (source: MinMaxedARPG).
+    const baseStatForLevel = (name: string, lvl: number): MemorySlotSelection | null =>
+      scaleBaseStat(d.memoryType, name, rarity, lvl)
     return (
     <div className="modal-backdrop" onClick={closeCreator}>
       <div className="modal-card memory-creator-modal" onClick={e => e.stopPropagation()}>

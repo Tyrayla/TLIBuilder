@@ -1880,6 +1880,80 @@ export function memoryTraitLevel(m: CreatedHeroMemory): number {
   const explicit = m.fixedAffixes.reduce((s, fa) => s + traitLevelValue(fa), 0)
   return Math.max(1, Math.min(5, levelTraitBaseline(level) + explicit))
 }
+// ── Hero-memory base-stat scaling (source: MinMaxedARPG; data/hero_memory_base_stats.json) ───────────────
+// The base stat's value is a deterministic function of (memory type, stat, rarity, level): LINEAR per rarity
+// from the level-1 value to the rarity cap value, with anchors captured every 10 levels. We interpolate
+// piecewise-linearly between the nearest anchors. Replaces the old coarse "fraction of the tier ladder"
+// heuristic; folded into the /api/hero-memories payload so it rides the existing catalog fetch + CDN export.
+export interface HeroMemoryBaseStatRow {
+  source: 'Origin' | 'Discipline' | 'Progress'
+  affixTemplate: string   // "+{value} <Shorthand>" — Shorthand is the source's stat name, not our affix text
+  normal?: Record<string, number>; magic?: Record<string, number>; rare?: Record<string, number>
+  epic?: Record<string, number>; ultimate?: Record<string, number>
+}
+export interface HeroMemoryBaseStatScaling { stats: HeroMemoryBaseStatRow[] }
+
+// Our affix NAME (getAffixName output — e.g. "Damage", "Max Life", "Minion Attack Speed") → the table's stat
+// shorthand. The source's single "MinionCastAttackSpeed" row feeds BOTH our "Minion Attack Speed" and
+// "Minion Cast Speed" affixes (identical ladder in-game).
+const BASE_STAT_NAME_TO_SHORTHAND: Record<string, string> = {
+  'Damage': 'Damage', 'Minion Damage': 'MinionDamage',
+  'Strength': 'Strength', 'Dexterity': 'Dexterity', 'Intelligence': 'Intelligence',
+  'Max Life': 'Life', 'Max Mana': 'Mana', 'Max Energy Shield': 'EnergyShield',
+  'Armor': 'Armor', 'Evasion': 'Evasion',
+  'Attack Speed': 'AttackSpeed', 'Cast Speed': 'CastSpeed', 'Movement Speed': 'MovementSpeed',
+  'Minion Attack Speed': 'MinionCastAttackSpeed', 'Minion Cast Speed': 'MinionCastAttackSpeed',
+}
+const MEMORY_TYPE_TO_SOURCE: Record<CreatedHeroMemory['memoryType'], HeroMemoryBaseStatRow['source']> = {
+  origin: 'Origin', discipline: 'Discipline', progress: 'Progress',
+}
+// Extract the stat shorthand from a table affixTemplate ("+{value} Damage" → "Damage").
+const baseStatShorthand = (template: string): string => template.replace(/^\+\{value\}\s*/, '').trim()
+
+// Interpolate the base-stat value for (memoryType, affixName, rarity, level). Returns null when the table
+// lacks the stat (caller then falls back). Clamps level to [1, rarity cap]; piecewise-linear between anchors.
+export function heroMemoryBaseStatValue(
+  scaling: HeroMemoryBaseStatScaling | null | undefined,
+  memoryType: CreatedHeroMemory['memoryType'], affixName: string, rarity: MemoryRarity, level: number,
+): number | null {
+  if (!scaling?.stats?.length) return null
+  const shorthand = BASE_STAT_NAME_TO_SHORTHAND[affixName]
+  if (!shorthand) return null
+  const source = MEMORY_TYPE_TO_SOURCE[memoryType]
+  const row = scaling.stats.find(s => s.source === source && baseStatShorthand(s.affixTemplate) === shorthand)
+  const anchors = row?.[rarity]
+  if (!anchors) return null
+  const keys = Object.keys(anchors).map(Number).sort((a, b) => a - b)
+  if (!keys.length) return null
+  const lvl = Math.max(1, Math.min(MAX_LEVEL_BY_RARITY[rarity], level))
+  if (lvl <= keys[0]) return anchors[String(keys[0])]
+  for (let i = 1; i < keys.length; i++) {
+    if (lvl <= keys[i]) {
+      const lo = keys[i - 1], hi = keys[i], vlo = anchors[String(lo)], vhi = anchors[String(hi)]
+      return vlo + (vhi - vlo) * (lvl - lo) / (hi - lo)
+    }
+  }
+  return anchors[String(keys[keys.length - 1])]
+}
+// Extract the base-stat affix NAME from its modifier text (mirrors HeroTraitScreen.getAffixName for the simple
+// base-stat case — "+90 % damage" → "Damage", "+330 Max Life" → "Max Life"). Base stats carry no embedded
+// ranges/values, so this narrow form suffices.
+const baseStatAffixName = (modifier: string): string => {
+  const name = modifier.replace(/^\+?(?:\d+(?:\.\d+)?|\([^)]+\))\s*%?\s*/, '').replace(/\s+/g, ' ').trim()
+  return name ? name[0].toUpperCase() + name.slice(1) : name
+}
+// Recompute a base-stat's modifier TEXT for (memoryType, rarity, level) from the scaling table, reading the
+// stat from the affix's existing text and substituting the computed value into its leading +N (preserving the
+// exact suffix format). Returns null if the table lacks the stat. Used by the Compendium importer to replace
+// Compendium's possibly-wrong exported base value with our ground-truth value (rounded to 1 decimal).
+export function heroMemoryBaseStatText(
+  scaling: HeroMemoryBaseStatScaling | null | undefined,
+  memoryType: CreatedHeroMemory['memoryType'], modifierText: string, rarity: MemoryRarity, level: number,
+): string | null {
+  const v = heroMemoryBaseStatValue(scaling, memoryType, baseStatAffixName(modifierText), rarity, level)
+  if (v == null) return null
+  return modifierText.replace(/^\+?\d+(?:\.\d+)?/, '+' + String(Math.round(v * 10) / 10))
+}
 // ── Base/Special slot (in-game-verified, owner 2026-08-08) ──────────────────────────────────────────────
 // A REVIVED memory's revival mod may open a single Base ("Special") slot that accepts one NON-revived memory of
 // the mod's NAMED type, up to the mod's rarity cap, at a value penalty. Three enabler tiers (per type):
@@ -2941,6 +3015,7 @@ export const api = {
     fixed_affixes: HeroMemoryAffix[]
     random_affixes: HeroMemoryAffix[]
     base_stats: HeroMemoryAffix[]
+    base_stat_scaling?: HeroMemoryBaseStatScaling
   }>('/hero-memories'),
 
   importMemoryRevival: (seasonName: string, data: object) =>

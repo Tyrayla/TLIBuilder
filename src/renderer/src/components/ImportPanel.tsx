@@ -30,6 +30,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const refSkills = useReferenceStore(s => s.skills)
   const refCraftBaseTypes = useReferenceStore(s => s.craftBaseTypes)
   const refGrafts = useReferenceStore(s => s.grafts)
+  const refHeroMemoryScaling = useReferenceStore(s => s.heroMemories?.base_stat_scaling)
 
   const reset = () => { setError(null); setWarnings([]); setPendingBuild(null) }
 
@@ -74,6 +75,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       }
       const { build, warnings: w } = convertCompendiumBuild(src, payload, {
         legendaryCatalog: refLegendary, skills: refSkills, craftBaseTypes: refCraftBaseTypes, grafts: refGrafts,
+        heroMemoryScaling: refHeroMemoryScaling,
       })
       ready({ ...(build as unknown as Build), name: (build as { name?: string }).name ?? 'Imported build' }, w)
     } catch (e: unknown) {

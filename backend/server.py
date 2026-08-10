@@ -45,6 +45,17 @@ try:
 except (OSError, ValueError):
     pass
 
+# Hero-memory base-stat scaling table (season-STABLE, hand-authored; source: MinMaxedARPG). Top-level, NOT
+# under seasons/, so the per-season data-scraper re-import never overwrites it. Base-stat value = f(memory
+# type, stat, rarity, level) via piecewise-linear interpolation between the per-rarity anchors; folded into
+# /api/hero-memories so it rides the existing catalog fetch (and the web CDN export) with no extra endpoint.
+_HERO_MEMORY_BASE_STATS: dict = {}
+try:
+    with open(os.path.join(_DATA_ROOT, 'hero_memory_base_stats.json'), encoding="utf-8") as _bf:
+        _HERO_MEMORY_BASE_STATS = json.load(_bf)
+except (OSError, ValueError):
+    pass
+
 
 def _split_clauses(text: str) -> list[str]:
     """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s). A trailing
@@ -2899,7 +2910,10 @@ def import_hero_memories_endpoint(req: ImportSingletonRequest):
 @app.get("/api/hero-memories")
 def get_hero_memories():
     active = season_manager.get_active_season()
-    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": []}
+    # base_stat_scaling is season-independent (hand-authored top-level file) — include it even when no season /
+    # no per-season memory data is loaded, so the creator's base-stat auto-scaling works regardless.
+    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": [],
+             "base_stat_scaling": _HERO_MEMORY_BASE_STATS}
     if not active:
         return empty
     data = season_manager.load_hero_memories(active)
@@ -2911,6 +2925,7 @@ def get_hero_memories():
         "fixed_affixes": data.get("fixed_affixes", []),
         "random_affixes": data.get("random_affixes", []),
         "base_stats": data.get("base_stats", []),
+        "base_stat_scaling": _HERO_MEMORY_BASE_STATS,
     }
 
 

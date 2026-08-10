@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   LegendaryGearIndexItem, LegendaryGearItem, CraftBaseItemGroup,
   CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, HeroMemoryType, ConditionDef, SkillItem, BeltBlend,
+  HeroMemoryBaseStatScaling,
 } from '../api/client'
 import { api, registerSkillTagVocabulary } from '../api/client'
 
@@ -10,6 +11,9 @@ export interface HeroMemoryData {
   base_stats: HeroMemoryAffix[]
   fixed_affixes: HeroMemoryAffix[]
   random_affixes: HeroMemoryAffix[]
+  // Season-stable base-stat scaling table (source: MinMaxedARPG) — drives the creator's auto base-stat value
+  // and the crosswalk import recompute. Optional (missing on very old backends).
+  base_stat_scaling?: HeroMemoryBaseStatScaling
 }
 
 interface ReferenceStore {
@@ -158,6 +162,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
         base_stats: r.base_stats,
         fixed_affixes: r.fixed_affixes,
         random_affixes: r.random_affixes,
+        base_stat_scaling: r.base_stat_scaling,
       }
     } else { failed.add('heroMemories') }
 

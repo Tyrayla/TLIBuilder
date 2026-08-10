@@ -2,7 +2,8 @@
 // (/api/crosswalk-tables) and (b) the Builder catalogs the renderer already holds in referenceStore. Then runs
 // the pure core (convertBuild) — no fs, no tli1_ encode; the returned Build goes straight to loadBuild.
 import { convertBuild, type ConvertContext, type ConvertResult, type Named } from './core'
-import type { LegendaryGearItem, CraftBaseType, Graft, SkillItem } from '../api/client'
+import { heroMemoryBaseStatText } from '../api/client'
+import type { LegendaryGearItem, CraftBaseType, Graft, SkillItem, HeroMemoryBaseStatScaling, MemoryRarity, CreatedHeroMemory } from '../api/client'
 
 export type { ConvertResult }
 
@@ -12,6 +13,9 @@ export interface ConvertRefs {
   skills: SkillItem[] | null
   craftBaseTypes: CraftBaseType[] | null
   grafts: Graft[] | null
+  // Season-stable base-stat scaling table (referenceStore.heroMemories.base_stat_scaling) — used to recompute
+  // imported memory base-stat values from OUR ground truth. Optional; import keeps Compendium's value if absent.
+  heroMemoryScaling?: HeroMemoryBaseStatScaling | null
 }
 
 export interface CrosswalkPayload {
@@ -56,6 +60,9 @@ export function buildConvertContext(payload: CrosswalkPayload, refs: ConvertRefs
     craftPoolByBaseItem,
     graftById: new Map((refs.grafts ?? []).map((g) => [g.item_id, g])),
     treeNames: payload.treeNames ?? {},
+    // Recompute imported base-stat values from our ground-truth table (source: MinMaxedARPG).
+    computeBaseStatText: (memoryType, modifierText, rarity, level) =>
+      heroMemoryBaseStatText(refs.heroMemoryScaling, memoryType as CreatedHeroMemory['memoryType'], modifierText, rarity as MemoryRarity, level),
   }
 }
 
