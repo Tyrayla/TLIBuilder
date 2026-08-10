@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**78 entries** — ✅ Confirmed: 15 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 43
+**79 entries** — ✅ Confirmed: 16 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 43
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -14,6 +14,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Chain Lightning (baseline) | Chain Lightning | baseline, damage-pool | ✅ Confirmed | 2026-06-10 | [chain-lightning.md](chain-lightning.md) |
 | Channeled / Icebound Beam | Icebound Beam | channeled, redistribution | ✅ Confirmed | 2026-06-14 | [channeled.md](channeled.md) |
 | Collapse | Groundshaker | breakpoint, step-function, rhythm, damage-pool | ✅ Confirmed | 2026-07-01 | [collapse.md](collapse.md) |
+| Combined affix lines roll as a single shared value | — | gear, affix, crafting, rolling | ✅ Confirmed | 2026-08-09 | [affix-combined-line-shared-roll.md](affix-combined-line-shared-roll.md) |
 | Damage over Time never critically strikes | Mind Control | dot, crit | ✅ Confirmed | 2026-07-10 | [dot-no-crit.md](dot-no-crit.md) |
 | Hero Memory base-stat value by level & rarity | Hero Memories | hero-memory, base-stat, level-scaling | ✅ Confirmed | 2026-08-09 | [hero-memory-base-stats.md](hero-memory-base-stats.md) |
 | Hero Memory Phase B — trait level, Wax & Wane, revival mod | Hero Memories | hero-memory, hero-trait, trait-level, wax-and-wane | ✅ Confirmed | 2026-08-08 | [hero-memory-phase-b.md](hero-memory-phase-b.md) |

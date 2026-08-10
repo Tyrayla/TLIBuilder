@@ -15,7 +15,7 @@ import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bod
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, useTextModifierStatuses, gearModifierStatus } from '../components/ModifierBadge'
 import {
   rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
-  affixTypeLabel, tooltipAffixText,
+  affixTypeLabel, tooltipAffixText, sharedRollGroups,
 } from '../utils/affixText'
 import { tierForValue, overallRange, signedRange, MAX_CORRODED } from '../utils/affixTiers'
 import EditableRollValue from '../components/EditableRollValue'
@@ -559,12 +559,15 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
     )
   }
 
-  const setChosenValue = (affixIdx: number, valIdx: number, val: number) => {
+  // Grouped write for shared-roll lines: fan the SAME unsigned magnitude across every index in the
+  // group in ONE update. React batches state, so calling setChosenValue per index would let the 2nd
+  // call read the 1st's stale state and clobber it — always write all group indices together.
+  const setChosenValues = (affixIdx: number, indices: number[], val: number) => {
     const next = customizations.filter(c => c.affix_index !== affixIdx)
     const existing = customizations.find(c => c.affix_index === affixIdx)
     next.push({
       affix_index: affixIdx,
-      chosen_values: { ...(existing?.chosen_values ?? {}), [valIdx]: val },
+      chosen_values: { ...(existing?.chosen_values ?? {}), ...Object.fromEntries(indices.map(i => [i, val])) },
       chosen_placeholder_key: existing?.chosen_placeholder_key ?? null,
     })
     onCustomizationChange(next)
@@ -674,14 +677,18 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
   // Click-to-edit an exact roll on a legendary explicit: pick the base vs corroded ("T0") variant whose range
   // holds the value (prefer corroded/desecrated when the corroded-slot budget allows), swap it in, KEEP the
   // custom value (unlike the toggle, which clears it), and update the corroded-index set.
-  const handleLegendaryValueEdit = (affixIdx: number, explicitIndex: number | undefined, valIdx: number, signedValue: number) => {
+  // `indices` is the shared-roll group driven by one control (representative = indices[0] = valIdx).
+  // Grouped indices share an identical range/sign, so the tier/corrosion decision is computed ONCE off
+  // the representative and the resulting unsigned magnitude is fanned across all group indices in ONE
+  // state update (never per-index — React batching would let a 2nd write clobber the 1st).
+  const handleLegendaryValueEdit = (affixIdx: number, explicitIndex: number | undefined, valIdx: number, signedValue: number, indices: number[] = [valIdx]) => {
     const baseVariant = catalogItem?.variants?.base
     const corrVariant = catalogItem?.variants?.corroded
     const curAffix = getItemAffixes(item)[affixIdx]
     // No corrosion context → just set the value on the current affix.
     if (explicitIndex === undefined || !baseVariant || !corrVariant) {
       const nv = curAffix?.numeric_values[valIdx]
-      setChosenValue(affixIdx, valIdx, nv?.sign === '-' ? -signedValue : signedValue)
+      setChosenValues(affixIdx, indices, nv?.sign === '-' ? -signedValue : signedValue)
       return
     }
     const baseAff = baseVariant.explicits[explicitIndex]
@@ -689,7 +696,7 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
     // Random-affix placeholders have no base/corroded tier ranges — just set the value.
     if (baseAff?.affix_kind === 'placeholder' || corrAff?.affix_kind === 'placeholder') {
       const nv = curAffix?.numeric_values[valIdx]
-      setChosenValue(affixIdx, valIdx, nv?.sign === '-' ? -signedValue : signedValue)
+      setChosenValues(affixIdx, indices, nv?.sign === '-' ? -signedValue : signedValue)
       return
     }
     const contains = (aff: LegendaryAffix | undefined) => {
@@ -713,9 +720,10 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
 
     const tnv = target.numeric_values[valIdx]
     const unsigned = tnv?.sign === '-' ? -signedValue : signedValue
+    const fan = Object.fromEntries(indices.map(i => [i, unsigned]))
     const variantChanged = useCorroded !== isCurr
     const existing = customizations.find(c => c.affix_index === affixIdx)
-    const newChosen = variantChanged ? { [valIdx]: unsigned } : { ...(existing?.chosen_values ?? {}), [valIdx]: unsigned }
+    const newChosen = variantChanged ? { ...fan } : { ...(existing?.chosen_values ?? {}), ...fan }
     const newCust = customizations.filter(c => c.affix_index !== affixIdx)
     newCust.push({ affix_index: affixIdx, chosen_values: newChosen, chosen_placeholder_key: existing?.chosen_placeholder_key ?? null })
     onCustomizationChange(newCust)
@@ -815,8 +823,12 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
               </>
             )}
           </div>
-          {chosenOption && optRangeIndices.map(valIdx => {
-            const nv = chosenOption.numeric_values[valIdx]
+          {/* One control per shared-roll group: same-range numbers on this line are ONE in-game roll (rep = group[0]). */}
+          {chosenOption && sharedRollGroups(chosenOption.numeric_values, chosenOption.raw_text)
+            .filter(group => chosenOption!.numeric_values[group[0]]?.kind === 'range' && optRangeIndices.includes(group[0]))
+            .map(group => {
+            const valIdx = group[0]
+            const nv = chosenOption!.numeric_values[valIdx]
             const nvSign = nv.sign ?? ''
             const rawMin = nv.min ?? 0
             const rawMax = nv.max ?? 0
@@ -838,7 +850,7 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
                   min={actualMin} max={actualMax} step={step} value={signedChosen}
                   onChange={e => {
                     const signed = Number(e.target.value)
-                    setChosenValue(affixIdx, valIdx, nvSign === '-' ? -signed : signed)
+                    setChosenValues(affixIdx, group, nvSign === '-' ? -signed : signed)
                   }}
                 />
                 {ticks.length > 0 && (
@@ -846,7 +858,7 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
                 )}
                 <EditableRollValue
                   value={signedChosen} dp={dp} range={[actualMin, actualMax]}
-                  onCommit={v => setChosenValue(affixIdx, valIdx, nvSign === '-' ? -v : v)}
+                  onCommit={v => setChosenValues(affixIdx, group, nvSign === '-' ? -v : v)}
                 />
               </div>
             )
@@ -894,7 +906,11 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
           )}
           <div className="gear-affix-label">{displayText}<ModifierBadge status={gearModifierStatus(affix, consumedStats, universe, gearUnresolved)} /></div>
         </div>
-        {rangeIndices.map(valIdx => {
+        {/* One control per shared-roll group: same-range numbers on this line are ONE in-game roll (rep = group[0]). */}
+        {sharedRollGroups(affix.numeric_values, affix.raw_text)
+          .filter(group => affix.numeric_values[group[0]]?.kind === 'range' && rangeIndices.includes(group[0]))
+          .map(group => {
+          const valIdx = group[0]
           const nv = affix.numeric_values[valIdx]
           const nvSign = nv.sign ?? ''
           const rawMin = nv.min ?? 0
@@ -921,7 +937,7 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
                 value={signedChosen}
                 onChange={e => {
                   const signed = Number(e.target.value)
-                  setChosenValue(affixIdx, valIdx, nvSign === '-' ? -signed : signed)
+                  setChosenValues(affixIdx, group, nvSign === '-' ? -signed : signed)
                 }}
               />
               {ticks.length > 0 && (
@@ -936,7 +952,7 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
                     ? [catalogItem.variants.base?.explicits[explicitIndex], catalogItem.variants.corroded?.explicits[explicitIndex]].filter((a): a is LegendaryAffix => !!a)
                     : [affix]),
                   valIdx) ?? [actualMin, actualMax]}
-                onCommit={v => handleLegendaryValueEdit(affixIdx, explicitIndex, valIdx, v)}
+                onCommit={v => handleLegendaryValueEdit(affixIdx, explicitIndex, valIdx, v, group)}
               />
             </div>
           )
@@ -1438,7 +1454,8 @@ interface CraftSlotRowProps {
   // All tiers (incl. the corroded "0+") for the slot's modifier + the value-edit commit handler. When set,
   // the roll number becomes click-to-edit: type a value → parent picks the matching tier + desecrates.
   editTiers?: CraftAffix[]
-  onEditValue?: (valueIndex: number, signedValue: number) => void
+  // `indices` is the shared-roll group the edited value belongs to (indices[0] === valueIndex is the representative).
+  onEditValue?: (valueIndex: number, signedValue: number, indices: number[]) => void
 }
 
 function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, corrosionToggle, editTiers, onEditValue }: CraftSlotRowProps) {
@@ -1463,8 +1480,9 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
     onChange({ ...slot, affix, chosenValues: {} })
   }
 
-  const handleSliderChange = (valIdx: number, val: number) => {
-    onChange({ ...slot, chosenValues: { ...slot.chosenValues, [valIdx]: val } })
+  // Shared-roll group: fan the same value across every index in one update (never per-index — batching clobbers).
+  const handleSliderChange = (indices: number[], val: number) => {
+    onChange({ ...slot, chosenValues: { ...slot.chosenValues, ...Object.fromEntries(indices.map(i => [i, val])) } })
   }
 
   return (
@@ -1494,8 +1512,12 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
 
       {sliderAffix && sliderAffix.numeric_values.some(v => v.kind === 'range') && (
         <div className="gear-craft-sliders" {...sliderTip.triggerProps}>
-          {sliderAffix.numeric_values.map((nv, valIdx) => {
-            if (nv.kind !== 'range') return null
+          {/* One control per shared-roll group: same-range numbers on this line are ONE in-game roll (rep = group[0]). */}
+          {sharedRollGroups(sliderAffix.numeric_values, sliderAffix.raw_text)
+            .filter(group => sliderAffix.numeric_values[group[0]]?.kind === 'range')
+            .map(group => {
+            const valIdx = group[0]
+            const nv = sliderAffix.numeric_values[valIdx]
             const nvSign = nv.sign ?? ''
             const rawMin = nv.min ?? 0
             const rawMax = nv.max ?? 0
@@ -1516,7 +1538,7 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
                   min={actualMin} max={actualMax} step={step} value={signedChosen}
                   onChange={e => {
                     const signed = Number(e.target.value)
-                    handleSliderChange(valIdx, nvSign === '-' ? -signed : signed)
+                    handleSliderChange(group, nvSign === '-' ? -signed : signed)
                   }}
                 />
                 {ticks.length > 0 && (
@@ -1528,7 +1550,7 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
                   ? <EditableRollValue
                       value={signedChosen} dp={dp}
                       range={overallRange(editTiers, valIdx) ?? [actualMin, actualMax]}
-                      onCommit={v => onEditValue(valIdx, v)}
+                      onCommit={v => onEditValue(valIdx, v, group)}
                     />
                   : <span className="gear-affix-value">{display}</span>}
               </div>
@@ -1749,21 +1771,26 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
   const editTiers = !slot.isLegendary && slot.expression ? tiers : (slot.affix ? [slot.affix] : [])
   // Click-to-edit an exact roll: for graft mods, switch to the tier whose range holds the value (prefer the
   // better tier); for a legendary-source affix, just set the value. Vorax has no Desecration / corroded slots.
-  const handleEditValue = (valIdx: number, signedValue: number) => {
+  // `indices` is the shared-roll group driven by one control (indices[0] === valIdx is the representative). The
+  // tier decision is computed ONCE off the representative (grouped ranges are identical) and the unsigned value is
+  // fanned across all group indices in ONE update (never per-index — React batching would clobber the 1st write).
+  const handleEditValue = (valIdx: number, signedValue: number, indices: number[] = [valIdx]) => {
     if (!slot.affix) return
     if (!slot.isLegendary && slot.expression) {
       const matched = tierForValue(tiers, valIdx, signedValue)
       if (matched) {
         const mnv = matched.numeric_values[valIdx]
         const unsigned = mnv?.sign === '-' ? -signedValue : signedValue
+        const fan = Object.fromEntries(indices.map(i => [i, unsigned]))
         const sameTier = matched.raw_text === (slot.affix as GraftAffix).raw_text
         onChange({ expression: slot.expression, affix: matched, isLegendary: false,
-          chosenValues: sameTier ? { ...slot.chosenValues, [valIdx]: unsigned } : { [valIdx]: unsigned } })
+          chosenValues: sameTier ? { ...slot.chosenValues, ...fan } : { ...fan } })
         return
       }
     }
     const nv = numericValues[valIdx]
-    onChange({ ...slot, chosenValues: { ...slot.chosenValues, [valIdx]: nv?.sign === '-' ? -signedValue : signedValue } })
+    const unsigned = nv?.sign === '-' ? -signedValue : signedValue
+    onChange({ ...slot, chosenValues: { ...slot.chosenValues, ...Object.fromEntries(indices.map(i => [i, unsigned])) } })
   }
 
   return (
@@ -1790,8 +1817,12 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
       </div>
       {sliderAffix && numericValues.some(v => v.kind === 'range') && (
         <div className="gear-craft-sliders" {...sliderTip.triggerProps}>
-          {numericValues.map((nv, valIdx) => {
-            if (nv.kind !== 'range') return null
+          {/* One control per shared-roll group: same-range numbers on this line are ONE in-game roll (rep = group[0]). */}
+          {sharedRollGroups(numericValues, sliderAffix?.raw_text ?? '')
+            .filter(group => numericValues[group[0]]?.kind === 'range')
+            .map(group => {
+            const valIdx = group[0]
+            const nv = numericValues[valIdx]
             const nvSign = nv.sign ?? ''
             const rawMin = nv.min ?? 0
             const rawMax = nv.max ?? 0
@@ -1811,7 +1842,8 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
                   min={actualMin} max={actualMax} step={step} value={signedChosen}
                   onChange={e => {
                     const signed = Number(e.target.value)
-                    onChange({ ...slot, chosenValues: { ...slot.chosenValues, [valIdx]: nvSign === '-' ? -signed : signed } })
+                    const unsigned = nvSign === '-' ? -signed : signed
+                    onChange({ ...slot, chosenValues: { ...slot.chosenValues, ...Object.fromEntries(group.map(i => [i, unsigned])) } })
                   }}
                 />
                 {ticks.length > 0 && (
@@ -1822,7 +1854,7 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
                 <EditableRollValue
                   value={signedChosen} dp={dp}
                   range={overallRange(editTiers, valIdx) ?? [actualMin, actualMax]}
-                  onCommit={v => handleEditValue(valIdx, v)}
+                  onCommit={v => handleEditValue(valIdx, v, group)}
                 />
               </div>
             )
@@ -2396,14 +2428,17 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
 
   // Click-to-edit an exact roll: pick the tier whose range holds the value (prefer the better tier), switch
   // to it, and enable Desecration so the corroded 0+ tier is usable (consuming a corroded slot, max 2).
-  const handleCraftValueEdit = (slotIdx: number, valueIndex: number, signedValue: number) => {
+  // `indices` is the shared-roll group driven by one control (indices[0] === valueIndex is the representative).
+  // The tier/desecration decision is computed ONCE off the representative (grouped ranges are identical, so the
+  // tier match is the same) and the resulting unsigned magnitude is fanned across all group indices in ONE update.
+  const handleCraftValueEdit = (slotIdx: number, valueIndex: number, signedValue: number, indices: number[] = [valueIndex]) => {
     const s = slots[slotIdx]
     if (!s.affix || !s.expression) return
     // Base slots (0-1) have no tiers / desecration — just set the value in the current affix.
     if (slotIdx < 2) {
       const nv = s.affix.numeric_values[valueIndex]
       const unsigned = nv?.sign === '-' ? -signedValue : signedValue
-      updateSlot(slotIdx, { ...s, chosenValues: { ...s.chosenValues, [valueIndex]: unsigned } })
+      updateSlot(slotIdx, { ...s, chosenValues: { ...s.chosenValues, ...Object.fromEntries(indices.map(i => [i, unsigned])) } })
       return
     }
     const norm = normalizeExpression(s.expression)
@@ -2418,8 +2453,9 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
     if (!matched) return
     const mnv = matched.numeric_values[valueIndex]
     const unsigned = mnv?.sign === '-' ? -signedValue : signedValue
+    const fan = Object.fromEntries(indices.map(i => [i, unsigned]))
     const sameTier = matched.raw_text === s.affix.raw_text
-    const cv = sameTier ? { ...s.chosenValues, [valueIndex]: unsigned } : { [valueIndex]: unsigned }
+    const cv = sameTier ? { ...s.chosenValues, ...fan } : { ...fan }
     updateSlot(slotIdx, { expression: normalizeExpression(matched.expression), affix: matched, chosenValues: cv })
   }
 
@@ -2594,7 +2630,7 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
             <React.Fragment key={i}>
               {sectionLabels[i] && <div className="gear-craft-section-label">{sectionLabels[i]}</div>}
               <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} disabledExpressions={craftSlotDisabled[i]} corrupted={isCraftSlotCorrupted(i, slot)} corrosionToggle={corrosionToggle}
-                editTiers={editTiers} onEditValue={(vi, v) => handleCraftValueEdit(i, vi, v)} />
+                editTiers={editTiers} onEditValue={(vi, v, indices) => handleCraftValueEdit(i, vi, v, indices)} />
             </React.Fragment>
           )
         })}
