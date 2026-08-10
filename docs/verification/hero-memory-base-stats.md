@@ -3,10 +3,10 @@
 
 # Hero Memory base-stat value by level & rarity
 
-- **Status:** ⚠️ Unverified
+- **Status:** ✅ Confirmed
 - **Skills affected:** Hero Memories
 - **Mechanic tags:** hero-memory, base-stat, level-scaling
-- **Last verified:** 2026-08-09 by MinMaxedARPG (community, hand-captured in-game)
+- **Last verified:** 2026-08-09 by Owner (in-game, 2026-08-09); source capture: MinMaxedARPG (community)
 
 ## Setup
 
@@ -22,11 +22,11 @@ Within each rarity the value is LINEAR from the level-1 value to the rarity's ma
 
 ## Notes / caveats / open questions
 
-Season-STABLE, hand-authored data stored at data/hero_memory_base_stats.json (top-level, NOT under seasons/), so the per-season data-scraper re-import never overwrites it; update only if a season actually changes these values. CORRECTION applied to the source capture: epic 'Life' L10/L20 were corrupt (L10 held the L20 value 217; L20 was garbage 59) — reconstructed from the clean 110→330 line to L10=161, L20=217 (L30=274, L40=330 already fit); re-verify epic Life in-game if precision matters. NOTE: epic 'Intelligence' L20=59 is NOT an error (epic Int is linear 30→90, L20≈59.2).
+Season-STABLE, hand-authored data stored at data/hero_memory_base_stats.json (top-level, NOT under seasons/), so the per-season data-scraper re-import never overwrites it; update only if a season actually changes these values. CORRECTION applied to the source capture: epic 'Life' L10/L20 were corrupt (L10 held the L20 value 217; L20 was garbage 59) — reconstructed from the clean 110→330 line to L10=161, L20=217 (L30=274, L40=330 already fit). CONFIRMED in-game by the owner (2026-08-09): epic Life L10=161, L15=189, L20=217 — validating both the reconstruction AND the piecewise-linear interpolation (L15 is an interpolated, non-anchor level). Owner also confirmed all rarity-MAX values are correct and that Minion Attack Speed and Minion Cast Speed ALWAYS share one value (the single-source-row split is correct). NOTE: epic 'Intelligence' L20=59 is NOT an error (epic Int is linear 30→90, L20≈59.2).
 
 ## Implementation (engine model)
 
-WIRED (renderer). The table is folded into GET /api/hero-memories as base_stat_scaling (backend loads the top-level file at init) and cached in referenceStore.heroMemories.base_stat_scaling; on web it rides the existing hero_memories.json CDN export automatically. client.ts heroMemoryBaseStatValue(scaling, memoryType, affixName, rarity, level) does the piecewise-linear interpolation, and heroMemoryBaseStatText(...) substitutes the value into an affix's text. The creator (HeroTraitScreen.scaleBaseStat) now auto-computes the base-stat value from rarity+level (replacing the coarse 'fraction of the tier ladder' heuristic; falls back to it only if the table lacks the stat). The Compendium importer (crosswalk core.ts, via the injected ctx.computeBaseStatText from context.ts) RECOMPUTES each imported memory's base-stat value from this table at the assumed rarity-max level (owner decision: Compendium's exported value may be wrong). Stat-name mapping verified against _hero_memories base_stats: 13 direct + the source's single MinionCastAttackSpeed row feeds BOTH our 'Minion Attack Speed' and 'Minion Cast Speed'. Values rounded to 1 decimal (source precision). Level is still assumed at rarity-max on import (deriving it by inverting value→level is deferred — owner to compare in-game).
+WIRED (renderer). The table is folded into GET /api/hero-memories as base_stat_scaling (backend loads the top-level file at init) and cached in referenceStore.heroMemories.base_stat_scaling; on web it rides the existing hero_memories.json CDN export automatically. client.ts heroMemoryBaseStatValue(scaling, memoryType, affixName, rarity, level) does the piecewise-linear interpolation, and heroMemoryBaseStatText(...) substitutes the value into an affix's text. The creator (HeroTraitScreen.scaleBaseStat) now auto-computes the base-stat value from rarity+level (replacing the coarse 'fraction of the tier ladder' heuristic; falls back to it only if the table lacks the stat). The Compendium importer (crosswalk core.ts, via the injected ctx.computeBaseStatText from context.ts) RECOMPUTES each imported memory's base-stat value from this table at the assumed rarity-max level (owner decision: Compendium's exported value may be wrong). Stat-name mapping verified against _hero_memories base_stats: 13 direct + the source's single MinionCastAttackSpeed row feeds BOTH our 'Minion Attack Speed' and 'Minion Cast Speed'. Values rounded to 1 decimal (source precision). Level is assumed at rarity-max on import BY DESIGN: owner confirmed (2026-08-09) the rarity-MAX values are correct and that the source's non-max captures were the unreliable part, so max-level is the right assumption — value→level inversion is intentionally NOT done.
 
 ## Sources
 
