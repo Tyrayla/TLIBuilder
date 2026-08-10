@@ -1753,10 +1753,35 @@ export interface MemorySlotSelection {
   modifier: string
   tier: number
   rolledValue: number | null
+  // Multi-range affixes carry TWO+ INDEPENDENT rolls on one line (e.g. the combo mod "+(10–12)% Attack and
+  // Cast Speed for Combo Starters +(31–40)% Critical Strike Damage for Combo Finishers" — the two halves are
+  // different stats with different ranges that roll separately in-game). rolledValues holds one value per
+  // "(lo–hi)" range in `modifier`, in order — mirrors the Fate rolledValues pattern. When present it drives
+  // resolution/scaling; single-range affixes leave it undefined and use rolledValue. A null entry → that
+  // range's max (best roll), matching the fate/kismet default.
+  rolledValues?: (number | null)[]
   // Full effect text for name-only mods (tier-0 revival mods like "Artificial Moon: Origin", whose real
   // wording lives in the revival-pool glossary). Carried on the selection so the base-slot enabler parser
   // (parseBaseSlotEnabler) sees the rarity cap / penalty / type even after save/load/import. Optional.
   description?: string
+}
+
+// Count the "(lo–hi)" roll ranges in a memory-affix modifier (2+ = an independent-multi-roll combo affix).
+const MEMORY_RANGE_RE = /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g
+export function memoryRangeCount(modifier: string): number {
+  return (modifier.match(MEMORY_RANGE_RE) ?? []).length
+}
+// The max (best) bound of a "(lo–hi)" range token, e.g. "(31–40)" → 40.
+function memoryRangeMax(rangeToken: string): number {
+  const m = rangeToken.match(/(-?\d+(?:\.\d+)?)[–\-](-?\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[2]) : 0
+}
+// The [min,max] bounds of every "(lo–hi)" range in a modifier, in order (drives the multi-range roll editor).
+export function memoryRangeBounds(modifier: string): { min: number; max: number }[] {
+  return (modifier.match(MEMORY_RANGE_RE) ?? []).map(tok => {
+    const m = tok.match(/(-?\d+(?:\.\d+)?)[–\-](-?\d+(?:\.\d+)?)/)
+    return m ? { min: parseFloat(m[1]), max: parseFloat(m[2]) } : { min: 0, max: 0 }
+  })
 }
 
 export interface CreatedHeroMemory {
@@ -1812,6 +1837,10 @@ export function waxBaseStat(sel: MemorySlotSelection): MemorySlotSelection {
 // 2026-08-08: "−57% = ×0.43 and I don't believe it rounds"). Only the base stat + random affixes are scaled by
 // the caller; fixed affixes are passed through unscaled.
 export function scaleSelValue(sel: MemorySlotSelection, factor: number): MemorySlotSelection {
+  // Multi-range combo affix: scale each independent roll (a null entry stays null → resolves to its range max).
+  if (sel.rolledValues && sel.rolledValues.length) {
+    return { ...sel, rolledValues: sel.rolledValues.map(v => v == null ? v : v * factor) }
+  }
   if (sel.rolledValue != null) return { ...sel, rolledValue: sel.rolledValue * factor }
   // No rolled value → the number lives in the modifier text; scale the leading +N and cap to ≤2 non-zero
   // decimals (dec) so floating-point tails like "75.60000000000001" never reach the display or the engine text.
@@ -1823,12 +1852,21 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[], baseM
   // Accept an optional leading '-' on each bound so negative penalty ranges — e.g. the base-slot mod's
   // "(-60–-55) %" — resolve to their rolled value too (positive ranges are unaffected).
   const RANGE_RE = /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g
+  const fmtRoll = (v: number): string => Number.isInteger(v) ? String(v) : v.toFixed(2)
   const resolveModifier = (sel: MemorySlotSelection): string => {
     // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
     const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
+    // Multi-range combo affix (independent rolls): fill each "(lo–hi)" in order from rolledValues; a null/missing
+    // entry defaults to that range's max (best roll).
+    if (sel.rolledValues && sel.rolledValues.length) {
+      let i = 0
+      return mod.replace(RANGE_RE, (token) => {
+        const chosen = sel.rolledValues![i++]
+        return fmtRoll(chosen == null ? memoryRangeMax(token) : chosen)
+      })
+    }
     if (sel.rolledValue === null) return mod
-    const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(2)
-    return mod.replace(RANGE_RE, val)
+    return mod.replace(RANGE_RE, fmtRoll(sel.rolledValue))
   }
   for (const mem of memories) {
     if (!mem) continue

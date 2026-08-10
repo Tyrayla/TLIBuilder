@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, HeroMemoryType, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT, genMemoryId,
-  deriveTraitSlotLevels, activeBaseSlotEnabler, resolveBaseSlot, rarityWithinCap, heroMemoryBaseStatValue } from '../api/client'
+  deriveTraitSlotLevels, activeBaseSlotEnabler, resolveBaseSlot, rarityWithinCap, heroMemoryBaseStatValue,
+  memoryRangeCount, memoryRangeBounds } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -548,12 +549,21 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
   // The modeling-status badge depends only on the modifier TYPE, not the rolled value. Key it off a
   // value-INDEPENDENT text (the modifier template, value stripped) so dragging the slider doesn't re-request
   // the mapping and flap the badge — that flap reflowed the label and resized the flex slider (the flashing).
-  const modStatus = useTextModifierStatus(current ? resolveMemoryEffect({ ...current, rolledValue: null }) : null, 'memory')
+  // Strip BOTH roll forms so the badge key stays value-independent (a multi-range affix keeps rolledValues,
+  // which would otherwise change the text on every range-slider drag → re-request the mapping → badge flap).
+  const modStatus = useTextModifierStatus(current ? resolveMemoryEffect({ ...current, rolledValue: null, rolledValues: undefined }) : null, 'memory')
 
   const handleNameChange = (name: string) => {
     if (!name) { onChange(null); return }
     const entries = getTierOptions(pool, source, name).filter(e => e.tier >= (minTier ?? 0))
     if (entries.length === 0) { onChange(null); return }
+    // Multi-range combo affix (independent rolls): pick the best reachable tier (smallest tier number) and
+    // default each roll to its max (best), captured in rolledValues.
+    if (memoryRangeCount(entries[0].modifier) >= 2) {
+      const best = entries.reduce((a, b) => (a.tier <= b.tier ? a : b))
+      onChange({ modifier: best.modifier, tier: best.tier, rolledValue: null, rolledValues: memoryRangeBounds(best.modifier).map(b => b.max) })
+      return
+    }
     const ranges = buildTierRanges(entries)
     const best = ranges[ranges.length - 1]
     const pos = Math.floor((best.startPos + best.endPos) / 2)
@@ -577,6 +587,25 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
     ? [Math.min(...tierRanges.map(r => r.min)), Math.max(...tierRanges.map(r => r.max))]
     : [0, 0]
 
+  // Multi-range combo affix (e.g. Combo Starter speed + Combo Finisher crit dmg): two+ INDEPENDENT rolls on
+  // one line, edited by a tier picker + one input per range (the single tier-slider can't represent them).
+  const multiRange = tierEntries.length > 0 && memoryRangeCount(tierEntries[0].modifier) >= 2
+  const setRangeValue = (i: number, v: number) => {
+    if (!current) return
+    const bounds = memoryRangeBounds(current.modifier)
+    const b = bounds[i]; if (!b) return
+    const next = [...(current.rolledValues ?? bounds.map(x => x.max))]
+    next[i] = Math.min(b.max, Math.max(b.min, v))
+    onChange({ ...current, rolledValue: null, rolledValues: next })
+  }
+  // Switch tier: adopt the new tier's template + clamp each existing roll into the new bounds (null → new max).
+  const changeTier = (entry: HeroMemoryAffix) => {
+    const bounds = memoryRangeBounds(entry.modifier)
+    const prev = current?.rolledValues ?? []
+    const next = bounds.map((b, i) => { const v = prev[i]; return v == null ? b.max : Math.min(b.max, Math.max(b.min, v)) })
+    onChange({ modifier: entry.modifier, tier: entry.tier, rolledValue: null, rolledValues: next })
+  }
+
   return (
     <>
       <div className="memory-affix-row" {...(resolvedText ? tip.triggerProps : {})}>
@@ -587,7 +616,7 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
           <SearchableAffixSelect value={selectedName} options={names}
             badge={<ModifierBadge status={modStatus} />} onChange={handleNameChange} />
 
-          {selectedName && tierRanges.length > 0 && currentTierInfo && (
+          {selectedName && !multiRange && tierRanges.length > 0 && currentTierInfo && (
             <div className="memory-tier-slider-row">
               {/* Base stat (hideSlider): value is driven by the memory level, shown read-only — no tier slider.
                   A single fixed value also has no positions to slide (sliderMax === 0). */}
@@ -610,6 +639,42 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
               </span>
             </div>
           )}
+
+          {/* Multi-range combo affix: a tier picker + one slider/input per INDEPENDENT range (they roll
+              separately in-game, so a single tier-slider can't represent both). */}
+          {selectedName && multiRange && current && (() => {
+            const bounds = memoryRangeBounds(current.modifier)
+            const vals = current.rolledValues ?? bounds.map(b => b.max)
+            // Per-range label = the stat text following each range token (drop leading %, trailing "+").
+            const labels = current.modifier.split(/\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/).slice(1)
+              .map(s => s.replace(/^\s*%?\s*/, '').replace(/\s*\+\s*$/, '').trim())
+            const tierOpts = [...tierEntries].sort((a, b) => a.tier - b.tier)
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                {tierOpts.length > 1 && (
+                  <select className="gear-placeholder-select" value={current.tier}
+                    onChange={e => { const t = tierOpts.find(x => x.tier === Number(e.target.value)); if (t) changeTier(t) }}>
+                    {tierOpts.map(t => <option key={t.tier} value={t.tier}>{`T${t.tier}`}</option>)}
+                  </select>
+                )}
+                {bounds.map((b, i) => {
+                  const dp = Math.max((String(b.min).split('.')[1] || '').length, (String(b.max).split('.')[1] || '').length)
+                  const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
+                  const v = vals[i] ?? b.max
+                  return (
+                    <div key={i} className="memory-tier-slider-row">
+                      <input type="range" className="gear-affix-slider" min={b.min} max={b.max} step={step} value={v}
+                        onChange={e => setRangeValue(i, Number(e.target.value))} />
+                      <span className="memory-affix-value-col">
+                        <EditableRollValue value={v} dp={dp} range={[b.min, b.max]} color={color} onCommit={x => setRangeValue(i, x)} />
+                      </span>
+                      {labels[i] && <span style={{ fontSize: 11, color: 'var(--fg-muted)', flexBasis: '100%' }}>{labels[i]}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       </div>
       {resolvedText && tip.open && (

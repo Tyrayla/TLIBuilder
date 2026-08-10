@@ -316,6 +316,9 @@ function App() {
     if (typeof o.modifier !== 'string' || typeof o.tier !== 'number') return null
     return {
       modifier: o.modifier, tier: o.tier, rolledValue: typeof o.rolledValue === 'number' ? o.rolledValue : null,
+      // Preserve the independent per-range rolls of a multi-range combo affix (each entry a number or null →
+      // that range's max) so they survive save/load/import; dropping it would collapse both halves to one value.
+      ...(Array.isArray(o.rolledValues) ? { rolledValues: o.rolledValues.map(v => typeof v === 'number' ? v : null) } : {}),
       // Preserve the enabler description (name-only revival mods) so base-slot parsing survives save/load/import.
       ...(typeof o.description === 'string' && o.description ? { description: o.description } : {}),
     }

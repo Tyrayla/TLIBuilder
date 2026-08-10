@@ -6,7 +6,7 @@
 import React from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { CreatedHeroMemory, MemorySlotSelection, MemoryRarity, MEMORY_RARITY_COLORS, HeroMemoryType, iconUrl,
-  MAX_LEVEL_BY_RARITY, memoryTraitLevel, waxBaseStat, scaleSelValue } from '../api/client'
+  MAX_LEVEL_BY_RARITY, memoryTraitLevel, waxBaseStat, scaleSelValue, memoryRangeBounds } from '../api/client'
 import { useFloatingTooltip } from './tooltip/useFloatingTooltip'
 import { useDamageDelta, type StateTransform } from './tooltip/useDamageDelta'
 import { TooltipContributions } from './tooltip/TooltipContributions'
@@ -32,14 +32,22 @@ export function memoryTypeIconUrl(
   return iconUrl('hero_memory', row?.icon_url)
 }
 
-// Resolves one memory-slot selection (tier + optional rolled value) to its display text.
+// Resolves one memory-slot selection (tier + optional rolled value) to its display text. Mirrors
+// buildMemoryEffects.resolveModifier in api/client.ts — keep the two in sync.
 export function resolveMemoryEffect(sel: MemorySlotSelection): string {
   // Ensure leading + for modifiers that start with a digit (handles legacy stored data)
   const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
-  if (sel.rolledValue === null) return mod
-  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : dec(sel.rolledValue)
   // Optional leading '-' on each bound so a negative range (base-slot penalty "(-60–-55) %") resolves too.
-  return mod.replace(/\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g, val)
+  const RANGE = /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g
+  const fmt = (v: number): string => Number.isInteger(v) ? String(v) : dec(v)
+  // Multi-range combo affix (independent rolls): fill each "(lo–hi)" in order from rolledValues (null → max).
+  if (sel.rolledValues && sel.rolledValues.length) {
+    const bounds = memoryRangeBounds(sel.modifier)
+    let i = 0
+    return mod.replace(RANGE, () => { const j = i++; const c = sel.rolledValues![j]; return fmt(c != null ? c : (bounds[j]?.max ?? 0)) })
+  }
+  if (sel.rolledValue === null) return mod
+  return mod.replace(RANGE, fmt(sel.rolledValue))
 }
 
 // The memory trait-level helpers now live in api/client.ts (pure value layer, shared with the payload builder).
