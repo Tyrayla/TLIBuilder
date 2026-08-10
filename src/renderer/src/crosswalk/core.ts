@@ -260,7 +260,7 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
       // Rare / crafted: implicits (base-item, rendered) + base affixes (slots 0-1) + prefixes (2-4) +
       // suffixes (5-7). Explicits use the catalog affix verbatim (so the craft editor matches by
       // raw_text); the rolled value rides in customizations, indexed by explicit position.
-      const baseName = g.baseItem?.name ?? ''
+      const baseName = String(g.baseItem?.name ?? '')   // String()-coerce: untrusted gear name, non-string would throw at .toLowerCase()/interp
       const implicits = (g.baseItem?.implicits ?? []).map((a: any) => ({ ...affixFromMod(a), affix_kind: 'implicit' }))
       const explicitEntries: { mod: any; slot: number }[] = [
         ...[g.baseAffix, g.baseAffix2].filter(Boolean).map((m: any, i: number) => ({ mod: m, slot: i })),
@@ -430,7 +430,7 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
       const used = new Set<number>()
       for (const a of affixes) {
         const ref = slateMods.get(a.modGuid)
-        const t = (a.nodeType ?? '').toLowerCase()
+        const t = String(a.nodeType ?? '').toLowerCase()   // String()-coerce: untrusted slate affix, non-string nodeType would throw
         const slotType = t.includes('legendary') ? 'legendary' : t.includes('medium') ? 'rare' : 'magic'
         // Prefer the affix's own slotIndex; else the first free slot.
         let idx = typeof a.slotIndex === 'number' && a.slotIndex < slots.length && !used.has(a.slotIndex) ? a.slotIndex : -1
