@@ -84,11 +84,14 @@ def _canonical(resp: dict) -> dict:
 
 _MODELED_SKILLS = sorted(skill_resolver._REGISTRY)
 
-# SS12-pinned goldens that legitimately diverge under SS13's rebalance. 2026-08-10: owner approved
-# recapturing mind_control (DoT base 675→519/s), path_of_flames (base rate +~2.5%), and icebound_beam
-# (base damage raised, + the Ring Blade negative-roll parse fix) to SS13 output — recaptured and unpinned.
-# chromatic_shot stays pinned until its SS13-rework scaling audit signs off.
-_SS12_PINNED_GOLDENS: set[str] = {"chromatic_shot"}
+# SS12-pinned goldens that legitimately diverged under SS13's rebalance — all four owner-approved for
+# SS13 recapture on 2026-08-10 and unpinned: mind_control (DoT base 675→519/s), path_of_flames (base rate
+# +~2.5%), icebound_beam (base damage raised), and chromatic_shot after a scaling audit of its SS13 rework
+# (compulsory random-element conversion removed, plain Physical: physical/spell pools + skill levels apply
+# exactly, element/elemental pools + element skill levels inert, added typed flat ×1.31 eff stays typed,
+# standard conversion cascade routes correctly, shotgun/shots-cap/Lightchaser regression tests all green).
+# Set kept (empty) so the next season's rebalance has the guard pattern ready.
+_SS12_PINNED_GOLDENS: set[str] = set()
 
 
 def test_modeled_skills_present():

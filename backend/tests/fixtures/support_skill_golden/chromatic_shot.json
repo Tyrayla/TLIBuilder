@@ -44,10 +44,8 @@
     "cold_spell_dmg_flat_min",
     "crit_dmg_additional",
     "crit_dmg_inc",
-    "crit_dmg_inc_per_mana_consumed",
     "crit_rating_additional",
     "crit_rating_inc",
-    "crit_rating_inc_per_mana_consumed",
     "defense_inc",
     "dexterity",
     "dexterity_additional",
@@ -77,8 +75,14 @@
     "energy_shield_regain_inc",
     "energy_shield_regain_interval_additional",
     "energy_shield_restored_pct_lost_per_burst",
+    "erosion_crit_dmg_inc",
+    "erosion_curse_taken",
+    "erosion_dmg_additional",
+    "erosion_dmg_inc",
+    "erosion_pen",
     "erosion_resistance",
     "erosion_resistance_max_inc",
+    "erosion_skill_level",
     "erosion_spell_dmg_flat_max",
     "erosion_spell_dmg_flat_min",
     "es_regain_to_restoration",
@@ -150,6 +154,7 @@
     "lightning_spell_dmg_flat_min",
     "lucky_cold",
     "lucky_crit",
+    "lucky_erosion",
     "lucky_fire",
     "lucky_lightning",
     "main_skill_level",
@@ -196,6 +201,7 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
+    "max_terra_charge_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
@@ -208,10 +214,12 @@
     "physical_convert_to_erosion",
     "physical_convert_to_fire",
     "physical_convert_to_lightning",
+    "physical_crit_dmg_inc",
     "physical_dmg_additional",
     "physical_dmg_inc",
     "physical_dmg_max_additional",
     "physical_dmg_min_additional",
+    "physical_skill_level",
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
     "projectile_crit_dmg_inc",
@@ -256,6 +264,7 @@
     "triple_dmg_chance",
     "unlucky_cold",
     "unlucky_crit",
+    "unlucky_erosion",
     "unlucky_fire",
     "unlucky_lightning",
     "weapon_attack_speed",
@@ -265,8 +274,12 @@
     "above_max_mult": 1.0,
     "base_cast_time": 0.65,
     "base_csr": 500.0,
-    "base_dmg_max": {},
-    "base_dmg_min": {},
+    "base_dmg_max": {
+      "physical": 881.0
+    },
+    "base_dmg_min": {
+      "physical": 529.0
+    },
     "cast_multiplier": 1.0,
     "channel_attack_smooth_sps": 0.0,
     "channel_attack_ticks": 0,
@@ -279,29 +292,7 @@
     "channeled_min_stacks": 0,
     "channeled_rounds_per_cycle": 0.0,
     "channeled_stacks": 0.0,
-    "compulsory_breakdown": {
-      "cold": {
-        "avg_pre_crit": 4335.180240971813,
-        "avg_with_crit": 4660.318759044699,
-        "hit_max": 5928.841877795107,
-        "hit_min": 2741.5186041485194,
-        "mitigation": 0.48999999999999994
-      },
-      "fire": {
-        "avg_pre_crit": 3941.072946338012,
-        "avg_with_crit": 4236.653417313363,
-        "hit_max": 5389.856252541006,
-        "hit_min": 2492.2896401350176,
-        "mitigation": 0.48999999999999994
-      },
-      "lightning": {
-        "avg_pre_crit": 7818.10345729803,
-        "avg_with_crit": 8404.461216595382,
-        "hit_max": 10692.127340978219,
-        "hit_min": 4944.07957361784,
-        "mitigation": 0.48999999999999994
-      }
-    },
+    "compulsory_breakdown": {},
     "crit_chance": 0.15,
     "crit_chance_uncapped": 0.15,
     "crit_luck_effect": "",
@@ -309,22 +300,25 @@
     "damage_rows": [
       {
         "dps_by_type_vs_target": {
-          "cold": 2173.47707293621,
-          "fire": 1975.8882481238277,
-          "lightning": 3919.6683122156414
+          "cold": 2869.5420816195433,
+          "erosion": 2608.6746196541303,
+          "fire": 4298.588699734387,
+          "lightning": 8527.325333098088
         },
-        "dps_final": 16467.415578113632,
-        "dps_vs_target_final": 8069.03363327568,
+        "dps_final": 37355.36884511459,
+        "dps_vs_target_final": 18304.130734106147,
         "form_index": 0,
         "hit_max_by_type": {
-          "cold": 5928.841877795107,
-          "fire": 5389.856252541006,
-          "lightning": 10692.127340978219
+          "cold": 2384.241199104926,
+          "erosion": 2167.491999186296,
+          "fire": 3625.9566051259767,
+          "lightning": 8543.165024367314
         },
         "hit_min_by_type": {
-          "cold": 2741.5186041485194,
-          "fire": 2492.2896401350176,
-          "lightning": 4944.07957361784
+          "cold": 1431.451878675019,
+          "erosion": 1301.3198897045627,
+          "fire": 2089.9711210645382,
+          "lightning": 2795.806602463118
         },
         "kind": "hit",
         "name": "Chromatic Shot",
@@ -354,11 +348,13 @@
     "effective_level": 20,
     "enemy_mult_by_type": {
       "cold": 0.5389999999999999,
+      "erosion": 0.48999999999999994,
       "fire": 0.48999999999999994,
       "lightning": 0.7349999999999999
     },
     "enemy_vuln_by_type": {
       "cold": 1.1,
+      "erosion": 1.0,
       "fire": 1.0,
       "lightning": 1.5
     },
@@ -373,6 +369,16 @@
         "cold_infiltration_taken",
         "frail_spell_taken",
         "cold_curse_taken",
+        "hit_curse_taken"
+      ],
+      "erosion": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frail_spell_taken",
+        "erosion_curse_taken",
         "hit_curse_taken"
       ],
       "fire": [
@@ -400,42 +406,49 @@
       ]
     },
     "flat_dmg_max": {
-      "fire": 211.95000000000002,
-      "lightning": 310.86,
-      "physical": 204.1
+      "fire": 176.85,
+      "lightning": 259.38,
+      "physical": 1051.3
     },
     "flat_dmg_min": {
-      "fire": 114.61,
-      "lightning": 15.700000000000001,
-      "physical": 122.46000000000001
+      "fire": 95.63000000000001,
+      "lightning": 13.100000000000001,
+      "physical": 631.1800000000001
     },
-    "generic_add": 2.95025822429184,
+    "generic_add": 8.246901927846652,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 5364.785548202618,
-        "avg_hit_with_crit": 5767.144464317814,
-        "base_max_by_type": {},
-        "base_min_by_type": {},
-        "damage_by_type": {
-          "cold": 1445.0600803239377,
-          "fire": 1313.6909821126708,
-          "lightning": 2606.0344857660098
+        "avg_hit_pre_crit": 12169.702159845876,
+        "avg_hit_with_crit": 13082.429821834316,
+        "base_max_by_type": {
+          "physical": 881.0
         },
-        "dps_contribution": 16467.415578113632,
-        "dps_vs_target": 8069.03363327568,
+        "base_min_by_type": {
+          "physical": 529.0
+        },
+        "damage_by_type": {
+          "cold": 1907.8465388899726,
+          "erosion": 1734.4059444454294,
+          "fire": 2857.9638630952577,
+          "lightning": 5669.485813415216
+        },
+        "dps_contribution": 37355.36884511459,
+        "dps_vs_target": 18304.130734106147,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 1.7846153846153843,
         "form_type": "additive",
         "hit_max_by_type": {
-          "cold": 5928.841877795107,
-          "fire": 5389.856252541006,
-          "lightning": 10692.127340978219
+          "cold": 2384.241199104926,
+          "erosion": 2167.491999186296,
+          "fire": 3625.9566051259767,
+          "lightning": 8543.165024367314
         },
         "hit_min_by_type": {
-          "cold": 2741.5186041485194,
-          "fire": 2492.2896401350176,
-          "lightning": 4944.07957361784
+          "cold": 1431.451878675019,
+          "erosion": 1301.3198897045627,
+          "fire": 2089.9711210645382,
+          "lightning": 2795.806602463118
         },
         "hits_per_fire": 3,
         "name": "Chromatic Shot",
@@ -494,10 +507,12 @@
       "Spell",
       "Projectile",
       "Area",
-      "Cold",
-      "Fire",
-      "Lightning",
-      "Horizontal"
+      "Physical",
+      "Horizontal",
+      "cold",
+      "erosion",
+      "fire",
+      "lightning"
     ],
     "skills_per_second": 1.7846153846153843,
     "spell_burst_auto": false,
@@ -539,21 +554,24 @@
     "tangle_placeable": 0,
     "target_mitigation_by_type": {
       "cold": 0.48999999999999994,
+      "erosion": 0.48999999999999994,
       "fire": 0.48999999999999994,
       "lightning": 0.48999999999999994
     },
-    "total_dps": 16467.415578113632,
-    "total_dps_vs_target": 8069.03363327568,
+    "total_dps": 37355.36884511459,
+    "total_dps_vs_target": 18304.130734106147,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
-      "cold": 2.95025822429184,
-      "fire": 2.95025822429184,
-      "lightning": 3.9017165016259576,
-      "physical": 2.95025822429184
+      "cold": 8.246901927846652,
+      "erosion": 8.246901927846652,
+      "fire": 8.246901927846652,
+      "lightning": 10.9065277995772,
+      "physical": 8.246901927846652
     },
     "type_inc": {
       "cold": 0,
+      "erosion": 0,
       "fire": 0,
       "lightning": 0,
       "physical": 0
@@ -579,8 +597,12 @@
       "above_max_mult": 1.0,
       "base_cast_time": 0.65,
       "base_csr": 500.0,
-      "base_dmg_max": {},
-      "base_dmg_min": {},
+      "base_dmg_max": {
+        "physical": 881.0
+      },
+      "base_dmg_min": {
+        "physical": 529.0
+      },
       "cast_multiplier": 1.0,
       "channel_attack_smooth_sps": 0.0,
       "channel_attack_ticks": 0,
@@ -593,29 +615,7 @@
       "channeled_min_stacks": 0,
       "channeled_rounds_per_cycle": 0.0,
       "channeled_stacks": 0.0,
-      "compulsory_breakdown": {
-        "cold": {
-          "avg_pre_crit": 4335.180240971813,
-          "avg_with_crit": 4660.318759044699,
-          "hit_max": 5928.841877795107,
-          "hit_min": 2741.5186041485194,
-          "mitigation": 0.48999999999999994
-        },
-        "fire": {
-          "avg_pre_crit": 3941.072946338012,
-          "avg_with_crit": 4236.653417313363,
-          "hit_max": 5389.856252541006,
-          "hit_min": 2492.2896401350176,
-          "mitigation": 0.48999999999999994
-        },
-        "lightning": {
-          "avg_pre_crit": 7818.10345729803,
-          "avg_with_crit": 8404.461216595382,
-          "hit_max": 10692.127340978219,
-          "hit_min": 4944.07957361784,
-          "mitigation": 0.48999999999999994
-        }
-      },
+      "compulsory_breakdown": {},
       "crit_chance": 0.15,
       "crit_chance_uncapped": 0.15,
       "crit_luck_effect": "",
@@ -623,22 +623,25 @@
       "damage_rows": [
         {
           "dps_by_type_vs_target": {
-            "cold": 2173.47707293621,
-            "fire": 1975.8882481238277,
-            "lightning": 3919.6683122156414
+            "cold": 2869.5420816195433,
+            "erosion": 2608.6746196541303,
+            "fire": 4298.588699734387,
+            "lightning": 8527.325333098088
           },
-          "dps_final": 16467.415578113632,
-          "dps_vs_target_final": 8069.03363327568,
+          "dps_final": 37355.36884511459,
+          "dps_vs_target_final": 18304.130734106147,
           "form_index": 0,
           "hit_max_by_type": {
-            "cold": 5928.841877795107,
-            "fire": 5389.856252541006,
-            "lightning": 10692.127340978219
+            "cold": 2384.241199104926,
+            "erosion": 2167.491999186296,
+            "fire": 3625.9566051259767,
+            "lightning": 8543.165024367314
           },
           "hit_min_by_type": {
-            "cold": 2741.5186041485194,
-            "fire": 2492.2896401350176,
-            "lightning": 4944.07957361784
+            "cold": 1431.451878675019,
+            "erosion": 1301.3198897045627,
+            "fire": 2089.9711210645382,
+            "lightning": 2795.806602463118
           },
           "kind": "hit",
           "name": "Chromatic Shot",
@@ -668,11 +671,13 @@
       "effective_level": 20,
       "enemy_mult_by_type": {
         "cold": 0.5389999999999999,
+        "erosion": 0.48999999999999994,
         "fire": 0.48999999999999994,
         "lightning": 0.7349999999999999
       },
       "enemy_vuln_by_type": {
         "cold": 1.1,
+        "erosion": 1.0,
         "fire": 1.0,
         "lightning": 1.5
       },
@@ -687,6 +692,16 @@
           "cold_infiltration_taken",
           "frail_spell_taken",
           "cold_curse_taken",
+          "hit_curse_taken"
+        ],
+        "erosion": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frail_spell_taken",
+          "erosion_curse_taken",
           "hit_curse_taken"
         ],
         "fire": [
@@ -714,42 +729,49 @@
         ]
       },
       "flat_dmg_max": {
-        "fire": 211.95000000000002,
-        "lightning": 310.86,
-        "physical": 204.1
+        "fire": 176.85,
+        "lightning": 259.38,
+        "physical": 1051.3
       },
       "flat_dmg_min": {
-        "fire": 114.61,
-        "lightning": 15.700000000000001,
-        "physical": 122.46000000000001
+        "fire": 95.63000000000001,
+        "lightning": 13.100000000000001,
+        "physical": 631.1800000000001
       },
-      "generic_add": 2.95025822429184,
+      "generic_add": 8.246901927846652,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 5364.785548202618,
-          "avg_hit_with_crit": 5767.144464317814,
-          "base_max_by_type": {},
-          "base_min_by_type": {},
-          "damage_by_type": {
-            "cold": 1445.0600803239377,
-            "fire": 1313.6909821126708,
-            "lightning": 2606.0344857660098
+          "avg_hit_pre_crit": 12169.702159845876,
+          "avg_hit_with_crit": 13082.429821834316,
+          "base_max_by_type": {
+            "physical": 881.0
           },
-          "dps_contribution": 16467.415578113632,
-          "dps_vs_target": 8069.03363327568,
+          "base_min_by_type": {
+            "physical": 529.0
+          },
+          "damage_by_type": {
+            "cold": 1907.8465388899726,
+            "erosion": 1734.4059444454294,
+            "fire": 2857.9638630952577,
+            "lightning": 5669.485813415216
+          },
+          "dps_contribution": 37355.36884511459,
+          "dps_vs_target": 18304.130734106147,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 1.7846153846153843,
           "form_type": "additive",
           "hit_max_by_type": {
-            "cold": 5928.841877795107,
-            "fire": 5389.856252541006,
-            "lightning": 10692.127340978219
+            "cold": 2384.241199104926,
+            "erosion": 2167.491999186296,
+            "fire": 3625.9566051259767,
+            "lightning": 8543.165024367314
           },
           "hit_min_by_type": {
-            "cold": 2741.5186041485194,
-            "fire": 2492.2896401350176,
-            "lightning": 4944.07957361784
+            "cold": 1431.451878675019,
+            "erosion": 1301.3198897045627,
+            "fire": 2089.9711210645382,
+            "lightning": 2795.806602463118
           },
           "hits_per_fire": 3,
           "name": "Chromatic Shot",
@@ -808,10 +830,12 @@
         "Spell",
         "Projectile",
         "Area",
-        "Cold",
-        "Fire",
-        "Lightning",
-        "Horizontal"
+        "Physical",
+        "Horizontal",
+        "cold",
+        "erosion",
+        "fire",
+        "lightning"
       ],
       "skills_per_second": 1.7846153846153843,
       "spell_burst_auto": false,
@@ -853,21 +877,24 @@
       "tangle_placeable": 0,
       "target_mitigation_by_type": {
         "cold": 0.48999999999999994,
+        "erosion": 0.48999999999999994,
         "fire": 0.48999999999999994,
         "lightning": 0.48999999999999994
       },
-      "total_dps": 16467.415578113632,
-      "total_dps_vs_target": 8069.03363327568,
+      "total_dps": 37355.36884511459,
+      "total_dps_vs_target": 18304.130734106147,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
-        "cold": 2.95025822429184,
-        "fire": 2.95025822429184,
-        "lightning": 3.9017165016259576,
-        "physical": 2.95025822429184
+        "cold": 8.246901927846652,
+        "erosion": 8.246901927846652,
+        "fire": 8.246901927846652,
+        "lightning": 10.9065277995772,
+        "physical": 8.246901927846652
       },
       "type_inc": {
         "cold": 0,
+        "erosion": 0,
         "fire": 0,
         "lightning": 0,
         "physical": 0
@@ -976,6 +1003,46 @@
       "slot_sources": [
         {
           "amount": 0.2,
+          "label": "Chromatic Shot: Condensed Cold (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Cold (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chromatic_shot_condensed_cold_noble|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Chromatic Shot: Condensed Erosion (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Erosion (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chromatic_shot_condensed_erosion_noble|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Chromatic Shot: Condensed Fire (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Fire (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chromatic_shot_condensed_fire_noble|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Chromatic Shot: Condensed Lightning (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Lightning (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chromatic_shot_condensed_lightning_noble|universal"
+        },
+        {
+          "amount": 0.2,
           "label": "Chromatic Shot: Lightchaser (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
@@ -985,24 +1052,14 @@
           "text": "additional damage for the supported skill |chromatic_shot_lightchaser_magnificent|universal"
         },
         {
-          "amount": -0.02,
+          "amount": -0.135,
           "label": "Chromatic Shot: Lightchaser (Magnificent)",
           "points": 1,
           "scope": null,
           "slot": 1,
           "source_name": "Chromatic Shot: Lightchaser (Magnificent)",
           "source_type": "support",
-          "text": "+-2.00% additional damage |chromatic_shot_lightchaser_magnificent|lightchaser_roll"
-        },
-        {
-          "amount": 0.2,
-          "label": "Chromatic Shot: Splendor (Noble) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Chromatic Shot: Splendor (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |chromatic_shot_splendor_noble|universal"
+          "text": "+-13.50% additional damage |chromatic_shot_lightchaser_magnificent|lightchaser_roll"
         },
         {
           "amount": 0.16,
@@ -1140,19 +1197,106 @@
       "display_name": "Additional Hit Damage",
       "slot_sources": [
         {
-          "amount": 0.29,
-          "label": "Chromatic Shot: Splendor (Noble)",
+          "amount": 0.24,
+          "label": "Chromatic Shot: Condensed Cold (Noble)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Chromatic Shot: Splendor (Noble)",
+          "source_name": "Chromatic Shot: Condensed Cold (Noble)",
           "source_type": "support",
-          "text": "+29.00% additional Hit Damage vs enemies with Frostbite + Numbed + Ignite |chromatic_shot_splendor_noble|splendor_roll"
+          "text": "+24.00% additional Hit Damage for the supported skill |chromatic_shot_condensed_cold_noble|condensed_roll"
+        },
+        {
+          "amount": 0.24,
+          "label": "Chromatic Shot: Condensed Erosion (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Erosion (Noble)",
+          "source_type": "support",
+          "text": "+24.00% additional Hit Damage for the supported skill |chromatic_shot_condensed_erosion_noble|condensed_roll"
+        },
+        {
+          "amount": 0.24,
+          "label": "Chromatic Shot: Condensed Fire (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Fire (Noble)",
+          "source_type": "support",
+          "text": "+24.00% additional Hit Damage for the supported skill |chromatic_shot_condensed_fire_noble|condensed_roll"
+        },
+        {
+          "amount": 0.24,
+          "label": "Chromatic Shot: Condensed Lightning (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Condensed Lightning (Noble)",
+          "source_type": "support",
+          "text": "+24.00% additional Hit Damage for the supported skill |chromatic_shot_condensed_lightning_noble|condensed_roll"
         }
       ],
       "sources": [],
       "total": 0.0,
       "unit": "%"
+    },
+    "ignite_chance": {
+      "category": "Ailments",
+      "display_name": "Chance to Ignite targets",
+      "slot_sources": [
+        {
+          "amount": 0.4,
+          "label": "Chromatic Shot: Condensed Fire (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+40% Ignite chance for the supported skill |chromatic_shot_condensed_fire_noble|chance"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "ignite_dmg_flat_max": {
+      "category": "Ailments",
+      "display_name": "Max Base Ignite Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Fire (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Adds 1-1 Base Ignite Damage to the supported skill |chromatic_shot_condensed_fire_noble|base_max"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "ignite_dmg_flat_min": {
+      "category": "Ailments",
+      "display_name": "Min Base Ignite Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Fire (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Adds 1-1 Base Ignite Damage to the supported skill |chromatic_shot_condensed_fire_noble|base_min"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
     },
     "lightning_dmg_additional": {
       "category": "Lightning",
@@ -1313,6 +1457,82 @@
       "total": 0.5,
       "unit": "%"
     },
+    "physical_convert_to_cold": {
+      "category": "Physical",
+      "display_name": "Physical Damage converted to Cold Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Cold (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Converts 100% of the supported skill's Physical Damage to Cold Damage |chromatic_shot_condensed_cold_noble|convert"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "physical_convert_to_erosion": {
+      "category": "Physical",
+      "display_name": "Physical Damage converted to Erosion Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Erosion (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Converts 100% of the supported skill's Physical Damage to Erosion Damage |chromatic_shot_condensed_erosion_noble|convert"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "physical_convert_to_fire": {
+      "category": "Physical",
+      "display_name": "Physical Damage converted to Fire Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Fire (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Converts 100% of the supported skill's Physical Damage to Fire Damage |chromatic_shot_condensed_fire_noble|convert"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "physical_convert_to_lightning": {
+      "category": "Physical",
+      "display_name": "Physical Damage converted to Lightning Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Lightning (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Converts 100% of the supported skill's Physical Damage to Lightning Damage |chromatic_shot_condensed_lightning_noble|convert"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "physical_dmg_gear_flat_max": {
       "category": "Gear",
       "display_name": "Gear Physical Damage Max",
@@ -1445,6 +1665,63 @@
         }
       ],
       "total": 1200.0,
+      "unit": ""
+    },
+    "wilt_chance": {
+      "category": "Ailments",
+      "display_name": "Wilt Chance",
+      "slot_sources": [
+        {
+          "amount": 0.4,
+          "label": "Chromatic Shot: Condensed Erosion (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+40% Wilt chance for the supported skill |chromatic_shot_condensed_erosion_noble|chance"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "wilt_dmg_flat_max": {
+      "category": "Ailments",
+      "display_name": "Max Base Wilt Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Erosion (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Adds 1-1 Base Wilt Damage to the supported skill |chromatic_shot_condensed_erosion_noble|base_max"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "wilt_dmg_flat_min": {
+      "category": "Ailments",
+      "display_name": "Min Base Wilt Damage",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Chromatic Shot: Condensed Erosion (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Adds 1-1 Base Wilt Damage to the supported skill |chromatic_shot_condensed_erosion_noble|base_min"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
       "unit": ""
     }
   }

@@ -1667,7 +1667,13 @@ def calculate_offense(
     double_dmg_factor = (4 * q4 + 3 * (1 - q4) * q3 + 2 * (1 - q4) * (1 - q3) * q2
                          + (1 - q4) * (1 - q3) * (1 - q2))
 
-    effective_level = skill_effective_level(source, skill.tags, base_level, is_main_skill)
+    # GRANTED Tags count for +<Tag> Skill Level too (owner-ruled 2026-08-10: "The supported skill gains the
+    # Fire Tag" ⇒ +Fire Skill Level applies — e.g. Chromatic Shot's Condensed supports). Only add_mod_tags
+    # (real granted Tags) join; extra_damage_mod_tags stays damage-pool-only per its own contract (Moon
+    # Strike's ['spell'] must NOT enable spell_skill_level), and remove_mod_tags removals carry through via
+    # skill_tags_lower. Byte-identical when no tags are granted (the common case).
+    _level_tags = (skill_tags_lower | {t.lower() for t in add_mod_tags}) if add_mod_tags else skill.tags
+    effective_level = skill_effective_level(source, list(_level_tags), base_level, is_main_skill)
     lookup_level = min(effective_level, skill.max_level)
 
     # 2. Flat damage pool per type: weapon base (× gear inc) + ring/gear/talent flat adds

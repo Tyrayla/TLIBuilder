@@ -1418,6 +1418,9 @@ def compute(
     _behavior = build_input.support_behavior or {}
     _behavior_by_slot = _behavior if all(isinstance(k, int) for k in _behavior) else {1: _behavior}
 
+    # Per-slot granted Tags (add_mod_tags), recorded by _offense_for_slot for the skill-slot summary below.
+    _granted_tags_by_slot: dict[int, set] = {}
+
     def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
         skill_effects module (if any) emits its slot-local effects first — Berserking Blade's intrinsic
@@ -1547,6 +1550,9 @@ def compute(
         # Channeled-scoped mods apply and the skill reports as channeled).
         if overrides.get("add_mod_tags"):
             add_mod_tags = (add_mod_tags or set()) | set(overrides["add_mod_tags"])
+        # Record the slot's GRANTED tags so the skill-slot summary's effective-level display matches the
+        # offense math (granted Tags count for +<Tag> Skill Level — owner-ruled 2026-08-10; see offense.py).
+        _granted_tags_by_slot[slot] = set(add_mod_tags or ())
         # ── Shadow Strike mode ── data-driven off the skill's own tags (Help DB: shadow-strike;
         # master_glossary 136 "Phantom") — any current/future registered Shadow-Strike skill lights this up,
         # not just Thunder Spike. N_base = Max Shadow Quantity (gear/support/talent, e.g. Haunt's "+2 Shadow
@@ -1720,7 +1726,9 @@ def compute(
             if sd:
                 resolved_sk = resolve_skill(sd)
                 eff = skill_effective_level(
-                    source, resolved_sk.tags, sk["level"],
+                    # Granted Tags (e.g. Condensed's Fire Tag) count for +<Tag> Skill Level — keep this
+                    # display in lockstep with the offense math (owner-ruled 2026-08-10).
+                    source, resolved_sk.tags + sorted(_granted_tags_by_slot.get(sk["slot"], ())), sk["level"],
                     is_main_skill=(sk["slot"] == 1),
                 )
                 result_skill_slots.append({
