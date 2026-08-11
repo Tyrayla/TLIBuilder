@@ -592,23 +592,85 @@ def compute(
     reservation: dict | None = None
     _prev_consumed_recently_life = 0.0   # carries consumed-recently across passes for the AS-per-consumed feedback
     _prev_burst_rate = 0.0               # carries the burst-trigger rate across passes for the Flash Flood AS/CS feedback
-    # Origin of Thunder (Spirit Magus summoner buff): auto-active when a Thunder Magus summon skill is slotted.
-    # Set BEFORE the fixed-point loop so the aggregator's Origin-of-Thunder block emits the +6% additional
-    # Attack/Cast Speed + level-scaled additional damage (scaled by Origin of Spirit Magus Effect). Level = the
-    # summon skill's level. Marked manual so the condition-effect resolver doesn't clobber the engine value.
-    _slotted_for_origin: list[tuple[str, int]] = []
+    # Spirit Magus Origins (summoner buffs): auto-active when a magus summon skill is slotted. Set BEFORE
+    # the fixed-point loop so the aggregator emits them (scaled by Origin of Spirit Magus Effect). Thunder
+    # keeps its formula-based emission block (golden-locked, the data is exactly linear); the other four
+    # origins + the magnificent added-origin effects are parsed from the season data at the equipped level
+    # (engine/spirit_magus_origins.py; spec: .wolf/engine-spec-magus-origins.md). Same magus slotted twice
+    # does NOT stack (first slot wins — main first, matching the old Thunder `break`). Marked manual so the
+    # condition-effect resolver doesn't clobber the engine values.
+    from engine import spirit_magus_origins as _smo
+    _slotted_for_origin: list[tuple[str, int, int]] = []
     if build_input.main_skill:
-        _slotted_for_origin.append((build_input.main_skill.skill_id, build_input.main_skill.level))
+        _slotted_for_origin.append((build_input.main_skill.skill_id, build_input.main_skill.level, main_slot))
     for _sk in (skills_input or []):
         if _sk.get("enabled", True):
-            _slotted_for_origin.append((_sk["skill_id"], int(_sk.get("level", 1))))
-    for _sid, _lvl in _slotted_for_origin:
-        if _sid == "summon_thunder_magus":
-            condition_state["origin_of_thunder"] = True
-            condition_state["origin_of_thunder_level"] = float(_lvl)
-            manual_cond_keys.add("origin_of_thunder")
-            manual_cond_keys.add("origin_of_thunder_level")
-            break
+            _slotted_for_origin.append((_sk["skill_id"], int(_sk.get("level", 1)), int(_sk.get("slot", 0))))
+
+    def _set_origin_cond(key: str, value) -> None:
+        condition_state[key] = value
+        manual_cond_keys.add(key)
+
+    _seen_origin_ids: set[str] = set()
+    _granted_origin_flags: list[str] = []          # one entry per magus TYPE that actually granted its origin
+    _origin_parse_failures: list[str] = []         # magus slotted but magnitude unparsable → warned, not guessed
+    _pending_scalar: list[tuple[str, int, float]] = []   # (origin flag, min distinct types, pct) — gated below
+    for _sid, _lvl, _oslot in _slotted_for_origin:
+        if _sid in _seen_origin_ids or not (_sid == _smo.THUNDER_ID or _sid in _smo.ORIGIN_SPECS):
+            continue
+        _seen_origin_ids.add(_sid)
+        _flag = None
+        if _sid == _smo.THUNDER_ID:
+            _flag = "origin_of_thunder"
+            _set_origin_cond("origin_of_thunder", True)
+            _set_origin_cond("origin_of_thunder_level", float(_lvl))
+        else:
+            _sd = (skills_by_id or {}).get(_sid)
+            _mag = _smo.origin_magnitude(_sd, _lvl) if _sd else None
+            if _mag is not None:   # unparsed origin doesn't activate — never guess a magnitude (warned below)
+                _spec = _smo.ORIGIN_SPECS[_sid]
+                _flag = _spec["cond"]
+                _set_origin_cond(_flag, True)
+                _set_origin_cond(_flag + "_value", float(_mag))
+            elif _sd is not None:
+                _origin_parse_failures.append(str(_sd.get("name") or _sid))
+        if _flag is None:
+            continue
+        _granted_origin_flags.append(_flag)
+        # Supports attached to THIS magus's slot: magnificent added-origin effects ("gains an additional
+        # effect: ...", tier-midpoint at the support's level; Wicked excluded — minion-scoped, see the
+        # module docstring) and origin-effect SCALAR supports ("N% Origin of Spirit Magus effect for the
+        # supported skill" — per-skill scoped to this magus's own factor; Friend pair gated on the count
+        # of distinct magus types, applied after the scan when the count is known).
+        for _sup in (build_input.attached_supports or []):
+            if _sup.get("slot", 1) != _oslot or not _sup.get("enabled", True):
+                continue
+            _sup_id = _sup.get("item_id") or ""
+            _mspec = _smo.MAGNIFICENT_ORIGIN_EFFECTS.get(_sup_id)
+            if _mspec is not None and _mspec["owner"] == _sid:
+                _msd = (skills_by_id or {}).get(_sup_id)
+                # Magnificents: the support's `level` field carries its roll TIER (0-2, lower = better);
+                # the helper applies support_resolver's tier convention (exact match, fallback tier 1).
+                _mid = _smo.magnificent_effect_midpoint(_msd, _sup.get("level")) if _msd else None
+                if _mid is not None:
+                    _set_origin_cond(_mspec["cond"], True)
+                    _set_origin_cond(_mspec["cond"] + "_value", float(_mid))
+            _sspec = _smo.SCALAR_ORIGIN_SUPPORTS.get(_sup_id)
+            if _sspec is not None:
+                _ssd = (skills_by_id or {}).get(_sup_id)
+                _pct = _smo.scalar_support_value(_ssd, int(_sup.get("level", 1))) if _ssd else None
+                if _pct is not None:
+                    _pending_scalar.append((_flag, int(_sspec["min_types"]), float(_pct)))
+    # Friend-of-Spirit-Magi gate: "at least N type(s) of Spirit Magus at the same time" — count = distinct
+    # magus types that actually granted an origin. Passing supports sum into THEIR magus's own increased
+    # factor (per-skill scope: "...effect for the supported skill").
+    _n_types = len(_granted_origin_flags)
+    _scalar_inc_by_flag: dict[str, float] = {}
+    for _flag, _min_types, _pct in _pending_scalar:
+        if _n_types >= _min_types:
+            _scalar_inc_by_flag[_flag] = _scalar_inc_by_flag.get(_flag, 0.0) + _pct / 100.0
+    for _flag, _inc in _scalar_inc_by_flag.items():
+        _set_origin_cond(_flag + "_support_inc", _inc)
 
     _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
@@ -1707,10 +1769,50 @@ def compute(
 
     source._recording = False
 
+    # ── Origin of Spirit Magus summary (display) ── one row per active origin / added effect, with the
+    # SCALED magnitude baked into the text — same table + clamp helper the aggregator emits from, so the
+    # box always mirrors what the engine actually granted (display-fidelity). Post-loop, recording off →
+    # golden-neutral reads. None when no magus is slotted.
+    origin_summary: dict | None = None
+    _origin_rows: list[dict] = []
+    if any(condition_state.get(f) for f, *_ in _smo.EMIT_TABLE) or condition_state.get("origin_of_thunder"):
+        _oi = source.total("spirit_magi_origin_effect_inc")
+        _oa = source.total("spirit_magi_origin_effect_additional")
+
+        def _summary_factor(flag: str) -> float:
+            # Mirror of the aggregator's per-origin factor (global pools + this magus's scalar-support share).
+            return _smo.origin_factor(_oi, _oa, float(condition_state.get(flag + "_support_inc", 0.0) or 0.0))
+
+        if condition_state.get("origin_of_thunder"):
+            _lvl = float(condition_state.get("origin_of_thunder_level", 20.0) or 20.0)
+            _tf = _summary_factor("origin_of_thunder")
+            _spd = 0.06 * _tf
+            _dmg = (2.5 + max(0.0, _lvl - 1.0) * 0.25) / 100.0 * _tf
+            _origin_rows.append({
+                "label": "Origin of Thunder", "source_name": "Thunder Magus", "factor": _tf,
+                "text": f"+{_spd * 100:.2g}% additional Attack and Cast Speed and "
+                        f"+{_dmg * 100:.3g}% additional damage (Lv {int(_lvl)})"})
+        for _flag, _targets, _label, _src, _fmt, _clamp in _smo.EMIT_TABLE:
+            if condition_state.get(_flag):
+                _raw = float(condition_state.get(_flag + "_value", 0.0) or 0.0)
+                if _raw:
+                    _f = _summary_factor(_smo.ORIGIN_OWNER_FLAG.get(_flag, _flag))
+                    _origin_rows.append({
+                        "label": _label, "source_name": _src, "factor": _f,
+                        "text": _fmt.format(v=_smo.scaled_magnitude(_raw, _f, _clamp))})
+        if _origin_rows:
+            origin_summary = {"factor": _smo.origin_factor(_oi, _oa), "effects": _origin_rows}
+
     # ── General build warnings (player diagnostics; extensible) ───────────────
     # Ineffective curse: an applied curse amplifies a damage type the build doesn't actually deal (e.g. an
     # Electrocute Lightning curse when 100% of the lightning is converted to cold) → it contributes nothing.
     warnings: list[dict] = []
+    for _nm in _origin_parse_failures:
+        warnings.append({
+            "kind": "origin_parse_failure",
+            "text": f"{_nm} is slotted but its Origin of Spirit Magus magnitude could not be read from the "
+                    f"skill data — the origin buff is NOT applied (never guessed).",
+        })
 
     # Mana-gated empower deactivation (Mana Boil's Euphoria turns off at 0 Mana). We DON'T auto-disable the buff —
     # we WARN when Mana is unsustainable (drains to 0 at steady state), so the user sees that their costs/consumes
@@ -1928,6 +2030,7 @@ def compute(
         curse_summaries=curse_summaries,
         curse_conflict=curse_conflict,
         warnings=warnings,
+        origin_summary=origin_summary,
         reservation=reservation,
         numbed=numbed,
         referenced_conditions=sorted(source.referenced_conditions),

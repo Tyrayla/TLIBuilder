@@ -151,7 +151,7 @@ def consumable_universe() -> frozenset[str]:
                  "restoration_duration_inc", "restoration_duration_additional",
                  "life_regain_inc", "energy_shield_regain_inc", "regain_interval_additional",
                  "life_regain_interval_additional", "energy_shield_regain_interval_additional",
-                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc",
+                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc", "energy_shield_regen_pct",
                  "mana_regen_flat", "mana_regen_speed_inc", "mana_regen_pct",
                  "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
                  "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",

@@ -3,6 +3,10 @@ import math
 import re
 from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
+from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
+                                         ORIGIN_OWNER_FLAG as _ORIGIN_OWNER_FLAG,
+                                         origin_factor as _origin_factor_fn,
+                                         scaled_magnitude as _origin_scaled)
 
 
 def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
@@ -793,21 +797,52 @@ def aggregate(
     # +0.25%/level). Both magnitudes scale by Origin of Spirit Magus Effect = (1 + inc) × (1 + additional) —
     # the engine-wide effect-scalar convention. Gated by origin_of_thunder (compute auto-sets it + the level
     # when a Thunder Magus is slotted). Emitted GLOBAL (all skills) via add_with_source, like Aim's AS/CS.
-    if "origin_of_thunder" in (active_booleans or frozenset()):
-        _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
-        _origin_factor = ((1.0 + source.total("spirit_magi_origin_effect_inc"))
-                          * (1.0 + source.total("spirit_magi_origin_effect_additional")))
-        _ot_speed = 0.06 * _origin_factor
-        _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
-        for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
-            source.add_with_source(_sk, _ot_speed, SourceEntry(
-                stat=_sk, amount=_ot_speed, source_type="condition",
+    # The other origins (Fire / Ice / Rock / Erosion) + the magnificent added-origin effects share the same
+    # scaling factor. Magnitudes arrive pre-parsed from the season data via synthetic numeric conditions
+    # (engine.compute's scan); the emission table + clamp helper live in engine/spirit_magus_origins.py
+    # (shared with compute's origin_summary display block). Rock/Erosion clamp at the printed "up to −50%"
+    # AFTER scaling (cap-scaling behavior unverified — spec: .wolf/engine-spec-magus-origins.md).
+    _origin_flags = active_booleans or frozenset()
+    _any_origin = "origin_of_thunder" in _origin_flags or any(e[0] in _origin_flags for e in _ORIGIN_EMITS)
+    if _any_origin:
+        _origin_inc_total = source.total("spirit_magi_origin_effect_inc")
+        _origin_add_total = source.total("spirit_magi_origin_effect_additional")
+
+        def _factor_for(flag: str) -> float:
+            # Per-origin factor: the global pools + THIS magus's own scalar-support increased share
+            # (precise_superpower / friend_of_spirit_magi — "...effect for the supported skill").
+            return _origin_factor_fn(_origin_inc_total, _origin_add_total,
+                                     float((numeric_vals or {}).get(flag + "_support_inc", 0.0) or 0.0))
+
+        if "origin_of_thunder" in _origin_flags:
+            _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
+            _origin_factor = _factor_for("origin_of_thunder")
+            _ot_speed = 0.06 * _origin_factor
+            _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
+            for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
+                source.add_with_source(_sk, _ot_speed, SourceEntry(
+                    stat=_sk, amount=_ot_speed, source_type="condition",
+                    label="Origin of Thunder", source_name="Thunder Magus", points=1,
+                    text=f"+{_ot_speed * 100:.2g}% additional {_lbl} Speed (Origin of Thunder)"))
+            source.add_with_source("dmg_additional", _ot_dmg, SourceEntry(
+                stat="dmg_additional", amount=_ot_dmg, source_type="condition",
                 label="Origin of Thunder", source_name="Thunder Magus", points=1,
-                text=f"+{_ot_speed * 100:.2g}% additional {_lbl} Speed (Origin of Thunder)"))
-        source.add_with_source("dmg_additional", _ot_dmg, SourceEntry(
-            stat="dmg_additional", amount=_ot_dmg, source_type="condition",
-            label="Origin of Thunder", source_name="Thunder Magus", points=1,
-            text=f"+{_ot_dmg * 100:.3g}% additional damage (Origin of Thunder Lv {int(_ot_lvl)})"))
+                text=f"+{_ot_dmg * 100:.3g}% additional damage (Origin of Thunder Lv {int(_ot_lvl)})"))
+        for _flag, _targets, _label, _src_name, _text_fmt, _clamp in _ORIGIN_EMITS:
+            if _flag not in _origin_flags:
+                continue
+            _raw = float((numeric_vals or {}).get(_flag + "_value", 0.0) or 0.0)
+            if _raw == 0.0:
+                continue
+            # Magnificent added effects belong to their magus's origin → use that ORIGIN's factor (the
+            # ward flag's own key carries no support_inc; map added-effect flags to their owner origin).
+            _scaled = _origin_scaled(_raw, _factor_for(_ORIGIN_OWNER_FLAG.get(_flag, _flag)), _clamp)
+            _txt = _text_fmt.format(v=_scaled)
+            for _stat_key, _unit in _targets:
+                _amt = _scaled * _unit
+                source.add_with_source(_stat_key, _amt, SourceEntry(
+                    stat=_stat_key, amount=_amt, source_type="condition",
+                    label=_label, source_name=_src_name, points=1, text=_txt))
 
     # ── Support-granted buff / debuff base effects (roadmap #2) ────────────────
     _booleans = active_booleans or frozenset()

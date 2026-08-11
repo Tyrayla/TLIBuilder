@@ -74,6 +74,7 @@
     "energy_shield_per_sealed_mana",
     "energy_shield_regain_inc",
     "energy_shield_regain_interval_additional",
+    "energy_shield_regen_pct",
     "energy_shield_restored_pct_lost_per_burst",
     "erosion_crit_dmg_inc",
     "erosion_curse_taken",

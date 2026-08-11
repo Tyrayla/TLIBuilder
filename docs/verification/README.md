@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**82 entries** — ✅ Confirmed: 17 · 🔶 Partial: 10 · ⬜ Pending: 9 · ⚠️ Unverified: 44
+**85 entries** — ✅ Confirmed: 17 · 🔶 Partial: 10 · ⬜ Pending: 9 · ⚠️ Unverified: 47
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -72,12 +72,14 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
 | Life/Mana consumption subsystem | — | sustain, cost | ⚠️ Unverified | — | [consumption-subsystem.md](consumption-subsystem.md) |
 | Loadouts | — | build-system | ⚠️ Unverified | — | [loadouts.md](loadouts.md) |
+| Magnificent supports adding Origin of Spirit Magus effects | Fire Ward, Cold Ward, Lightning Ward, Unyielding, Plague Source | minion, spirit-magus, support, buff | ⚠️ Unverified | — | [magnificent-origin-effects.md](magnificent-origin-effects.md) |
 | Minion Lucky damage (Queer Angle) | — | minion, lucky | ⚠️ Unverified | — | [minion-lucky-damage.md](minion-lucky-damage.md) |
 | Minion modifier coverage (parser + consumption + remap) | — | minion, modifier, parser | ⚠️ Unverified | — | [minion-mod-coverage.md](minion-mod-coverage.md) |
 | Minion Multistrike | — | minion, multistrike | ⚠️ Unverified | — | [minion-multistrike.md](minion-multistrike.md) |
 | Minion Skill Level scaling | — | minion, level-scaling | ⚠️ Unverified | — | [minion-skill-level.md](minion-skill-level.md) |
 | Minion spell/attack pool separation | — | minion, damage-pool | ⚠️ Unverified | — | [minion-spell-attack-separation.md](minion-spell-attack-separation.md) |
 | Origin of Thunder (summoner buff) | Summon Thunder Magus | minion, spirit-magus, buff | ⚠️ Unverified | — | [origin-of-thunder.md](origin-of-thunder.md) |
+| Origin-effect scalar supports (Precise: Superpower / Friend of Spirit Magi) | Precise: Superpower, Friend of Spirit Magi, Precise: Friend of Spirit Magi | minion, spirit-magus, support | ⚠️ Unverified | — | [origin-effect-scalar-supports.md](origin-effect-scalar-supports.md) |
 | Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
@@ -85,6 +87,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Sing with the Tide (Selena trait) | Sing with the Tide | hero-trait, buff | ⚠️ Unverified | — | [sing-with-the-tide.md](sing-with-the-tide.md) |
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
 | Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
+| Spirit Magus Origins (Fire / Ice / Rock / Erosion summoner buffs) | Summon Fire Magus, Summon Frost Magus, Summon Rock Magus, Summon Erosion Magus | minion, spirit-magus, buff, defense, recovery | ⚠️ Unverified | — | [spirit-magus-origins.md](spirit-magus-origins.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
 | Steel Vanguard "Knowledgeable" — Focus Skills in Active Skill slots (soft-invalidation gating) | Focus skills (Focus-tagged) | core-talent, slot-gating, soft-invalidation, reservation, sealing, trigger | ⚠️ Unverified | — | [knowledgeable-focus-active-slots.md](knowledgeable-focus-active-slots.md) |
 | Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |

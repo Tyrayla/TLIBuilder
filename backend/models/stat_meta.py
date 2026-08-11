@@ -2332,6 +2332,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="life",               stacking_rule="additive",
         ui_priority=34,                source_types=_T,
     ),
+    Stat.ENERGY_SHIELD_REGEN_PCT: StatMeta(
+        "Energy Shield Regeneration", "Energy Shield", "added_flat", "%",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=34,                source_types=_T,
+    ),
     Stat.LIFE_REGEN_SPEED_INC: StatMeta(
         "Life Regeneration Speed", "Life", "increased", "%",
         subgroup="life",               stacking_rule="additive",
@@ -2639,6 +2644,11 @@ STAT_META: dict[Stat, StatMeta] = {
     # ── Damage Taken ──────────────────────────────────────────────────────────
     Stat.DMG_TAKEN_ADDITIONAL: StatMeta(
         "Additional Damage Taken", "Damage Taken", "additional", "%",
+        subgroup="damage_taken",       stacking_rule="additive",
+        ui_priority=50,                source_types=_TB,
+    ),
+    Stat.HIT_DMG_TAKEN_ADDITIONAL: StatMeta(
+        "Additional Hit Damage Taken", "Damage Taken", "additional", "%",
         subgroup="damage_taken",       stacking_rule="additive",
         ui_priority=50,                source_types=_TB,
     ),

@@ -2706,6 +2706,40 @@ function UtilityPanel({ statMap }: { statMap: Record<string, StatEntry> }) {
   )
 }
 
+// ── Origin of Spirit Magus ── renders the engine-emitted summary VERBATIM (compute builds it from the
+// same table the aggregator emits stat contributions from, magnitudes already scaled by Origin Effect —
+// display-fidelity: this panel never recomputes a number).
+type OriginSummary = { factor: number; effects: { label: string; source_name: string; text: string; factor?: number }[] }
+function OriginPanel({ origin }: { origin: OriginSummary | null }) {
+  if (!origin || !(origin.effects?.length)) return null
+  return (
+    <StatPanel title="Origin of Spirit Magus" accent="#7fb0e0"
+      info="Buff effects granted to you by your slotted Spirit Magus summons. Magnitudes shown already include your Origin of Spirit Magus Effect scaling. Values come from the skill data and aren't confirmed in-game yet (see the Verification Database).">
+      {Math.abs((origin.factor ?? 1) - 1) > 1e-9 && (
+        <Row label="Origin Effect" breakdown={{
+          title: 'Origin of Spirit Magus Effect', keys: ['spirit_magi_origin_effect_inc', 'spirit_magi_origin_effect_additional'],
+          total: origin.factor - 1, totalUnit: '%',
+          formula: '(1 + Σ Increased) × (1 + Additional) — scales every Origin magnitude below',
+        }}>×{dec(origin.factor)}</Row>
+      )}
+      {origin.effects.map((e, i) => (
+        <div key={i} style={{ margin: '4px 0' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#e0d0a0' }}>
+            {e.label}
+            <span style={{ color: '#888', fontWeight: 400, marginLeft: 5, fontSize: 10 }}>{e.source_name}</span>
+            {/* This magus's own factor when a per-skill scalar support (Superpower / Friend) raises it above
+                the build-wide Origin Effect shown in the header row. */}
+            {e.factor != null && Math.abs(e.factor - (origin.factor ?? 1)) > 1e-9 && (
+              <span style={{ color: '#7fb0e0', fontWeight: 400, marginLeft: 5, fontSize: 10 }}>×{dec(e.factor)}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: '#9ab', lineHeight: 1.4 }}>{e.text}</div>
+        </div>
+      ))}
+    </StatPanel>
+  )
+}
+
 const DEF_FORMULA = '(Base + Flat) × (1 + Increased) × Additional'
 // Evasion has a character base of 2 per level gained (Help DB), folded into evasion_flat — surface it in the
 // formula like Life/Mana do their 50+13/level, 40+5/level bases.
@@ -2988,6 +3022,13 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
             total: recovery.shield_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
           }}>{rate(recovery.shield_regain_per_sec)}</Row>
         )}
+        {recovery && (recovery.es_regen_per_sec ?? 0) > 0 && (
+          <Row label="ES Regen" labelColor="#5fae79" breakdown={{
+            title: 'Energy Shield Regeneration', keys: ['energy_shield_regen_pct'],
+            total: recovery.es_regen_per_sec ?? 0, totalUnit: '',
+            formula: '% of Max ES per second × Max ES (Origin of Ice is the first source)',
+          }}>{rate(recovery.es_regen_per_sec ?? 0)}</Row>
+        )}
         {recovery && recovery.consumption_es_per_sec > 0 && (
           <Row label="ES Consumed" labelColor="#d06868" breakdown={{
             title: 'Energy Shield Consumed', keys: ES_CONSUME_KEYS, total: recovery.consumption_es_per_sec, totalUnit: '',
@@ -2996,13 +3037,14 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
           }}>{rate(recovery.consumption_es_per_sec)}</Row>
         )}
-        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.burst_es_restore_per_sec > 0) && (
+        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.burst_es_restore_per_sec > 0 || (recovery.es_regen_per_sec ?? 0) > 0) && (
           <Row label="Net ES Recovery" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Energy Shield Recovery', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
-            formula: 'ES Restoration + Shield Regain + Spell Burst restore − Consumption',
+            formula: 'ES Restoration + Shield Regain + ES Regen + Spell Burst restore − Consumption',
             extra: [
               ...(recovery.restoration_es_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_es_per_sec)}`, stat: 'ES Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.shield_regain_per_sec > 0 ? [{ value: `+${rate(recovery.shield_regain_per_sec)}`, stat: 'Shield Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...((recovery.es_regen_per_sec ?? 0) > 0 ? [{ value: `+${rate(recovery.es_regen_per_sec ?? 0)}`, stat: 'ES Regen', source: 'Recovery', sourceName: '% Max ES/sec (Origin of Ice)' }] : []),
               ...(recovery.burst_es_restore_per_sec > 0 ? [{ value: `+${rate(recovery.burst_es_restore_per_sec)}`, stat: 'Spell Burst restore', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
               ...(recovery.consumption_es_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_es_per_sec)}`, stat: 'ES Consumed', source: 'Consumption', sourceName: '' }] : []),
             ],
@@ -3330,6 +3372,7 @@ export default function PlayerStatsScreen() {
         <div style={{ flex: '22', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
           <AttributesPanel statMap={statMap} />
+          <OriginPanel origin={((computedStats as { origin_summary?: OriginSummary | null }).origin_summary) ?? null} />
           <BlessingsPanel blessings={blessings} />
           <UtilityPanel statMap={statMap} />
         </div>

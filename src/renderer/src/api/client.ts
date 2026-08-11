@@ -1040,6 +1040,8 @@ export interface RecoveryResult {
   // Regain (on-hit, missing-based)
   life_regain_per_sec: number
   shield_regain_per_sec: number
+  // % Max ES/sec regen (Origin of Ice is the first source) — optional: older engines don't send it.
+  es_regen_per_sec?: number
   // Regen (over time)
   life_regen_per_sec: number
   mana_regen_per_sec: number
@@ -1178,6 +1180,9 @@ export interface StatSheetResponse {
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
   // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
   minion_offense?: Record<string, OffenseResult> | null
+  // Origin of Spirit Magus display summary — engine-emitted rows with the SCALED magnitudes baked into
+  // the text (the box renders these verbatim; display-fidelity). null/absent when no magus is slotted.
+  origin_summary?: { factor: number; effects: { label: string; source_name: string; text: string }[] } | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]

@@ -648,6 +648,9 @@ class Stat(Enum):
     LIFE_REGEN_FLAT = "life_regen_flat"
     LIFE_REGEN_INC = "life_regen_inc"                # % of max life per second
     LIFE_REGEN_SPEED_INC = "life_regen_speed_inc"    # multiplier to regen rate
+    # % of Max Energy Shield restored per second (Frost Magus Origin of Ice). ES had NO regen concept
+    # before this (only missing-based Regain) — consumed by recovery as es_regen = pct × Max ES.
+    ENERGY_SHIELD_REGEN_PCT = "energy_shield_regen_pct"
     LIFE_REGAIN_INC = "life_regain_inc"
     LIFE_REGAIN_INTERVAL_ADDITIONAL = "life_regain_interval_additional"
     REGAIN_INTERVAL_ADDITIONAL = "regain_interval_additional"
@@ -813,6 +816,9 @@ class Stat(Enum):
 
     # ── Damage Taken ─────────────────────────────────────────────────────────
     DMG_TAKEN_ADDITIONAL = "dmg_taken_additional"
+    # Hit-scoped additional damage taken (Rock Magus Origin: "-N% additional Hit Damage taken") — kept
+    # separate from the generic pool so a hit-only reduction never claims DoT coverage.
+    HIT_DMG_TAKEN_ADDITIONAL = "hit_dmg_taken_additional"
     PHYSICAL_DMG_TAKEN_ADDITIONAL = "physical_dmg_taken_additional"
     ELEMENTAL_DMG_TAKEN_ADDITIONAL = "elemental_dmg_taken_additional"
     TRAUMA_DMG_TAKEN_INC = "trauma_dmg_taken_inc"

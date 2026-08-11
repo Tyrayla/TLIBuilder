@@ -521,14 +521,14 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   id `bug-crossed-lightning-runon-progression-line-drops-quantity-grant`), so this fix changes no DPS today.
 
 ## 5. UI / screens
-- **Spirit Magus display + Origin effect calculations (owner, 2026-08-10; scoped same day).** Surface Origin
-  effects and what they grant the user. Owner decisions (2026-08-10): Origins get **their own display box**
-  (not a skill form), and the buffs are wired **independent of minion DPS modules** (Thunder already proves
-  this works — origin buff lives in aggregator/compute, not the minion module). Current state: **only Origin
-  of Thunder is modeled** (`compute.py` ~595-611 auto-derives the condition — hardcoded to
-  `summon_thunder_magus`, breaks on first match; `aggregator.py` ~790-810 emits AS/CS + level-scaled dmg
-  scaled by `spirit_magi_origin_effect_inc/_additional`). Verification entry `origin-of-thunder.json` is
-  `unverified`. Scoped phases:
+- **Spirit Magus display + Origin effect calculations (owner, 2026-08-10; scoped same day).**
+  **Phases A, B (minus Wicked), and the display box SHIPPED 2026-08-11** — `engine/spirit_magus_origins.py`
+  (per-magus data parse + shared EMIT_TABLE), generalized compute scan, aggregator emission, new stats
+  `hit_dmg_taken_additional` + `energy_shield_regen_pct` (recovery ES regen), `origin_summary` payload +
+  OriginPanel box; verification entries `spirit-magus-origins` / `magnificent-origin-effects` (unverified,
+  assumptions listed there). **Wicked magnificent deferred** — its added effects are minion-scoped
+  ("Converts 100% of Physical and Elemental Damage to Erosion for all Spirit Magi" + per-minion erosion
+  ramp); model with the minion engine. Remaining phases below:
   - **Phase A — the four remaining origins as summoner buffs.** Generalize the hardcoded Thunder scan into a
     per-magus table. Fire = +crit rating (attack+spell, level-scaled 58→175 @L40, offense); Frost/Ice =
     +%Max Life & ES restored/sec (2.4→5.23, recovery/restoration subsystem); Rock = −additional Hit Damage
@@ -539,14 +539,10 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
     extraction or bake parsed per-magus tables. Data gotcha: origin text is split header-line +
     magnitude-line (shared header uuid `1a86ebe5-…`) for fire/thunder/rock/erosion but INLINED one-line for
     frost. All `needs-verification` — engine-task-spec per origin.
-  - **Phase A2 — origin-effect scalar supports (owner-requested).** `precise_superpower` (48.2→56% @L40,
-    unconditional), `friend_of_spirit_magi` (51.2→59%, gated **≥2 types** of Spirit Magus active),
-    `precise_friend_of_spirit_magi` (+109→148%, gated **≥3 types**). These have clean numeric per-level
-    progressions (no free-text parsing). Pools `spirit_magi_origin_effect_inc/_additional` already exist and
-    already scale Thunder. Classification (owner, 2026-08-10): these support lines feed the **increased**
-    pool (`spirit_magi_origin_effect_inc`) — owner "99.99% sure"; record as `needs-verification` rather than
-    re-litigating. Type-count gate: auto-derive a magus-type-count condition in compute
-    (same scan that detects the magus skills), not a manual toggle.
+  - **Phase A2 — origin-effect scalar supports: SHIPPED 2026-08-11** (with A/B). Per-skill scoped — each
+    support raises only ITS magus's origin factor via the increased half (owner classification 2026-08-10);
+    Friend pair auto-gated on the count of distinct magus types that granted an origin (no manual toggle).
+    Verification entry `origin-effect-scalar-supports` (unverified).
   - **Phase B — magnificent supports that ADD an origin effect** (fire/cold/lightning ward = +max res,
     `unyielding` = armor-rate vs non-phys, `plague_source` = +additional erosion dmg, `wicked` = 100%
     phys+ele→erosion conversion).

@@ -1069,6 +1069,8 @@ def engine_stats(req: EngineStatsRequest):
         # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
         # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
         "minion_offense": result.minion_offense,
+        # Origin of Spirit Magus display summary ({factor, effects[]}) — None when no magus is slotted. Additive.
+        "origin_summary": result.origin_summary,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.

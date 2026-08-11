@@ -236,6 +236,7 @@ class StatResult:
     curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
+    origin_summary:      dict | None = None         # Origin of Spirit Magus display summary: {factor, effects:[{label, source_name, text}]}
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
     numbed:              dict | None = None          # Numbed ailment box: base/stacks/duration/effect pools + uptime
     referenced_conditions: list[str] = field(default_factory=list)  # condition keys any build mod references (gate on/off) — UI hides the rest
