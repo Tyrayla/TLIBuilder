@@ -521,6 +521,12 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   id `bug-crossed-lightning-runon-progression-line-drops-quantity-grant`), so this fix changes no DPS today.
 
 ## 5. UI / screens
+- **Spirit Magus display + Origin effect calculations (owner, 2026-08-10).** Update the frontend display for
+  Spirit Maguses: surface **Origin effects and what they grant to the user** — either in their own box on the
+  relevant screen or possibly as a skill form. Pair the display work with a pass over the Origin-effect
+  CALCULATIONS so what's shown matches what the engine actually grants (same display-fidelity principle as the
+  audit item below). Scope/placement (own box vs skill form) is the owner's open design question — propose both
+  before building.
 - **★ Engine↔frontend display-fidelity audit (NEW initiative).** There are disconnects between how the engine
   computes and how the frontend displays — the Stats screen / skill selector should eventually mirror the backend
   math EXACTLY so the numbers are auditable line-by-line. First instance found + fixed 2026-06-17: the Skill Hit
