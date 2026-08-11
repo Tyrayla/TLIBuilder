@@ -521,12 +521,75 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   id `bug-crossed-lightning-runon-progression-line-drops-quantity-grant`), so this fix changes no DPS today.
 
 ## 5. UI / screens
-- **Spirit Magus display + Origin effect calculations (owner, 2026-08-10).** Update the frontend display for
-  Spirit Maguses: surface **Origin effects and what they grant to the user** — either in their own box on the
-  relevant screen or possibly as a skill form. Pair the display work with a pass over the Origin-effect
-  CALCULATIONS so what's shown matches what the engine actually grants (same display-fidelity principle as the
-  audit item below). Scope/placement (own box vs skill form) is the owner's open design question — propose both
-  before building.
+- **Spirit Magus display + Origin effect calculations (owner, 2026-08-10; scoped same day).** Surface Origin
+  effects and what they grant the user. Owner decisions (2026-08-10): Origins get **their own display box**
+  (not a skill form), and the buffs are wired **independent of minion DPS modules** (Thunder already proves
+  this works — origin buff lives in aggregator/compute, not the minion module). Current state: **only Origin
+  of Thunder is modeled** (`compute.py` ~595-611 auto-derives the condition — hardcoded to
+  `summon_thunder_magus`, breaks on first match; `aggregator.py` ~790-810 emits AS/CS + level-scaled dmg
+  scaled by `spirit_magi_origin_effect_inc/_additional`). Verification entry `origin-of-thunder.json` is
+  `unverified`. Scoped phases:
+  - **Phase A — the four remaining origins as summoner buffs.** Generalize the hardcoded Thunder scan into a
+    per-magus table. Fire = +crit rating (attack+spell, level-scaled 58→175 @L40, offense); Frost/Ice =
+    +%Max Life & ES restored/sec (2.4→5.23, recovery/restoration subsystem); Rock = −additional Hit Damage
+    taken, cap −50% (5.2→8.2, defense); Erosion = −additional DoT taken, cap −50% (defense). Each lands in
+    a DIFFERENT subsystem — Thunder was the easy pure-offense one. **Level scaling is in the data for all
+    five** but only in free-text `progression[].values.Descript` (40 entries each); `engine/tooltip.py`
+    already diffs those strings per level (tooltip goldens carry `values_by_level`) — reuse/mirror that
+    extraction or bake parsed per-magus tables. Data gotcha: origin text is split header-line +
+    magnitude-line (shared header uuid `1a86ebe5-…`) for fire/thunder/rock/erosion but INLINED one-line for
+    frost. All `needs-verification` — engine-task-spec per origin.
+  - **Phase A2 — origin-effect scalar supports (owner-requested).** `precise_superpower` (48.2→56% @L40,
+    unconditional), `friend_of_spirit_magi` (51.2→59%, gated **≥2 types** of Spirit Magus active),
+    `precise_friend_of_spirit_magi` (+109→148%, gated **≥3 types**). These have clean numeric per-level
+    progressions (no free-text parsing). Pools `spirit_magi_origin_effect_inc/_additional` already exist and
+    already scale Thunder. Classification (owner, 2026-08-10): these support lines feed the **increased**
+    pool (`spirit_magi_origin_effect_inc`) — owner "99.99% sure"; record as `needs-verification` rather than
+    re-litigating. Type-count gate: auto-derive a magus-type-count condition in compute
+    (same scan that detects the magus skills), not a manual toggle.
+  - **Phase B — magnificent supports that ADD an origin effect** (fire/cold/lightning ward = +max res,
+    `unyielding` = armor-rate vs non-phys, `plague_source` = +additional erosion dmg, `wicked` = 100%
+    phys+ele→erosion conversion).
+  - **Phase C — caps** ("up to −50%" on Rock/Erosion — per-magus-count stacking wording, unverified
+    mechanic) + any remaining conditionals.
+  - **Display:** new "Origin of Spirit Magus" box (pairs naturally with the partial-support display item
+    below — same StatPanel/GridBox pattern as the existing Spirit Magi panel in `PlayerStatsScreen.tsx`
+    ~1868). Show which origins are active, their level-scaled magnitudes, and the combined origin-effect
+    factor. Today origins appear ONLY incidentally in source-breakdown popovers.
+- **Partial-support skill display (owner, 2026-08-10).** For skills with no `skill_resolver._REGISTRY` entry
+  (today: empty `OffenseResult(supported=False)` shell, non-main slots dropped at `compute.py` ~1638, wrong
+  "no hit DPS of its own" copy in SkillFoundationPanel ~:1117), show every mechanic that does NOT depend on
+  the modeled DPS/hit damage; hide anything that states damage. Principle: never show a number we can't
+  stand behind; everything else is worth providing. Full field-by-field audit done 2026-08-10.
+  - **Backend prerequisites (in value order):** (1) populate `skill_tags` + `base_cast_time` + `mana_cost`
+    on the unsupported result (`offense.py` ~1565 early-return — cheapest change, widest effect; every
+    `hasTag()` gate is dark without it); (2) move the early return past the generic blocks (crit ~1600-1660,
+    rates ~1871, wind rhythm ~1877, tangle ticks ~1888, mechanic blocks ~2214-2430 minus `hit_forms` reads;
+    guard `demolisher_*_dps` name-lookup at ~2566) or factor a `compute_generic_offense()`; (3) stop
+    dropping unsupported non-main slots; (4) add a support-tier field next to `supported` (grow
+    `coverage.py`'s `'none'` collapse at ~424 into a third state); additive optional API fields per
+    `client.ts` convention.
+  - **Per-box verdicts (from the audit):** Hit Rate — show fully (per-form rows drop out naturally).
+    Critical Strikes — show fully. Tangle — show fully (gate = attached tangle support + `is_spell`, all
+    generic; omit `tangle_mult`). Spell Burst — show all charge/burst/breakpoint/auto-trigger rows (pure
+    stat pools + sps; eligibility = tags + cooldown parse + enabler ids, all generic); hide only the 3 DPS
+    rows. Wind Rhythm — show fully (AM-support-driven, zero registry dependency). Shadow Strike — show all
+    (tag-gated + build stats) except the DPS Multiplier row. Ailment boxes + Crowd Control — rows are pure
+    stat-map reads; only the `canHit`/`dealtTypes` GATES are DPS-derived — re-gate on damage-type tags /
+    hit-tag heuristic. **Shotgunning — hide** (every input is per-form/registry). **Demolisher — hide
+    unless** the `_GS_RESTORE_RE` base-restore parse (`skill_resolver.py` ~283, currently inside
+    `_resolve_groundshaker`) is lifted into the fallback; then show all but Frequent Quake/Collapse/DPS
+    rows. **Channeled — show only Channel Rate** (owner decision 2026-08-10); stacks/attack-frequency stay
+    hidden (ChanneledSpec is registry-only; a description parse for max-stacks/attack-frequency is possible
+    later but is new mechanic-derivation → needs-verification entry).
+  - **UI:** three-way split of the `OffensePanels` branch (~:1469): full → today's body; partial → headline
+    without DPS + the boxes above, Skill Cost lifted out of the damage-gated Skill Effects box (cost is
+    already computed for ALL slots by `_active_skill_costs`), `CoverageBadge` reused in the header; none →
+    foundation panel with corrected copy. Optional per-slot tier dot in `SkillSelectionBar` fed by the
+    already-on-the-wire-but-unconsumed `StatsResult.skill_slots[].supported`.
+  - This creates the confidence-tier vocabulary the Origin box (above) and the display-fidelity audit
+    (below) share, and changes roster-expansion economics: skills become visible immediately, registry
+    entries become incremental upgrades.
 - **★ Engine↔frontend display-fidelity audit (NEW initiative).** There are disconnects between how the engine
   computes and how the frontend displays — the Stats screen / skill selector should eventually mirror the backend
   math EXACTLY so the numbers are auditable line-by-line. First instance found + fixed 2026-06-17: the Skill Hit

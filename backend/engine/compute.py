@@ -1362,7 +1362,8 @@ def compute(
 
     # Record stat consumption across the offense + defense passes (defensive stats always read;
     # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
-    # reads nothing, so its damage mods fall out of consumed_stats and read as inert).
+    # runs the full pipeline with recording SUSPENDED inside calculate_offense, so its damage
+    # mods still fall out of consumed_stats and read as inert; see offense.py's partial-support note).
     source._recording = True
     result_defense = asdict(calculate_defense(source, reservation))
 
@@ -1425,7 +1426,11 @@ def compute(
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
         skill_effects module (if any) emits its slot-local effects first — Berserking Blade's intrinsic
         buff + Sweep/Rampage, Focused Slash's Behead/Tranquility, Moon Strike's Rainbow/Lunar Ring — and
-        may return offense overrides (e.g. Behead removing the Area tag)."""
+        may return offense overrides (e.g. Behead removing the Area tag).
+
+        Note on unsupported skills: the mechanic-detection reads below (tangle/spell-burst/shadow probes)
+        run BEFORE calculate_offense, i.e. OUTSIDE its recording-suppression window — deliberate: those
+        stats drive panels that DO render in the partial-support display, so they honestly badge Consumed."""
         _mt = ({t.lower() for t in resolved.tags}
                | {t.lower() for t in getattr(resolved, "extra_damage_mod_tags", [])})
         overrides = skill_effects.apply_slot_effects(
@@ -1588,42 +1593,13 @@ def compute(
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
+    _resolved_by_slot: dict[int, object] = {}
     if skill_data and build_input.main_skill and main_enabled:
         _resolved_main = resolve_skill(skill_data)
+        _resolved_by_slot[main_slot] = _resolved_main
         result_offense = _offense_for_slot(
             _resolved_main, build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
-        # Channeling: a boolean condition auto-on when the main skill resolves as channeled (inherent, e.g.
-        # Icebound Beam, or transformed, e.g. Split Shot + Rapid Advance). Forward-looking — no consumer yet;
-        # it just surfaces in Config (shown when a channeling skill exists) so future channel-gated mods can
-        # reference it. Reported via auto_sources/auto_values; the user can still toggle it off.
-        if result_offense.get("channeled_max_stacks", 0) > 0 or result_offense.get("channeled_behavior"):
-            auto_sources["channeling"] = "Channeling (main skill is channeled)"
-            auto_values["channeling"] = True
-            if "channeling" not in manual_cond_keys:
-                condition_state["channeling"] = True
-        # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
-        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as the
-        # auto default (all projectiles land), so the field tracks the count and the user can override downward.
-        # Gated on the resolver's explicit `shots_on_target_cap` delivery flag, NOT `compulsory_breakdown` — the
-        # shotgun-cap mechanic is independent of compulsory elemental conversion (SS13's Chromatic Shot dropped
-        # the latter but kept the former; see ResolvedSkill.shots_on_target_cap).
-        # Terra Charges consumed: the effective max (1 + flat stacks) is the condition's max AND the auto
-        # default (all charges consumed — exact for realistic recast cadences at the 0.5s/stack base restore),
-        # so the field tracks the build's stack sources and the user can override downward. Mirrors the
-        # Chromatic Shot projectile-hits pattern just below.
-        if result_offense.get("terra_charge"):
-            _tc = result_offense["terra_charge"]
-            maxes["terra_charges_consumed"] = float(_tc["max_stacks"])
-            auto_sources["terra_charges_consumed"] = "Terra Charge (max stacks consumed)"
-            auto_values["terra_charges_consumed"] = float(_tc["max_stacks"])
-        if getattr(_resolved_main, "shots_on_target_cap", False) and result_offense.get("projectile_count"):
-            _pc = float(result_offense["projectile_count"])
-            maxes["chromatic_shots_on_target"] = _pc
-            # Always report the count as the auto value (even when the user has overridden it), so the field's
-            # clear-to-default restores the build's projectile count rather than the catalog default.
-            auto_sources["chromatic_shots_on_target"] = "Chromatic Shot (all projectiles land)"
-            auto_values["chromatic_shots_on_target"] = _pc
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
     # cross-contamination between setups). Today's payloads carry only the main skill, so this is empty and
@@ -1636,9 +1612,58 @@ def compute(
             if not sd:
                 continue
             resolved_sk = resolve_skill(sd)
-            if not resolved_sk.supported:
-                continue
+            # Unsupported (unregistered) skills get a slot result too — supported=False, zero damage, but
+            # populated generic fields (rates/crit/costs/mechanic panels) for the partial-support display.
+            # Previously these slots were dropped entirely and the UI fell to its "no skill" branch.
+            _resolved_by_slot[sk["slot"]] = resolved_sk
             slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False, skill_dict=sd)
+
+    # ── Auto-derived conditions from ANY equipped active skill (owner-ruled 2026-08-11: these are general
+    # to the equipped skills, NOT main-slot-scoped — the main slot's only specialness is main-slot-scoped
+    # mods like +Main Skill Level and main-slot triggers). Scanned in ascending slot order: for first-set
+    # values (channeling) the LOWEST slot wins ties — a label-only choice, since the owner ruling gives the
+    # main slot no special claim here; numeric values (terra/chromatic) take the largest across slots.
+    _terra_best = 0.0        # best derived value THIS scan (maxes may hold a catalog-seeded max already —
+    _chromatic_best = 0.0    # comparing against that would wrongly skip the auto-default report)
+    for _slot in sorted(slot_offense):
+        _off = slot_offense[_slot]
+        _res_sk = _resolved_by_slot.get(_slot)
+        # Channeling: a boolean condition auto-on when ANY equipped skill resolves as channeled (inherent,
+        # e.g. Icebound Beam, or transformed, e.g. Split Shot + Rapid Advance). Forward-looking — no consumer
+        # yet; it just surfaces in Config (shown when a channeling skill exists) so future channel-gated mods
+        # can reference it. Reported via auto_sources/auto_values; the user can still toggle it off.
+        if (_off.get("channeled_max_stacks", 0) > 0 or _off.get("channeled_behavior")) \
+                and "channeling" not in auto_sources:
+            auto_sources["channeling"] = f"Channeling ({_off.get('skill_name') or 'equipped skill'} is channeled)"
+            auto_values["channeling"] = True
+            if "channeling" not in manual_cond_keys:
+                condition_state["channeling"] = True
+        # Terra Charges consumed: the effective max (1 + flat stacks) is the condition's max AND the auto
+        # default (all charges consumed — exact for realistic recast cadences at the 0.5s/stack base restore),
+        # so the field tracks the build's stack sources and the user can override downward. Two Terra skills
+        # equipped → the larger max wins (same field drives both).
+        if _off.get("terra_charge"):
+            _tc = _off["terra_charge"]
+            if float(_tc["max_stacks"]) > _terra_best:
+                _terra_best = float(_tc["max_stacks"])
+                maxes["terra_charges_consumed"] = _terra_best
+                auto_sources["terra_charges_consumed"] = "Terra Charge (max stacks consumed)"
+                auto_values["terra_charges_consumed"] = _terra_best
+        # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
+        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as
+        # the auto default (all projectiles land), so the field tracks the count and the user can override
+        # downward. Always report the count as the auto value (even when the user has overridden it), so the
+        # field's clear-to-default restores the build's projectile count rather than the catalog default.
+        # Gated on the resolver's explicit `shots_on_target_cap` delivery flag, NOT `compulsory_breakdown` —
+        # the shotgun-cap mechanic is independent of compulsory elemental conversion (SS13's Chromatic Shot
+        # dropped the latter but kept the former; see ResolvedSkill.shots_on_target_cap).
+        if getattr(_res_sk, "shots_on_target_cap", False) and _off.get("projectile_count"):
+            _pc = float(_off["projectile_count"])
+            if _pc > _chromatic_best:
+                _chromatic_best = _pc
+                maxes["chromatic_shots_on_target"] = _pc
+                auto_sources["chromatic_shots_on_target"] = "Chromatic Shot (all projectiles land)"
+                auto_values["chromatic_shots_on_target"] = _pc
 
     # ── Minion DPS pass (Spirit Magi / Synthetic Troops / Modularization) ─────────
     # Every slotted minion OWNER (a skill carrying nested `minion_skills`) contributes each nested ability's DPS,

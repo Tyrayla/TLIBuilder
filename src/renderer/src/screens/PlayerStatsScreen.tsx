@@ -1114,7 +1114,7 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
         </div>
       )}
       <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
-        {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
+        {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill — no hit damage is computed for this slot.'}
       </div>
       <div style={{ opacity: disabled ? 0.5 : 1 }}>
       {reservation && (() => {
@@ -1466,14 +1466,14 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       : <StatPanel title={slotLabel(slot)} accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
-  if (!offense.supported) {
-    return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
-      : (
-        <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name}`} accent={AMBER}>
-          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Not modeled — this skill isn't in the DPS engine yet (0 DPS).</div>
-        </StatPanel>
-      )
+  // Partial-support mode: the skill's DAMAGE isn't modeled (no damage-engine entry → 0 DPS, no hit
+  // forms), but the engine still computes every registry-independent mechanic — rates, crit, costs,
+  // tangle / spell burst / wind rhythm / shadow / multistrike. Render those panels and hide anything
+  // that would state a damage number (the hit-damage table, DPS rows, delivery multipliers). Buff-type
+  // skills with a modeled summary (aura / curse / empower / elixir) keep their richer foundation panel.
+  const partial = !offense.supported
+  if (partial && skill && (aura || curse || empower || elixir || reservation)) {
+    return <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
   }
 
   // A minion Empower/Ultimate NYI form selected on its own (via the Form dropdown) deals no hit — it's a buff or
@@ -1593,8 +1593,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
   // Whether this skill lands hits — a precondition for inflicting ailments / crowd control. A skill that deals
   // no hit damage (pure aura/buff/persistent with no strike) can't apply these unless it has special behavior,
-  // so those boxes stay hidden for it.
-  const canHit = (offense.total_dps ?? 0) > 0 || (offense.hit_forms ?? []).some(f => (f.dps_contribution ?? 0) > 0)
+  // so those boxes stay hidden for it. In partial mode there is no computed damage to inspect, so fall back to
+  // the tag heuristic: attack/spell skills land hits.
+  const canHit = partial
+    ? hasTag(offense, 'attack') || hasTag(offense, 'spell')
+    : (offense.total_dps ?? 0) > 0 || (offense.hit_forms ?? []).some(f => (f.dps_contribution ?? 0) > 0)
   const stat = (k: string) => statMap[k]?.total ?? 0
   // Per-skill value: the character-wide total PLUS this slot's skill-specific (support) contributions — same
   // slot scoping the breakdown body uses, so Skill Effects shows the value for the SELECTED skill, not build-wide.
@@ -1613,6 +1616,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     for (const d of ALL_DTYPES) {
       if ((f.hit_max_by_type?.[d] ?? 0) > 0 || (f.damage_by_type?.[d] ?? 0) > 0) dealtTypes.add(d)
     }
+  }
+  // Partial mode has no computed per-type damage — gate the element-scoped boxes on the skill's own
+  // damage-type TAGS instead (conservative: a skill without a type tag shows no ailment box; Show-all overrides).
+  if (partial) {
+    for (const d of ALL_DTYPES) if (hasTag(offense, d)) dealtTypes.add(d)
   }
   const dealsType = (d: string) => dealtTypes.has(d)
 
@@ -1672,12 +1680,28 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   return (
     <>
       <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER} info={dotDominant ? DOT_DISCLAIMER : undefined}>
+        {partial ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 4px' }}>
+              <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#c8645a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Damage not modeled
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, paddingBottom: 4 }}>
+              This skill's damage isn't in the engine yet, so no damage numbers are shown. The mechanics
+              below — rates, crit, costs, charge speeds — are computed from your build and don't depend on
+              the damage model.
+            </div>
+          </>
+        ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 6px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
             {fmtNum(offense.total_dps_vs_target)}
           </span>
         </div>
+        )}
         {(offense.spell_burst_count ?? 0) > 0 && (offense.non_spell_burst_dps_vs_target ?? 0) > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 0 6px', marginTop: -2 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
@@ -1695,9 +1719,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         )}
       </StatPanel>
 
-      <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
-        <DamageBreakdownTable offense={offense} minion={minion} />
-      </StatPanel>
+      {!partial && (
+        <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
+          <DamageBreakdownTable offense={offense} minion={minion} />
+        </StatPanel>
+      )}
 
       {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
           tangle, spell burst, channeled, ailments, stubs). Row-major masonry keeps Hit Rate → Crit → Skill
@@ -2194,6 +2220,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               ? { value: '', stat: 'Source', source: '', sourceName: offense.spell_burst_auto_source || 'Auto-trigger' }
               : { value: '', stat: 'Source', source: '', sourceName: 'Manual cast (base) — Solid River / Vorax / Burst Activation switch to Auto' }],
           }}>{offense.spell_burst_auto ? 'Auto' : 'Manual'}</Row>
+          {/* DPS rows are damage-model outputs — hidden in partial mode (the charge/burst mechanics above are not). */}
+          {!partial && (
+          <>
           <Row label="Spell Burst DPS" labelColor="#9ad">
             <span style={{ color: '#7fb0e0' }}>{fmtNum(offense.spell_burst_dps_vs_target)}</span>
           </Row>
@@ -2219,6 +2248,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           }}>
             <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
           </Row>
+          </>
+          )}
         </StatPanel></GridBox>
       )}
 
@@ -2487,7 +2518,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       {((offense.multistrike_chance ?? 0) > 0 || showAll) && (
         <GridBox><StatPanel title="Multistrike" accent={AMBER}
           info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
-          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
+          {/* The multiplier is a factor on a DPS that isn't modeled in partial mode — hidden there. */}
+          {!partial && (
+            <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
+          )}
           <Row label="Chance">{dec((offense.multistrike_chance ?? 0) * 100)}%</Row>
           <Row label="Repeat Attack Speed" breakdown={{
             title: 'Repeat Attack Speed', keys: [], total: offense.multistrike_repeat_aps ?? 0, totalUnit: ' /s',
@@ -2519,7 +2553,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       {(hasTag(offense, 'shadow strike') || showAll) && (
         <GridBox><StatPanel title="Shadow Strike" accent={AMBER}
           info="Casting summons Max Shadows shadows that each repeat your attack once against the same target. The first Shadow lands at 100%, each further Shadow retains 30% (Shotgun Effect falloff coefficient 70%, glossary 136 'Phantom') — independent of your own hit, which is never subject to this falloff. Σ additional Shadow Damage scales ONLY the shadow portion. Despised Shadow's chance to gain bonus Shadows folds into an expected-value mix rather than a rounded average, since the falloff formula is nonlinear in shadow count.">
-          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.shadow_mult ?? 1)}</span></Row>
+          {/* The multiplier is a factor on a DPS that isn't modeled in partial mode — hidden there. */}
+          {!partial && (
+            <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.shadow_mult ?? 1)}</span></Row>
+          )}
           <Row label="Max Shadows" breakdown={{
             title: 'Max Shadow Quantity', keys: ['max_shadow_quantity_flat'], total: offense.shadow_count ?? 0, totalUnit: '',
             formula: 'Σ Shadow Quantity — gear / support / talent lines granting +Shadow Quantity',

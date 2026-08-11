@@ -82,6 +82,65 @@ class TestEnabledGating:
                  main_skill={"skill_id": "berserking_blade", "level": 14})
         assert "1" in r["slot_offense"] and "2" not in r["slot_offense"]
 
+    def test_unsupported_main_skill_partial_offense_end_to_end(self):
+        # Partial-support display, main-slot path: an UNREGISTERED main skill runs the full pipeline
+        # through engine_stats — generic fields populated, zero damage, and its damage mods stay OUT
+        # of consumed_stats (recording suppressed inside calculate_offense), so modifier badges keep
+        # reading "unused" for a skill whose damage isn't modeled.
+        r = _req(skills=[{"slot": 1, "skill_id": "lightning_shot", "level": 14}],
+                 main_skill={"skill_id": "lightning_shot", "level": 14})
+        o = r["offense"]
+        assert o["supported"] is False
+        assert o["total_dps"] == 0.0 and o["hit_forms"] == []
+        assert o["skills_per_second"] > 0.0
+        assert o["skill_tags"]
+        assert o["crit_chance"] > 0.0    # 500 CSR from the test sword (or spell base) → 5%
+        # The sword's weapon flat damage is read ONLY by the offense pass — suppressed for an
+        # unsupported skill, so it must not badge Consumed.
+        assert "physical_dmg_gear_flat_min" not in (r.get("consumed_stats") or [])
+
+    def test_unsupported_skill_keeps_its_slot_with_zero_damage(self):
+        # Partial-support display: an UNREGISTERED skill in a secondary slot is no longer dropped — it
+        # gets a supported=False slot result with zero damage but populated generic fields (rates/tags),
+        # so the UI can render its partial panel set.
+        r = _req(skills=[{"slot": 1, "skill_id": "berserking_blade", "level": 14},
+                         {"slot": 2, "skill_id": "lightning_shot", "level": 14}],
+                 main_skill={"skill_id": "berserking_blade", "level": 14})
+        so = r["slot_offense"]
+        assert "2" in so
+        assert so["2"]["supported"] is False
+        assert so["2"]["total_dps"] == 0.0
+        assert so["2"]["skills_per_second"] > 0.0
+        assert so["2"]["skill_tags"]
+
+
+class TestAutoConditionsAnySlot:
+    """Auto-derived conditions are general to the equipped skills, not main-slot-scoped (owner-ruled
+    2026-08-11) — a channeled skill in a SECONDARY slot still auto-enables the channeling condition."""
+
+    def test_channeled_secondary_slot_sets_channeling(self):
+        r = _req(skills=[{"slot": 1, "skill_id": "berserking_blade", "level": 14},
+                         {"slot": 2, "skill_id": "icebound_beam", "level": 14}],
+                 main_skill={"skill_id": "berserking_blade", "level": 14})
+        auto = r["auto_conditions"]["channeling"]
+        assert auto["value"] is True
+        assert "Icebound Beam" in auto["source"]
+
+    def test_no_channeled_skill_no_channeling(self):
+        r = _req(skills=[{"slot": 1, "skill_id": "berserking_blade", "level": 14}],
+                 main_skill={"skill_id": "berserking_blade", "level": 14})
+        assert "channeling" not in (r.get("auto_conditions") or {})
+
+    def test_terra_secondary_slot_reports_auto_default(self):
+        # Terra in a SECONDARY slot still drives the Terra Charges auto default (pins the
+        # _terra_best largest-wins scan and the catalog-pre-seed fix directly).
+        r = _req(skills=[{"slot": 1, "skill_id": "berserking_blade", "level": 14},
+                         {"slot": 2, "skill_id": "frost_terra", "level": 14}],
+                 main_skill={"skill_id": "berserking_blade", "level": 14})
+        auto = r["auto_conditions"]["terra_charges_consumed"]
+        assert auto["value"] >= 1.0
+        assert auto["source"] == "Terra Charge (max stacks consumed)"
+
 
 class TestCustomModConditionStripping:
     """Consistency: the custom-mod path strips a condition gate like gear, instead of failing to resolve."""

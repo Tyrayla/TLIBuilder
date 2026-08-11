@@ -1562,8 +1562,19 @@ def calculate_offense(
     # shadow: when set (the skill carries the Shadow Strike tag AND has a nonzero shadow count/chance —
     # see engine.compute._offense_for_slot), {"count": N_base, "chance_pct": p, "chance_quantity": k} feeds
     # the _shadow_multiplier EV mix folded into the DPS totals (see the "Shadow Strike mode" block below).
-    if not skill.supported:
-        return OffenseResult(skill_name=skill.name, supported=False)
+    # Unregistered skills (skill.supported=False) run the FULL pipeline too: every damage stage no-ops
+    # naturally (hit_forms_by_level is empty → no forms, total_dps stays 0.0) while the generic,
+    # registry-independent outputs — tags, rates, crit, costs, and the mechanic-mode panels (tangle /
+    # spell burst / wind rhythm / shadow / multistrike) — come back populated so the UI can render a
+    # partial-support view that never states a damage number (docs/BACKLOG.md §5). The result still
+    # carries supported=False; damage-derived fields are only ever their zero defaults.
+    #
+    # Consumption recording is SUSPENDED for these skills: a damage modifier on a skill whose damage
+    # isn't modeled contributes nothing, and its badge must keep reading "unused" (the skill-sensitivity
+    # contract in test_modifier_consumption). Restored just before returning.
+    _suppress_recording = (not skill.supported) and source._recording
+    if _suppress_recording:
+        source._recording = False
 
     # Tags used for damage increased/additional + crit filtering — the skill's own tags plus any it
     # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
@@ -1960,7 +1971,9 @@ def calculate_offense(
     # 6. Per hit form
     # Effectiveness % stays at the max-level value when above max level.
     # Instead, a compounding additional multiplier is applied to all hit damage.
-    above_mult = _above_max_mult(effective_level, skill.max_level)
+    # Unsupported fallback has max_level=0 — every level would read as "above max" and produce a huge
+    # bogus multiplier; pin to 1.0 (no damage is computed for these skills anyway).
+    above_mult = _above_max_mult(effective_level, skill.max_level) if skill.supported else 1.0
     hit_forms: list[HitFormResult] = []
     # Pre-scan the projectile-scaling (reset burst) form's count, BEFORE the loop, so the continuous form
     # (processed first) knows whether the burst fires — and thus whether it's suppressed. -1 = no such form.
@@ -2707,9 +2720,9 @@ def calculate_offense(
     }
     _finalize_damage_row_pcts(damage_rows, total_dps_vs_target)
 
-    return OffenseResult(
+    result = OffenseResult(
         skill_name=skill.name,
-        supported=True,
+        supported=skill.supported,
         effective_level=effective_level,
         hit_forms=hit_forms,
         crit_chance=crit_chance,
@@ -2861,3 +2874,8 @@ def calculate_offense(
             *[f"{k} — {reason}" for k, reason in _DEFERRED_ADDITIONAL.items()],
         ],
     )
+    # The construction above still reads source.total() (weapon speed, skill_area, jumps, trigger interval),
+    # so recording is restored only now that every read for this skill is done.
+    if _suppress_recording:
+        source._recording = True
+    return result
