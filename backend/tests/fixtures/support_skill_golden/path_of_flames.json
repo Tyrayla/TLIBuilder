@@ -38,10 +38,8 @@
     "cold_spell_dmg_flat_min",
     "crit_dmg_additional",
     "crit_dmg_inc",
-    "crit_dmg_inc_per_mana_consumed",
     "crit_rating_additional",
     "crit_rating_inc",
-    "crit_rating_inc_per_mana_consumed",
     "defense_inc",
     "dexterity_additional",
     "dexterity_flat",
@@ -175,6 +173,7 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
+    "max_terra_charge_stacks_flat",
     "min_channeled_stacks_flat",
     "physical_as_cold",
     "physical_as_elemental",
@@ -253,10 +252,10 @@
     "damage_rows": [
       {
         "dps_by_type_vs_target": {
-          "fire": 1781.9167613829115
+          "fire": 1827.0037641461756
         },
-        "dps_final": 2545.5953734041595,
-        "dps_vs_target_final": 1781.9167613829115,
+        "dps_final": 2610.0053773516797,
+        "dps_vs_target_final": 1827.0037641461756,
         "form_index": -1,
         "hit_max_by_type": {},
         "hit_min_by_type": {},
@@ -391,8 +390,8 @@
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
     "target_mitigation_by_type": {},
-    "total_dps": 2545.5953734041595,
-    "total_dps_vs_target": 1781.9167613829115,
+    "total_dps": 2610.0053773516797,
+    "total_dps_vs_target": 1827.0037641461756,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
@@ -448,10 +447,10 @@
       "damage_rows": [
         {
           "dps_by_type_vs_target": {
-            "fire": 1781.9167613829115
+            "fire": 1827.0037641461756
           },
-          "dps_final": 2545.5953734041595,
-          "dps_vs_target_final": 1781.9167613829115,
+          "dps_final": 2610.0053773516797,
+          "dps_vs_target_final": 1827.0037641461756,
           "form_index": -1,
           "hit_max_by_type": {},
           "hit_min_by_type": {},
@@ -586,8 +585,8 @@
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
       "target_mitigation_by_type": {},
-      "total_dps": 2545.5953734041595,
-      "total_dps_vs_target": 1781.9167613829115,
+      "total_dps": 2610.0053773516797,
+      "total_dps_vs_target": 1827.0037641461756,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {

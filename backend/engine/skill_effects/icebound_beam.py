@@ -45,8 +45,11 @@ FROZEN_BURST_RATE = 1.0       # Ring Blade Frozen proc: full Icy Blade bursts pe
 _CHILLING_RE = re.compile(r"[+]?\s*\(?\s*-?([\d.]+)\s*[–−]\s*-?([\d.]+)\s*\)?\s*%\s*additional Hit Damage", re.I)
 # Frostbitten per-stack % (anchored on "damage by").
 _FROST_RE = re.compile(r"damage by\s*\+?\s*\(?\s*([\d.]+)\s*[–−\-]\s*([\d.]+)\s*\)?\s*%", re.I)
-# Ring Blade's specific "+(8–10) % additional damage for the supported skill".
-_RING_RE = re.compile(r"\+?\s*\(?\s*([\d.]+)\s*[–−\-]\s*([\d.]+)\s*\)?\s*%\s*additional damage for the supported skill", re.I)
+# Ring Blade's "+(8–10) %" (SS12) / "(-5–-4) %" (SS13) additional damage for the supported skill. Unsigned
+# magnitudes with the optional leading "-" consumed, sign derived from the "(-" prefix in _signed_frac —
+# the same convention as _CHILLING_RE above (the SS13 retune made this roll negative, which the old
+# positive-only pattern silently failed to match, dropping the roll entirely).
+_RING_RE = re.compile(r"\+?\s*\(?\s*-?([\d.]+)\s*[–−\-]\s*-?([\d.]+)\s*\)?\s*%\s*additional damage for the supported skill", re.I)
 
 
 def _tier_line(data: dict, sup: dict) -> str:
@@ -104,8 +107,9 @@ def frostbitten_contribution(sup: dict, data: dict) -> dict | None:
 
 
 def ring_blade_contribution(sup: dict, data: dict) -> dict | None:
-    """Ring Blade's +(8-10)% specific additional damage roll (the projectile + Frozen-proc effects are emitted in
-    apply_slot_effects; the universal +20% rides the rank path)."""
+    """Ring Blade's specific additional-damage roll — +(8-10)% in SS12, (-5–-4)% after the SS13 retune
+    (signed, like Chilling Spike's; the projectile + Frozen-proc effects are emitted in apply_slot_effects;
+    the universal +20% rides the rank path)."""
     line = _tier_line(data, sup)
     frac = _signed_frac(sup, line, _RING_RE)
     if frac is None:
@@ -113,7 +117,7 @@ def ring_blade_contribution(sup: dict, data: dict) -> dict | None:
     return {
         "stat_key": "dmg_additional",
         "amount": frac,
-        "text": f"+{frac * 100:.2f}% additional damage for the supported skill |{sup.get('item_id')}|ring_blade",
+        "text": f"{frac * 100:+.2f}% additional damage for the supported skill |{sup.get('item_id')}|ring_blade",
         "label": data.get("name") or sup.get("item_id"),
         "slot": sup.get("slot", 1),
     }

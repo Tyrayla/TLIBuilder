@@ -208,3 +208,19 @@ class TestNonChanneledUnaffected:
         f = o["hit_forms"][0]
         assert f["hits_per_fire"] == 1
         assert f["dps_contribution"] == pytest.approx(f["avg_hit_with_crit"] * o["skills_per_second"])
+
+
+def test_ring_blade_ss13_negative_roll_parses():
+    """SS13 retuned Ring Blade's specific roll to a NEGATIVE range — "(-5–-4) % additional damage for the
+    supported skill". The old positive-only _RING_RE silently dropped it (the contribution vanished while the
+    line still badged modeled — caught by review-accuracy 2026-08-10, and the first icebound SS13 golden
+    recapture baked the miss in). Pin: the tier line parses to the signed midpoint −4.5%."""
+    from engine.skill_effects.icebound_beam import ring_blade_contribution, RING_BLADE
+    from persistence import season_manager
+    d = season_manager.load_skills("SS13")
+    data = next(s for s in d["skills"] if s.get("item_id") == RING_BLADE)
+    contrib = ring_blade_contribution({"item_id": RING_BLADE, "slot": 1, "level": 1}, data)
+    assert contrib is not None, "SS13 Ring Blade roll must parse (negative range)"
+    assert contrib["stat_key"] == "dmg_additional"
+    assert contrib["amount"] == pytest.approx(-0.045)
+    assert "ring_blade" in contrib["text"]

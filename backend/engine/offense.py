@@ -2734,8 +2734,11 @@ def calculate_offense(
         generic_add=generic_add,
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
-        skill_tags=(skill.tags + [t for t in (add_mod_tags or set())
-                                  if t.lower() not in {x.lower() for x in skill.tags}]),
+        # sorted(): add_mod_tags is a SET — unsorted iteration made the appended extras' order vary per
+        # process (hash randomization), flapping the chromatic_shot golden once the four Condensed supports
+        # each contributed an element tag (first multi-tag case; single-tag sets never showed it).
+        skill_tags=(skill.tags + sorted(t for t in (add_mod_tags or set())
+                                        if t.lower() not in {x.lower() for x in skill.tags})),
         skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,

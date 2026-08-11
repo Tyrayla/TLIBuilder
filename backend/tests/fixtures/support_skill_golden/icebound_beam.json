@@ -44,10 +44,8 @@
     "continuous_suppression_disable",
     "crit_dmg_additional",
     "crit_dmg_inc",
-    "crit_dmg_inc_per_mana_consumed",
     "crit_rating_additional",
     "crit_rating_inc",
-    "crit_rating_inc_per_mana_consumed",
     "defense_inc",
     "dexterity_additional",
     "dexterity_flat",
@@ -192,6 +190,7 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
+    "max_terra_charge_stacks_flat",
     "min_channeled_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
@@ -263,10 +262,10 @@
     "base_cast_time": 0.333,
     "base_csr": 500.0,
     "base_dmg_max": {
-      "cold": 257.0
+      "cold": 309.0
     },
     "base_dmg_min": {
-      "cold": 171.0
+      "cold": 206.0
     },
     "cast_multiplier": 1.0,
     "channel_attack_smooth_sps": 0.0,
@@ -288,84 +287,84 @@
     "damage_rows": [
       {
         "dps_by_type_vs_target": {
-          "cold": 1572.6226137618282,
-          "fire": 305.7060781892152,
-          "lightning": 606.4444326078557,
-          "physical": 311.9449777440972
+          "cold": 1447.5283253595442,
+          "fire": 280.62374369688706,
+          "lightning": 556.6873515586998,
+          "physical": 286.35075887437466
         },
-        "dps_final": 5694.855515812479,
-        "dps_vs_target_final": 2796.718102302996,
+        "dps_final": 5235.639110840854,
+        "dps_vs_target_final": 2571.1901794895057,
         "form_index": 0,
         "hit_max_by_type": {
-          "cold": 1029.2611166922761,
-          "fire": 216.26498171744325,
-          "lightning": 629.2229643069011,
-          "physical": 208.25516757976015
+          "cold": 946.6512590440306,
+          "fire": 198.5210407315637,
+          "lightning": 577.5969680084844,
+          "physical": 191.16840959335764
         },
         "hit_min_by_type": {
-          "cold": 684.8391087719036,
-          "fire": 116.94328641017303,
-          "lightning": 31.77893759125763,
-          "physical": 124.95310054785611
+          "cold": 631.100839362687,
+          "fire": 107.34841461780852,
+          "lightning": 29.171564040832546,
+          "physical": 114.70104575601457
         },
         "kind": "hit",
         "name": "Cold Beam",
         "nyi": [],
-        "pct_of_total": 41.18375955619546
+        "pct_of_total": 41.14937545548537
       },
       {
         "dps_by_type_vs_target": {
-          "cold": 1602.8257863906183,
-          "fire": 309.22169808839107,
-          "lightning": 613.4185435828458,
-          "physical": 315.53234498815425
+          "cold": 1477.4345416349338,
+          "fire": 284.24846705297193,
+          "lightning": 563.877896516333,
+          "physical": 290.04945617650196
         },
-        "dps_final": 5785.076992143361,
-        "dps_vs_target_final": 2840.9983730500094,
+        "dps_final": 5326.141576035124,
+        "dps_vs_target_final": 2615.6103613807404,
         "form_index": 1,
         "hit_max_by_type": {
-          "cold": 3083.778443007987,
-          "fire": 643.3883206093936,
-          "lightning": 1871.9383188130305,
-          "physical": 619.5591235497865
+          "cold": 2843.0173734396776,
+          "fire": 591.4272671794502,
+          "lightning": 1720.75763385861,
+          "physical": 569.5225535802113
         },
         "hit_min_by_type": {
-          "cold": 2054.5173263157108,
-          "fire": 347.90627707026465,
-          "lightning": 94.54233933399144,
-          "physical": 371.7354741298719
+          "cold": 1893.302518088061,
+          "fire": 319.80881854888787,
+          "lightning": 86.90695120498029,
+          "physical": 341.7135321481267
         },
         "kind": "hit",
         "name": "Icy Blade",
         "nyi": [],
-        "pct_of_total": 41.8358195625388
+        "pct_of_total": 41.860276872667306
       },
       {
         "dps_by_type_vs_target": {
-          "cold": 650.5587015350156,
-          "fire": 125.50763040058226,
-          "lightning": 248.97576180715504,
-          "physical": 128.0690106128391
+          "cold": 599.6646080753554,
+          "fire": 115.37143662738272,
+          "lightning": 228.86808740957042,
+          "physical": 117.72595574222727
         },
-        "dps_final": 2348.0606615170113,
-        "dps_vs_target_final": 1153.111104355592,
+        "dps_final": 2161.786874978962,
+        "dps_vs_target_final": 1061.6300878545358,
         "form_index": 2,
         "hit_max_by_type": {
-          "cold": 3083.778443007987,
-          "fire": 643.3883206093936,
-          "lightning": 1871.9383188130305,
-          "physical": 619.5591235497865
+          "cold": 2843.0173734396776,
+          "fire": 591.4272671794502,
+          "lightning": 1720.75763385861,
+          "physical": 569.5225535802113
         },
         "hit_min_by_type": {
-          "cold": 2054.5173263157108,
-          "fire": 347.90627707026465,
-          "lightning": 94.54233933399144,
-          "physical": 371.7354741298719
+          "cold": 1893.302518088061,
+          "fire": 319.80881854888787,
+          "lightning": 86.90695120498029,
+          "physical": 341.7135321481267
         },
         "kind": "hit",
         "name": "Chilling Spike",
         "nyi": [],
-        "pct_of_total": 16.980420881265747
+        "pct_of_total": 16.99034767184732
       }
     ],
     "demolisher_area_mode": "both",
@@ -448,51 +447,51 @@
       ]
     },
     "flat_dmg_max": {
-      "cold": 257.0,
-      "fire": 54.0,
-      "lightning": 79.2,
-      "physical": 52.0
+      "cold": 309.0,
+      "fire": 64.8,
+      "lightning": 95.03999999999999,
+      "physical": 62.4
     },
     "flat_dmg_min": {
-      "cold": 171.0,
-      "fire": 29.200000000000003,
-      "lightning": 4.0,
-      "physical": 31.200000000000003
+      "cold": 206.0,
+      "fire": 35.04,
+      "lightning": 4.8,
+      "physical": 37.44
     },
-    "generic_add": 4.004907068841542,
+    "generic_add": 3.0635963075858594,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 1520.7593318087856,
-        "avg_hit_with_crit": 1634.8162816944446,
+        "avg_hit_pre_crit": 1398.1297705773895,
+        "avg_hit_with_crit": 1502.9895033706937,
         "base_max_by_type": {
-          "cold": 257.0
+          "cold": 309.0
         },
         "base_min_by_type": {
-          "cold": 171.0
+          "cold": 206.0
         },
         "damage_by_type": {
-          "cold": 857.0501127320899,
-          "fire": 166.60413406380815,
-          "lightning": 330.50095094907937,
-          "physical": 166.60413406380815
+          "cold": 788.8760492033588,
+          "fire": 152.9347276746861,
+          "lightning": 303.3842660246585,
+          "physical": 152.9347276746861
         },
-        "dps_contribution": 5694.855515812479,
-        "dps_vs_target": 2796.718102302996,
+        "dps_contribution": 5235.639110840854,
+        "dps_vs_target": 2571.1901794895057,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 3.483483483483483,
         "form_type": "additive",
         "hit_max_by_type": {
-          "cold": 1029.2611166922761,
-          "fire": 216.26498171744325,
-          "lightning": 629.2229643069011,
-          "physical": 208.25516757976015
+          "cold": 946.6512590440306,
+          "fire": 198.5210407315637,
+          "lightning": 577.5969680084844,
+          "physical": 191.16840959335764
         },
         "hit_min_by_type": {
-          "cold": 684.8391087719036,
-          "fire": 116.94328641017303,
-          "lightning": 31.77893759125763,
-          "physical": 124.95310054785611
+          "cold": 631.100839362687,
+          "fire": 107.34841461780852,
+          "lightning": 29.171564040832546,
+          "physical": 114.70104575601457
         },
         "hits_per_fire": 1,
         "name": "Cold Beam",
@@ -502,36 +501,36 @@
         "shotgun_mult": 1.0
       },
       {
-        "avg_hit_pre_crit": 4543.6828114150185,
-        "avg_hit_with_crit": 4884.459022271145,
+        "avg_hit_pre_crit": 4183.228324024002,
+        "avg_hit_with_crit": 4496.970448325802,
         "base_max_by_type": {
-          "cold": 770.0
+          "cold": 928.0
         },
         "base_min_by_type": {
-          "cold": 513.0
+          "cold": 618.0
         },
         "damage_by_type": {
-          "cold": 2569.147884661849,
-          "fire": 495.64729883982915,
-          "lightning": 983.240329073511,
-          "physical": 495.6472988398292
+          "cold": 2368.1599457638695,
+          "fire": 455.618042864169,
+          "lightning": 903.8322925317951,
+          "physical": 455.61804286416896
         },
-        "dps_contribution": 5785.076992143361,
-        "dps_vs_target": 2840.9983730500094,
+        "dps_contribution": 5326.141576035124,
+        "dps_vs_target": 2615.6103613807404,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
         "hit_max_by_type": {
-          "cold": 3083.778443007987,
-          "fire": 643.3883206093936,
-          "lightning": 1871.9383188130305,
-          "physical": 619.5591235497865
+          "cold": 2843.0173734396776,
+          "fire": 591.4272671794502,
+          "lightning": 1720.75763385861,
+          "physical": 569.5225535802113
         },
         "hit_min_by_type": {
-          "cold": 2054.5173263157108,
-          "fire": 347.90627707026465,
-          "lightning": 94.54233933399144,
-          "physical": 371.7354741298719
+          "cold": 1893.302518088061,
+          "fire": 319.80881854888787,
+          "lightning": 86.90695120498029,
+          "physical": 341.7135321481267
         },
         "hits_per_fire": 3,
         "name": "Icy Blade",
@@ -541,36 +540,36 @@
         "shotgun_mult": 1.7
       },
       {
-        "avg_hit_pre_crit": 4543.6828114150185,
-        "avg_hit_with_crit": 4884.459022271145,
+        "avg_hit_pre_crit": 4183.228324024002,
+        "avg_hit_with_crit": 4496.970448325802,
         "base_max_by_type": {
-          "cold": 770.0
+          "cold": 928.0
         },
         "base_min_by_type": {
-          "cold": 513.0
+          "cold": 618.0
         },
         "damage_by_type": {
-          "cold": 2569.147884661849,
-          "fire": 495.64729883982915,
-          "lightning": 983.240329073511,
-          "physical": 495.6472988398292
+          "cold": 2368.1599457638695,
+          "fire": 455.618042864169,
+          "lightning": 903.8322925317951,
+          "physical": 455.61804286416896
         },
-        "dps_contribution": 2348.0606615170113,
-        "dps_vs_target": 1153.111104355592,
+        "dps_contribution": 2161.786874978962,
+        "dps_vs_target": 1061.6300878545358,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
         "hit_max_by_type": {
-          "cold": 3083.778443007987,
-          "fire": 643.3883206093936,
-          "lightning": 1871.9383188130305,
-          "physical": 619.5591235497865
+          "cold": 2843.0173734396776,
+          "fire": 591.4272671794502,
+          "lightning": 1720.75763385861,
+          "physical": 569.5225535802113
         },
         "hit_min_by_type": {
-          "cold": 2054.5173263157108,
-          "fire": 347.90627707026465,
-          "lightning": 94.54233933399144,
-          "physical": 371.7354741298719
+          "cold": 1893.302518088061,
+          "fire": 319.80881854888787,
+          "lightning": 86.90695120498029,
+          "physical": 341.7135321481267
         },
         "hits_per_fire": 1,
         "name": "Chilling Spike",
@@ -675,15 +674,15 @@
       "lightning": 0.48999999999999994,
       "physical": 0.5
     },
-    "total_dps": 13827.993169472851,
-    "total_dps_vs_target": 6790.827579708597,
+    "total_dps": 12723.56756185494,
+    "total_dps_vs_target": 6248.430628724782,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
-      "cold": 4.004907068841542,
-      "fire": 4.004907068841542,
-      "lightning": 5.296489598542938,
-      "physical": 4.004907068841542
+      "cold": 3.0635963075858594,
+      "fire": 3.0635963075858594,
+      "lightning": 4.051606116782298,
+      "physical": 3.0635963075858594
     },
     "type_inc": {
       "cold": 0,
@@ -713,10 +712,10 @@
       "base_cast_time": 0.333,
       "base_csr": 500.0,
       "base_dmg_max": {
-        "cold": 257.0
+        "cold": 309.0
       },
       "base_dmg_min": {
-        "cold": 171.0
+        "cold": 206.0
       },
       "cast_multiplier": 1.0,
       "channel_attack_smooth_sps": 0.0,
@@ -738,84 +737,84 @@
       "damage_rows": [
         {
           "dps_by_type_vs_target": {
-            "cold": 1572.6226137618282,
-            "fire": 305.7060781892152,
-            "lightning": 606.4444326078557,
-            "physical": 311.9449777440972
+            "cold": 1447.5283253595442,
+            "fire": 280.62374369688706,
+            "lightning": 556.6873515586998,
+            "physical": 286.35075887437466
           },
-          "dps_final": 5694.855515812479,
-          "dps_vs_target_final": 2796.718102302996,
+          "dps_final": 5235.639110840854,
+          "dps_vs_target_final": 2571.1901794895057,
           "form_index": 0,
           "hit_max_by_type": {
-            "cold": 1029.2611166922761,
-            "fire": 216.26498171744325,
-            "lightning": 629.2229643069011,
-            "physical": 208.25516757976015
+            "cold": 946.6512590440306,
+            "fire": 198.5210407315637,
+            "lightning": 577.5969680084844,
+            "physical": 191.16840959335764
           },
           "hit_min_by_type": {
-            "cold": 684.8391087719036,
-            "fire": 116.94328641017303,
-            "lightning": 31.77893759125763,
-            "physical": 124.95310054785611
+            "cold": 631.100839362687,
+            "fire": 107.34841461780852,
+            "lightning": 29.171564040832546,
+            "physical": 114.70104575601457
           },
           "kind": "hit",
           "name": "Cold Beam",
           "nyi": [],
-          "pct_of_total": 41.18375955619546
+          "pct_of_total": 41.14937545548537
         },
         {
           "dps_by_type_vs_target": {
-            "cold": 1602.8257863906183,
-            "fire": 309.22169808839107,
-            "lightning": 613.4185435828458,
-            "physical": 315.53234498815425
+            "cold": 1477.4345416349338,
+            "fire": 284.24846705297193,
+            "lightning": 563.877896516333,
+            "physical": 290.04945617650196
           },
-          "dps_final": 5785.076992143361,
-          "dps_vs_target_final": 2840.9983730500094,
+          "dps_final": 5326.141576035124,
+          "dps_vs_target_final": 2615.6103613807404,
           "form_index": 1,
           "hit_max_by_type": {
-            "cold": 3083.778443007987,
-            "fire": 643.3883206093936,
-            "lightning": 1871.9383188130305,
-            "physical": 619.5591235497865
+            "cold": 2843.0173734396776,
+            "fire": 591.4272671794502,
+            "lightning": 1720.75763385861,
+            "physical": 569.5225535802113
           },
           "hit_min_by_type": {
-            "cold": 2054.5173263157108,
-            "fire": 347.90627707026465,
-            "lightning": 94.54233933399144,
-            "physical": 371.7354741298719
+            "cold": 1893.302518088061,
+            "fire": 319.80881854888787,
+            "lightning": 86.90695120498029,
+            "physical": 341.7135321481267
           },
           "kind": "hit",
           "name": "Icy Blade",
           "nyi": [],
-          "pct_of_total": 41.8358195625388
+          "pct_of_total": 41.860276872667306
         },
         {
           "dps_by_type_vs_target": {
-            "cold": 650.5587015350156,
-            "fire": 125.50763040058226,
-            "lightning": 248.97576180715504,
-            "physical": 128.0690106128391
+            "cold": 599.6646080753554,
+            "fire": 115.37143662738272,
+            "lightning": 228.86808740957042,
+            "physical": 117.72595574222727
           },
-          "dps_final": 2348.0606615170113,
-          "dps_vs_target_final": 1153.111104355592,
+          "dps_final": 2161.786874978962,
+          "dps_vs_target_final": 1061.6300878545358,
           "form_index": 2,
           "hit_max_by_type": {
-            "cold": 3083.778443007987,
-            "fire": 643.3883206093936,
-            "lightning": 1871.9383188130305,
-            "physical": 619.5591235497865
+            "cold": 2843.0173734396776,
+            "fire": 591.4272671794502,
+            "lightning": 1720.75763385861,
+            "physical": 569.5225535802113
           },
           "hit_min_by_type": {
-            "cold": 2054.5173263157108,
-            "fire": 347.90627707026465,
-            "lightning": 94.54233933399144,
-            "physical": 371.7354741298719
+            "cold": 1893.302518088061,
+            "fire": 319.80881854888787,
+            "lightning": 86.90695120498029,
+            "physical": 341.7135321481267
           },
           "kind": "hit",
           "name": "Chilling Spike",
           "nyi": [],
-          "pct_of_total": 16.980420881265747
+          "pct_of_total": 16.99034767184732
         }
       ],
       "demolisher_area_mode": "both",
@@ -898,51 +897,51 @@
         ]
       },
       "flat_dmg_max": {
-        "cold": 257.0,
-        "fire": 54.0,
-        "lightning": 79.2,
-        "physical": 52.0
+        "cold": 309.0,
+        "fire": 64.8,
+        "lightning": 95.03999999999999,
+        "physical": 62.4
       },
       "flat_dmg_min": {
-        "cold": 171.0,
-        "fire": 29.200000000000003,
-        "lightning": 4.0,
-        "physical": 31.200000000000003
+        "cold": 206.0,
+        "fire": 35.04,
+        "lightning": 4.8,
+        "physical": 37.44
       },
-      "generic_add": 4.004907068841542,
+      "generic_add": 3.0635963075858594,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 1520.7593318087856,
-          "avg_hit_with_crit": 1634.8162816944446,
+          "avg_hit_pre_crit": 1398.1297705773895,
+          "avg_hit_with_crit": 1502.9895033706937,
           "base_max_by_type": {
-            "cold": 257.0
+            "cold": 309.0
           },
           "base_min_by_type": {
-            "cold": 171.0
+            "cold": 206.0
           },
           "damage_by_type": {
-            "cold": 857.0501127320899,
-            "fire": 166.60413406380815,
-            "lightning": 330.50095094907937,
-            "physical": 166.60413406380815
+            "cold": 788.8760492033588,
+            "fire": 152.9347276746861,
+            "lightning": 303.3842660246585,
+            "physical": 152.9347276746861
           },
-          "dps_contribution": 5694.855515812479,
-          "dps_vs_target": 2796.718102302996,
+          "dps_contribution": 5235.639110840854,
+          "dps_vs_target": 2571.1901794895057,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 3.483483483483483,
           "form_type": "additive",
           "hit_max_by_type": {
-            "cold": 1029.2611166922761,
-            "fire": 216.26498171744325,
-            "lightning": 629.2229643069011,
-            "physical": 208.25516757976015
+            "cold": 946.6512590440306,
+            "fire": 198.5210407315637,
+            "lightning": 577.5969680084844,
+            "physical": 191.16840959335764
           },
           "hit_min_by_type": {
-            "cold": 684.8391087719036,
-            "fire": 116.94328641017303,
-            "lightning": 31.77893759125763,
-            "physical": 124.95310054785611
+            "cold": 631.100839362687,
+            "fire": 107.34841461780852,
+            "lightning": 29.171564040832546,
+            "physical": 114.70104575601457
           },
           "hits_per_fire": 1,
           "name": "Cold Beam",
@@ -952,36 +951,36 @@
           "shotgun_mult": 1.0
         },
         {
-          "avg_hit_pre_crit": 4543.6828114150185,
-          "avg_hit_with_crit": 4884.459022271145,
+          "avg_hit_pre_crit": 4183.228324024002,
+          "avg_hit_with_crit": 4496.970448325802,
           "base_max_by_type": {
-            "cold": 770.0
+            "cold": 928.0
           },
           "base_min_by_type": {
-            "cold": 513.0
+            "cold": 618.0
           },
           "damage_by_type": {
-            "cold": 2569.147884661849,
-            "fire": 495.64729883982915,
-            "lightning": 983.240329073511,
-            "physical": 495.6472988398292
+            "cold": 2368.1599457638695,
+            "fire": 455.618042864169,
+            "lightning": 903.8322925317951,
+            "physical": 455.61804286416896
           },
-          "dps_contribution": 5785.076992143361,
-          "dps_vs_target": 2840.9983730500094,
+          "dps_contribution": 5326.141576035124,
+          "dps_vs_target": 2615.6103613807404,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
           "hit_max_by_type": {
-            "cold": 3083.778443007987,
-            "fire": 643.3883206093936,
-            "lightning": 1871.9383188130305,
-            "physical": 619.5591235497865
+            "cold": 2843.0173734396776,
+            "fire": 591.4272671794502,
+            "lightning": 1720.75763385861,
+            "physical": 569.5225535802113
           },
           "hit_min_by_type": {
-            "cold": 2054.5173263157108,
-            "fire": 347.90627707026465,
-            "lightning": 94.54233933399144,
-            "physical": 371.7354741298719
+            "cold": 1893.302518088061,
+            "fire": 319.80881854888787,
+            "lightning": 86.90695120498029,
+            "physical": 341.7135321481267
           },
           "hits_per_fire": 3,
           "name": "Icy Blade",
@@ -991,36 +990,36 @@
           "shotgun_mult": 1.7
         },
         {
-          "avg_hit_pre_crit": 4543.6828114150185,
-          "avg_hit_with_crit": 4884.459022271145,
+          "avg_hit_pre_crit": 4183.228324024002,
+          "avg_hit_with_crit": 4496.970448325802,
           "base_max_by_type": {
-            "cold": 770.0
+            "cold": 928.0
           },
           "base_min_by_type": {
-            "cold": 513.0
+            "cold": 618.0
           },
           "damage_by_type": {
-            "cold": 2569.147884661849,
-            "fire": 495.64729883982915,
-            "lightning": 983.240329073511,
-            "physical": 495.6472988398292
+            "cold": 2368.1599457638695,
+            "fire": 455.618042864169,
+            "lightning": 903.8322925317951,
+            "physical": 455.61804286416896
           },
-          "dps_contribution": 2348.0606615170113,
-          "dps_vs_target": 1153.111104355592,
+          "dps_contribution": 2161.786874978962,
+          "dps_vs_target": 1061.6300878545358,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
           "hit_max_by_type": {
-            "cold": 3083.778443007987,
-            "fire": 643.3883206093936,
-            "lightning": 1871.9383188130305,
-            "physical": 619.5591235497865
+            "cold": 2843.0173734396776,
+            "fire": 591.4272671794502,
+            "lightning": 1720.75763385861,
+            "physical": 569.5225535802113
           },
           "hit_min_by_type": {
-            "cold": 2054.5173263157108,
-            "fire": 347.90627707026465,
-            "lightning": 94.54233933399144,
-            "physical": 371.7354741298719
+            "cold": 1893.302518088061,
+            "fire": 319.80881854888787,
+            "lightning": 86.90695120498029,
+            "physical": 341.7135321481267
           },
           "hits_per_fire": 1,
           "name": "Chilling Spike",
@@ -1125,15 +1124,15 @@
         "lightning": 0.48999999999999994,
         "physical": 0.5
       },
-      "total_dps": 13827.993169472851,
-      "total_dps_vs_target": 6790.827579708597,
+      "total_dps": 12723.56756185494,
+      "total_dps_vs_target": 6248.430628724782,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
-        "cold": 4.004907068841542,
-        "fire": 4.004907068841542,
-        "lightning": 5.296489598542938,
-        "physical": 4.004907068841542
+        "cold": 3.0635963075858594,
+        "fire": 3.0635963075858594,
+        "lightning": 4.051606116782298,
+        "physical": 3.0635963075858594
       },
       "type_inc": {
         "cold": 0,
@@ -1273,14 +1272,14 @@
           "text": "additional damage for the supported skill |icebound_beam_chilling_spike_noble|universal"
         },
         {
-          "amount": -0.015,
+          "amount": -0.14,
           "label": "Icebound Beam: Chilling Spike (Noble)",
           "points": 1,
           "scope": null,
           "slot": 1,
           "source_name": "Icebound Beam: Chilling Spike (Noble)",
           "source_type": "support",
-          "text": "-1.50% additional Hit Damage |icebound_beam_chilling_spike_noble|chilling_spike"
+          "text": "-14.00% additional Hit Damage |icebound_beam_chilling_spike_noble|chilling_spike"
         },
         {
           "amount": 0.2,
@@ -1313,14 +1312,14 @@
           "text": "additional damage for the supported skill |icebound_beam_ring_blade_noble|universal"
         },
         {
-          "amount": 0.09,
+          "amount": -0.045,
           "label": "Icebound Beam: Ring Blade (Noble)",
           "points": 1,
           "scope": null,
           "slot": 1,
           "source_name": "Icebound Beam: Ring Blade (Noble)",
           "source_type": "support",
-          "text": "+9.00% additional damage for the supported skill |icebound_beam_ring_blade_noble|ring_blade"
+          "text": "-4.50% additional damage for the supported skill |icebound_beam_ring_blade_noble|ring_blade"
         },
         {
           "amount": 0.16,

@@ -84,11 +84,11 @@ def _canonical(resp: dict) -> dict:
 
 _MODELED_SKILLS = sorted(skill_resolver._REGISTRY)
 
-# These four goldens were captured against SS12 data and now legitimately diverge under SS13's rebalance
-# (Chromatic Shot's canvas supports/element reworked, Icebound Beam's base damage raised, Mind Control's
-# and Path of Flames' DoT base rates changed). Pending SS13 re-verification post-flip — do NOT recapture
-# to SS13 output; guard until the mechanics are reconfirmed in-game.
-_SS12_PINNED_GOLDENS = {"chromatic_shot", "icebound_beam", "mind_control", "path_of_flames"}
+# SS12-pinned goldens that legitimately diverge under SS13's rebalance. 2026-08-10: owner approved
+# recapturing mind_control (DoT base 675→519/s), path_of_flames (base rate +~2.5%), and icebound_beam
+# (base damage raised, + the Ring Blade negative-roll parse fix) to SS13 output — recaptured and unpinned.
+# chromatic_shot stays pinned until its SS13-rework scaling audit signs off.
+_SS12_PINNED_GOLDENS: set[str] = {"chromatic_shot"}
 
 
 def test_modeled_skills_present():
