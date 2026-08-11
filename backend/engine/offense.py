@@ -208,6 +208,22 @@ _DOT_TYPE_ADDITIONAL_KEYED_TAGS: dict[str, list[tuple[str, frozenset]]] = {
     t: [(k, frozenset()) for k in keys] for t, keys in _DOT_TYPE_ADDITIONAL_KEYS.items()
 }
 
+# Terra-tag-scoped DoT pools (SS13 Terra system — Frost Terra is the first Terra DoT). "Terra Skill Damage"
+# scopes by SKILL (the Terra tag), not by damage form, so it applies to a Terra skill's DoT the same way
+# spell_dmg_inc applies to a spell's DoT. Applicability to the DoT stage is owner-directed (every Terra mod
+# line must map and surface) but NOT in-game measured yet — flagged needs-verification in
+# data/verification/frost-terra.json, mirroring how fire_dot_dmg_inc's inference is flagged in dot-model.json.
+# terra_dmg_enhancement_additional sums additively within its own pool and applies as ONE multiplier — that
+# identity is already handled generically by `_build_additional_factors`'s *_enhancement_additional rule.
+# Module-level constant so `_build_additional_factors` sees the SAME list object every call (identity fast
+# path), matching `_DOT_TYPE_ADDITIONAL_KEYED_TAGS` above.
+_DOT_TERRA_ADDITIONAL_KEYED_TAGS: list[tuple[str, frozenset]] = [
+    ("terra_skill_dmg_additional", frozenset()),
+    ("terra_dmg_enhancement_additional", frozenset()),
+]
+# NOTE: enrolled in _DOT_TYPE_ADDITIONAL_POOL_CACHE where that cache is defined (below) so the identity
+# fast path actually fires — without that the list would take the generic rebuild branch every call.
+
 
 # Attack speed additional pools (tags read directly from stat_meta)
 _APS_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -239,6 +255,7 @@ _SKILL_LEVEL_STATS: list[tuple[str, frozenset]] = [
     ("cold_skill_level",       frozenset({"cold"})),
     ("lightning_skill_level",  frozenset({"lightning"})),
     ("erosion_skill_level",    frozenset({"erosion"})),
+    ("terra_skill_level",      frozenset({"terra"})),
 ]
 
 
@@ -317,6 +334,9 @@ _DOT_TYPE_ADDITIONAL_POOL_CACHE: dict[int, tuple[frozenset[str], dict[str, froze
     id(keyed_tags): (frozenset(k for k, _ in keyed_tags), dict(keyed_tags))
     for keyed_tags in _DOT_TYPE_ADDITIONAL_KEYED_TAGS.values()
 }
+# The Terra-scoped DoT pool (defined above) rides the same id()-keyed fast path.
+_DOT_TYPE_ADDITIONAL_POOL_CACHE[id(_DOT_TERRA_ADDITIONAL_KEYED_TAGS)] = (
+    frozenset(k for k, _ in _DOT_TERRA_ADDITIONAL_KEYED_TAGS), dict(_DOT_TERRA_ADDITIONAL_KEYED_TAGS))
 
 
 def _build_additional_factors(
@@ -1340,6 +1360,14 @@ def compute_dot(
         source, dot_add_factors, lambda tags: True, _DOT_ADDITIONAL_STATS,
     ) * (1.0 + extra_additional)
 
+    # Terra-tag-scoped pools (see _DOT_TERRA_ADDITIONAL_KEYED_TAGS above). Non-Terra skills: the flag is
+    # False and both products stay exactly as before — byte-identical for every existing DoT skill.
+    is_terra = "terra" in {t.lower() for t in skill.tags}
+    if is_terra:
+        terra_factors = _build_additional_factors(source, _DOT_TERRA_ADDITIONAL_KEYED_TAGS)
+        base_additional_product *= _additional_product(
+            source, terra_factors, lambda tags: True, _DOT_TERRA_ADDITIONAL_KEYED_TAGS)
+
     rows: list[DamageRow] = []
     total = 0.0
     total_vt = 0.0
@@ -1353,6 +1381,10 @@ def compute_dot(
             if key not in _seen:
                 increased_keys.append(key)
                 _seen.add(key)
+        # Terra-skill-scoped increased pool (see _DOT_TERRA_ADDITIONAL_KEYED_TAGS's comment — skill-scoped
+        # like spell_dmg_inc, appended after the type keys; disjoint from every key above, no dedup needed).
+        if is_terra:
+            increased_keys.append("terra_skill_dmg_inc")
         increased = sum(source.total(key) for key in increased_keys)
 
         # Additional pool: the base (dmg_additional/dot_dmg_additional) product, times a SEPARATE form-scoped
@@ -1370,7 +1402,10 @@ def compute_dot(
             scoped_product = 1.0
         additional_product = base_additional_product * scoped_product
 
-        dps = form.base_per_second * (1.0 + increased) * additional_product * above_mult
+        # `stacked_instances` — concurrent stacked applications of this DoT at steady state (Frost Terra:
+        # a 2s instance applied every 1s → 2.0; owner-ruled Mind-Control-like stacking ramp). 1.0 default →
+        # byte-identical for every existing DoT skill.
+        dps = form.base_per_second * form.stacked_instances * (1.0 + increased) * additional_product * above_mult
         dps_vt = dps * _target_mitigation_dot(source, form.dtype)
         total += dps
         total_vt += dps_vt

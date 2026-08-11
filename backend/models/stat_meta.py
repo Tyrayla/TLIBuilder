@@ -3711,20 +3711,67 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Utility / Mechanic Stats (new) ────────────────────────────────────────
+    # ── Terra system (SS13) — grouped under their own "Terra" category like Sentry / Spirit Magi.
+    # Charge model: max stacks = 1 base + max_terra_charge_stacks_flat; restore duration per stack =
+    # 0.5s / (1 + terra_charge_recovery_speed_inc) (Help DB formula; 0.5s base owner-verified in-game
+    # 2026-08-10 for every current Terra skill). Consumed by compute.py's Terra Charge block.
     Stat.MAX_TERRA_CHARGE_STACKS_FLAT: StatMeta(
-        "Max Terra Charge Stacks", "Utility", "added_flat",
+        "Max Terra Charge Stacks", "Terra", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
-        ui_priority=60,                source_types=_T,
+        ui_priority=60,                source_types=_TB,
     ),
     Stat.TERRA_CHARGE_RECOVERY_SPEED_INC: StatMeta(
-        "Terra Charge Recovery Speed", "Utility", "increased", "%",
+        "Terra Charge Recovery Speed", "Terra", "increased", "%",
         subgroup="mechanics",          stacking_rule="additive",
-        ui_priority=61,                source_types=_T,
+        ui_priority=61,                source_types=_TB,
     ),
+    # No SS13 sources exist (+quantity mods were an SS12 surface) — display-only; kept for SS12 lines.
     Stat.MAX_TERRA_QUANTITY_FLAT: StatMeta(
-        "Max Terra Quantity", "Utility", "added_flat",
+        "Max Terra Quantity", "Terra", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=62,                source_types=_T,
+    ),
+    Stat.TERRA_SKILL_DMG_INC: StatMeta(
+        "Terra Skill Damage", "Terra", "increased", "%",
+        subgroup="terra_damage",       pipeline_stage="increased_reduced",
+        tags=("terra",),               affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=10,
+        source_types=_TB,
+    ),
+    Stat.TERRA_SKILL_DMG_ADDITIONAL: StatMeta(
+        "Additional Terra Skill Damage", "Terra", "additional", "%",
+        subgroup="terra_damage",       pipeline_stage="additional",
+        tags=("terra",),               affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_TB,
+    ),
+    # "Terra Damage Enhancement" — additive within its own pool, applied as ONE multiplier (owner-ruled
+    # Enhancement convention; mirrors TANGLE_DMG_ENHANCEMENT_ADDITIONAL's *_enhancement_additional identity).
+    Stat.TERRA_DMG_ENHANCEMENT_ADDITIONAL: StatMeta(
+        "Terra Damage Enhancement", "Terra", "additional", "%",
+        subgroup="terra_damage",       pipeline_stage="additional",
+        tags=("terra",),               affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=12,
+        source_types=_TB,
+    ),
+    # Display-only (no AoE model), mirroring CURSE_SKILL_AREA_INC's display-stub precedent.
+    Stat.TERRA_SKILL_AREA_INC: StatMeta(
+        "Terra Skill Area", "Terra", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=63,                source_types=_TB,
+    ),
+    # Display-only — Duration has no effect on a Persistent DoT's steady-state DPS (dot-model.json).
+    Stat.TERRA_SKILL_DURATION_INC: StatMeta(
+        "Terra Skill Duration", "Terra", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=64,                source_types=_TB,
+    ),
+    Stat.TERRA_SKILL_LEVEL: StatMeta(
+        "Terra Skill Level", "Terra", "skill_level",
+        subgroup="skill_level",        pipeline_stage="skill_level",
+        tags=("terra",),               affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=15,
+        source_types=_TB,
     ),
     Stat.MAX_WARCRY_SKILL_CHARGES_FLAT: StatMeta(
         "Max Warcry Skill Charges", "Buffs", "added_flat",
@@ -3892,6 +3939,7 @@ CATEGORIES: list[str] = [
     "Minion",
     "Sentry",
     "Spirit Magi",
+    "Terra",
     "Physical",
     "Lightning",
     "Cold",

@@ -957,6 +957,13 @@ class Stat(Enum):
     MAX_TERRA_CHARGE_STACKS_FLAT = "max_terra_charge_stacks_flat"
     TERRA_CHARGE_RECOVERY_SPEED_INC = "terra_charge_recovery_speed_inc"
     MAX_TERRA_QUANTITY_FLAT = "max_terra_quantity_flat"
+    # ── Terra skill damage/utility pools (SS13 Terra system) ──
+    TERRA_SKILL_DMG_INC = "terra_skill_dmg_inc"
+    TERRA_SKILL_DMG_ADDITIONAL = "terra_skill_dmg_additional"
+    TERRA_DMG_ENHANCEMENT_ADDITIONAL = "terra_dmg_enhancement_additional"  # additive within its own pool, applied as ONE multiplier (owner-ruled "Enhancement" convention; matches tangle/focus/ailment siblings)
+    TERRA_SKILL_AREA_INC = "terra_skill_area_inc"
+    TERRA_SKILL_DURATION_INC = "terra_skill_duration_inc"
+    TERRA_SKILL_LEVEL = "terra_skill_level"
     MAX_WARCRY_SKILL_CHARGES_FLAT = "max_warcry_skill_charges_flat"
     MAX_SHADOW_QUANTITY_FLAT = "max_shadow_quantity_flat"
     SHADOW_DMG_ADDITIONAL = "shadow_dmg_additional"

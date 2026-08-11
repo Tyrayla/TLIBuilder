@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**80 entries** — ✅ Confirmed: 17 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 43
+**82 entries** — ✅ Confirmed: 17 · 🔶 Partial: 10 · ⬜ Pending: 9 · ⚠️ Unverified: 44
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -33,6 +33,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Shadow Strike (delivery model) | Thunder Spike | shotgun, damage-pool, trigger | 🔶 Partial | 2026-07-15 | [shadow-strike.md](shadow-strike.md) |
 | Shotgun (Merge + Web) | Chain Lightning | shotgun, supports, damage-pool | 🔶 Partial | — | [shotgun.md](shotgun.md) |
 | Spell Burst | Spell Burst | breakpoint, tick-rounding, trigger, damage-pool | 🔶 Partial | 2026-06-18 | [spell-burst.md](spell-burst.md) |
+| Terra Charge system (charge model) | Frost Terra | charge, uptime, damage-pool, more-multiplier, terra | 🔶 Partial | 2026-08-10 | [terra-charge-system.md](terra-charge-system.md) |
 | Thunder Spike | Thunder Spike | conversion, trigger, ailment | 🔶 Partial | 2026-07-15 | [thunder-spike.md](thunder-spike.md) |
 | Wind Rhythm | Wind Rhythm | breakpoint, tick-rounding, trigger, cooldown | 🔶 Partial | 2026-07-02 | [wind-rhythm.md](wind-rhythm.md) |
 | Augmentation (per-Jump compounding) | Chain Lightning | supports, damage-pool, shotgun | ⬜ Pending | — | [augmentation.md](augmentation.md) |
@@ -59,6 +60,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Fervor Rating | — | crit, buff | ⚠️ Unverified | — | [fervor.md](fervor.md) |
 | Focused Slash / Moon Strike | Focused Slash, Moon Strike | skill, attack | ⚠️ Unverified | — | [focused-slash-moon-strike.md](focused-slash-moon-strike.md) |
 | Frail + Infiltration | — | enemy-vulnerability, ailment | ⚠️ Unverified | — | [frail-infiltration.md](frail-infiltration.md) |
+| Frost Terra (skill DoT + Terra damage pools) | Frost Terra | dot, stacking, damage-pool, terra | ⚠️ Unverified | — | [frost-terra.md](frost-terra.md) |
 | Frostbite ailment | — | ailment, enemy-vulnerability | ⚠️ Unverified | — | [frostbite.md](frostbite.md) |
 | High Court Chariot (Rosa trait) | High Court Chariot | hero-trait, defense | ⚠️ Unverified | — | [high-court-chariot.md](high-court-chariot.md) |
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |

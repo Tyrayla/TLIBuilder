@@ -42,6 +42,10 @@ class DotForm:
     base_per_second: float
     dtype: str
     duration: float = 0.0
+    # Concurrent stacked applications at steady state (Frost Terra: a 2s instance applied every 1s → 2.0 —
+    # owner-ruled Mind-Control-like stacking ramp, 2026-08-10). 1.0 (default) → compute_dot multiplies by 1
+    # and every existing DoT skill is byte-identical.
+    stacked_instances: float = 1.0
 
 
 @dataclass
@@ -154,6 +158,15 @@ class ResolvedSkill:
     # Empty (the default) → `engine.offense.compute_dot` is a no-op and `total_dps` is untouched — every
     # skill that doesn't intrinsically deal a DoT is byte-identical to before this field existed.
     dot_forms_by_level: dict[int, list[DotForm]] = field(default_factory=dict)
+    # ── Terra Charge (SS13 Terra system) ── the skill's "+N % additional damage for the skill for every
+    # Terra Charge consumed" fraction (Frost Terra: 0.26), parsed from the skill text by its resolver.
+    # 0.0 (default) = not a Terra-Charge skill. Consumed by compute._offense_for_slot's Terra Charge block:
+    # one MORE factor `1 + per_charge × charges` (ADDITIVE per charge — the community per-charge-multiplicative
+    # claim is needs-verification, NOT implemented; see data/verification/terra-charge-system.json), where
+    # charges defaults to the effective max (1 base + max_terra_charge_stacks_flat, owner-verified base) and
+    # is user-overridable via the `terra_charges_consumed` condition. Owner-ruled: consumed charges buff the
+    # ENTIRE Terra lifetime, so a steady-state MORE factor is exact, not an approximation.
+    terra_per_charge_additional: float = 0.0
     # Skill-INHERENT Compulsory Damage-Type Conversion (Thunder Spike: "All of the skill's Physical Damage
     # will be converted to Lightning Damage" — 100%). {src_type: {dst_type: fraction}}, merged into the SAME
     # convert/adds-as cascade a gear/talent `<type>_convert_to_<type>` stat drives (engine.offense
@@ -732,6 +745,67 @@ def _resolve_path_of_flames(skill_data: dict) -> ResolvedSkill:
     return _resolve_dot_skill(skill_data, base_text_key="Descript", damage_type="fire")
 
 
+# ── Frost Terra (SS13 Terra system — the first modeled Terra skill) ────────────────────────────────────────
+# Tags: Spell, Cold, Area, Persistent, Terra. A cast-and-forget persistent area (6s), NOT channeled: the
+# Terra applies a Persistent Cold DoT to enemies inside — "Deals N Persistent Cold damage every second for
+# 2 s." — i.e. a fresh 2s DoT instance every 1s. Applications STACK (owner-ruled Mind-Control-like ramp,
+# 2026-08-10): steady state = duration/interval = 2 concurrent instances → `stacked_instances=2.0` on the
+# DotForm (the per-instance tick stays the tooltip value for display). Pure DoT — no hit forms, and
+# `effectiveness_of_added_damage` is None in the data (added flat does not apply, matching dot-model).
+# Terra Charge: "+26 % additional damage for the skill for every Terra Charge consumed" →
+# `terra_per_charge_additional=0.26` (see that field's comment for the charge model / verification status).
+# "Inflicts Frostbite when this skill deals damage" and "Damage Over Time statuses inflicted by the skill
+# can't be spread" are non-DPS for this single-target calc (Frostbite's cold-taken effect is the existing
+# frostbite_rating condition path, user-toggled) — recognized via _SKILL_MODELED_PHRASES, not silently dropped.
+_FROST_TERRA_DOT_RE = re.compile(
+    r"Deals\s+([\d.,]+)\s+Persistent\s+(\w+)\s+damage\s+every\s+second\s+for\s+([\d.]+)\s*s", re.IGNORECASE)
+_TERRA_PER_CHARGE_RE = re.compile(
+    r"(?:\+\s*(\d+(?:\.\d+)?)\s*%\s*additional damage for the skill for every Terra Charge consumed"
+    r"|for each Terra Charge consumed[^.]*?deals\s+(\d+(?:\.\d+)?)\s*%\s*additional damage)", re.IGNORECASE)
+
+
+def _parse_terra_per_charge(text: str) -> float:
+    """The skill's per-Terra-Charge additional-damage fraction (0.26 for every current SS13 Terra skill),
+    from either wording ("+26 % additional damage … for every Terra Charge consumed" / "For each Terra
+    Charge consumed …, that cast deals 26% additional damage"). 0.0 if absent."""
+    m = _TERRA_PER_CHARGE_RE.search(text or "")
+    if not m:
+        return 0.0
+    return float(m.group(1) or m.group(2)) / 100.0
+
+
+@_register("frost_terra")
+def _resolve_frost_terra(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    dot_forms: dict[int, list[DotForm]] = {}
+    for lvl, values in progression.items():
+        if lvl > max_level:
+            continue
+        m = _FROST_TERRA_DOT_RE.search(values.get("Descript") or "")
+        if m is None:
+            continue
+        base = float(m.group(1).replace(",", ""))
+        dtype = m.group(2).lower()
+        duration = float(m.group(3))
+        # Steady-state concurrent instances = DoT duration ÷ the 1s application cadence ("every second").
+        dot_forms[lvl] = [DotForm(base_per_second=base, dtype=dtype, duration=duration,
+                                  stacked_instances=duration / 1.0)]
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level={},   # pure DoT — no hit component; supports attach to the DoT via the DoT pools
+        supported=True,
+        is_spell=True,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        damage_types=["cold"],
+        dot_forms_by_level=dot_forms,
+        terra_per_charge_additional=_parse_terra_per_charge(skill_data.get("raw_text", "")),
+    )
+
+
 _MAIN_STAT_NAMES = frozenset({"strength", "dexterity", "intelligence"})
 
 
@@ -823,6 +897,14 @@ _SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
     "chromatic_shot": ("shotgun effect falloff", "fires 1 projectile", "hit the same enemy",
                        "projectile quantity"),
     "howling_gale": ("duration for gale", "skill area for gale", "movement speed for gale"),
+    # frost_terra: the DoT line + the per-Terra-Charge additional ARE modeled (_resolve_frost_terra /
+    # terra_per_charge_additional); "lasts for 6 s" is the persistent area's lifetime (non-DPS for the
+    # steady-state calc — recasting sustains it); "max base Terra quantity is 1" is base state (no SS13
+    # +quantity sources); the no-spread clause is a limitation, not a mechanic (single-target calc).
+    # Deliberately NOT whitelisting the "Inflicts Frostbite" line — recognition for ailment-inflict lines
+    # is owned by engine.ailment_inflict's classifier, same as every other skill.
+    "frost_terra": ("terra charge consumed", "frost terra lasts", "max base terra quantity",
+                    "can't be spread"),
     # thunder_spike: the base WAD line + the intrinsic 100% Phys->Lightning conversion ARE modeled
     # (`intrinsic_convert`). Deliberately NOT whitelisting the True-Body-Numbed or Skill-Area/Tracking-Area
     # lines (see the resolver's own comment) — they stay honest NYI.

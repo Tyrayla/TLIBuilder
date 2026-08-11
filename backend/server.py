@@ -1641,6 +1641,8 @@ _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
         (["spell_burst_charge_speed_inc"], ["spell_burst_chance_gain_stacks_flat"]),
     "max terra charge stacks +(#) +(#) % terra charge recovery speed":
         (["max_terra_charge_stacks_flat"], ["terra_charge_recovery_speed_inc"]),
+    "max terra charge stacks +(#) +(#) % additional terra skill damage":
+        (["max_terra_charge_stacks_flat"], ["terra_skill_dmg_additional"]),
     "max terra quantity +(#) +(#) % additional damage":
         (["max_terra_quantity_flat"], ["dmg_additional"]),
     "+(#) jumps +(#) % additional damage":

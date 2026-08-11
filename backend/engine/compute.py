@@ -1434,6 +1434,31 @@ def compute(
         # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
         _extra_entries = _intrinsic_additional_entries(resolved, eff, new_state)
         extra = sum(e["amount"] for e in _extra_entries)
+        # ── Terra Charge (SS13 Terra system) ── consumed charges buff the ENTIRE Terra lifetime (owner-
+        # ruled 2026-08-10), so a steady-state MORE factor `1 + per_charge × charges` is exact. Charges
+        # default to the effective max (1 base + max_terra_charge_stacks_flat — base owner-verified; with
+        # the 0.5s/stack base restore, max is reached between any realistic recasts) and are user-
+        # overridable via the `terra_charges_consumed` condition (clamped to [0, max]). ADDITIVE per charge
+        # — the community per-charge-multiplicative claim is needs-verification, NOT implemented (see
+        # data/verification/terra-charge-system.json). Restore duration = 0.5s / (1 + recovery speed), the
+        # Help DB formula — surfaced for display; it does not gate the default (fast-cadence auto-cast
+        # scenarios like Wind Rhythm are a deferred follow-up, owner-approved).
+        terra_charge = None
+        if getattr(resolved, "terra_per_charge_additional", 0.0) > 0.0:
+            _tc_max = 1 + int(eff.total("max_terra_charge_stacks_flat"))
+            if "terra_charges_consumed" in manual_cond_keys:
+                _tc_charges = max(0.0, min(float(new_state.get("terra_charges_consumed", _tc_max) or 0.0),
+                                           float(_tc_max)))
+            else:
+                _tc_charges = float(_tc_max)
+            _tc_amt = resolved.terra_per_charge_additional * _tc_charges
+            if _tc_amt > 0.0:
+                _extra_entries.append({"label": f"Terra Charge consumed (×{_tc_charges:g})", "amount": _tc_amt})
+                extra += _tc_amt
+            _tc_speed = eff.total("terra_charge_recovery_speed_inc")
+            terra_charge = {"max_stacks": _tc_max, "charges_consumed": _tc_charges,
+                            "per_charge_additional": resolved.terra_per_charge_additional,
+                            "restore_seconds_per_stack": 0.5 / (1.0 + _tc_speed) if _tc_speed > -1.0 else 0.5}
         # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
         # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
         tangle = None
@@ -1551,6 +1576,8 @@ def compute(
         # in the breakdown — e.g. Split Shot: Rapid Advance's +% per additional Max Channeled Stack, Focused
         # Slash's Fervor bonus) as labelled breakdown entries for the "Total Additional" panel.
         _res["intrinsic_additional_sources"] = _extra_entries
+        if terra_charge is not None:
+            _res["terra_charge"] = terra_charge
         return _res
 
     result_offense = None
@@ -1575,6 +1602,15 @@ def compute(
         # Gated on the resolver's explicit `shots_on_target_cap` delivery flag, NOT `compulsory_breakdown` — the
         # shotgun-cap mechanic is independent of compulsory elemental conversion (SS13's Chromatic Shot dropped
         # the latter but kept the former; see ResolvedSkill.shots_on_target_cap).
+        # Terra Charges consumed: the effective max (1 + flat stacks) is the condition's max AND the auto
+        # default (all charges consumed — exact for realistic recast cadences at the 0.5s/stack base restore),
+        # so the field tracks the build's stack sources and the user can override downward. Mirrors the
+        # Chromatic Shot projectile-hits pattern just below.
+        if result_offense.get("terra_charge"):
+            _tc = result_offense["terra_charge"]
+            maxes["terra_charges_consumed"] = float(_tc["max_stacks"])
+            auto_sources["terra_charges_consumed"] = "Terra Charge (max stacks consumed)"
+            auto_values["terra_charges_consumed"] = float(_tc["max_stacks"])
         if getattr(_resolved_main, "shots_on_target_cap", False) and result_offense.get("projectile_count"):
             _pc = float(result_offense["projectile_count"])
             maxes["chromatic_shots_on_target"] = _pc

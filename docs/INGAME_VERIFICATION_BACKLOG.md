@@ -672,6 +672,26 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 - RESULT (per check): Recount Avg DPS (span) + Duration; skill level; supports + rolls; sustained Numbed stack
   count observed; Screenshot.
 
+### TERRA-01 — Terra Charge model + Frost Terra steady state (multiple checks)
+- Status: 🔶 Partially verified. Owner-confirmed in-game 2026-08-10: **0.5 s/stack base restore on every
+  current Terra skill** and **base max stacks = 1 universally**. The engine models the charge factor as
+  **additive per charge** (1 + 0.26 × N) defaulting to max stacks consumed (whole-Terra-lifetime buff,
+  owner-ruled). Entries: `data/verification/terra-charge-system.json`, `frost-terra.json`.
+  1. **Per-charge stacking rule (community claim)**: does consuming N charges give 1 + 0.26N (modeled) or
+     (1.26)^N? A/B on Frost Terra vs the standard dummy, identical build, arm A = no stack sources (max 1),
+     arm B = Ground Divide only (max 2). Additive predicts B/A = 1.52/1.26 ≈ **1.206×**; multiplicative
+     predicts 1.5876/1.26 = **1.26×**. Recount span ≥ 60 s per arm.
+  2. **Frost Terra 2× stacked steady state**: owner-ruled Mind-Control-like ramp (2s instances applied every
+     1s stack → steady state 2 concurrent). Confirm the dummy's sustained tick ≈ 2 × the tooltip per-second
+     value (L20: ~968/s before pools, ×0.70 vs the dummy's 30% cold res).
+  3. **Terra damage pools on the DoT**: +% Terra Skill Damage (increased), +% additional Terra Skill Damage,
+     and +% Terra Damage Enhancement are modeled as applying to the Terra DoT (skill-scope inference, like
+     spell_dmg_inc). A/B each with a clean source if obtainable; ALSO confirm Enhancement sources SUM within
+     their pool (two sources → one 1+a+b factor) rather than multiplying.
+  4. **Frostbite from a hit-less skill**: confirm Frost Terra's DoT damage sustains Frostbite application.
+- RESULT (per check): Recount Avg DPS (span) + Duration per arm; skill level; supports + rolls; charge-pip
+  observations for check 1; Screenshot.
+
 ## How results are ingested
 Tyra: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark
