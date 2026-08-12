@@ -260,6 +260,19 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   background: #1a1c3a;
 }
 
+/* Support-the-developer (Ko-fi) — subtle borderless link in the footer, matching the sidebar's
+   .sidebar-support style (warm-pink heart, faint hover background). */
+.build-select-support {
+  background: none;
+  border: none;
+  color: #ff8fb0;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.build-select-support:hover { background: var(--bg-card); color: #ffb0c8; }
+
 .build-select-logo {
   width: 88px;
   height: 88px;
@@ -1777,6 +1790,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .sidebar-spacer {
   flex: 1;
 }
+
+/* Support-the-developer (Ko-fi) link pinned at the bottom of the sidebar nav (after the spacer). */
+.sidebar-support {
+  color: #ff8fb0;
+  flex-shrink: 0;
+}
+.sidebar-support:hover { background: var(--bg-card); color: #ffb0c8; }
 
 .sidebar-back {
   color: var(--fg-muted);

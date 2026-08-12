@@ -683,6 +683,16 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
             Reference &amp; Verification
           </button>
         </div>}
+        {/* Row 4: Support the developer (Ko-fi) — subtle link matching the sidebar's style. */}
+        <div className="build-select-footer-actions">
+          <button
+            className="build-select-support"
+            onClick={() => openExternal('https://ko-fi.com/tlibuilder')}
+            title="Support TLI Builder on Ko-fi"
+          >
+            ♥ Support the developer
+          </button>
+        </div>
       </div>
 
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
