@@ -615,6 +615,8 @@ def compute(
     _granted_origin_flags: list[str] = []          # one entry per magus TYPE that actually granted its origin
     _origin_parse_failures: list[str] = []         # magus slotted but magnitude unparsable → warned, not guessed
     _pending_scalar: list[tuple[str, int, float]] = []   # (origin flag, min distinct types, pct) — gated below
+    _origin_display_info: dict[str, tuple[str, int, str, int]] = {}   # origin flag → (skill_id, slot, skill name, level)
+    _origin_added_info: dict[str, tuple[str, str]] = {}          # added flag → (owner origin flag, support name)
     for _sid, _lvl, _oslot in _slotted_for_origin:
         if _sid in _seen_origin_ids or not (_sid == _smo.THUNDER_ID or _sid in _smo.ORIGIN_SPECS):
             continue
@@ -637,6 +639,8 @@ def compute(
         if _flag is None:
             continue
         _granted_origin_flags.append(_flag)
+        _origin_display_info[_flag] = (
+            _sid, _oslot, str(((skills_by_id or {}).get(_sid) or {}).get("name") or _sid), int(_lvl))
         # Supports attached to THIS magus's slot: magnificent added-origin effects ("gains an additional
         # effect: ...", tier-midpoint at the support's level; Wicked excluded — minion-scoped, see the
         # module docstring) and origin-effect SCALAR supports ("N% Origin of Spirit Magus effect for the
@@ -655,6 +659,8 @@ def compute(
                 if _mid is not None:
                     _set_origin_cond(_mspec["cond"], True)
                     _set_origin_cond(_mspec["cond"] + "_value", float(_mid))
+                    _origin_added_info[_mspec["cond"]] = (
+                        _flag, str((_msd or {}).get("name") or _sup_id))
             _sspec = _smo.SCALAR_ORIGIN_SUPPORTS.get(_sup_id)
             if _sspec is not None:
                 _ssd = (skills_by_id or {}).get(_sup_id)
@@ -1769,13 +1775,14 @@ def compute(
 
     source._recording = False
 
-    # ── Origin of Spirit Magus summary (display) ── one row per active origin / added effect, with the
-    # SCALED magnitude baked into the text — same table + clamp helper the aggregator emits from, so the
-    # box always mirrors what the engine actually granted (display-fidelity). Post-loop, recording off →
-    # golden-neutral reads. None when no magus is slotted.
+    # ── Origin of Spirit Magus summary (display) ── PER-SKILL entries with structured grants, feeding
+    # the empower-style GRANTS section on each magus's foundation panel (owner-directed 2026-08-11).
+    # Values come from the same table + clamp helper the aggregator emits from, so the panel always
+    # mirrors what the engine actually granted (display-fidelity): each grant carries the raw data
+    # magnitude (`base`), the emitted magnitude (`value` = base × per-origin factor, clamped), and a
+    # unit ("pct" | "flat"). Post-loop, recording off → golden-neutral reads. None when no magus grants.
     origin_summary: dict | None = None
-    _origin_rows: list[dict] = []
-    if any(condition_state.get(f) for f, *_ in _smo.EMIT_TABLE) or condition_state.get("origin_of_thunder"):
+    if _granted_origin_flags:
         _oi = source.total("spirit_magi_origin_effect_inc")
         _oa = source.total("spirit_magi_origin_effect_additional")
 
@@ -1783,25 +1790,50 @@ def compute(
             # Mirror of the aggregator's per-origin factor (global pools + this magus's scalar-support share).
             return _smo.origin_factor(_oi, _oa, float(condition_state.get(flag + "_support_inc", 0.0) or 0.0))
 
-        if condition_state.get("origin_of_thunder"):
-            _lvl = float(condition_state.get("origin_of_thunder_level", 20.0) or 20.0)
-            _tf = _summary_factor("origin_of_thunder")
-            _spd = 0.06 * _tf
-            _dmg = (2.5 + max(0.0, _lvl - 1.0) * 0.25) / 100.0 * _tf
-            _origin_rows.append({
-                "label": "Origin of Thunder", "source_name": "Thunder Magus", "factor": _tf,
-                "text": f"+{_spd * 100:.2g}% additional Attack and Cast Speed and "
-                        f"+{_dmg * 100:.3g}% additional damage (Lv {int(_lvl)})"})
-        for _flag, _targets, _label, _src, _fmt, _clamp in _smo.EMIT_TABLE:
-            if condition_state.get(_flag):
+        _skills_out: list[dict] = []
+        for _flag in _granted_origin_flags:
+            _sid, _oslot, _sname, _slvl = _origin_display_info[_flag]
+            _f = _summary_factor(_flag)
+            _grants: list[dict] = []
+            if _flag == "origin_of_thunder":
+                _lvl = float(condition_state.get("origin_of_thunder_level", 20.0) or 20.0)
+                _raw_dmg = 2.5 + max(0.0, _lvl - 1.0) * 0.25
+                _grants = [
+                    {"label": "Additional Attack and Cast Speed", "base": 6.0, "value": 6.0 * _f,
+                     "unit": "pct", "clamp": None},
+                    {"label": "Additional Damage", "base": _raw_dmg, "value": _raw_dmg * _f,
+                     "unit": "pct", "clamp": None},
+                ]
+            else:
                 _raw = float(condition_state.get(_flag + "_value", 0.0) or 0.0)
                 if _raw:
-                    _f = _summary_factor(_smo.ORIGIN_OWNER_FLAG.get(_flag, _flag))
-                    _origin_rows.append({
-                        "label": _label, "source_name": _src, "factor": _f,
-                        "text": _fmt.format(v=_smo.scaled_magnitude(_raw, _f, _clamp))})
-        if _origin_rows:
-            origin_summary = {"factor": _smo.origin_factor(_oi, _oa), "effects": _origin_rows}
+                    _glabel, _gunit = _smo.GRANT_LABELS[_flag]
+                    _gclamp = _smo.CLAMP_BY_FLAG.get(_flag)
+                    _grants = [{"label": _glabel, "base": _raw,
+                                "value": _smo.scaled_magnitude(_raw, _f, _gclamp),
+                                "unit": _gunit,
+                                # Raw-% clamp floor (e.g. -50.0) — the frontend renders the clamp note
+                                # from THIS, never from a label heuristic.
+                                "clamp": (_gclamp / 0.01) if _gclamp is not None else None}]
+            _added: list[dict] = []
+            for _aflag, (_owner_flag, _sup_name) in _origin_added_info.items():
+                if _owner_flag == _flag and condition_state.get(_aflag):
+                    _araw = float(condition_state.get(_aflag + "_value", 0.0) or 0.0)
+                    if _araw:
+                        _alabel, _aunit = _smo.GRANT_LABELS[_aflag]
+                        _aclamp = _smo.CLAMP_BY_FLAG.get(_aflag)
+                        _added.append({"label": _alabel, "base": _araw,
+                                       "value": _smo.scaled_magnitude(_araw, _f, _aclamp),
+                                       "unit": _aunit, "support_name": _sup_name,
+                                       "clamp": (_aclamp / 0.01) if _aclamp is not None else None})
+            if _grants or _added:
+                _skills_out.append({
+                    "skill_id": _sid, "slot": _oslot, "skill_name": _sname, "level": _slvl,
+                    "origin_name": _smo.ORIGIN_NAMES.get(_flag, "Origin of Spirit Magus"),
+                    "factor": _f, "grants": _grants, "added": _added,
+                })
+        if _skills_out:
+            origin_summary = {"factor": _smo.origin_factor(_oi, _oa), "skills": _skills_out}
 
     # ── General build warnings (player diagnostics; extensible) ───────────────
     # Ineffective curse: an applied curse amplifies a damage type the build doesn't actually deal (e.g. an

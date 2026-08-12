@@ -121,6 +121,34 @@ ORIGIN_OWNER_FLAG: dict[str, str] = {
     "origin_plague_source": "origin_of_erosion",
 }
 
+# Display metadata for the per-skill GRANTS section (empower-style foundation panel): flag → the
+# grant row's label + unit ("pct" = a % magnitude, "flat" = a flat rating). Thunder's two grants are
+# assembled beside its formula block. Labels use the data's own wording.
+GRANT_LABELS: dict[str, tuple[str, str]] = {
+    "origin_of_fire": ("Attack and Spell Critical Strike Rating", "flat"),
+    "origin_of_ice": ("Max Life and Max Energy Shield Restored per Second", "pct"),
+    "origin_of_rock": ("Additional Hit Damage Taken", "pct"),
+    "origin_of_erosion": ("Additional Damage Over Time Taken", "pct"),
+    "origin_ward_fire": ("Max Fire Resistance", "pct"),
+    "origin_ward_cold": ("Max Cold Resistance", "pct"),
+    "origin_ward_lightning": ("Max Lightning Resistance", "pct"),
+    "origin_unyielding": ("Armor Effective Rate against non-Physical Damage", "pct"),
+    "origin_plague_source": ("Additional Erosion Damage", "pct"),
+}
+
+# The origin's display NAME per base flag (Rock/Erosion origins are unnamed in the data — the generic
+# glossary term is the honest label).
+ORIGIN_NAMES: dict[str, str] = {
+    "origin_of_thunder": "Origin of Thunder",
+    "origin_of_fire": "Origin of Fire",
+    "origin_of_ice": "Origin of Ice",
+    "origin_of_rock": "Origin of Spirit Magus",
+    "origin_of_erosion": "Origin of Spirit Magus",
+}
+
+# Clamp floor per flag (derived from EMIT_TABLE) — the display path clamps identically to emission.
+CLAMP_BY_FLAG: dict[str, float | None] = {e[0]: e[5] for e in EMIT_TABLE}
+
 # Origin-effect SCALAR supports ("N% Origin of Spirit Magus effect for the supported skill") — per-skill
 # scoped: they raise ONLY their own magus's origin factor, via the INCREASED pool (owner-classified
 # 2026-08-10, needs-verification). The Friend pair gates on the count of DISTINCT magus types slotted.

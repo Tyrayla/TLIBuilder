@@ -692,6 +692,26 @@ export interface AttachedSupportInput {
   enabled?: boolean // default true; disabled supports drop out of the calc
 }
 
+// One magus's Origin display entry (engine-emitted; see origin_summary on the stats response).
+export interface OriginGrant {
+  label: string
+  base: number            // raw skill-data magnitude (pre origin-effect scaling)
+  value: number           // emitted magnitude = base × the magus's origin factor, clamped
+  unit: 'pct' | 'flat'
+  clamp?: number | null   // raw-% clamp floor (e.g. -50) when the grant clamps; the clamp note renders from THIS
+  support_name?: string   // set on `added` entries (the magnificent support that granted it)
+}
+export interface OriginSkillSummary {
+  skill_id: string
+  slot: number
+  skill_name: string
+  level: number           // the summon skill's slotted level (drives the level-scaled magnitudes)
+  origin_name: string     // "Origin of Fire" / "Origin of Thunder" / … ("Origin of Spirit Magus" when unnamed)
+  factor: number          // this magus's origin factor (global pools + its own scalar-support share)
+  grants: OriginGrant[]
+  added: OriginGrant[]    // magnificent supports' added origin effects
+}
+
 export interface SkillSlotSummary {
   slot: number
   skill_id: string
@@ -1180,9 +1200,11 @@ export interface StatSheetResponse {
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
   // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
   minion_offense?: Record<string, OffenseResult> | null
-  // Origin of Spirit Magus display summary — engine-emitted rows with the SCALED magnitudes baked into
-  // the text (the box renders these verbatim; display-fidelity). null/absent when no magus is slotted.
-  origin_summary?: { factor: number; effects: { label: string; source_name: string; text: string }[] } | null
+  // Origin of Spirit Magus display summary — PER-SKILL entries feeding the empower-style GRANTS section
+  // on each magus's foundation panel. Each grant carries the raw data magnitude (`base`), the emitted
+  // magnitude (`value` = base × that magus's origin factor, clamped), and a unit; the frontend renders
+  // these verbatim (display-fidelity). null/absent when no magus grants an origin.
+  origin_summary?: { factor: number; skills: OriginSkillSummary[] } | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]

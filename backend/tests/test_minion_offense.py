@@ -626,6 +626,22 @@ def test_origins_buff_summoner_through_engine():
     assert s["dot_dmg_taken_additional"]["total"] == pytest.approx(-0.0915)  # −9.15% @ L20 (−6.3 @ L1)
 
 
+def test_origin_scaling_honors_data_level_caps():
+    """The data itself CAPS Rock/Erosion origins at L21 (-8.2% / -9.3%, flat through L40) while Fire keeps
+    scaling to L40 (+175). The per-level parse must track the data exactly — no extrapolation past a cap."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+
+    def stat_at(sid, level, key):
+        r = engine_stats(EngineStatsRequest(**make_request(sid, level)))
+        return r["stats"][key]["total"]
+
+    assert stat_at("summon_rock_magus", 21, "hit_dmg_taken_additional") == pytest.approx(-0.082)
+    assert stat_at("summon_rock_magus", 40, "hit_dmg_taken_additional") == pytest.approx(-0.082)   # capped
+    assert stat_at("summon_erosion_magus", 40, "dot_dmg_taken_additional") == pytest.approx(-0.093)  # capped
+    assert stat_at("summon_fire_magus", 40, "attack_crit_rating_flat") == pytest.approx(175.0)       # NOT capped
+
+
 def test_origin_effect_scales_and_rock_clamps_at_50():
     """Origin of Spirit Magus Effect scales every origin's magnitude ((1+inc)×(1+additional)); Rock/Erosion
     clamp at the printed 'up to −50%' AFTER scaling."""
@@ -643,18 +659,28 @@ def test_origin_effect_scales_and_rock_clamps_at_50():
 
 
 def test_origin_summary_payload_shape():
-    """origin_summary carries the display rows the Origin box renders verbatim: global factor + one row per
-    active origin/added effect, each with its own per-origin factor and the scaled magnitude in the text."""
+    """origin_summary carries PER-SKILL entries the foundation panel's GRANTS section renders verbatim:
+    global factor + per-magus {skill identity, origin name, per-origin factor, structured grants/added}."""
     from tests.mock_build import make_request
     from server import engine_stats, EngineStatsRequest
-    sup = [{"item_id": "precise_superpower", "skill_type": "support_skill", "rank": 1, "level": 20, "slot": 1}]
+    sup = [{"item_id": "precise_superpower", "skill_type": "support_skill", "rank": 1, "level": 20, "slot": 1},
+           {"item_id": "summon_fire_magus_fire_ward_magnificent", "skill_type": "magnificent_support_skill",
+            "rank": 5, "level": 1, "slot": 1}]
     r = engine_stats(EngineStatsRequest(**make_request("summon_fire_magus", 20, attached_supports=sup)))
     o = r["origin_summary"]
     assert o["factor"] == pytest.approx(1.0)                    # global pools empty — support share is per-origin
-    (row,) = o["effects"]
-    assert row["label"] == "Origin of Fire" and row["source_name"] == "Fire Magus"
-    assert row["factor"] == pytest.approx(1.52)                 # fire's own factor incl. Superpower @ L20
-    assert "174.8" in row["text"]                               # 115 × 1.52, scaled magnitude baked into the text
+    (sk,) = o["skills"]
+    assert sk["skill_id"] == "summon_fire_magus" and sk["slot"] == 1 and sk["level"] == 20
+    assert sk["origin_name"] == "Origin of Fire"
+    assert sk["factor"] == pytest.approx(1.52)                  # fire's own factor incl. Superpower @ L20
+    (g,) = sk["grants"]
+    assert g["label"] == "Attack and Spell Critical Strike Rating" and g["unit"] == "flat"
+    assert g["base"] == pytest.approx(115.0) and g["value"] == pytest.approx(174.8)   # 115 × 1.52
+    assert g["clamp"] is None                                    # fire doesn't clamp; rock/erosion carry -50
+    (a,) = sk["added"]
+    assert a["label"] == "Max Fire Resistance" and a["unit"] == "pct"
+    assert a["base"] == pytest.approx(1.5) and a["value"] == pytest.approx(1.5 * 1.52)
+    assert "Fire Ward" in a["support_name"]
     # No magus slotted → no summary at all.
     r2 = engine_stats(EngineStatsRequest(**make_request("berserking_blade", 14)))
     assert r2.get("origin_summary") is None

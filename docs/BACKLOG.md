@@ -548,10 +548,14 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
     phys+ele→erosion conversion).
   - **Phase C — caps** ("up to −50%" on Rock/Erosion — per-magus-count stacking wording, unverified
     mechanic) + any remaining conditionals.
-  - **Display:** new "Origin of Spirit Magus" box (pairs naturally with the partial-support display item
-    below — same StatPanel/GridBox pattern as the existing Spirit Magi panel in `PlayerStatsScreen.tsx`
-    ~1868). Show which origins are active, their level-scaled magnitudes, and the combined origin-effect
-    factor. Today origins appear ONLY incidentally in source-breakdown popovers.
+  - **Display v2 SHIPPED 2026-08-11** (owner-directed, replacing the short-lived middle-column v1 box):
+    selecting a magus renders an **"Origin of Spirit Magus" grid box** beside the minion-stats box
+    (renamed **"Spirit Magi (Minion)"** for the scope distinction, owner naming) — Origin Effect row
+    (×factor with breakdown), the magus's seal **reservation with full source breakdown**, "Grants
+    (Origin of X)" rows (base × factor popovers), magnificent added effects under "Added by supports".
+    Unmodeled magus owners get an honest "minion damage not modeled" headline + abilities list + the
+    Origin box (previously they fell into the player partial-mode boxes — wrong pools). `origin_summary`
+    is per-skill entries with structured grants (label/base/value/unit).
 - **Partial-support skill display (owner, 2026-08-10).** For skills with no `skill_resolver._REGISTRY` entry
   (today: empty `OffenseResult(supported=False)` shell, non-main slots dropped at `compute.py` ~1638, wrong
   "no hit DPS of its own" copy in SkillFoundationPanel ~:1117), show every mechanic that does NOT depend on
