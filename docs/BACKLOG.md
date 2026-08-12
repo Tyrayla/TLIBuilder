@@ -403,6 +403,26 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   stacks manually). Auto-derive stack counts later.
 - **sweep_slash_additional_dmg**: wire its legendary mod line + a form-scoped reader (mirror steep_strike);
   currently parked unwired in `_FORM_SCOPED_ADDITIONAL`.
+- **Gear-affix→aura injection + aura-effect-from-a-stat — both NYI (surfaced 2026-08-12 by a real Wind Rhythm
+  cast-speed build; two large currently-invisible cast-speed / aura-effect sources).**
+  1. **"Gains an additional effect: +N% Attack and Cast Speed" aura injection.** Goddess of Hunting's Dirge
+     (`data/master_glossary.json:2285`, `data/seasons/SS13/_legendary_gear.json:48798`) injects "+150% Attack and
+     Cast Speed" into the **Precise: Swiftness** aura. No gear-affix→aura-buff-injection path exists —
+     `aura_resolver.py` reads only the skill's own description, and `mod_parser.py:744`'s "Attack and Cast Speed"
+     rule is start-anchored, so the "Precise: Swiftness gains an additional effect:" prefix never matches → the line
+     resolves to nothing (NYI, not dropped). If modeled as an aura buff it would scale
+     `1.50 × (1+Σaura_effect_inc) × (1+Σaura_effect_additional)` into the normal `cast_speed_inc` pool. Needs an
+     engine-task-spec + in-game confirm of the aura-effect scaling before any code.
+  2. **"+N% Aura Effect per +M% Sealed Mana Compensation."** Lone Walker's Boots
+     (`legendary_gear/Lone Walker's Boots.json`): base "+2% per +3%", corroded "+1% per +1%"; plus its conditional
+     "+(15–30)% Aura effect when affected by (4–5)+ Auras". No `mod_parser` rule and no
+     `aura_effect_per_sealed_mana_comp` stat → parses to nothing. Open Q for the per-comp line: does it read the
+     GLOBAL sealed mana comp pool only? (Support "for the supported skill" comp is slot-local — likely excluded;
+     confirm in-game.)
+  - **Related (already tracked as TERRA-01 #2, re-surfaced by the same build):** the Terra charge factor defaults to
+    *max* charges consumed, which over-credits a fast-cadence Wind Rhythm / Rhythm auto-cast — the 0.5 s restore
+    can't keep up, so real charges-consumed ≈ `2·(1+restore_speed) ÷ cast_rate`, far below max. Use the
+    `terra_charges_consumed` condition override meanwhile. Modeling the fast-cadence case is the open half of TERRA-01.
 
 ## 2. Modifier badges / exclusive tagging
 - **Expand `_EXCLUSIVE_SKILL_TAGS`** beyond `minion` (candidates: sentry/trap/warcry/totem subsystems) — needs
