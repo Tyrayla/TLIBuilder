@@ -14,6 +14,7 @@ import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import ErrorBoundary from './components/ErrorBoundary'
+import PerfProfiler, { PERF_ENABLED } from './components/PerfProfiler'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
 import HeroTraitScreen from './screens/HeroTraitScreen'
@@ -102,10 +103,42 @@ function ensureLoadouts(
   return { loadouts: [{ id, name: 'Loadout 1', data: snapshotAllAreas(payload), inherit: {} }], activeLoadoutId: id }
 }
 
+// Editing screens kept mounted across navigation so in-progress edit state survives. Calcs (stats)
+// is excluded — it's the one heavy screen and its view state already persists via uiPrefsStore; the
+// tree/preview flow stays swap-rendered (its content is slot-dependent).
+const KEEPALIVE_SCREENS: Screen[] = [
+  'build-overview', 'gear', 'skills', 'hero-traits', 'pact-spirits', 'slate-board', 'notes', 'import-export',
+]
+
 function App() {
   const [appReady, setAppReady] = useState(false)
   const [appError, setAppError] = useState('')
   const [screen, setScreen] = useState<Screen>('build-select')
+  // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
+  const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
+  // NOTE: these effects MUST stay above the `if (!appReady)` early return below — a hook placed after it
+  // is conditional and crashes with React #310 ("more hooks than previous render") once appReady flips.
+  // Track visited keep-alive screens so each mounts once on first visit and then persists (hidden).
+  useEffect(() => {
+    if (KEEPALIVE_SCREENS.includes(screen)) {
+      setVisitedKeepAlive(prev => (prev.has(screen) ? prev : new Set(prev).add(screen)))
+    }
+  }, [screen])
+  // Perf-spec drivers (gated on PERF_ENABLED) — let the E2E perf harness drive navigation + recompute
+  // edits deterministically, without fragile UI selectors. Absent entirely in a normal (unflagged) run.
+  useEffect(() => {
+    if (!PERF_ENABLED) return
+    window.__perfNav = (s: string) => setScreen(s as Screen)
+    window.__perfEdit = () => {
+      const st = useBuildStore.getState()
+      st.setCharacterLevel(st.characterLevel >= 100 ? 99 : 100)
+    }
+    window.__perfBuildState = () => {
+      const st = useBuildStore.getState()
+      return { buildVersion: st.buildVersion, computedVersion: st.computedVersion, statsLoading: st.statsLoading }
+    }
+    return () => { delete window.__perfNav; delete window.__perfEdit; delete window.__perfBuildState }
+  }, [])
   const [treeColors, setTreeColors] = useState<Record<string, string>>({})
   const [treeIcons, setTreeIcons] = useState<Record<string, string | null>>({})
   const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
@@ -692,7 +725,14 @@ function App() {
 
   const handleSidebarNav = (target: string) => {
     if (target === 'tree-selector') {
-      goToTreeSelector()
+      // Reopen the last-viewed tree instead of always dropping to the selector: the store's activeSlot
+      // still points at the tree the user last opened, so jump straight into its viewer when it exists.
+      const store = useBuildStore.getState()
+      if (store.slots[store.activeSlot]) {
+        setScreen('tree-viewer')
+      } else {
+        goToTreeSelector()
+      }
     } else {
       setScreen(target as Screen)
     }
@@ -754,11 +794,38 @@ function App() {
 
   // ── Screens with sidebar ──────────────────────────────────────────────────
 
+  // Keep-alive screens render from this single map (one instance each, kept mounted). Everything the
+  // screen needs is closed over here, so there is no duplicate JSX between this and the swap chain below.
+  const renderKeepAliveScreen = (id: Screen): React.ReactNode => {
+    switch (id) {
+      case 'build-overview': return <BuildOverviewScreen />
+      case 'gear': return <GearScreen onBack={() => setScreen('build-overview')} />
+      case 'skills': return <SkillsScreen onBack={() => setScreen('build-overview')} />
+      case 'hero-traits': return <HeroTraitScreen onBack={() => setScreen('build-overview')} onDefaultTraitApplied={rebaselineForDefault} />
+      case 'pact-spirits': return <PactSpiritScreen onBack={() => setScreen('build-overview')} />
+      case 'slate-board': return <SlateScreen treeColors={treeColors} onBack={() => setScreen('build-overview')} />
+      case 'notes': return <NotesScreen />
+      case 'import-export': return (
+        <ImportExportOverlay
+          isDirty={isDirty}
+          buildId={buildId}
+          buildName={buildName}
+          getBuildPayload={getBuildPayload}
+          onImport={openBuild}
+          onSaveFirst={saveBuild}
+          onClose={() => setScreen('build-overview')}
+          asScreen
+        />
+      )
+      default: return null
+    }
+  }
+
+  // Swap-rendered screens only (Calcs + the slot-dependent tree/preview flow); keep-alive screens are
+  // handled by renderKeepAliveScreen above.
   let screenContent: React.ReactNode = <div style={{ color: '#888', padding: 20 }}>Unknown screen state</div>
 
-  if (screen === 'build-overview') {
-    screenContent = <BuildOverviewScreen />
-  } else if (screen === 'tree-selector') {
+  if (screen === 'tree-selector') {
     screenContent = (
       <>
         <TreeSelectorScreen
@@ -827,38 +894,8 @@ function App() {
         previewMode
       />
     )
-  } else if (screen === 'import-export') {
-    screenContent = (
-      <ImportExportOverlay
-        isDirty={isDirty}
-        buildId={buildId}
-        buildName={buildName}
-        getBuildPayload={getBuildPayload}
-        onImport={openBuild}
-        onSaveFirst={saveBuild}
-        onClose={() => setScreen('build-overview')}
-        asScreen
-      />
-    )
-  } else if (screen === 'slate-board') {
-    screenContent = (
-      <SlateScreen
-        treeColors={treeColors}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
   } else if (screen === 'stats') {
     screenContent = <PlayerStatsScreen />
-  } else if (screen === 'gear') {
-    screenContent = <GearScreen onBack={() => setScreen('build-overview')} />
-  } else if (screen === 'skills') {
-    screenContent = <SkillsScreen onBack={() => setScreen('build-overview')} />
-  } else if (screen === 'hero-traits') {
-    screenContent = <HeroTraitScreen onBack={() => setScreen('build-overview')} onDefaultTraitApplied={rebaselineForDefault} />
-  } else if (screen === 'pact-spirits') {
-    screenContent = <PactSpiritScreen onBack={() => setScreen('build-overview')} />
-  } else if (screen === 'notes') {
-    screenContent = <NotesScreen />
   }
 
   return (
@@ -876,13 +913,31 @@ function App() {
             onGoBack={goToBuildSelect}
           />
           <div className="app-content">
-            {/* Inner boundary, keyed on screen — a crash confined to one screen's render can
-                recover by navigating away (remounts this boundary) without a full page reload,
-                and the persistent BuildSidebar/nav stays alive throughout. Defense-in-depth on
-                top of the root boundary in main.tsx, not a replacement for it. */}
-            <ErrorBoundary key={screen}>
-              {screenContent}
-            </ErrorBoundary>
+            {/* Inner boundaries — defense-in-depth on top of the root boundary in main.tsx; the
+                persistent BuildSidebar/nav stays alive throughout. The swap-rendered branch is keyed
+                on screen, so a crash recovers by navigating away (remount). Keep-alive screens stay
+                mounted, so instead their boundary EVICTS the crashed screen from visitedKeepAlive
+                (onError below) — it unmounts and remounts fresh on the next visit. */}
+            <PerfProfiler id="screens">
+              {/* Keep-alive editing screens: mounted on first visit, then hidden (display:none) when
+                  inactive instead of unmounting, so in-progress edit state survives navigation. The
+                  active one uses display:contents so it lays out as a direct child of .app-content. */}
+              {KEEPALIVE_SCREENS.filter(id => visitedKeepAlive.has(id) || id === screen).map(id => (
+                <div key={id} style={{ display: screen === id ? 'contents' : 'none' }}>
+                  <ErrorBoundary onError={() => setVisitedKeepAlive(prev => {
+                    if (!prev.has(id)) return prev
+                    const next = new Set(prev)
+                    next.delete(id)
+                    return next
+                  })}>{renderKeepAliveScreen(id)}</ErrorBoundary>
+                </div>
+              ))}
+              {/* Swap-rendered screens (Calcs + the slot-dependent tree/preview flow): rendered only
+                  while active, remounting on entry as before (keyed on screen). */}
+              {!KEEPALIVE_SCREENS.includes(screen) && (
+                <ErrorBoundary key={screen}>{screenContent}</ErrorBoundary>
+              )}
+            </PerfProfiler>
           </div>
         </div>
       </div>

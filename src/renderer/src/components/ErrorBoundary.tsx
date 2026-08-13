@@ -4,6 +4,9 @@ import { getBuildPayload } from '../utils/buildPayload'
 
 interface Props {
   children: React.ReactNode
+  // Called when this boundary catches. Keep-alive screens use it to evict the crashed screen from the
+  // mounted set so it unmounts and remounts fresh on the next visit (they never unmount on their own).
+  onError?: (error: Error) => void
 }
 
 interface State {
@@ -32,6 +35,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary] uncaught error, build recovery UI shown', error, info.componentStack)
+    this.props.onError?.(error)
   }
 
   // The real recovery path: the same tli1_ code the normal Import/Export flow already knows how
