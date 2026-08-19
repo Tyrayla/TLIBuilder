@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**85 entries** — ✅ Confirmed: 17 · 🔶 Partial: 10 · ⬜ Pending: 9 · ⚠️ Unverified: 47
+**85 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 47
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -19,7 +19,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Hero Memory base-stat value by level & rarity | Hero Memories | hero-memory, base-stat, level-scaling | ✅ Confirmed | 2026-08-09 | [hero-memory-base-stats.md](hero-memory-base-stats.md) |
 | Hero Memory Phase B — trait level, Wax & Wane, revival mod | Hero Memories | hero-memory, hero-trait, trait-level, wax-and-wane | ✅ Confirmed | 2026-08-08 | [hero-memory-phase-b.md](hero-memory-phase-b.md) |
 | Hero-memory combo affix rolls its two stats independently | Hero Memories | hero-memory, affix, rolling, combo | ✅ Confirmed | 2026-08-09 | [hero-memory-combo-affix-independent-rolls.md](hero-memory-combo-affix-independent-rolls.md) |
-| Multistrike + Wind Stalker | — | speed, attack | ✅ Confirmed | 2026-06-22 | [multistrike.md](multistrike.md) |
 | Standard support skills (Chain Lightning L16) | Chain Lightning | supports, methodology | ✅ Confirmed | 2026-06-10 | [standard-supports.md](standard-supports.md) |
 | Support additional-damage pooling | Chain Lightning | damage-pool, supports | ✅ Confirmed | 2026-06-10 | [support-additional-damage-pooling.md](support-additional-damage-pooling.md) |
 | Tangle (tick-rounding + model) | Spell Tangle | tick-rounding, breakpoint, trigger | ✅ Confirmed | 2026-06-19 | [tangle.md](tangle.md) |
@@ -29,6 +28,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
 | Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
+| Multistrike + Wind Stalker | — | speed, attack | 🔶 Partial | 2026-06-22 | [multistrike.md](multistrike.md) |
 | Path of Flames | Path of Flames | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [path-of-flames.md](path-of-flames.md) |
 | Shadow Strike (delivery model) | Thunder Spike | shotgun, damage-pool, trigger | 🔶 Partial | 2026-07-15 | [shadow-strike.md](shadow-strike.md) |
 | Shotgun (Merge + Web) | Chain Lightning | shotgun, supports, damage-pool | 🔶 Partial | — | [shotgun.md](shotgun.md) |

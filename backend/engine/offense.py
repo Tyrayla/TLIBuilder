@@ -2476,14 +2476,23 @@ def calculate_offense(
         K = 1 + G + (1 if p > 1e-9 else 0)                       # longest possible chain = Max Multistrike Count
 
         def _chain_dmg(L: int) -> float:
-            # Σ n=1..L of (1 + inc·(init + n − 1)) = L + inc·(init·L + L(L−1)/2)
-            base = L + inc * (init * L + L * (L - 1) / 2.0)
-            if q > 0.0:
-                # Cat Dive (Tyra): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
-                # length L), gaining inc·(L−n) stacks. Σ n=1..L of (L−n) = L(L−1)/2 (final attack & a lone length-1
-                # swing add 0). Independent of init (it cancels). NOT the theoretical max K.
-                base += q * inc * (L * (L - 1) / 2.0)
-            return base
+            # Increment stacks per hit are CAPPED at the realized chain's Max Multistrike Count = L−1
+            # (help_db "multistrike": "The Max Multistrike Count depends on the Multistrike Chance"; owner-confirmed
+            # 2026-08-18: 500% chance + 2 Initial Count + 50% inc → 200/250/300/350/350/350%, hits 5–6 clamp at 5
+            # stacks). Initial Multistrike Count pre-stacks the ramp but CANNOT push a hit past L−1. Without init
+            # (and q=0), min() is inert since n−1 ≤ L−1 → stacks = n−1, byte-identical to the old closed form, so
+            # every non-init / non-Cat-Dive build stays golden-identical.
+            cap = L - 1
+            qe = min(max(q, 0.0), 1.0)   # a proc CHANCE — clamp to [0,1]; ">100%" means guaranteed (deal at cap)
+            total = 0.0
+            for n in range(1, L + 1):
+                base_stacks = min(init + (n - 1), cap)
+                # Cat Dive: with prob qe this attack deals damage as the realized chain's max count (L−1 stacks —
+                # owner-confirmed realized-L, NOT theoretical K). L−1 ≥ base_stacks, so the proc lifts the hit to
+                # the cap with prob qe and leaves the capped ramp otherwise.
+                stacks = (1.0 - qe) * base_stacks + qe * cap if qe > 0.0 else base_stacks
+                total += 1.0 + inc * stacks
+            return total
 
         e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
         # Attack-speed application: the roll happens up front. A swing that becomes a multistrike chain (length ≥ 2)
