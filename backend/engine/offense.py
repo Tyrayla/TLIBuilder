@@ -208,6 +208,22 @@ _DOT_TYPE_ADDITIONAL_KEYED_TAGS: dict[str, list[tuple[str, frozenset]]] = {
     t: [(k, frozenset()) for k in keys] for t, keys in _DOT_TYPE_ADDITIONAL_KEYS.items()
 }
 
+# Terra-tag-scoped DoT pools (SS13 Terra system — Frost Terra is the first Terra DoT). "Terra Skill Damage"
+# scopes by SKILL (the Terra tag), not by damage form, so it applies to a Terra skill's DoT the same way
+# spell_dmg_inc applies to a spell's DoT. Applicability to the DoT stage is owner-directed (every Terra mod
+# line must map and surface) but NOT in-game measured yet — flagged needs-verification in
+# data/verification/frost-terra.json, mirroring how fire_dot_dmg_inc's inference is flagged in dot-model.json.
+# terra_dmg_enhancement_additional sums additively within its own pool and applies as ONE multiplier — that
+# identity is already handled generically by `_build_additional_factors`'s *_enhancement_additional rule.
+# Module-level constant so `_build_additional_factors` sees the SAME list object every call (identity fast
+# path), matching `_DOT_TYPE_ADDITIONAL_KEYED_TAGS` above.
+_DOT_TERRA_ADDITIONAL_KEYED_TAGS: list[tuple[str, frozenset]] = [
+    ("terra_skill_dmg_additional", frozenset()),
+    ("terra_dmg_enhancement_additional", frozenset()),
+]
+# NOTE: enrolled in _DOT_TYPE_ADDITIONAL_POOL_CACHE where that cache is defined (below) so the identity
+# fast path actually fires — without that the list would take the generic rebuild branch every call.
+
 
 # Attack speed additional pools (tags read directly from stat_meta)
 _APS_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -239,6 +255,7 @@ _SKILL_LEVEL_STATS: list[tuple[str, frozenset]] = [
     ("cold_skill_level",       frozenset({"cold"})),
     ("lightning_skill_level",  frozenset({"lightning"})),
     ("erosion_skill_level",    frozenset({"erosion"})),
+    ("terra_skill_level",      frozenset({"terra"})),
 ]
 
 
@@ -317,6 +334,9 @@ _DOT_TYPE_ADDITIONAL_POOL_CACHE: dict[int, tuple[frozenset[str], dict[str, froze
     id(keyed_tags): (frozenset(k for k, _ in keyed_tags), dict(keyed_tags))
     for keyed_tags in _DOT_TYPE_ADDITIONAL_KEYED_TAGS.values()
 }
+# The Terra-scoped DoT pool (defined above) rides the same id()-keyed fast path.
+_DOT_TYPE_ADDITIONAL_POOL_CACHE[id(_DOT_TERRA_ADDITIONAL_KEYED_TAGS)] = (
+    frozenset(k for k, _ in _DOT_TERRA_ADDITIONAL_KEYED_TAGS), dict(_DOT_TERRA_ADDITIONAL_KEYED_TAGS))
 
 
 def _build_additional_factors(
@@ -1340,6 +1360,14 @@ def compute_dot(
         source, dot_add_factors, lambda tags: True, _DOT_ADDITIONAL_STATS,
     ) * (1.0 + extra_additional)
 
+    # Terra-tag-scoped pools (see _DOT_TERRA_ADDITIONAL_KEYED_TAGS above). Non-Terra skills: the flag is
+    # False and both products stay exactly as before — byte-identical for every existing DoT skill.
+    is_terra = "terra" in {t.lower() for t in skill.tags}
+    if is_terra:
+        terra_factors = _build_additional_factors(source, _DOT_TERRA_ADDITIONAL_KEYED_TAGS)
+        base_additional_product *= _additional_product(
+            source, terra_factors, lambda tags: True, _DOT_TERRA_ADDITIONAL_KEYED_TAGS)
+
     rows: list[DamageRow] = []
     total = 0.0
     total_vt = 0.0
@@ -1353,6 +1381,10 @@ def compute_dot(
             if key not in _seen:
                 increased_keys.append(key)
                 _seen.add(key)
+        # Terra-skill-scoped increased pool (see _DOT_TERRA_ADDITIONAL_KEYED_TAGS's comment — skill-scoped
+        # like spell_dmg_inc, appended after the type keys; disjoint from every key above, no dedup needed).
+        if is_terra:
+            increased_keys.append("terra_skill_dmg_inc")
         increased = sum(source.total(key) for key in increased_keys)
 
         # Additional pool: the base (dmg_additional/dot_dmg_additional) product, times a SEPARATE form-scoped
@@ -1370,7 +1402,10 @@ def compute_dot(
             scoped_product = 1.0
         additional_product = base_additional_product * scoped_product
 
-        dps = form.base_per_second * (1.0 + increased) * additional_product * above_mult
+        # `stacked_instances` — concurrent stacked applications of this DoT at steady state (Frost Terra:
+        # a 2s instance applied every 1s → 2.0; owner-ruled Mind-Control-like stacking ramp). 1.0 default →
+        # byte-identical for every existing DoT skill.
+        dps = form.base_per_second * form.stacked_instances * (1.0 + increased) * additional_product * above_mult
         dps_vt = dps * _target_mitigation_dot(source, form.dtype)
         total += dps
         total_vt += dps_vt
@@ -1527,8 +1562,19 @@ def calculate_offense(
     # shadow: when set (the skill carries the Shadow Strike tag AND has a nonzero shadow count/chance —
     # see engine.compute._offense_for_slot), {"count": N_base, "chance_pct": p, "chance_quantity": k} feeds
     # the _shadow_multiplier EV mix folded into the DPS totals (see the "Shadow Strike mode" block below).
-    if not skill.supported:
-        return OffenseResult(skill_name=skill.name, supported=False)
+    # Unregistered skills (skill.supported=False) run the FULL pipeline too: every damage stage no-ops
+    # naturally (hit_forms_by_level is empty → no forms, total_dps stays 0.0) while the generic,
+    # registry-independent outputs — tags, rates, crit, costs, and the mechanic-mode panels (tangle /
+    # spell burst / wind rhythm / shadow / multistrike) — come back populated so the UI can render a
+    # partial-support view that never states a damage number (docs/BACKLOG.md §5). The result still
+    # carries supported=False; damage-derived fields are only ever their zero defaults.
+    #
+    # Consumption recording is SUSPENDED for these skills: a damage modifier on a skill whose damage
+    # isn't modeled contributes nothing, and its badge must keep reading "unused" (the skill-sensitivity
+    # contract in test_modifier_consumption). Restored just before returning.
+    _suppress_recording = (not skill.supported) and source._recording
+    if _suppress_recording:
+        source._recording = False
 
     # Tags used for damage increased/additional + crit filtering — the skill's own tags plus any it
     # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
@@ -1632,7 +1678,13 @@ def calculate_offense(
     double_dmg_factor = (4 * q4 + 3 * (1 - q4) * q3 + 2 * (1 - q4) * (1 - q3) * q2
                          + (1 - q4) * (1 - q3) * (1 - q2))
 
-    effective_level = skill_effective_level(source, skill.tags, base_level, is_main_skill)
+    # GRANTED Tags count for +<Tag> Skill Level too (owner-ruled 2026-08-10: "The supported skill gains the
+    # Fire Tag" ⇒ +Fire Skill Level applies — e.g. Chromatic Shot's Condensed supports). Only add_mod_tags
+    # (real granted Tags) join; extra_damage_mod_tags stays damage-pool-only per its own contract (Moon
+    # Strike's ['spell'] must NOT enable spell_skill_level), and remove_mod_tags removals carry through via
+    # skill_tags_lower. Byte-identical when no tags are granted (the common case).
+    _level_tags = (skill_tags_lower | {t.lower() for t in add_mod_tags}) if add_mod_tags else skill.tags
+    effective_level = skill_effective_level(source, list(_level_tags), base_level, is_main_skill)
     lookup_level = min(effective_level, skill.max_level)
 
     # 2. Flat damage pool per type: weapon base (× gear inc) + ring/gear/talent flat adds
@@ -1919,7 +1971,9 @@ def calculate_offense(
     # 6. Per hit form
     # Effectiveness % stays at the max-level value when above max level.
     # Instead, a compounding additional multiplier is applied to all hit damage.
-    above_mult = _above_max_mult(effective_level, skill.max_level)
+    # Unsupported fallback has max_level=0 — every level would read as "above max" and produce a huge
+    # bogus multiplier; pin to 1.0 (no damage is computed for these skills anyway).
+    above_mult = _above_max_mult(effective_level, skill.max_level) if skill.supported else 1.0
     hit_forms: list[HitFormResult] = []
     # Pre-scan the projectile-scaling (reset burst) form's count, BEFORE the loop, so the continuous form
     # (processed first) knows whether the burst fires — and thus whether it's suppressed. -1 = no such form.
@@ -2422,14 +2476,23 @@ def calculate_offense(
         K = 1 + G + (1 if p > 1e-9 else 0)                       # longest possible chain = Max Multistrike Count
 
         def _chain_dmg(L: int) -> float:
-            # Σ n=1..L of (1 + inc·(init + n − 1)) = L + inc·(init·L + L(L−1)/2)
-            base = L + inc * (init * L + L * (L - 1) / 2.0)
-            if q > 0.0:
-                # Cat Dive (Tyra): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
-                # length L), gaining inc·(L−n) stacks. Σ n=1..L of (L−n) = L(L−1)/2 (final attack & a lone length-1
-                # swing add 0). Independent of init (it cancels). NOT the theoretical max K.
-                base += q * inc * (L * (L - 1) / 2.0)
-            return base
+            # Increment stacks per hit are CAPPED at the realized chain's Max Multistrike Count = L−1
+            # (help_db "multistrike": "The Max Multistrike Count depends on the Multistrike Chance"; owner-confirmed
+            # 2026-08-18: 500% chance + 2 Initial Count + 50% inc → 200/250/300/350/350/350%, hits 5–6 clamp at 5
+            # stacks). Initial Multistrike Count pre-stacks the ramp but CANNOT push a hit past L−1. Without init
+            # (and q=0), min() is inert since n−1 ≤ L−1 → stacks = n−1, byte-identical to the old closed form, so
+            # every non-init / non-Cat-Dive build stays golden-identical.
+            cap = L - 1
+            qe = min(max(q, 0.0), 1.0)   # a proc CHANCE — clamp to [0,1]; ">100%" means guaranteed (deal at cap)
+            total = 0.0
+            for n in range(1, L + 1):
+                base_stacks = min(init + (n - 1), cap)
+                # Cat Dive: with prob qe this attack deals damage as the realized chain's max count (L−1 stacks —
+                # owner-confirmed realized-L, NOT theoretical K). L−1 ≥ base_stacks, so the proc lifts the hit to
+                # the cap with prob qe and leaves the capped ramp otherwise.
+                stacks = (1.0 - qe) * base_stacks + qe * cap if qe > 0.0 else base_stacks
+                total += 1.0 + inc * stacks
+            return total
 
         e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
         # Attack-speed application: the roll happens up front. A swing that becomes a multistrike chain (length ≥ 2)
@@ -2666,9 +2729,9 @@ def calculate_offense(
     }
     _finalize_damage_row_pcts(damage_rows, total_dps_vs_target)
 
-    return OffenseResult(
+    result = OffenseResult(
         skill_name=skill.name,
-        supported=True,
+        supported=skill.supported,
         effective_level=effective_level,
         hit_forms=hit_forms,
         crit_chance=crit_chance,
@@ -2699,8 +2762,11 @@ def calculate_offense(
         generic_add=generic_add,
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
-        skill_tags=(skill.tags + [t for t in (add_mod_tags or set())
-                                  if t.lower() not in {x.lower() for x in skill.tags}]),
+        # sorted(): add_mod_tags is a SET — unsorted iteration made the appended extras' order vary per
+        # process (hash randomization), flapping the chromatic_shot golden once the four Condensed supports
+        # each contributed an element tag (first multi-tag case; single-tag sets never showed it).
+        skill_tags=(skill.tags + sorted(t for t in (add_mod_tags or set())
+                                        if t.lower() not in {x.lower() for x in skill.tags})),
         skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
@@ -2817,3 +2883,8 @@ def calculate_offense(
             *[f"{k} — {reason}" for k, reason in _DEFERRED_ADDITIONAL.items()],
         ],
     )
+    # The construction above still reads source.total() (weapon speed, skill_area, jumps, trigger interval),
+    # so recording is restored only now that every read for this skill is done.
+    if _suppress_recording:
+        source._recording = True
+    return result

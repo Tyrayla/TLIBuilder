@@ -69,8 +69,9 @@ export function GearTooltipBody({ item, delta, deltas, hideBadges }: { item: Gea
   const implCount = craftItem ? (craftItem.implicit_count ?? 0) : 0
   // Implicit/explicit affix objects are structurally the same for legendary and crafted items —
   // both carry the resolved stat keys the inert-modifier badge needs.
-  const implicits = lgItem ? getItemImplicits(lgItem) : (craftItem ? craftItem.affixes.slice(0, implCount) : [])
-  const explicits = lgItem ? getItemExplicits(lgItem) : (craftItem ? craftItem.affixes.slice(implCount) : [])
+  const craftAffixes = craftItem?.affixes ?? []   // guard: imported/edge items may lack affixes
+  const implicits = lgItem ? getItemImplicits(lgItem) : (craftItem ? craftAffixes.slice(0, implCount) : [])
+  const explicits = lgItem ? getItemExplicits(lgItem) : (craftItem ? craftAffixes.slice(implCount) : [])
   const mutText = craftItem && craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
 
   const implicitStatuses = useGearModifierStatuses(implicits)

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useBuildStore } from '../store/buildStore'
 import type { LoadedBuild } from '../store/buildStore'
 import { EMPTY_STAT_SHEET } from '../api/client'
-import type { EquippedSkill, Loadout, PactSpirit, StatSheetResponse } from '../api/client'
+import type { EquippedSkill, Loadout, PactSpirit, StatSheetResponse, SlateTemplate, CreatedHeroMemory } from '../api/client'
 import { DEFAULT_TARGET_CONFIG } from '../utils/targetPresets'
 
 // Full initial snapshot (captured before any test mutates the singleton store) — used to fully
@@ -24,7 +24,7 @@ const baseLoadedBuild: LoadedBuild = {
   traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitTreeAllocations: [],
   traitSkillSupports: [],
   licoricePreparedSkill: null, elixirIngredients: {},
-  heroMemories: [null, null, null], pactSpirits: [null, null, null],
+  heroMemories: [null, null, null], memoryInventory: [], pactSpirits: [null, null, null],
   fates: {}, undetermined: [null, null, null], notes: '', customMods: [],
   targetConfig: DEFAULT_TARGET_CONFIG, loadouts: [], activeLoadoutId: '',
 }
@@ -219,5 +219,37 @@ describe('editLoadouts', () => {
     const s = useBuildStore.getState()
     expect(s.skills).toEqual([])
     expect(s.mainSkill).toBeNull()
+  })
+})
+
+describe('loadout-scoped inventories (slateInventory + memoryInventory)', () => {
+  const slateA: SlateTemplate = { id: 'sa', kind: 'base', orientationIndex: 0, shapeIndex: 0, slots: [] }
+  const memB: CreatedHeroMemory = {
+    id: 'mb', memoryType: 'origin', rarity: 'epic', baseStat: null,
+    fixedAffixes: [null, null], randomAffixes: [null, null],
+  }
+  const loadoutA: Loadout = {
+    id: 'A', name: 'A', inherit: {},
+    data: { slates: { slates: [], slateInventory: [slateA] }, memories: { heroMemories: [null, null, null], memoryInventory: [] } },
+  }
+  const loadoutB: Loadout = {
+    id: 'B', name: 'B', inherit: {},
+    data: { slates: { slates: [], slateInventory: [] }, memories: { heroMemories: [null, null, null], memoryInventory: [memB] } },
+  }
+
+  beforeEach(() => {
+    useBuildStore.setState({ loadouts: [loadoutA, loadoutB], activeLoadoutId: 'A', slateInventory: [slateA], memoryInventory: [] })
+  })
+
+  it('switching loadouts swaps each loadout\'s own inventory (inventories are now per-loadout, not build-global)', () => {
+    useBuildStore.getState().switchLoadout('B')
+    let s = useBuildStore.getState()
+    expect(s.slateInventory.map(t => t.id)).toEqual([])       // B has no slate templates
+    expect(s.memoryInventory.map(m => m.id)).toEqual(['mb'])  // B owns memory mb
+
+    useBuildStore.getState().switchLoadout('A')
+    s = useBuildStore.getState()
+    expect(s.slateInventory.map(t => t.id)).toEqual(['sa'])   // A owns slate template sa
+    expect(s.memoryInventory.map(m => m.id)).toEqual([])      // A has no memories
   })
 })

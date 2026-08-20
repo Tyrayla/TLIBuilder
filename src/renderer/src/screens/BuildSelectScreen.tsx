@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { api, Build, BuildFolder, FolderManifest, IS_WEB } from '../api/client'
-import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
-import { checkBuildCompatibility } from '../utils/buildCompat'
+import ImportPanel from '../components/ImportPanel'
 import { characterSummary } from '../utils/characterSummary'
 import { useReferenceStore } from '../store/referenceStore'
 import SettingsOverlay from '../components/SettingsOverlay'
@@ -118,12 +117,6 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
     else window.open(url, '_blank', 'noopener,noreferrer')
   }
   const [importOpen, setImportOpen] = useState(false)
-  const [importCode, setImportCode] = useState('')
-  const [importError, setImportError] = useState<string | null>(null)
-  const [importWarnings, setImportWarnings] = useState<string[]>([])
-  const [importConfirmed, setImportConfirmed] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const importRef = useRef<HTMLTextAreaElement>(null)
 
   const [version, setVersion] = useState('')
   const [checkStatus, setCheckStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'available' | 'error'>('idle')
@@ -177,50 +170,10 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }
 
   useEffect(() => {
-    if (importOpen) setTimeout(() => importRef.current?.focus(), 50)
-  }, [importOpen])
-
-  useEffect(() => {
     if (folderModalOpen) setTimeout(() => folderNameRef.current?.focus(), 50)
   }, [folderModalOpen])
 
-  const openImport = () => {
-    setImportCode('')
-    setImportError(null)
-    setImportWarnings([])
-    setImportConfirmed(false)
-    setImportOpen(true)
-  }
-
-  const handleImport = async () => {
-    const code = importCode.trim()
-    if (!code) return
-    setImporting(true)
-    setImportError(null)
-    try {
-      // Accepts either a raw tli1_ code or a share link.
-      const resolved = await resolveImportInput(code)
-      const { build } = await api.decodeBuildCode(resolved)
-      const warnings = checkBuildCompatibility(build)
-      if (warnings.length && !importConfirmed) {
-        setImportWarnings(warnings)
-        setImportConfirmed(true)
-        return
-      }
-      setImportOpen(false)
-      setImportConfirmed(false)
-      onOpenBuild({ ...(build as unknown as Build), name: 'New Build' })
-    } catch (e: unknown) {
-      if (e instanceof ShareFetchError) {
-        setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
-      } else {
-        const msg = e instanceof Error ? e.message : String(e)
-        setImportError(msg.includes('400') ? "This doesn't look like a TLI Builder code. Paste a tli1_… code or share link from TLI Builder — in-game build codes aren't supported." : 'Failed to import — try again.')
-      }
-    } finally {
-      setImporting(false)
-    }
-  }
+  const openImport = () => setImportOpen(true)
 
   // ── Folder manifest persistence ─────────────────────────────────────────────
   // Optimistic write, then PUT; on failure, reload the manifest from the server (per contract, the server
@@ -730,6 +683,16 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
             Reference &amp; Verification
           </button>
         </div>}
+        {/* Row 4: Support the developer (Ko-fi) — subtle link matching the sidebar's style. */}
+        <div className="build-select-footer-actions">
+          <button
+            className="build-select-support"
+            onClick={() => openExternal('https://ko-fi.com/tlibuilder')}
+            title="Support TLI Builder on Ko-fi"
+          >
+            ♥ Support the developer
+          </button>
+        </div>
       </div>
 
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
@@ -792,28 +755,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
         <div className="modal-backdrop" onClick={() => setImportOpen(false)}>
           <div className="modal-card share-modal-card" onClick={e => e.stopPropagation()}>
             <div className="modal-accent" />
-            <h3 className="modal-title">Import Build Code</h3>
-            <p className="share-modal-hint">Paste a TLI Builder code (tli1_…) or share link to load a build. In-game build codes from Torchlight: Infinite aren't supported.</p>
-            <textarea
-              ref={importRef}
-              className="share-code-area share-code-area--input"
-              placeholder="Paste a tli1_… code or share link…"
-              value={importCode}
-              onChange={e => { setImportCode(e.target.value); setImportError(null); setImportWarnings([]); setImportConfirmed(false) }}
-              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleImport() }}
-            />
-            {importError && <p className="share-import-error">{importError}</p>}
-            {importWarnings.length > 0 && (
-              <div className="share-import-warning">
-                <p>⚠ This code may be from an older version:</p>
-                <ul>{importWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-                <p>Unsupported fields will be ignored. Click "Import Anyway" to proceed.</p>
-              </div>
-            )}
+            <h3 className="modal-title">Import Build</h3>
+            <ImportPanel onImport={(build) => { setImportOpen(false); onOpenBuild(build) }} autoFocus />
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={handleImport} disabled={importing || !importCode.trim()}>
-                {importing ? 'Importing…' : importConfirmed ? 'Import Anyway' : 'Import'}
-              </button>
               <button className="btn btn-secondary" onClick={() => setImportOpen(false)}>Cancel</button>
             </div>
           </div>

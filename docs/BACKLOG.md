@@ -403,6 +403,26 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   stacks manually). Auto-derive stack counts later.
 - **sweep_slash_additional_dmg**: wire its legendary mod line + a form-scoped reader (mirror steep_strike);
   currently parked unwired in `_FORM_SCOPED_ADDITIONAL`.
+- **Gear-affix→aura injection + aura-effect-from-a-stat — both NYI (surfaced 2026-08-12 by a real Wind Rhythm
+  cast-speed build; two large currently-invisible cast-speed / aura-effect sources).**
+  1. **"Gains an additional effect: +N% Attack and Cast Speed" aura injection.** Goddess of Hunting's Dirge
+     (`data/master_glossary.json:2285`, `data/seasons/SS13/_legendary_gear.json:48798`) injects "+150% Attack and
+     Cast Speed" into the **Precise: Swiftness** aura. No gear-affix→aura-buff-injection path exists —
+     `aura_resolver.py` reads only the skill's own description, and `mod_parser.py:744`'s "Attack and Cast Speed"
+     rule is start-anchored, so the "Precise: Swiftness gains an additional effect:" prefix never matches → the line
+     resolves to nothing (NYI, not dropped). If modeled as an aura buff it would scale
+     `1.50 × (1+Σaura_effect_inc) × (1+Σaura_effect_additional)` into the normal `cast_speed_inc` pool. Needs an
+     engine-task-spec + in-game confirm of the aura-effect scaling before any code.
+  2. **"+N% Aura Effect per +M% Sealed Mana Compensation."** Lone Walker's Boots
+     (`legendary_gear/Lone Walker's Boots.json`): base "+2% per +3%", corroded "+1% per +1%"; plus its conditional
+     "+(15–30)% Aura effect when affected by (4–5)+ Auras". No `mod_parser` rule and no
+     `aura_effect_per_sealed_mana_comp` stat → parses to nothing. Open Q for the per-comp line: does it read the
+     GLOBAL sealed mana comp pool only? (Support "for the supported skill" comp is slot-local — likely excluded;
+     confirm in-game.)
+  - **Related (already tracked as TERRA-01 #2, re-surfaced by the same build):** the Terra charge factor defaults to
+    *max* charges consumed, which over-credits a fast-cadence Wind Rhythm / Rhythm auto-cast — the 0.5 s restore
+    can't keep up, so real charges-consumed ≈ `2·(1+restore_speed) ÷ cast_rate`, far below max. Use the
+    `terra_charges_consumed` condition override meanwhile. Modeling the fast-cadence case is the open half of TERRA-01.
 
 ## 2. Modifier badges / exclusive tagging
 - **Expand `_EXCLUSIVE_SKILL_TAGS`** beyond `minion` (candidates: sentry/trap/warcry/totem subsystems) — needs
@@ -521,6 +541,75 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   id `bug-crossed-lightning-runon-progression-line-drops-quantity-grant`), so this fix changes no DPS today.
 
 ## 5. UI / screens
+- **Spirit Magus display + Origin effect calculations (owner, 2026-08-10; scoped same day).**
+  **Phases A, B (minus Wicked), and the display box SHIPPED 2026-08-11** — `engine/spirit_magus_origins.py`
+  (per-magus data parse + shared EMIT_TABLE), generalized compute scan, aggregator emission, new stats
+  `hit_dmg_taken_additional` + `energy_shield_regen_pct` (recovery ES regen), `origin_summary` payload +
+  OriginPanel box; verification entries `spirit-magus-origins` / `magnificent-origin-effects` (unverified,
+  assumptions listed there). **Wicked magnificent deferred** — its added effects are minion-scoped
+  ("Converts 100% of Physical and Elemental Damage to Erosion for all Spirit Magi" + per-minion erosion
+  ramp); model with the minion engine. Remaining phases below:
+  - **Phase A — the four remaining origins as summoner buffs.** Generalize the hardcoded Thunder scan into a
+    per-magus table. Fire = +crit rating (attack+spell, level-scaled 58→175 @L40, offense); Frost/Ice =
+    +%Max Life & ES restored/sec (2.4→5.23, recovery/restoration subsystem); Rock = −additional Hit Damage
+    taken, cap −50% (5.2→8.2, defense); Erosion = −additional DoT taken, cap −50% (defense). Each lands in
+    a DIFFERENT subsystem — Thunder was the easy pure-offense one. **Level scaling is in the data for all
+    five** but only in free-text `progression[].values.Descript` (40 entries each); `engine/tooltip.py`
+    already diffs those strings per level (tooltip goldens carry `values_by_level`) — reuse/mirror that
+    extraction or bake parsed per-magus tables. Data gotcha: origin text is split header-line +
+    magnitude-line (shared header uuid `1a86ebe5-…`) for fire/thunder/rock/erosion but INLINED one-line for
+    frost. All `needs-verification` — engine-task-spec per origin.
+  - **Phase A2 — origin-effect scalar supports: SHIPPED 2026-08-11** (with A/B). Per-skill scoped — each
+    support raises only ITS magus's origin factor via the increased half (owner classification 2026-08-10);
+    Friend pair auto-gated on the count of distinct magus types that granted an origin (no manual toggle).
+    Verification entry `origin-effect-scalar-supports` (unverified).
+  - **Phase B — magnificent supports that ADD an origin effect** (fire/cold/lightning ward = +max res,
+    `unyielding` = armor-rate vs non-phys, `plague_source` = +additional erosion dmg, `wicked` = 100%
+    phys+ele→erosion conversion).
+  - **Phase C — caps** ("up to −50%" on Rock/Erosion — per-magus-count stacking wording, unverified
+    mechanic) + any remaining conditionals.
+  - **Display v2 SHIPPED 2026-08-11** (owner-directed, replacing the short-lived middle-column v1 box):
+    selecting a magus renders an **"Origin of Spirit Magus" grid box** beside the minion-stats box
+    (renamed **"Spirit Magi (Minion)"** for the scope distinction, owner naming) — Origin Effect row
+    (×factor with breakdown), the magus's seal **reservation with full source breakdown**, "Grants
+    (Origin of X)" rows (base × factor popovers), magnificent added effects under "Added by supports".
+    Unmodeled magus owners get an honest "minion damage not modeled" headline + abilities list + the
+    Origin box (previously they fell into the player partial-mode boxes — wrong pools). `origin_summary`
+    is per-skill entries with structured grants (label/base/value/unit).
+- **Partial-support skill display (owner, 2026-08-10).** For skills with no `skill_resolver._REGISTRY` entry
+  (today: empty `OffenseResult(supported=False)` shell, non-main slots dropped at `compute.py` ~1638, wrong
+  "no hit DPS of its own" copy in SkillFoundationPanel ~:1117), show every mechanic that does NOT depend on
+  the modeled DPS/hit damage; hide anything that states damage. Principle: never show a number we can't
+  stand behind; everything else is worth providing. Full field-by-field audit done 2026-08-10.
+  - **Backend prerequisites (in value order):** (1) populate `skill_tags` + `base_cast_time` + `mana_cost`
+    on the unsupported result (`offense.py` ~1565 early-return — cheapest change, widest effect; every
+    `hasTag()` gate is dark without it); (2) move the early return past the generic blocks (crit ~1600-1660,
+    rates ~1871, wind rhythm ~1877, tangle ticks ~1888, mechanic blocks ~2214-2430 minus `hit_forms` reads;
+    guard `demolisher_*_dps` name-lookup at ~2566) or factor a `compute_generic_offense()`; (3) stop
+    dropping unsupported non-main slots; (4) add a support-tier field next to `supported` (grow
+    `coverage.py`'s `'none'` collapse at ~424 into a third state); additive optional API fields per
+    `client.ts` convention.
+  - **Per-box verdicts (from the audit):** Hit Rate — show fully (per-form rows drop out naturally).
+    Critical Strikes — show fully. Tangle — show fully (gate = attached tangle support + `is_spell`, all
+    generic; omit `tangle_mult`). Spell Burst — show all charge/burst/breakpoint/auto-trigger rows (pure
+    stat pools + sps; eligibility = tags + cooldown parse + enabler ids, all generic); hide only the 3 DPS
+    rows. Wind Rhythm — show fully (AM-support-driven, zero registry dependency). Shadow Strike — show all
+    (tag-gated + build stats) except the DPS Multiplier row. Ailment boxes + Crowd Control — rows are pure
+    stat-map reads; only the `canHit`/`dealtTypes` GATES are DPS-derived — re-gate on damage-type tags /
+    hit-tag heuristic. **Shotgunning — hide** (every input is per-form/registry). **Demolisher — hide
+    unless** the `_GS_RESTORE_RE` base-restore parse (`skill_resolver.py` ~283, currently inside
+    `_resolve_groundshaker`) is lifted into the fallback; then show all but Frequent Quake/Collapse/DPS
+    rows. **Channeled — show only Channel Rate** (owner decision 2026-08-10); stacks/attack-frequency stay
+    hidden (ChanneledSpec is registry-only; a description parse for max-stacks/attack-frequency is possible
+    later but is new mechanic-derivation → needs-verification entry).
+  - **UI:** three-way split of the `OffensePanels` branch (~:1469): full → today's body; partial → headline
+    without DPS + the boxes above, Skill Cost lifted out of the damage-gated Skill Effects box (cost is
+    already computed for ALL slots by `_active_skill_costs`), `CoverageBadge` reused in the header; none →
+    foundation panel with corrected copy. Optional per-slot tier dot in `SkillSelectionBar` fed by the
+    already-on-the-wire-but-unconsumed `StatsResult.skill_slots[].supported`.
+  - This creates the confidence-tier vocabulary the Origin box (above) and the display-fidelity audit
+    (below) share, and changes roster-expansion economics: skills become visible immediately, registry
+    entries become incremental upgrades.
 - **★ Engine↔frontend display-fidelity audit (NEW initiative).** There are disconnects between how the engine
   computes and how the frontend displays — the Stats screen / skill selector should eventually mirror the backend
   math EXACTLY so the numbers are auditable line-by-line. First instance found + fixed 2026-06-17: the Skill Hit
@@ -785,3 +874,92 @@ parallel sticky preview card on desktop, uniform edges/surfaces), Equipment+Item
 to one desktop column, duplicate actions for build items and slate templates, gear/skills panel
 backgrounds matched to the app canvas. Deferred to M2 (see items above): tap tooltips, tree pinch-zoom,
 folder DnD alternatives, hermetic CDN, testid pass, remaining e2e journeys, loading-state replacement.
+
+### Compendium-import round-trip follow-ups (2026-08-07)
+
+Surfaced testing imported TLI Compendium builds (via the private build-crosswalk converter).
+Converter-side issues were fixed in that tool. The tlibuilder items below split into **fixed
+in this change** and **still open**.
+
+**Fixed in this change (dev):**
+- Loadout switch not refreshing the viewed tree — `TreeViewerScreen` now re-seeds `nodeStates`/
+  `coreTalentSelections` on `activeLoadoutId` change (was keyed only on `treeName`).
+- `traitTreeAllocations` is now a per-loadout `trait`-area field (`loadoutAreas.ts`) with a load
+  migration, so tree-mode hero-trait allocations swap with loadouts.
+- Crash guards: `GearTooltipBody` `affixes.slice` and `noteEntities` `.map` now tolerate gear
+  items without `affixes`.
+
+**Still open:**
+- **Selena "Dance of the Deep" trait UI redo.** Text is cut off at the bottom of the trait
+  panel; and the Artificial Moon needs a proper home in tree mode. Currently the base-trait level
+  in tree mode has no UI control (defaults to 1, per the existing note), so `showArtificialMoon`
+  (base level 5) never triggers for tree traits — decide how tree-mode base level + Artificial
+  Moon should surface, and fix the panel/tree layout clipping.
+- **Hero-trait base values are wrong for most rarities.** The tlidb-sourced base values are
+  incorrect for most rarities; ours should match in-game. Re-source/correct (data-scraper +
+  verification).
+- **Hero memory inventory + creation system.** Build a proper hero-memory inventory (create /
+  move between slots) mirroring the gear inventory model, and **update memory levels based on the
+  socketed hero trait** (the trait gates/scales memory levels).
+
+### Compendium-import round-trip #2 (2026-08-07)
+
+**Fixed in this change (dev):**
+- Slate page stale on loadout switch — `SlateScreen` now re-seeds the local board from
+  `store.slates` on `activeLoadoutId` change (same class of bug as the tree screen).
+
+**Still open — slates (need visual iteration; the hard subsystem):**
+- **Slate positioning still off.** Placed-slate cells are computed from the geometry shape +
+  the Compendium `placements[]` (row,col) as anchor, but the anchor-reference semantics
+  between the two tools don't fully line up (shapes land near-but-not-exactly right, some
+  overlap). Needs a visual place-identical-slates-in-both-tools diff to pin the exact
+  reference cell / origin convention per shape+orientation.
+- **`treeType` semantics for divinity slates.** Converter sets `treeType` = the affix's
+  `slateType`, which can be the talent's *source* tree (e.g. "Arcanist") rather than the god
+  board the slate sits on (Compendium `god`, e.g. "Knowledge"). Decide which Builder wants and
+  map accordingly.
+- **Empty placed slates become typeless `base` slates.** A Compendium slate with no affix
+  selected has no `slateType` → `treeType: "None"`. Either derive from `god`, or don't allow a
+  typeless placed slate.
+
+**Still open — loadout-scoped inventories (owner-requested feature):**
+- Make **slate inventory** (and later **hero-memory inventory**) **loadout-contained** rather
+  than build-global. Add a view mode the user can toggle: default = **current loadout**, option
+  = **entire build** (the aggregate of all loadouts' slates). Data-model: move `slateInventory`
+  into the `slates` loadout area (like `traitTreeAllocations`); UI: the mode toggle + aggregate
+  view. Converter then emits `slateInventory` per loadout.
+
+**Still open — crafted gear editor:**
+- Imported crafted gear resolves for DPS + shows rendered rolls in the tooltip, but the craft
+  **editor's** prefix/suffix selectors are empty (imported affixes aren't matched to catalog
+  craft-affix options), so the item isn't re-editable without re-rolling. Match imported affixes
+  to the catalog pool (by expression/tier/affix_type) to populate the editor.
+
+### Share service — landing page for /b/<id> links (owner-requested 2026-08-08)
+
+Visiting a share link directly (e.g. `https://api.tlibuilder.com/b/iQpLezj`) should not dump
+raw JSON / 404 — it should serve a small landing page that either auto-opens the build in TLI
+Builder (deep link) or offers an "Open in TLI Builder" button (and, on the web app, opens the
+build directly). Lives in the `tlibuilder-code-share` repo (owner-committed). Consider: web-app
+route `tlibuilder.com/b/<id>` that fetches the code and calls the import path; and the api host
+redirecting/serving the button.
+
+### Build warnings / issues sidebar (owner-requested 2026-08-08)
+
+A clickable **warnings/issues indicator in the sidebar** the user can open to see any current
+problems with their build — e.g. entities dropped/unmapped on import, best-guess values that
+need review, or other validation issues. Motivating cases:
+- **Compendium import (via the build-crosswalk tool):** anything that couldn't be mapped
+  (a skill/support/spirit/legendary/slate-mod/hero-memory-affix not in the crosswalk) or was
+  imported as a best guess must be surfaced, never silently dropped. **Near-term:** the crosswalk
+  emitter now writes these as an "⚠ Import warnings" section into the build **notes** (owner said
+  that's fine until this sidebar exists). Longer-term this sidebar is the real home for them.
+- **Moth / Space Rift slates:** Compendium omits the copy-direction, so imported ones carry a
+  best-guess direction (owner believes Compendium is just wrong here). The user can already
+  re-customize the direction after import; the sidebar should just **flag** imported moths so the
+  user knows to check them.
+- General build validation (unallocated points, invalid combos, etc.) could feed the same panel.
+
+Design: a small badge/count in the sidebar → panel listing each issue with a jump-to-fix link
+where possible. Warnings would need a home in build state (or be re-derived), not just the notes
+string, once this lands. Until then, notes is the agreed carrier.

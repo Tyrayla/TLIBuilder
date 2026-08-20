@@ -488,6 +488,7 @@ export default function TreeViewerScreen({
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
+  const activeLoadoutId = useBuildStore(s => s.activeLoadoutId)
   const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
   const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
   // Core-talent effect badges (roadmap #4), the same 4-state scheme as every other modifier, driven by
@@ -559,6 +560,21 @@ export default function TreeViewerScreen({
   const [placingPrism, setPlacingPrism] = useState<CraftedPrism | null>(null)
   const [editingPlaced, setEditingPlaced] = useState<PlacedPrism | null>(null)
   const [hoverPlaceCell, setHoverPlaceCell] = useState<{ col: number; row: number } | null>(null)
+  // Mobile (≤768px) has no right-click, so removing points meant a long-press — which fights the tooltip.
+  // `deallocMode` is a mobile-only toggle that flips a plain node TAP to deallocate instead of allocate.
+  // Gated on `mobile` everywhere it's read, so desktop can never deallocate on a left-click.
+  const [mobile, setMobile] = useState(
+    () => (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches) ?? false,
+  )
+  const [deallocMode, setDeallocMode] = useState(false)
+  useEffect(() => {
+    // Guard `window` itself (not just matchMedia) — the vitest suite renders this in a `node` env.
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(max-width: 768px)')
+    const onChange = () => { setMobile(mq.matches); if (!mq.matches) setDeallocMode(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
   useEffect(() => {
     api.getEtherealPrism().then(r => { setPrismCatalog(r.items ?? []); setEtherealCat(r.catalog ?? null) }).catch(() => {})
   }, [])
@@ -581,6 +597,17 @@ export default function TreeViewerScreen({
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
+
+  // Re-seed the local view when the active loadout changes. Switching loadouts swaps the resolved
+  // `slots` under the SAME `treeName`, so the treeName-keyed effect above doesn't fire — without this
+  // the tree keeps showing the previous loadout's points until you switch to another tree and back.
+  useEffect(() => {
+    if (previewMode) return
+    setNodeStates(slots[activeSlot]?.nodeStates ?? {})
+    setCoreTalentSelections(slots[activeSlot]?.coreTalentSelections ?? {})
+    setExpandedSlot(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLoadoutId])
 
   // Prism reflected-box points count toward the budget + column thresholds (they cost points in-game).
   const total = sumPoints(nodeStates) + (treePrism ? sumPoints(treePrism.boxAllocations) : 0)
@@ -978,7 +1005,10 @@ export default function TreeViewerScreen({
   }, [hoveredNodeId, nodeStates, nodeIndex, treePrism])
 
   const handleNodeInteract = (node: TreeNode, isRight: boolean) => {
-    handleClick(node.id, isRight ? 'deallocate' : 'allocate')
+    // isRight = right-click/long-press (always deallocate). On mobile with the toggle on, a plain tap
+    // deallocates too — so removing points no longer needs a long-press.
+    const deallocate = isRight || (mobile && deallocMode)
+    handleClick(node.id, deallocate ? 'deallocate' : 'allocate')
   }
 
   const handleReset = () => {
@@ -1207,6 +1237,13 @@ export default function TreeViewerScreen({
           >Reselect</button>
           {/* Hidden while placing a prism so the placement banner can't overlap (and be clicked through to) these. */}
           {!placingPrism && <>
+            {mobile && (
+              <button
+                className={'btn btn-sm tree-mode-toggle ' + (deallocMode ? 'btn-danger' : 'btn-accent')}
+                onClick={() => setDeallocMode(m => !m)}
+                title="Mobile only: switch whether tapping a node adds or removes points, so removing no longer needs a long-press. Long-press still opens the tooltip."
+              >{deallocMode ? '− Tap removes' : '+ Tap adds'}</button>
+            )}
             <div className="tree-search-bar">
               <input
                 className="tree-search-input"
@@ -1611,7 +1648,7 @@ export default function TreeViewerScreen({
                           unlocked={isColUnlocked(col)}
                           mult={prismMult(treePrism.rolls, src.node_type)}
                           prismId={treePrism.id}
-                          onAlloc={add => allocateReflected(col, row, src, add)} />
+                          onAlloc={add => allocateReflected(col, row, src, (mobile && deallocMode) ? false : add)} />
                       )
                     })}
                   </>

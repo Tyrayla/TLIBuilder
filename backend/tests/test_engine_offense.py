@@ -34,6 +34,31 @@ class TestSupportedFlag:
         assert r.total_dps == 0.0
         assert r.total_dps_vs_target == 0.0
 
+    def test_unsupported_skill_generic_fields_populated(self):
+        # Partial-support display (docs/BACKLOG.md §5): an unregistered skill runs the full pipeline —
+        # damage stays zeroed (no hit forms), but the registry-independent outputs (tags, rates, crit,
+        # level) come back populated so the UI can show them without stating a damage number.
+        r = calculate_offense(
+            _source(weapon_attack_speed=2.0, weapon_crit_rating_flat=500.0),
+            _skill(supported=False), 1,
+        )
+        assert r.supported is False
+        assert r.total_dps == 0.0 and r.hit_forms == []
+        assert r.skill_tags == ["attack"]
+        assert r.skills_per_second == pytest.approx(2.0)
+        assert r.crit_chance == pytest.approx(0.05)
+        assert r.crit_multiplier == pytest.approx(1.5)
+        assert r.effective_level >= 1
+
+    def test_unsupported_skill_does_not_record_consumption(self):
+        # Damage-mod badges must keep reading "unused" on a skill whose damage isn't modeled — the full
+        # pipeline runs, but with consumption recording suspended (and restored afterwards).
+        s = _source(weapon_attack_speed=2.0, crit_dmg_inc=0.4)
+        s._recording = True
+        calculate_offense(s, _skill(supported=False), 1)
+        assert s.consumed_stats == set()
+        assert s._recording is True   # restored, not left off
+
 
 class TestCrit:
     def test_zero_csr_zero_crit(self):

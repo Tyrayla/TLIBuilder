@@ -45,6 +45,17 @@ try:
 except (OSError, ValueError):
     pass
 
+# Hero-memory base-stat scaling table (season-STABLE, hand-authored; source: MinMaxedARPG). Top-level, NOT
+# under seasons/, so the per-season data-scraper re-import never overwrites it. Base-stat value = f(memory
+# type, stat, rarity, level) via piecewise-linear interpolation between the per-rarity anchors; folded into
+# /api/hero-memories so it rides the existing catalog fetch (and the web CDN export) with no extra endpoint.
+_HERO_MEMORY_BASE_STATS: dict = {}
+try:
+    with open(os.path.join(_DATA_ROOT, 'hero_memory_base_stats.json'), encoding="utf-8") as _bf:
+        _HERO_MEMORY_BASE_STATS = json.load(_bf)
+except (OSError, ValueError):
+    pass
+
 
 def _split_clauses(text: str) -> list[str]:
     """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s). A trailing
@@ -1058,6 +1069,8 @@ def engine_stats(req: EngineStatsRequest):
         # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
         # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
         "minion_offense": result.minion_offense,
+        # Origin of Spirit Magus display summary ({factor, effects[]}) — None when no magus is slotted. Additive.
+        "origin_summary": result.origin_summary,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.
@@ -1630,6 +1643,8 @@ _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
         (["spell_burst_charge_speed_inc"], ["spell_burst_chance_gain_stacks_flat"]),
     "max terra charge stacks +(#) +(#) % terra charge recovery speed":
         (["max_terra_charge_stacks_flat"], ["terra_charge_recovery_speed_inc"]),
+    "max terra charge stacks +(#) +(#) % additional terra skill damage":
+        (["max_terra_charge_stacks_flat"], ["terra_skill_dmg_additional"]),
     "max terra quantity +(#) +(#) % additional damage":
         (["max_terra_quantity_flat"], ["dmg_additional"]),
     "+(#) jumps +(#) % additional damage":
@@ -2784,6 +2799,22 @@ def get_grafts():
     return {"season": active, "grafts": _resolve_grafts(data.get("grafts", []))}
 
 
+@app.get("/api/crosswalk-tables")
+def get_crosswalk_tables():
+    """Compendium→Builder crosswalk bridge tables for the active season (Import from Compendium). Returns {}
+    when the season has no crosswalk data — the importer then reports it can't convert that season. Also returns
+    treeNames (tree slug → display name) so the converter can set TreeSlot.treeName / slate treeType."""
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "tables": {}, "treeNames": {}}
+    tables = season_manager.load_crosswalk_tables(active)
+    tree_names = {}
+    if tables:  # only bother when the season actually has crosswalk data
+        for slug, data in season_manager.load_all_season_trees(active, raw=True).items():
+            tree_names[slug] = data.get("tree_name", slug)
+    return {"season": active, "tables": tables, "treeNames": tree_names}
+
+
 # ── Belt Blends (Blending Rituals) ───────────────────────────────────────────────
 
 class ImportCrawlerBeltBlendsRequest(BaseModel):
@@ -2883,7 +2914,10 @@ def import_hero_memories_endpoint(req: ImportSingletonRequest):
 @app.get("/api/hero-memories")
 def get_hero_memories():
     active = season_manager.get_active_season()
-    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": []}
+    # base_stat_scaling is season-independent (hand-authored top-level file) — include it even when no season /
+    # no per-season memory data is loaded, so the creator's base-stat auto-scaling works regardless.
+    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": [],
+             "base_stat_scaling": _HERO_MEMORY_BASE_STATS}
     if not active:
         return empty
     data = season_manager.load_hero_memories(active)
@@ -2895,7 +2929,20 @@ def get_hero_memories():
         "fixed_affixes": data.get("fixed_affixes", []),
         "random_affixes": data.get("random_affixes", []),
         "base_stats": data.get("base_stats", []),
+        "base_stat_scaling": _HERO_MEMORY_BASE_STATS,
     }
+
+
+@app.get("/api/memory-revival")
+def get_memory_revival():
+    active = season_manager.get_active_season()
+    empty = {"season": None, "affixes": []}
+    if not active:
+        return empty
+    data = season_manager.load_memory_revival(active)
+    if not data:
+        return {**empty, "season": active}
+    return {"season": active, "affixes": data.get("affixes", [])}
 
 
 @app.post("/api/dev/import-memory-revival")

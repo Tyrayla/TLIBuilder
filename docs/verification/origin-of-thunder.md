@@ -17,7 +17,7 @@ Shipped, unverified. Buff magnitudes + Origin Effect scaling need in-game valida
 
 ## Implementation (engine model)
 
-aggregator.py Origin-of-Thunder block + compute.py auto-derive before the loop (gated on summon_thunder_magus slotted). Only Thunder is wired; Fire/Frost/Erosion origins are FUTURE.
+aggregator.py Origin-of-Thunder block + compute.py auto-derive before the loop (gated on summon_thunder_magus slotted). The other four origins are wired too (2026-08-11) — see spirit-magus-origins; Thunder keeps its formula block (the data ramp is exactly linear, 2.5 + 0.25/level).
 
 ## Sources
 

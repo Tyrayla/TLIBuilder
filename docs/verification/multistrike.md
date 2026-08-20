@@ -3,33 +3,35 @@
 
 # Multistrike + Wind Stalker
 
-- **Status:** ✅ Confirmed
+- **Status:** 🔶 Partial
 - **Mechanic tags:** speed, attack
 - **Last verified:** 2026-06-22 by Tyra
 
 ## Setup
 
-An attack skill with Multistrike, vs the standard dummy. Measure throughput (attacks/sec) via Recount.
+An attack skill with Multistrike, vs the standard dummy. Measure throughput (attacks/sec) via Recount. For the increment cap (bug-263): a build with Initial Multistrike Count and/or fractional multistrike chance (e.g. 530%), reading per-hit damage.
 
 ## Raw data points
 
-Tyra throughput **~1.92/s at 116% multistrike chance / 1.5 base** (≈ +1.1% vs the naive estimate).
+Tyra throughput **~1.92/s at 116% multistrike chance / 1.5 base** (≈ +1.1% vs the naive estimate). Increment-cap owner examples (2026-08-18): 500% chance + 2 Initial Count + 50% inc → hits `200/250/300/350/350/350%` (tail clamps at 5 stacks); 530% chance → cap is 5 stacks 70% of the time / 6 stacks 30% (rides the realized chain length).
 
 ## Derived / confirmed formula
 
-**Model B**: the +20% increased attack speed persists, so every attack runs at the multistrike rate. Cat Dive max-count term = `q · inc · L(L−1)/2`. Wind Stalker's Have Fun = a virtual Lv10 Multistrike.
+**Model B**: the +20% increased attack speed persists, so every attack runs at the multistrike rate. **Increment cap (bug-263):** per-hit increment stacks are capped at the realized chain's Max Multistrike Count `L−1` — Initial Count pre-stacks the ramp but cannot push a hit past `L−1` (owner-observed in-game 2026-08-18; help_db only establishes that the Max Multistrike Count itself depends on the Multistrike Chance, not the cap-on-increment). Cat Dive lifts a procced hit to the cap. Wind Stalker's Have Fun = a virtual Lv10 Multistrike.
 
 ## Notes / caveats / open questions
 
-Confirms Model B over the naive per-repeat model.
+Model B (AS-persistence) is Tyra-confirmed (2026-06-22). The increment CAP correction (bug-263, 2026-08-19) is sourced from help_db + owner worked examples but NOT yet a live parse — hence status `partial`. To confirm: parse per-hit damage on a 530% + Initial-Count build and check the 5-stack (70%) / 6-stack (30%) cap split, then upgrade to `confirmed`. Edge case (also `needs-verification`): a build with Initial Count AND multistrike chance < 100% — the cap now zeroes Initial-Count stacks on a lone swing that did NOT multistrike (realized L=1 → cap 0), reducing damage vs the old model. Consistent with the realized-L principle (a non-multistrike swing has no Max Count) but the owner's examples were all chance ≥ 100%; confirm live if this combo matters.
 
 ## Implementation (engine model)
 
-Modeled in `offense.py` (~L1787-1847), gated to attack skills (not channeled/mobility/sentry/demolisher) with `multistrike_chance > 0`; reads are presence-gated so non-multistrike builds stay golden-identical. Reads `multistrike_chance` (c), `multistrike_increasing_dmg_inc` × (1 + `multistrike_increasing_dmg_additional`) (inc), `initial_multistrike_count_flat` (init, pre-stacks count, adds no attacks), `multistrike_max_count_proc_chance` (q, Cat Dive), `attack_speed_inc`. **Model B** repeat-speed factor `s = (1 + as_inc + 0.20)/(1 + as_inc)` (the +20% is INCREASED, dilutes against existing AS). Chain length split `G = floor(c)`, `p = c − G`, `K = 1 + G + (p>0)`. Per-chain damage `_chain_dmg(L) = L + inc·(init·L + L(L−1)/2) + q·inc·(L(L−1)/2)` (the last term = Cat Dive, independent of init). Per-chain normalized time `_chain_time(L) = 1 if L≤1 else L/s` (length-1 lone swings at chance<100% run at base speed, no +20%). `multistrike_mult = E[chain damage] / E[chain time]`, folded into `total_dps` via `_delivery`. Emits `multistrike_avg_count = 1 + c`, `multistrike_repeat_aps = sps × s`, `multistrike_max_count = K`, and a `multistrike_chain` distribution. Wind Stalker's Have Fun adds a virtual Lv10 Multistrike support (see wind-stalker entry).
+Modeled in `offense.py` Multistrike block, gated to attack skills (not channeled/mobility/sentry/demolisher) with `multistrike_chance > 0`; reads are presence-gated so non-multistrike builds stay golden-identical. Reads `multistrike_chance` (c), `multistrike_increasing_dmg_inc` × (1 + `multistrike_increasing_dmg_additional`) (inc), `initial_multistrike_count_flat` (init, pre-stacks count, adds no attacks), `multistrike_max_count_proc_chance` (q, Cat Dive), `attack_speed_inc`. **Model B** repeat-speed factor `s = (1 + as_inc + 0.20)/(1 + as_inc)` (the +20% is INCREASED, dilutes against existing AS). Chain length split `G = floor(c)`, `p = c − G`, `K = 1 + G + (p>0)`. Per-chain damage `_chain_dmg(L) = Σ_{n=1..L} (1 + inc·stacks(n))` where `stacks(n) = (1−q)·min(init + n−1, L−1) + q·(L−1)` — the `min(…, L−1)` caps the ramp at the realized chain's Max Multistrike Count (bug-263, fixed 2026-08-19); Cat Dive (`q`, clamped to [0,1]) lifts each hit to the cap with probability q. Without init and q=0 this is byte-identical to the old `n−1` ramp, so non-init/non-Cat-Dive builds are unchanged. Per-chain normalized time `_chain_time(L) = 1 if L≤1 else L/s` (length-1 lone swings at chance<100% run at base speed, no +20%). `multistrike_mult = E[chain damage] / E[chain time]`, folded into `total_dps` via `_delivery`. Emits `multistrike_avg_count = 1 + c`, `multistrike_repeat_aps = sps × s`, `multistrike_max_count = K`, and a `multistrike_chain` distribution. Wind Stalker's Have Fun adds a virtual Lv10 Multistrike support (see wind-stalker entry).
 
 ## Sources
 
-- backend/engine/offense.py — Multistrike block (~L1626)
+- backend/engine/offense.py — Multistrike block (_chain_dmg)
 - backend/engine/hero_traits/wind_stalker.py
 - backend/tests/test_multistrike.py, test_wind_stalker.py
+- data/help_db.json — "multistrike" (Max Multistrike Count depends on Multistrike Chance)
+- buglog bug-263 (increment cap)
 - memory: project_multistrike_wind_stalker

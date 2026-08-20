@@ -45,7 +45,7 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
 
 _ALL_TAGS = [
     "attack", "spell", "minion", "projectile", "ranged", "channeled", "area", "melee", "trauma", "wilt",
-    "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike", "spell_burst",
+    "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike", "spell_burst", "terra",
     # Damage-type tags — element-tagged stats (e.g. fire_crit_dmg_inc) are read only when the skill's
     # mod_tags include that element (offense._CRIT_DMG_STATS tag-filter). The universe is the union over
     # ALL skills, so it carries every element tag; omitting these falsely badges type crit damage "yellow".
@@ -151,7 +151,7 @@ def consumable_universe() -> frozenset[str]:
                  "restoration_duration_inc", "restoration_duration_additional",
                  "life_regain_inc", "energy_shield_regain_inc", "regain_interval_additional",
                  "life_regain_interval_additional", "energy_shield_regain_interval_additional",
-                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc",
+                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc", "energy_shield_regen_pct",
                  "mana_regen_flat", "mana_regen_speed_inc", "mana_regen_pct",
                  "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
                  "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
@@ -233,6 +233,11 @@ def consumable_universe() -> frozenset[str]:
                  "has_dormant_entanglement_flag",
                  # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
                  "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
+    # Terra system (SS13): the charge model in compute._offense_for_slot reads max stacks (effective max =
+    # 1 + flat) and recovery speed (restore duration display); compute_dot reads the Terra-scoped damage
+    # pools on Terra-tagged skills (the hit path reads them via the "terra" tag in _ALL_TAGS above).
+    consumed |= {"max_terra_charge_stacks_flat", "terra_charge_recovery_speed_inc",
+                 "terra_skill_dmg_inc", "terra_skill_dmg_additional", "terra_dmg_enhancement_additional"}
     # Shadow Strike mode (engine.compute._offense_for_slot / engine.offense.calculate_offense's `shadow=`
     # path) reads these outside the synthetic passes: Max Shadow Quantity (N_base), Despised Shadow's
     # chance/quantity EV inputs, and additional Shadow Damage (read explicitly, excluded from the generic

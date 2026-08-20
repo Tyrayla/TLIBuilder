@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DamageRow, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost } from '../api/client'
-import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary } from '../api/client'
+import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from '../components/HeroTraitShared'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -1087,6 +1087,107 @@ function _curseDebuffLabel(statKey: string | null): string {
   return `${t.charAt(0).toUpperCase()}${t.slice(1)} Damage taken`
 }
 
+// Reservation (Sealed Mana/Life) row with the full per-source breakdown — used by the foundation panel
+// AND the Origin of Spirit Magus box (a magus's 20% seal belongs with its origin display).
+function SealReservationRow({ reservation }: { reservation: ReservationSummary }) {
+  const baseSeal = reservation.base_fraction * reservation.pool_max
+  const poolLabel = reservation.pool === 'life' ? 'Max Life' : 'Max Mana'
+  const fmtPctSigned = (v: number) => `${v > 0 ? '+' : ''}${dec((v * 100))}%`
+  // Increased and additional comp are SEPARATE multiplicative pools. Show each per-support source under its
+  // pool, plus a "Global (talents/gear)" row per pool for the slice not coming from a support, so the
+  // breakdown reconciles with the total: Base × Π(Mult) ÷ ((1+Σinc) × (1+Σadd)).
+  const supInc = reservation.comp_sources.filter(c => c.kind === 'increased').reduce((a, c) => a + c.value, 0)
+  const supAdd = reservation.comp_sources.filter(c => c.kind === 'additional').reduce((a, c) => a + c.value, 0)
+  const globalInc = reservation.comp_increased - supInc
+  const globalAdd = reservation.comp_additional - supAdd
+  const extra = [
+    { value: fmtNum(baseSeal), stat: 'Base seal', source: 'Skill', sourceName: `${(reservation.base_fraction * 100).toFixed(0)}% of ${poolLabel}` },
+    ...reservation.support_mults.map(m => ({ value: `×${dec(m.mult)}`, stat: 'Mana Multiplier', source: 'Support', sourceName: m.name })),
+    ...reservation.comp_sources.map(c => ({
+      value: fmtPctSigned(c.value),
+      stat: c.kind === 'additional' ? 'Additional Sealed Mana Comp.' : 'Increased Sealed Mana Comp.',
+      source: 'Support', sourceName: c.label,
+    })),
+  ]
+  // Global Sealed Mana Compensation (talents/gear, i.e. not from a support) — shown as a real per-source
+  // breakdown over the comp stats instead of one lumped "Talents / Gear" row.
+  const compSections = ((Math.abs(globalInc) > 1e-9 || Math.abs(globalAdd) > 1e-9)
+    ? [{ label: 'Global Sealed Mana Compensation', keys: ['sealed_mana_compensation_inc', 'sealed_mana_compensation_additional'] }]
+    : [])
+  // Display the seal as a PERCENT of the pool by default (owner preference, 2026-08-11); the flat total
+  // stays on hover — the popover's "Total" line shows the absolute amount.
+  const sealPct = reservation.pool_max > 0 ? (reservation.amount / reservation.pool_max) * 100 : 0
+  return (
+    <Row label={`Reservation — Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`} breakdown={{
+      title: `Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`, keys: [], total: reservation.amount, totalUnit: '',
+      formula: 'Base × Π(Mana Multiplier) ÷ ((1 + Σ increased) × (1 + Σ additional)) Sealed Mana Compensation',
+      extra: [
+        ...extra,
+        ...(reservation.pool_max > 0
+          ? [{ value: `${dec(sealPct)}%`, stat: `Share of ${poolLabel}`, source: '', sourceName: `${fmtNum(reservation.amount)} of ${fmtNum(reservation.pool_max)}` }]
+          : []),
+      ],
+      sections: compSections,
+    }}>{reservation.pool_max > 0 ? `${dec(sealPct)}%` : fmtNum(reservation.amount)}</Row>
+  )
+}
+
+// Origin grant value formatting: raw % / flat numbers straight from the engine payload.
+const fmtOriginVal = (g: OriginGrant) =>
+  `${g.value >= 0 ? '+' : ''}${dec(g.value)}${g.unit === 'pct' ? '%' : ''}`
+
+// ── Origin of Spirit Magus box ── a grid box beside Spirit Magi (Minion), shown whenever the selected
+// skill is a magus that grants an origin. Renders the engine's origin_summary entry verbatim: the
+// Origin Effect factor, the magus's seal reservation (full source breakdown), each grant as its own
+// row (base × factor popover), and the magnificent supports' added effects attributed by support.
+function OriginBox({ origin, reservation }: { origin: OriginSkillSummary; reservation?: ReservationSummary | null }) {
+  const secHeader: React.CSSProperties = { fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }
+  return (
+    <StatPanel title="Origin of Spirit Magus" accent="#7fb0e0"
+      info="Buff effects granted to YOU by this Spirit Magus summon (the magus's own damage is separate). Magnitudes shown already include your Origin of Spirit Magus Effect scaling. Values come from the skill data and aren't confirmed in-game yet (see the Verification Database).">
+      <Row label="Origin Effect" breakdown={{
+        title: `Origin of Spirit Magus Effect — ${origin.skill_name}`,
+        keys: ['spirit_magi_origin_effect_inc', 'spirit_magi_origin_effect_additional'],
+        total: origin.factor - 1, totalUnit: '%',
+        formula: "(1 + Σ Increased + this skill's own support share) × (1 + Additional) — scales every grant below",
+      }}>×{dec(origin.factor)}</Row>
+      {reservation && <SealReservationRow reservation={reservation} />}
+      <div style={secHeader}>Grants ({origin.origin_name} — Lv {origin.level})</div>
+      {origin.grants.map((g, i) => (
+        <Row key={i} label={g.label} breakdown={{
+          title: `${g.label} — ${origin.origin_name}`, keys: [],
+          total: g.unit === 'pct' ? g.value / 100 : g.value, totalUnit: g.unit === 'pct' ? '%' : '',
+          formula: 'Skill-data magnitude × Origin Effect'
+            + (g.clamp != null ? ` (clamped at ${dec(g.clamp)}%)` : ''),
+          extra: [
+            { value: `${g.base >= 0 ? '+' : ''}${dec(g.base)}${g.unit === 'pct' ? '%' : ''}`, stat: 'Base', source: 'Skill', sourceName: origin.skill_name },
+            ...(Math.abs(origin.factor - 1) > 1e-9
+              ? [{ value: `×${dec(origin.factor)}`, stat: 'Origin Effect', source: '', sourceName: '' }] : []),
+          ],
+        }}>{fmtOriginVal(g)}</Row>
+      ))}
+      {origin.added.length > 0 && (
+        <>
+          <div style={secHeader}>Added by supports</div>
+          {origin.added.map((g, i) => (
+            <Row key={i} label={g.label} breakdown={{
+              title: `${g.label} — Origin of Spirit Magus additional effect`, keys: [],
+              total: g.unit === 'pct' ? g.value / 100 : g.value, totalUnit: g.unit === 'pct' ? '%' : '',
+              formula: 'Support roll-tier midpoint × Origin Effect'
+                + (g.clamp != null ? ` (clamped at ${dec(g.clamp)}%)` : ''),
+              extra: [
+                { value: `${g.base >= 0 ? '+' : ''}${dec(g.base)}${g.unit === 'pct' ? '%' : ''}`, stat: 'Base', source: 'Support', sourceName: g.support_name ?? '' },
+                ...(Math.abs(origin.factor - 1) > 1e-9
+                  ? [{ value: `×${dec(origin.factor)}`, stat: 'Origin Effect', source: '', sourceName: '' }] : []),
+              ],
+            }}>{fmtOriginVal(g)}</Row>
+          ))}
+        </>
+      )}
+    </StatPanel>
+  )
+}
+
 function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta, empower, elixir }: { slot: number; skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
@@ -1114,42 +1215,10 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
         </div>
       )}
       <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
-        {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
+        {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill — no hit damage is computed for this slot.'}
       </div>
       <div style={{ opacity: disabled ? 0.5 : 1 }}>
-      {reservation && (() => {
-        const baseSeal = reservation.base_fraction * reservation.pool_max
-        const poolLabel = reservation.pool === 'life' ? 'Max Life' : 'Max Mana'
-        const fmtPctSigned = (v: number) => `${v > 0 ? '+' : ''}${dec((v * 100))}%`
-        // Increased and additional comp are SEPARATE multiplicative pools. Show each per-support source under its
-        // pool, plus a "Global (talents/gear)" row per pool for the slice not coming from a support, so the
-        // breakdown reconciles with the total: Base × Π(Mult) ÷ ((1+Σinc) × (1+Σadd)).
-        const supInc = reservation.comp_sources.filter(c => c.kind === 'increased').reduce((a, c) => a + c.value, 0)
-        const supAdd = reservation.comp_sources.filter(c => c.kind === 'additional').reduce((a, c) => a + c.value, 0)
-        const globalInc = reservation.comp_increased - supInc
-        const globalAdd = reservation.comp_additional - supAdd
-        const extra = [
-          { value: fmtNum(baseSeal), stat: 'Base seal', source: 'Skill', sourceName: `${(reservation.base_fraction * 100).toFixed(0)}% of ${poolLabel}` },
-          ...reservation.support_mults.map(m => ({ value: `×${dec(m.mult)}`, stat: 'Mana Multiplier', source: 'Support', sourceName: m.name })),
-          ...reservation.comp_sources.map(c => ({
-            value: fmtPctSigned(c.value),
-            stat: c.kind === 'additional' ? 'Additional Sealed Mana Comp.' : 'Increased Sealed Mana Comp.',
-            source: 'Support', sourceName: c.label,
-          })),
-        ]
-        // Global Sealed Mana Compensation (talents/gear, i.e. not from a support) — shown as a real per-source
-        // breakdown over the comp stats instead of one lumped "Talents / Gear" row.
-        const compSections = ((Math.abs(globalInc) > 1e-9 || Math.abs(globalAdd) > 1e-9)
-          ? [{ label: 'Global Sealed Mana Compensation', keys: ['sealed_mana_compensation_inc', 'sealed_mana_compensation_additional'] }]
-          : [])
-        return (
-          <Row label={`Reservation — Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`} breakdown={{
-            title: `Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`, keys: [], total: reservation.amount, totalUnit: '',
-            formula: 'Base × Π(Mana Multiplier) ÷ ((1 + Σ increased) × (1 + Σ additional)) Sealed Mana Compensation',
-            extra, sections: compSections,
-          }}>{fmtNum(reservation.amount)}</Row>
-        )
-      })()}
+      {reservation && <SealReservationRow reservation={reservation} />}
       {curse ? (
         <>
           {/* Base stats (from the curse skill data) — always shown ("—" when absent), each with a source
@@ -1450,7 +1519,7 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   )
 }
 
-function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost, minion = false }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null; minion?: boolean }) {
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost, origin, minion = false }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null; origin?: OriginSkillSummary | null; minion?: boolean }) {
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
@@ -1466,14 +1535,52 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       : <StatPanel title={slotLabel(slot)} accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
-  if (!offense.supported) {
-    return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
-      : (
+  // Unmodeled minion OWNER (e.g. a magus without a bespoke damage module): the player partial-mode boxes
+  // read PLAYER pools and would be wrong here. Show an honest "minion damage not modeled" headline with
+  // the abilities listed, plus the Origin of Spirit Magus box (the buff it grants YOU is fully modeled).
+  if (minion && !offense.supported) {
+    return (
+      <>
         <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name}`} accent={AMBER}>
-          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Not modeled — this skill isn't in the DPS engine yet (0 DPS).</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 4px' }}>
+            <span style={{ fontSize: 12, color: '#999' }}>Minion DPS</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#c8645a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Damage not modeled
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, paddingBottom: 4 }}>
+            {/* The Origin sentence must only appear when this owner actually grants one — this branch is
+                reached by EVERY unmodeled minion owner (Synthetic Troops, Modules, …), not just magi. */}
+            {origin
+              ? 'This minion\'s own damage isn\'t in the engine yet. The Origin buff it grants you IS modeled — see the Origin of Spirit Magus box below.'
+              : 'This minion\'s own damage isn\'t in the engine yet.'}
+          </div>
+          {(offense.nyi ?? []).length > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#a05a5a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4, marginBottom: 2 }}>Not yet modeled</div>
+              {(offense.nyi ?? []).map((n, i) => (
+                <div key={i} style={{ fontSize: 11, color: '#b8b0d0', lineHeight: 1.45 }}>{n}</div>
+              ))}
+            </>
+          )}
         </StatPanel>
-      )
+        {origin && (
+          <MasonryGrid columnWidth={220} columnMax={340} gap={6}>
+            <GridBox><OriginBox origin={origin} reservation={reservation} /></GridBox>
+          </MasonryGrid>
+        )}
+      </>
+    )
+  }
+
+  // Partial-support mode: the skill's DAMAGE isn't modeled (no damage-engine entry → 0 DPS, no hit
+  // forms), but the engine still computes every registry-independent mechanic — rates, crit, costs,
+  // tangle / spell burst / wind rhythm / shadow / multistrike. Render those panels and hide anything
+  // that would state a damage number (the hit-damage table, DPS rows, delivery multipliers). Buff-type
+  // skills with a modeled summary (aura / curse / empower / elixir) keep their richer foundation panel.
+  const partial = !offense.supported
+  if (partial && skill && (aura || curse || empower || elixir || reservation)) {
+    return <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
   }
 
   // A minion Empower/Ultimate NYI form selected on its own (via the Form dropdown) deals no hit — it's a buff or
@@ -1593,8 +1700,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
   // Whether this skill lands hits — a precondition for inflicting ailments / crowd control. A skill that deals
   // no hit damage (pure aura/buff/persistent with no strike) can't apply these unless it has special behavior,
-  // so those boxes stay hidden for it.
-  const canHit = (offense.total_dps ?? 0) > 0 || (offense.hit_forms ?? []).some(f => (f.dps_contribution ?? 0) > 0)
+  // so those boxes stay hidden for it. In partial mode there is no computed damage to inspect, so fall back to
+  // the tag heuristic: attack/spell skills land hits.
+  const canHit = partial
+    ? hasTag(offense, 'attack') || hasTag(offense, 'spell')
+    : (offense.total_dps ?? 0) > 0 || (offense.hit_forms ?? []).some(f => (f.dps_contribution ?? 0) > 0)
   const stat = (k: string) => statMap[k]?.total ?? 0
   // Per-skill value: the character-wide total PLUS this slot's skill-specific (support) contributions — same
   // slot scoping the breakdown body uses, so Skill Effects shows the value for the SELECTED skill, not build-wide.
@@ -1613,6 +1723,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     for (const d of ALL_DTYPES) {
       if ((f.hit_max_by_type?.[d] ?? 0) > 0 || (f.damage_by_type?.[d] ?? 0) > 0) dealtTypes.add(d)
     }
+  }
+  // Partial mode has no computed per-type damage — gate the element-scoped boxes on the skill's own
+  // damage-type TAGS instead (conservative: a skill without a type tag shows no ailment box; Show-all overrides).
+  if (partial) {
+    for (const d of ALL_DTYPES) if (hasTag(offense, d)) dealtTypes.add(d)
   }
   const dealsType = (d: string) => dealtTypes.has(d)
 
@@ -1672,12 +1787,28 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   return (
     <>
       <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER} info={dotDominant ? DOT_DISCLAIMER : undefined}>
+        {partial ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 4px' }}>
+              <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#c8645a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Damage not modeled
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, paddingBottom: 4 }}>
+              This skill's damage isn't in the engine yet, so no damage numbers are shown. The mechanics
+              below — rates, crit, costs, charge speeds — are computed from your build and don't depend on
+              the damage model.
+            </div>
+          </>
+        ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 6px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
             {fmtNum(offense.total_dps_vs_target)}
           </span>
         </div>
+        )}
         {(offense.spell_burst_count ?? 0) > 0 && (offense.non_spell_burst_dps_vs_target ?? 0) > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 0 6px', marginTop: -2 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
@@ -1695,9 +1826,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         )}
       </StatPanel>
 
-      <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
-        <DamageBreakdownTable offense={offense} minion={minion} />
-      </StatPanel>
+      {!partial && (
+        <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
+          <DamageBreakdownTable offense={offense} minion={minion} />
+        </StatPanel>
+      )}
 
       {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
           tangle, spell burst, channeled, ailments, stubs). Row-major masonry keeps Hit Rate → Crit → Skill
@@ -1865,7 +1998,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           ]
           return (
             <GridBox>
-              <StatPanel title="Spirit Magi" accent={AMBER}
+              {/* "(Minion)" distinguishes the magus's own minion stats from the Origin of Spirit Magus box
+                  (the buffs it grants the PLAYER) — owner naming, 2026-08-11. */}
+              <StatPanel title="Spirit Magi (Minion)" accent={AMBER}
                 info="Spirit Magi grow a Stage per 100 Growth (Stage 5 at 500; Growth caps at 1000). Per 8 Growth they gain +1% Physique; per stage they gain +10% additional Skill Area plus a unique bonus. Physique & Skill Area don't change single-target DPS.">
                 <Row label="Growth" breakdown={{
                   title: 'Growth', keys: ['spirit_magi_initial_growth_flat'], total: growth, totalUnit: '',
@@ -1911,6 +2046,12 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             </GridBox>
           )
         })()}
+
+        {/* Origin of Spirit Magus — the buffs this magus grants the PLAYER, modeled independently of the
+            minion's own DPS above. Sits beside Spirit Magi (Minion) so the two scopes read side-by-side. */}
+        {minion && origin && (
+          <GridBox><OriginBox origin={origin} reservation={reservation} /></GridBox>
+        )}
 
         {/* Skill Effects — one of the 3 always-present boxes. Area/count/speed show for projectile-or-area skills;
             penetrations and jumps only appear when the build actually has them. (Values are build-wide today;
@@ -2194,6 +2335,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               ? { value: '', stat: 'Source', source: '', sourceName: offense.spell_burst_auto_source || 'Auto-trigger' }
               : { value: '', stat: 'Source', source: '', sourceName: 'Manual cast (base) — Solid River / Vorax / Burst Activation switch to Auto' }],
           }}>{offense.spell_burst_auto ? 'Auto' : 'Manual'}</Row>
+          {/* DPS rows are damage-model outputs — hidden in partial mode (the charge/burst mechanics above are not). */}
+          {!partial && (
+          <>
           <Row label="Spell Burst DPS" labelColor="#9ad">
             <span style={{ color: '#7fb0e0' }}>{fmtNum(offense.spell_burst_dps_vs_target)}</span>
           </Row>
@@ -2219,6 +2363,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           }}>
             <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
           </Row>
+          </>
+          )}
         </StatPanel></GridBox>
       )}
 
@@ -2487,7 +2633,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       {((offense.multistrike_chance ?? 0) > 0 || showAll) && (
         <GridBox><StatPanel title="Multistrike" accent={AMBER}
           info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
-          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
+          {/* The multiplier is a factor on a DPS that isn't modeled in partial mode — hidden there. */}
+          {!partial && (
+            <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
+          )}
           <Row label="Chance">{dec((offense.multistrike_chance ?? 0) * 100)}%</Row>
           <Row label="Repeat Attack Speed" breakdown={{
             title: 'Repeat Attack Speed', keys: [], total: offense.multistrike_repeat_aps ?? 0, totalUnit: ' /s',
@@ -2519,7 +2668,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       {(hasTag(offense, 'shadow strike') || showAll) && (
         <GridBox><StatPanel title="Shadow Strike" accent={AMBER}
           info="Casting summons Max Shadows shadows that each repeat your attack once against the same target. The first Shadow lands at 100%, each further Shadow retains 30% (Shotgun Effect falloff coefficient 70%, glossary 136 'Phantom') — independent of your own hit, which is never subject to this falloff. Σ additional Shadow Damage scales ONLY the shadow portion. Despised Shadow's chance to gain bonus Shadows folds into an expected-value mix rather than a rounded average, since the falloff formula is nonlinear in shadow count.">
-          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.shadow_mult ?? 1)}</span></Row>
+          {/* The multiplier is a factor on a DPS that isn't modeled in partial mode — hidden there. */}
+          {!partial && (
+            <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.shadow_mult ?? 1)}</span></Row>
+          )}
           <Row label="Max Shadows" breakdown={{
             title: 'Max Shadow Quantity', keys: ['max_shadow_quantity_flat'], total: offense.shadow_count ?? 0, totalUnit: '',
             formula: 'Σ Shadow Quantity — gear / support / talent lines granting +Shadow Quantity',
@@ -2951,6 +3103,13 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
             total: recovery.shield_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
           }}>{rate(recovery.shield_regain_per_sec)}</Row>
         )}
+        {recovery && (recovery.es_regen_per_sec ?? 0) > 0 && (
+          <Row label="ES Regen" labelColor="#5fae79" breakdown={{
+            title: 'Energy Shield Regeneration', keys: ['energy_shield_regen_pct'],
+            total: recovery.es_regen_per_sec ?? 0, totalUnit: '',
+            formula: '% of Max ES per second × Max ES (Origin of Ice is the first source)',
+          }}>{rate(recovery.es_regen_per_sec ?? 0)}</Row>
+        )}
         {recovery && recovery.consumption_es_per_sec > 0 && (
           <Row label="ES Consumed" labelColor="#d06868" breakdown={{
             title: 'Energy Shield Consumed', keys: ES_CONSUME_KEYS, total: recovery.consumption_es_per_sec, totalUnit: '',
@@ -2959,13 +3118,14 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
           }}>{rate(recovery.consumption_es_per_sec)}</Row>
         )}
-        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.burst_es_restore_per_sec > 0) && (
+        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.burst_es_restore_per_sec > 0 || (recovery.es_regen_per_sec ?? 0) > 0) && (
           <Row label="Net ES Recovery" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Energy Shield Recovery', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
-            formula: 'ES Restoration + Shield Regain + Spell Burst restore − Consumption',
+            formula: 'ES Restoration + Shield Regain + ES Regen + Spell Burst restore − Consumption',
             extra: [
               ...(recovery.restoration_es_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_es_per_sec)}`, stat: 'ES Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.shield_regain_per_sec > 0 ? [{ value: `+${rate(recovery.shield_regain_per_sec)}`, stat: 'Shield Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...((recovery.es_regen_per_sec ?? 0) > 0 ? [{ value: `+${rate(recovery.es_regen_per_sec ?? 0)}`, stat: 'ES Regen', source: 'Recovery', sourceName: '% Max ES/sec (Origin of Ice)' }] : []),
               ...(recovery.burst_es_restore_per_sec > 0 ? [{ value: `+${rate(recovery.burst_es_restore_per_sec)}`, stat: 'Spell Burst restore', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
               ...(recovery.consumption_es_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_es_per_sec)}`, stat: 'ES Consumed', source: 'Consumption', sourceName: '' }] : []),
             ],
@@ -3181,7 +3341,10 @@ export default function PlayerStatsScreen() {
   const heroTraitsCatalog = useReferenceStore(s => s.heroTraits)
   const traitNodeTooltip = useMemo(() => {
     const trait = (heroTraitsCatalog ?? []).find((t: HeroTrait) => t.trait_id === traitId)
-    const lvl = (i: number) => Math.max(1, Math.min(5, Math.abs(traitSlotLevels?.[i] ?? 1)))
+    // Phase B: advanced slots are DERIVED from the socketed memories (match the engine), uniformly for every
+    // trait including tree-styled ones (they differ only in allocation).
+    const levels = deriveTraitSlotLevels(heroMemories, traitSlotLevels ?? [1, 1, 1, 1])
+    const lvl = (i: number) => Math.max(1, Math.min(5, Math.abs(levels?.[i] ?? 1)))
     return (sourceName: string) => {
       if (!trait) return null
       if (sourceName === trait.variant_name) {
@@ -3199,7 +3362,7 @@ export default function PlayerStatsScreen() {
       }
       return null
     }
-  }, [heroTraitsCatalog, traitId, traitSlotLevels])
+  }, [heroTraitsCatalog, traitId, traitSlotLevels, heroMemories])
 
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
@@ -3270,6 +3433,8 @@ export default function PlayerStatsScreen() {
   const selectedElixir = elixirs?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
   const selectedReservation = reservation?.per_skill?.find(
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
+  const selectedOrigin = computedStats.origin_summary?.skills?.find(
+    s => s.skill_id === selectedSkill?.item_id && s.slot === selectedSlot) ?? null
 
   return (
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot }}>
@@ -3281,7 +3446,7 @@ export default function PlayerStatsScreen() {
             forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
             calcMode={calcMode} onCalcMode={setCalcMode} />
           {minionMode
-            ? <OffensePanels offense={displayOffense} slot={selectedSlot} minion />
+            ? <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} reservation={selectedReservation} origin={selectedOrigin} minion />
             : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
         </div>
 

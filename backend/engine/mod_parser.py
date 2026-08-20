@@ -119,10 +119,22 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "+(#) main skill level":                             "main_skill_level",
     # Channeled
     "min channeled stacks +(#)":                         "min_channeled_stacks_flat",
-    # Terra
+    # Terra. Enhancement is its OWN additive-within-itself multiplier (owner-ruled, same convention as
+    # Tangle Damage Enhancement below); additional Terra Skill Damage is the multiplicative additional pool.
     "max terra charge stacks +(#)":                      "max_terra_charge_stacks_flat",
     "+(#) % terra charge recovery speed":                "terra_charge_recovery_speed_inc",
+    # Wording twin: "Restoration" is the Ground Divide / Help-DB phrasing (no gear affix uses it — the
+    # support path maps it in support_mapper; this template covers hand-typed custom-mod text only).
+    "+(#) % terra charge restoration speed":             "terra_charge_recovery_speed_inc",
     "max terra quantity +(#)":                           "max_terra_quantity_flat",
+    "+(#) % terra skill damage":                         "terra_skill_dmg_inc",
+    "+(#) % additional terra skill damage":              "terra_skill_dmg_additional",
+    "+(#) % terra damage enhancement":                   "terra_dmg_enhancement_additional",
+    "+(#) % terra skill area":                           "terra_skill_area_inc",
+    "+(#) % terra skill duration":                       "terra_skill_duration_inc",
+    "-(#) % terra skill duration":                       "terra_skill_duration_inc",
+    "+(#) to terra skill level":                         "terra_skill_level",
+    "terra skill level +(#)":                            "terra_skill_level",
     # Warcry
     "+(#) max warcry skill charges":                     "max_warcry_skill_charges_flat",
     # Shadow
@@ -496,6 +508,21 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         dmg = sign * (lo + hi) / 2.0
         return [{"stat_key": "max_shadow_quantity_flat", "amount": qty, "text": t},
                 {"stat_key": "shadow_dmg_additional", "amount": dmg / 100.0, "text": t}]
+
+    # Terra graft/craft compound roll, same glued two-clause family as the Shadow Quantity one above:
+    # "Max Terra Charge Stacks +N (+/-)(A[-B]) % additional Terra Skill Damage" (SS13 _grafts.json /
+    # _craft_base_types.json) — no separator between the clauses, so the generic splitters can't see it.
+    m = re.match(
+        r'max\s*terra\s*charge\s*stacks\s*\+\s*([\d.]+)\s+([+\-])\s*\(?\s*([\d.]+)(?:\s*[-–]\s*([\d.]+))?\s*\)?\s*%\s*'
+        r'additional\s+terra\s+skill\s+damage', t, re.I)
+    if m:
+        qty = float(m.group(1))
+        sign = -1.0 if m.group(2) == '-' else 1.0
+        lo = float(m.group(3))
+        hi = float(m.group(4)) if m.group(4) else lo
+        dmg = sign * (lo + hi) / 2.0
+        return [{"stat_key": "max_terra_charge_stacks_flat", "amount": qty, "text": t},
+                {"stat_key": "terra_skill_dmg_additional", "amount": dmg / 100.0, "text": t}]
 
     # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
     # damage pool, so the generic matchers would mishandle it).

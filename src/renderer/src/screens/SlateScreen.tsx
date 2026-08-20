@@ -991,11 +991,21 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
 
 // Saved-slate thumbnail in the inventory grid: click to place, right-click to delete, hover for a floating
 // detail tooltip (built from the template — no placed instance, so no DPS delta).
-function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDuplicate }: {
+function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDuplicate, onRename }: {
   template: SlateTemplate; color: string; treeColors: Record<string, string>
   onPlace: () => void; onDelete: () => void; onDuplicate: () => void
+  onRename: (next: string) => void   // sets a DISPLAY label only (true kind name kept in the tooltip)
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const [renaming, setRenaming] = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
+  const commitRename = () => { onRename(renameDraft); setRenaming(false) }
+  const cornerBtn = (extra: React.CSSProperties): React.CSSProperties => ({
+    position: 'absolute', width: 18, height: 18, padding: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'var(--bg-surface)', color: 'var(--fg-muted)', border: `1px solid ${color}55`, borderRadius: 5,
+    fontSize: 11, cursor: 'pointer', lineHeight: 1, ...extra,
+  })
   const pseudo: PlacedSlate = {
     id: `tpl-${template.id}`, templateId: template.id, kind: template.kind as SlateKind, cells: [], anchor: [0, 0],
     orientationIndex: template.orientationIndex, shapeIndex: template.shapeIndex,
@@ -1005,23 +1015,30 @@ function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDupli
   }
   return (
     <>
-      <div {...tip.triggerProps} onClick={onPlace} onContextMenu={e => { e.preventDefault(); onDelete() }}
-        title="Click to place · right-click to delete"
-        style={{
-          position: 'relative', width: 62, height: 62, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
-        }}>
-        <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
-        <button
-          onClick={e => { e.stopPropagation(); onDuplicate() }}
-          title="Duplicate — tweak a copy and compare"
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 62 }}>
+        <div {...tip.triggerProps} onClick={onPlace} onContextMenu={e => { e.preventDefault(); onDelete() }}
+          title="Click to place · right-click to delete"
           style={{
-            position: 'absolute', top: -6, right: -6, width: 18, height: 18, padding: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg-surface)', color: 'var(--fg-muted)', border: `1px solid ${color}55`, borderRadius: 5,
-            fontSize: 11, cursor: 'pointer', lineHeight: 1,
-          }}
-        >⧉</button>
+            position: 'relative', width: 62, height: 62, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
+          }}>
+          <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
+          <button onClick={e => { e.stopPropagation(); setRenameDraft(template.displayName ?? ''); setRenaming(true) }}
+            title="Rename — set a display label" style={cornerBtn({ top: -6, left: -6 })}>✎</button>
+          <button onClick={e => { e.stopPropagation(); onDuplicate() }}
+            title="Duplicate — tweak a copy and compare" style={cornerBtn({ top: -6, right: -6 })}>⧉</button>
+        </div>
+        {renaming ? (
+          <input className="gear-build-rename-input" autoFocus value={renameDraft} placeholder="Label…"
+            style={{ width: 62, fontSize: 9, padding: '1px 3px' }}
+            onChange={e => setRenameDraft(e.target.value)} onBlur={commitRename}
+            onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false) }} />
+        ) : template.displayName ? (
+          <span title={template.displayName}
+            style={{ fontSize: 9, color: 'var(--fg-muted)', maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {template.displayName}
+          </span>
+        ) : null}
       </div>
       {tip.open && (
         <FloatingPortal>
@@ -1129,6 +1146,7 @@ export default function SlateScreen({ treeColors }: Props) {
   const setSlates = useBuildStore(s => s.setSlates)
   const slateInventory = useBuildStore(s => s.slateInventory)
   const setSlateInventory = useBuildStore(s => s.setSlateInventory)
+  const activeLoadoutId = useBuildStore(s => s.activeLoadoutId)
   const [placed, setPlaced] = useState<PlacedSlate[]>(
     () => (slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
@@ -1154,17 +1172,18 @@ export default function SlateScreen({ treeColors }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 
-  // Auto-keep every CONFIGURED slate in the build's inventory so it can be re-placed without rebuilding.
-  // Entries are keyed by the slate's STABLE templateId and UPSERTED — so editing a slate updates its single
-  // entry rather than spawning one per intermediate state. The slate currently being edited is skipped so its
-  // in-progress (intermediate) states aren't saved; it's upserted once editing ends / focus switches away.
+  // Auto-keep every placed slate in the build's inventory so it can be re-placed without rebuilding —
+  // INCLUDING slates with no modifiers yet (empty base slates, Corner of Divinity, and Moth/Prairie
+  // legendary slates that have no node slots at all). Entries are keyed by the slate's STABLE templateId
+  // and UPSERTED — so editing a slate updates its single entry rather than spawning one per intermediate
+  // state. Only the slate currently being edited is skipped so its in-progress states aren't saved; it's
+  // upserted once editing ends / focus switches away.
   useEffect(() => {
     const inv = useBuildStore.getState().slateInventory
     const byId = new Map(inv.map(t => [t.id, t]))
     let changed = false
     for (const sl of placed) {
       if (sl.id === editingSlateId) continue                                     // skip in-progress edits
-      if (!sl.slots.some(s => s.selectedNodeId || s.selectedCoreKey)) continue   // skip empty / Moth/Prairie
       const t = toTemplate(sl)
       const prev = byId.get(t.id)
       if (!prev || JSON.stringify(prev) !== JSON.stringify(t)) { byId.set(t.id, t); changed = true }
@@ -1172,6 +1191,16 @@ export default function SlateScreen({ treeColors }: Props) {
     if (changed) setSlateInventory([...byId.values()])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed, editingSlateId])
+
+  // Re-seed the local board when the active loadout changes. The `placed` initializer only runs on
+  // mount, so a loadout switch (which swaps store.slates) would otherwise leave the board showing the
+  // previous loadout until you navigate away and back. The store→local reseed here is followed by the
+  // local→store sync effect above finding them equal (no spurious dirty bump / loop).
+  useEffect(() => {
+    setPlaced((useBuildStore.getState().slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
+    setMode({ type: 'idle' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLoadoutId])
 
   useEffect(() => {
     const handler = () => setMode(prev => {
@@ -1445,6 +1474,14 @@ export default function SlateScreen({ treeColors }: Props) {
     // upsert Map and delete-by-id would silently collapse or double-delete them).
     const copy = { ...(JSON.parse(JSON.stringify(src)) as typeof src), id: `dup-${Date.now()}-${Math.random()}` }
     setSlateInventory([...inv, copy])
+  }
+
+  // Rename sets a DISPLAY label only (mirrors gear/hero-memory rename): strip control chars, cap 60, clear
+  // when empty. The true kind name stays in the tooltip; the label shows as a caption under the tile.
+  function renameTemplate(id: string, nextRaw: string) {
+    const next = nextRaw.replace(/\p{C}/gu, '').trim().slice(0, 60)
+    setSlateInventory(useBuildStore.getState().slateInventory.map(t =>
+      t.id === id ? { ...t, displayName: next || undefined } : t))
   }
 
   function updateSlot(idx: number, patch: Partial<CreatorSlot>) {
@@ -1773,7 +1810,8 @@ export default function SlateScreen({ treeColors }: Props) {
                   : LEGENDARY_META[t.kind as LegendaryKind]?.color ?? '#666'
                 return (
                   <InventoryTile key={t.id} template={t} color={color} treeColors={treeColors}
-                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} onDuplicate={() => duplicateTemplate(t.id)} />
+                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} onDuplicate={() => duplicateTemplate(t.id)}
+                    onRename={(next) => renameTemplate(t.id, next)} />
                 )
               })}
             </div>

@@ -9,6 +9,13 @@ import { dec } from '../utils/num'
 import { characterSummary } from '../utils/characterSummary'
 import { characterLevelFrom } from '../utils/conditions'
 
+// External links open in the system browser on desktop (IPC) and a new tab on web —
+// same pattern as BuildSelectScreen's openExternal.
+function openExternal(url: string) {
+  if (window.api?.openExternal) window.api.openExternal(url)
+  else window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 interface Props {
   screen: string
   buildName: string
@@ -230,8 +237,16 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
-      {/* Intentional trailing filler — keeps the nav packed at the top now that nothing sits at the bottom. */}
+      {/* Trailing filler pushes the support link to the very bottom of the nav. */}
       <div className="sidebar-spacer" />
+      <div className="sidebar-divider" />
+      <button
+        className="sidebar-nav-btn sidebar-support"
+        onClick={() => openExternal('https://ko-fi.com/tlibuilder')}
+        title="Support TLI Builder on Ko-fi"
+      >
+        ♥ Support the developer
+      </button>
     </div>
       <div className="sidebar-resize-handle" onMouseDown={startResize} title="Drag to resize the sidebar" />
     </div>

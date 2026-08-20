@@ -572,7 +572,12 @@ def calculate_minion_offense(
         _s = (1.0 + _as_inc + 0.20) / (1.0 + _as_inc)
         _G = int(_mc); _p = _mc - _G
         def _chain_dmg(L: int) -> float:
-            return L + _inc * (_init * L + L * (L - 1) / 2.0)
+            # Cap increment stacks at the realized chain's Max Multistrike Count = L−1 (mirror of the player
+            # multistrike fix in offense.py; see bug-263). _init (Initial Multistrike Count) pre-stacks the ramp
+            # but cannot push a hit past L−1. Minions have no Cat-Dive proc, so no q term. Without _init the min()
+            # is inert (n−1 ≤ L−1) → identical to the old closed form, keeping non-init minion goldens unchanged.
+            cap = L - 1
+            return sum(1.0 + _inc * min(_init + (n - 1), cap) for n in range(1, L + 1))
         def _chain_time(L: int) -> float:
             return 1.0 if L <= 1 else L / _s
         _e = (1.0 - _p) * _chain_dmg(1 + _G) + _p * _chain_dmg(2 + _G)

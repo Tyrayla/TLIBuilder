@@ -34,6 +34,7 @@ CATALOGS = {
     "craft_base_items": server.get_craft_base_items,
     "grafts": server.get_grafts,
     "hero_memories": server.get_hero_memories,
+    "crosswalk_tables": server.get_crosswalk_tables,   # Import from Compendium — bridge tables for the active season
     "verification_db": server.get_verification_db,
     "glossary": server.get_glossary,
     "help_db": server.get_help_db,

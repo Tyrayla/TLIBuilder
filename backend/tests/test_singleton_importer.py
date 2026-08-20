@@ -152,6 +152,30 @@ def test_memory_revival_converts_ints():
     assert "Elixir" in first["modifier"]
 
 
+def test_memory_revival_merges_tier0_glossary_description():
+    # Tier-0 named mods carry only a NAME in 'Modifier'; the effect text lives in the crawl glossary and must be
+    # merged in as `description`. Full-text (T1/T2) mods keep no description (no glossary key matches their text).
+    data = {
+        "entity_type": "memory_revival",
+        "sections": [{"header": "Revived Affix /2", "columns": ["Tier", "Modifier", "Level", "Weight"], "items": [
+            {"Tier": "0", "Modifier": "Artificial Moon: Origin", "Level": "86", "Weight": "1000"},
+            {"Tier": "1", "Modifier": "+(75–80) % Elixir Skill Effect", "Level": "82", "Weight": "1000"},
+        ]}],
+        "glossary": [
+            {"term_id": "12000", "name": "Artificial Moon: Origin",
+             "description": "Base Traits now have Special Memory slots that can be installed with an Ultimate or lower Origin Memory. Reduces the Base Stats and Random Affixes of Memories installed in this slot by 60%"},
+            {"term_id": "9", "name": "Base Trait Slot", "description": "some unrelated glossary term"},
+        ],
+    }
+    r = import_memory_revival(data, "SS13")
+    by_mod = {a["modifier"]: a for a in r["affixes"]}
+    am = by_mod["Artificial Moon: Origin"]
+    assert am["description"].startswith("Base Traits now have Special Memory slots")
+    assert "Ultimate or lower Origin" in am["description"] and "60%" in am["description"]
+    # A full-text mod gets no description (its long text has no glossary key).
+    assert "description" not in by_mod["+(75–80) % Elixir Skill Effect"]
+
+
 def test_tower_sequence_flattens():
     r = import_tower_sequence(_TOWER_DATA, "SS12")
     assert r["entry_count"] == 2

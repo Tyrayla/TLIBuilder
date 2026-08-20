@@ -10,9 +10,11 @@
 // passive-tree nodes).
 import React, { useEffect } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { HeroTrait, HeroTraitTreeNode, CreatedHeroMemory, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
+import { HeroTrait, HeroTraitTreeNode, CreatedHeroMemory, MEMORY_RARITY_COLORS, iconUrl, memoryTraitLevel,
+  activeBaseSlotEnabler, resolveBaseSlot } from '../api/client'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
-import { TraitTooltipBody, MemorySlotCircle } from '../components/HeroTraitShared'
+import { TraitTooltipBody, MemorySlotCircle, memoryTypeIconUrl, MEMORY_TYPE_LABELS } from '../components/HeroTraitShared'
+import { useReferenceStore } from '../store/referenceStore'
 import {
   availableThresholds, canAllocate, allocate, deallocate, reconcile, badgeFor,
 } from '../utils/traitTree'
@@ -20,7 +22,9 @@ import {
 interface Props {
   trait: HeroTrait
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  baseMemory: CreatedHeroMemory | null      // Base/Special-slot memory (opened by a revived memory's enabler mod)
   openMemoryCreator: (slotIdx: number) => void
+  openBaseCreator: () => void               // open the Base-slot create/equip flow
   traitTreeAllocations: string[]
   setTraitTreeAllocations: (allocations: string[]) => void
   characterLevel: number
@@ -112,11 +116,17 @@ function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatabl
 }
 
 export default function HeroTraitTree({
-  trait, heroMemories, openMemoryCreator, traitTreeAllocations, setTraitTreeAllocations, characterLevel, resolveLevelAt,
+  trait, heroMemories, baseMemory, openMemoryCreator, openBaseCreator, traitTreeAllocations, setTraitTreeAllocations,
+  characterLevel, resolveLevelAt,
 }: Props) {
   const nodes = trait.tree_nodes ?? []
   const connections = trait.tree_connections ?? []
   const rootId = trait.tree_root_id ?? ''
+  const memoryTypes = useReferenceStore(s => s.heroMemories?.memory_types) ?? null
+  // Base/Special slot (same rules as the fixed-trait grid): shown only while a revived memory's enabler mod is
+  // equipped, to the LEFT of the Origin socket in the rail.
+  const baseEnabler = activeBaseSlotEnabler(heroMemories)
+  const baseSlot = resolveBaseSlot(heroMemories, baseMemory)
   const thresholds = availableThresholds(characterLevel, heroMemories)
   const budget = thresholds.length
 
@@ -131,22 +141,30 @@ export default function HeroTraitTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budget, rootId, trait.trait_id])
 
-  // Horizontal strip along the bottom of the tree: the 3 memory sockets side-by-side, with the
-  // points readout alongside them (rather than stacked below, now that the rail itself is a row).
+  // Horizontal strip along the bottom of the tree (in-game layout): the 3 memory sockets side-by-side,
+  // with the points readout alongside them, kept close under the tree (small htt-row gap).
   const memoryRail = (
     <div className="htt-memory-rail">
       <div className="htt-memory-slots-row">
-        {MEMORY_RAIL.map(({ slot, threshold, label }) => {
+        {baseEnabler && (
+          <div key="base" className="htt-memory-slot">
+            <MemorySlotCircle memory={baseSlot?.memory ?? null} slot={0} deltaKey="mem:rm:base"
+              rarityColor={baseSlot ? MEMORY_RARITY_COLORS[baseSlot.memory.rarity] : undefined}
+              slotLabel={MEMORY_TYPE_LABELS[baseEnabler.type]}
+              icon={baseSlot ? memoryTypeIconUrl(memoryTypes, baseSlot.memory.memoryType) : null}
+              valueScale={baseSlot ? baseSlot.enabler.factor : undefined}
+              deltaStep={s => ({ ...s, baseMemory: null })}
+              onOpen={openBaseCreator} />
+          </div>
+        )}
+        {MEMORY_RAIL.map(({ slot, label }) => {
           const memory = heroMemories[slot] ?? null
           const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
-          const unlocked = characterLevel >= threshold
           return (
             <div key={slot} className="htt-memory-slot">
-              <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={slot} onOpen={() => openMemoryCreator(slot)} />
-              <div className={`trait-tier-label${unlocked ? '' : ' locked'}`}>Lv {threshold} · {label}</div>
-              <div className="htt-memory-hint">
-                {memory ? '1 point granted' : unlocked ? 'Socket a memory for a point' : 'Locked'}
-              </div>
+              <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={slot} slotLabel={label}
+                icon={memory ? memoryTypeIconUrl(memoryTypes, memory.memoryType) : null}
+                onOpen={() => openMemoryCreator(slot)} />
             </div>
           )
         })}
@@ -231,12 +249,18 @@ export default function HeroTraitTree({
           const isAllocatable = !isRoot && !isAllocated
             && canAllocate(n.node_id, traitTreeAllocations, connections, rootId, budget)
           const badge = badgeFor(n.node_id, traitTreeAllocations, thresholds)
+          // Phase B: an allocated node runs at the trait level of the memory whose threshold it consumed (the
+          // badge: 45→origin/60→discipline/75→progress), identical to how conventional traits map tier→memory.
+          // Unallocated/root nodes fall back to the base level. This keeps tree traits in sync with the rest.
+          const memIdx = badge != null ? (MEMORY_RAIL.find(r => r.threshold === badge)?.slot ?? -1) : -1
+          const govMem = memIdx >= 0 ? (heroMemories[memIdx] ?? null) : null
+          const nodeLevelAt = govMem ? memoryTraitLevel(govMem) : resolveLevelAt
           return (
             <TreeNodeCircle
               key={n.node_id}
               node={n} cx={nodeX(n)} cy={nodeY(n)} baseR={nodeR}
               isRoot={isRoot} isAllocated={isAllocated} isAllocatable={isAllocatable} badge={badge}
-              resolveLevelAt={resolveLevelAt}
+              resolveLevelAt={nodeLevelAt}
               onClick={() => handleClick(n.node_id)}
               onContextMenu={() => handleContextMenu(n.node_id)}
             />

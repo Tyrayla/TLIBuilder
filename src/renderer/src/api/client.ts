@@ -3,6 +3,7 @@
 // `api` object can expose them, and getShareBase is re-exported below so existing
 // `import { getShareBase } from './client'` callers keep working.
 import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
+import { dec } from '../utils/num'
 
 let BASE = ''
 let ipcMode = false
@@ -23,7 +24,8 @@ let staticSeason = ''
 let webCompute = false   // web build: dispatch backend calls through the Pyodide worker instead of HTTP/IPC
 type WebApi = typeof import('../web/pyodideCompute')
 let webApi: WebApi | null = null   // loaded once in initApi (web only) so get/post can call it synchronously
-// API path -> static filename (the 10 reference catalogs the app loads once at startup).
+// API path -> static filename (the reference catalogs served from the CDN on web: most load at startup;
+// crosswalk-tables is fetched on demand by the Compendium importer).
 const STATIC_CATALOGS: Record<string, string> = {
   '/skills': 'skills',
   '/legendary-gear': 'legendary_gear',
@@ -38,6 +40,7 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/verification-db': 'verification_db',
   '/glossary': 'glossary',
   '/help-db': 'help_db',
+  '/crosswalk-tables': 'crosswalk_tables',   // Import from Compendium (web: served from the data CDN)
 }
 function staticCatalogUrl(path: string): string | null {
   if (!STATIC_DATA_BASE || !staticSeason) return null
@@ -270,6 +273,9 @@ export interface SlateTemplate {
   slots: SavedSlateSlot[]
   treeType?: string
   mothDirection?: string
+  // User label/title (like gear's displayName) — DISPLAY name only; the true kind name stays in the card/tooltip.
+  // Cleared when the entered label is empty. Rides in the build/share payload.
+  displayName?: string
 }
 
 // ── Prisms ──────────────────────────────────────────────────────────────────
@@ -431,6 +437,8 @@ export interface Build {
   licoricePreparedSkill?: string | null         // Licorice Note: Empower/Curse the trait prepares
   elixirIngredients?: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   heroMemories?: (unknown | null)[]
+  baseMemory?: unknown | null            // the Base/Special-slot memory (opened by a revived memory's enabler mod)
+  memoryInventory?: (unknown | null)[]   // owned/created memories palette (per-loadout, mirrors slateInventory)
   pactSpirits?: (unknown | null)[]
   fates?: Record<string, InstalledFate>           // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
   undetermined?: (UndeterminedFate | null)[]      // one per spirit slot
@@ -682,6 +690,26 @@ export interface AttachedSupportInput {
   specific_rolls?: Record<string, number>
   slot?: number     // the host skill's slot (default 1); contributions are local to this slot
   enabled?: boolean // default true; disabled supports drop out of the calc
+}
+
+// One magus's Origin display entry (engine-emitted; see origin_summary on the stats response).
+export interface OriginGrant {
+  label: string
+  base: number            // raw skill-data magnitude (pre origin-effect scaling)
+  value: number           // emitted magnitude = base × the magus's origin factor, clamped
+  unit: 'pct' | 'flat'
+  clamp?: number | null   // raw-% clamp floor (e.g. -50) when the grant clamps; the clamp note renders from THIS
+  support_name?: string   // set on `added` entries (the magnificent support that granted it)
+}
+export interface OriginSkillSummary {
+  skill_id: string
+  slot: number
+  skill_name: string
+  level: number           // the summon skill's slotted level (drives the level-scaled magnitudes)
+  origin_name: string     // "Origin of Fire" / "Origin of Thunder" / … ("Origin of Spirit Magus" when unnamed)
+  factor: number          // this magus's origin factor (global pools + its own scalar-support share)
+  grants: OriginGrant[]
+  added: OriginGrant[]    // magnificent supports' added origin effects
 }
 
 export interface SkillSlotSummary {
@@ -1032,6 +1060,8 @@ export interface RecoveryResult {
   // Regain (on-hit, missing-based)
   life_regain_per_sec: number
   shield_regain_per_sec: number
+  // % Max ES/sec regen (Origin of Ice is the first source) — optional: older engines don't send it.
+  es_regen_per_sec?: number
   // Regen (over time)
   life_regen_per_sec: number
   mana_regen_per_sec: number
@@ -1170,6 +1200,11 @@ export interface StatSheetResponse {
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
   // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
   minion_offense?: Record<string, OffenseResult> | null
+  // Origin of Spirit Magus display summary — PER-SKILL entries feeding the empower-style GRANTS section
+  // on each magus's foundation panel. Each grant carries the raw data magnitude (`base`), the emitted
+  // magnitude (`value` = base × that magus's origin factor, clamped), and a unit; the frontend renders
+  // these verbatim (display-fidelity). null/absent when no magus grants an origin.
+  origin_summary?: { factor: number; skills: OriginSkillSummary[] } | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]
@@ -1720,6 +1755,9 @@ export interface HeroMemoryAffix {
   level: number
   weight: number
   source: string
+  // Full effect text for tier-0 named revival mods (e.g. "Artificial Moon: Origin"), whose `modifier` is only
+  // the name — merged from the crawl glossary by the importer. Absent for mods whose `modifier` is already full text.
+  description?: string
 }
 
 export interface HeroMemoryType {
@@ -1742,14 +1780,68 @@ export interface MemorySlotSelection {
   modifier: string
   tier: number
   rolledValue: number | null
+  // Multi-range affixes carry TWO+ INDEPENDENT rolls on one line (e.g. the combo mod "+(10–12)% Attack and
+  // Cast Speed for Combo Starters +(31–40)% Critical Strike Damage for Combo Finishers" — the two halves are
+  // different stats with different ranges that roll separately in-game). rolledValues holds one value per
+  // "(lo–hi)" range in `modifier`, in order — mirrors the Fate rolledValues pattern. When present it drives
+  // resolution/scaling; single-range affixes leave it undefined and use rolledValue. A null entry → that
+  // range's max (best roll), matching the fate/kismet default.
+  rolledValues?: (number | null)[]
+  // Full effect text for name-only mods (tier-0 revival mods like "Artificial Moon: Origin", whose real
+  // wording lives in the revival-pool glossary). Carried on the selection so the base-slot enabler parser
+  // (parseBaseSlotEnabler) sees the rarity cap / penalty / type even after save/load/import. Optional.
+  description?: string
+}
+
+// Count the "(lo–hi)" roll ranges in a memory-affix modifier (2+ = an independent-multi-roll combo affix).
+const MEMORY_RANGE_RE = /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g
+export function memoryRangeCount(modifier: string): number {
+  return (modifier.match(MEMORY_RANGE_RE) ?? []).length
+}
+// The max (best) bound of a "(lo–hi)" range token, e.g. "(31–40)" → 40.
+function memoryRangeMax(rangeToken: string): number {
+  const m = rangeToken.match(/(-?\d+(?:\.\d+)?)[–\-](-?\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[2]) : 0
+}
+// The [min,max] bounds of every "(lo–hi)" range in a modifier, in order (drives the multi-range roll editor).
+export function memoryRangeBounds(modifier: string): { min: number; max: number }[] {
+  return (modifier.match(MEMORY_RANGE_RE) ?? []).map(tok => {
+    const m = tok.match(/(-?\d+(?:\.\d+)?)[–\-](-?\d+(?:\.\d+)?)/)
+    return m ? { min: parseFloat(m[1]), max: parseFloat(m[2]) } : { min: 0, max: 0 }
+  })
 }
 
 export interface CreatedHeroMemory {
+  // Stable identity for the memory inventory (upsert/socket/delete/duplicate by id, mirroring SlateTemplate.id).
+  id: string
   memoryType: 'origin' | 'discipline' | 'progress'
   rarity: MemoryRarity
+  // Memory level (1..max-for-rarity: normal 10 / magic 20 / rare 30 / epic 40 / ultimate 50). Gates the
+  // +N-to-Hero-Trait-Level bonus (+1 @1, +2 @30, +3 @50) and which random affixes are unlocked (@20, @40).
+  // Selected/persisted now; the DPS effect (level→trait level) is wired in Phase B.
+  level?: number
   baseStat: MemorySlotSelection | null
   fixedAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
   randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
+  // Wax & Wane: the base stat gains 30% increased power (value ×1.3) when enabled. Compendium ships it
+  // as a per-memory boolean; in Builder it's a toggle on the base stat. Can ONLY be enabled on a revived
+  // memory. NOTE: only persisted/selected for now — the ×1.3 engine effect (in buildMemoryEffects) is
+  // deferred to Phase B, so this has no DPS impact yet.
+  waxAndWane?: boolean
+  // Revival: a revived memory carries one extra implicit-like affix (revivalMod) from the special revival
+  // pool, and is the ONLY memory that may enable waxAndWane. Build-level rule (surfaced as a warning in the
+  // creator, not hard-blocked): at most one EQUIPPED memory should be revived at a time. revivalMod's
+  // engine effect is deferred to Phase B.
+  revived?: boolean
+  revivalMod?: MemorySlotSelection | null
+  // User label/title (like gear's displayName) — a DISPLAY name only; the true "Memory of <Type>" name is
+  // kept in the card/tooltip. Cleared when empty or equal to the default name. Rides in the build/share payload.
+  displayName?: string
+}
+
+/** Generate a stable id for a created hero memory (mirrors the slate templateId scheme). */
+export function genMemoryId(): string {
+  return `memory-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 const MEMORY_NAMES: Record<CreatedHeroMemory['memoryType'], string> = {
@@ -1758,25 +1850,268 @@ const MEMORY_NAMES: Record<CreatedHeroMemory['memoryType'], string> = {
   progress: 'Memory of Progress',
 }
 
-export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): EffectInput[] {
+// Wax & Wane (Phase B, in-game-verified): a revived memory's BASE STAT value is ×1.3 (30%), base stat ONLY.
+// Returns a NEW selection with the boosted value so both the engine (buildMemoryEffects, applied locally at the
+// source before global %-attribute pools) and the preview card use identical math.
+export function waxBaseStat(sel: MemorySlotSelection): MemorySlotSelection {
+  if (sel.rolledValue != null) return { ...sel, rolledValue: Math.round(sel.rolledValue * 1.3) }
+  // No rolled value → the number lives in the modifier text; scale the leading +N.
+  return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + Math.round(parseFloat(n) * 1.3)) }
+}
+
+// Multiply a selection's numeric VALUE by `factor` (the base/special-slot penalty, e.g. 0.4 for −60%). Mirrors
+// waxBaseStat's shape but does NOT round — the base-slot penalty produces exact fractional values in-game (owner
+// 2026-08-08: "−57% = ×0.43 and I don't believe it rounds"). Only the base stat + random affixes are scaled by
+// the caller; fixed affixes are passed through unscaled.
+export function scaleSelValue(sel: MemorySlotSelection, factor: number): MemorySlotSelection {
+  // Multi-range combo affix: scale each independent roll (a null entry stays null → resolves to its range max).
+  if (sel.rolledValues && sel.rolledValues.length) {
+    return { ...sel, rolledValues: sel.rolledValues.map(v => v == null ? v : v * factor) }
+  }
+  if (sel.rolledValue != null) return { ...sel, rolledValue: sel.rolledValue * factor }
+  // No rolled value → the number lives in the modifier text; scale the leading +N and cap to ≤2 non-zero
+  // decimals (dec) so floating-point tails like "75.60000000000001" never reach the display or the engine text.
+  return { ...sel, modifier: sel.modifier.replace(/^\+?(\d+(?:\.\d+)?)/, (_m, n) => '+' + dec(parseFloat(n) * factor)) }
+}
+
+export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[], baseMemory: CreatedHeroMemory | null = null): EffectInput[] {
   const effects: EffectInput[] = []
-  const RANGE_RE = /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g
+  // Accept an optional leading '-' on each bound so negative penalty ranges — e.g. the base-slot mod's
+  // "(-60–-55) %" — resolve to their rolled value too (positive ranges are unaffected).
+  const RANGE_RE = /\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g
+  const fmtRoll = (v: number): string => Number.isInteger(v) ? String(v) : v.toFixed(2)
   const resolveModifier = (sel: MemorySlotSelection): string => {
     // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
     const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
+    // Multi-range combo affix (independent rolls): fill each "(lo–hi)" in order from rolledValues; a null/missing
+    // entry defaults to that range's max (best roll).
+    if (sel.rolledValues && sel.rolledValues.length) {
+      let i = 0
+      return mod.replace(RANGE_RE, (token) => {
+        const chosen = sel.rolledValues![i++]
+        return fmtRoll(chosen == null ? memoryRangeMax(token) : chosen)
+      })
+    }
     if (sel.rolledValue === null) return mod
-    const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(2)
-    return mod.replace(RANGE_RE, val)
+    return mod.replace(RANGE_RE, fmtRoll(sel.rolledValue))
   }
   for (const mem of memories) {
     if (!mem) continue
     const src = MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory'
     const push = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
-    if (mem.baseStat) push(mem.baseStat)
-    for (const fa of mem.fixedAffixes) { if (fa) push(fa) }
+    if (mem.baseStat) push(mem.revived && mem.waxAndWane ? waxBaseStat(mem.baseStat) : mem.baseStat)
+    // The "+N to Hero Trait Level" fixed mod is NOT a DPS stat — it feeds the trait slot level
+    // (deriveTraitSlotLevels), so skip it here (avoids a spurious "not recognized" badge).
+    for (const fa of mem.fixedAffixes) { if (fa && !isTraitLevelMod(fa.modifier)) push(fa) }
     for (const ra of mem.randomAffixes) { if (ra) push(ra) }
+    // Revival mod (Phase B): an extra implicit-like affix on a revived memory — parsed as a normal stat modifier.
+    if (mem.revived && mem.revivalMod) push(mem.revivalMod)
+  }
+  // Base/Special slot: a non-revived memory socketed into the base slot opened by a revived memory's enabler mod.
+  // Its Base Stat + Random affix VALUES are reduced by the enabler's penalty (×factor); Fixed affixes (incl. the
+  // trait-level fixed, excluded above) are untouched. Only contributes when a matching enabler is equipped.
+  const bs = resolveBaseSlot(memories, baseMemory)
+  if (bs) {
+    const mem = bs.memory
+    const src = (MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory') + ' (Base)'
+    const pushScaled = (sel: MemorySlotSelection) =>
+      effects.push({ text: resolveModifier(scaleSelValue(sel, bs.enabler.factor)), source: src })
+    const pushRaw = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
+    if (mem.baseStat) pushScaled(mem.baseStat)   // base memory is non-revived → never waxed
+    for (const fa of mem.fixedAffixes) { if (fa && !isTraitLevelMod(fa.modifier)) pushRaw(fa) }
+    for (const ra of mem.randomAffixes) { if (ra) pushScaled(ra) }
   }
   return effects
+}
+
+// ── Hero-memory trait-level helpers (shared by the renderer + the payload builder) ──────────────────────
+// Per-rarity enhancement-level cap.
+export const MAX_LEVEL_BY_RARITY: Record<MemoryRarity, number> = { normal: 10, magic: 20, rare: 30, epic: 40, ultimate: 50 }
+// The "+N to Hero Trait Level" fixed mod: detect it and pull out N.
+const TRAIT_LEVEL_RE = /to Hero Trait Level/i
+export const isTraitLevelMod = (modifier: string): boolean => TRAIT_LEVEL_RE.test(modifier)
+export function traitLevelValue(sel: MemorySlotSelection | null): number {
+  if (!sel || !isTraitLevelMod(sel.modifier)) return 0
+  if (sel.rolledValue != null) return sel.rolledValue
+  const m = sel.modifier.match(/\+?(\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[1]) : 0
+}
+// Level-based trait-level baseline (cumulative, in-game-verified): +1 @lv1 (all), +2 @lv30 (rare+), +3 @lv50 (ultimate).
+export const levelTraitBaseline = (level: number): number => 1 + (level >= 30 ? 1 : 0) + (level >= 50 ? 1 : 0)
+// Total trait level a socketed memory grants — SET (not added), clamped 1..5: level baseline + selected
+// "+N to Hero Trait Level" fixed mods. In-game-verified (owner, 2026-08-08).
+export function memoryTraitLevel(m: CreatedHeroMemory): number {
+  const level = m.level ?? MAX_LEVEL_BY_RARITY[m.rarity]
+  const explicit = m.fixedAffixes.reduce((s, fa) => s + traitLevelValue(fa), 0)
+  return Math.max(1, Math.min(5, levelTraitBaseline(level) + explicit))
+}
+// ── Hero-memory base-stat scaling (source: MinMaxedARPG; data/hero_memory_base_stats.json) ───────────────
+// The base stat's value is a deterministic function of (memory type, stat, rarity, level): LINEAR per rarity
+// from the level-1 value to the rarity cap value, with anchors captured every 10 levels. We interpolate
+// piecewise-linearly between the nearest anchors. Replaces the old coarse "fraction of the tier ladder"
+// heuristic; folded into the /api/hero-memories payload so it rides the existing catalog fetch + CDN export.
+export interface HeroMemoryBaseStatRow {
+  source: 'Origin' | 'Discipline' | 'Progress'
+  affixTemplate: string   // "+{value} <Shorthand>" — Shorthand is the source's stat name, not our affix text
+  normal?: Record<string, number>; magic?: Record<string, number>; rare?: Record<string, number>
+  epic?: Record<string, number>; ultimate?: Record<string, number>
+}
+export interface HeroMemoryBaseStatScaling { stats: HeroMemoryBaseStatRow[] }
+
+// Our affix NAME (getAffixName output — e.g. "Damage", "Max Life", "Minion Attack Speed") → the table's stat
+// shorthand. The source's single "MinionCastAttackSpeed" row feeds BOTH our "Minion Attack Speed" and
+// "Minion Cast Speed" affixes (identical ladder in-game).
+const BASE_STAT_NAME_TO_SHORTHAND: Record<string, string> = {
+  'Damage': 'Damage', 'Minion Damage': 'MinionDamage',
+  'Strength': 'Strength', 'Dexterity': 'Dexterity', 'Intelligence': 'Intelligence',
+  'Max Life': 'Life', 'Max Mana': 'Mana', 'Max Energy Shield': 'EnergyShield',
+  'Armor': 'Armor', 'Evasion': 'Evasion',
+  'Attack Speed': 'AttackSpeed', 'Cast Speed': 'CastSpeed', 'Movement Speed': 'MovementSpeed',
+  'Minion Attack Speed': 'MinionCastAttackSpeed', 'Minion Cast Speed': 'MinionCastAttackSpeed',
+}
+const MEMORY_TYPE_TO_SOURCE: Record<CreatedHeroMemory['memoryType'], HeroMemoryBaseStatRow['source']> = {
+  origin: 'Origin', discipline: 'Discipline', progress: 'Progress',
+}
+// Extract the stat shorthand from a table affixTemplate ("+{value} Damage" → "Damage").
+const baseStatShorthand = (template: string): string => template.replace(/^\+\{value\}\s*/, '').trim()
+
+// Interpolate the base-stat value for (memoryType, affixName, rarity, level). Returns null when the table
+// lacks the stat (caller then falls back). Clamps level to [1, rarity cap]; piecewise-linear between anchors.
+export function heroMemoryBaseStatValue(
+  scaling: HeroMemoryBaseStatScaling | null | undefined,
+  memoryType: CreatedHeroMemory['memoryType'], affixName: string, rarity: MemoryRarity, level: number,
+): number | null {
+  if (!scaling?.stats?.length) return null
+  const shorthand = BASE_STAT_NAME_TO_SHORTHAND[affixName]
+  if (!shorthand) return null
+  const source = MEMORY_TYPE_TO_SOURCE[memoryType]
+  const row = scaling.stats.find(s => s.source === source && baseStatShorthand(s.affixTemplate) === shorthand)
+  const anchors = row?.[rarity]
+  if (!anchors) return null
+  const keys = Object.keys(anchors).map(Number).sort((a, b) => a - b)
+  if (!keys.length) return null
+  const lvl = Math.max(1, Math.min(MAX_LEVEL_BY_RARITY[rarity], level))
+  if (lvl <= keys[0]) return anchors[String(keys[0])]
+  for (let i = 1; i < keys.length; i++) {
+    if (lvl <= keys[i]) {
+      const lo = keys[i - 1], hi = keys[i], vlo = anchors[String(lo)], vhi = anchors[String(hi)]
+      return vlo + (vhi - vlo) * (lvl - lo) / (hi - lo)
+    }
+  }
+  return anchors[String(keys[keys.length - 1])]
+}
+// Extract the base-stat affix NAME from its modifier text (mirrors HeroTraitScreen.getAffixName for the simple
+// base-stat case — "+90 % damage" → "Damage", "+330 Max Life" → "Max Life"). Base stats carry no embedded
+// ranges/values, so this narrow form suffices.
+const baseStatAffixName = (modifier: string): string => {
+  const name = modifier.replace(/^\+?(?:\d+(?:\.\d+)?|\([^)]+\))\s*%?\s*/, '').replace(/\s+/g, ' ').trim()
+  return name ? name[0].toUpperCase() + name.slice(1) : name
+}
+// Recompute a base-stat's modifier TEXT for (memoryType, rarity, level) from the scaling table, reading the
+// stat from the affix's existing text and substituting the computed value into its leading +N (preserving the
+// exact suffix format). Returns null if the table lacks the stat. Used by the Compendium importer to replace
+// Compendium's possibly-wrong exported base value with our ground-truth value (rounded to 1 decimal).
+export function heroMemoryBaseStatText(
+  scaling: HeroMemoryBaseStatScaling | null | undefined,
+  memoryType: CreatedHeroMemory['memoryType'], modifierText: string, rarity: MemoryRarity, level: number,
+): string | null {
+  const v = heroMemoryBaseStatValue(scaling, memoryType, baseStatAffixName(modifierText), rarity, level)
+  if (v == null) return null
+  return modifierText.replace(/^\+?\d+(?:\.\d+)?/, '+' + String(Math.round(v * 10) / 10))
+}
+// ── Base/Special slot (in-game-verified, owner 2026-08-08) ──────────────────────────────────────────────
+// A REVIVED memory's revival mod may open a single Base ("Special") slot that accepts one NON-revived memory of
+// the mod's NAMED type, up to the mod's rarity cap, at a value penalty. Three enabler tiers (per type):
+//   T0 "Artificial Moon: {type}" — Ultimate or lower, −60% flat, levels the base trait to Artificial Moon (lv5).
+//   T1 "Base Traits now have Base Trait slots … Epic or lower {type} … (−60–−55) %" — rolled penalty.
+//   T2 "… Rare or lower {type} … (−35–−30) %" — rolled penalty.
+// The mod TEXT is authoritative for the type (a Progress memory may carry an Origin enabler → base slot = Origin).
+const RARITY_RANK: Record<MemoryRarity, number> = { normal: 0, magic: 1, rare: 2, epic: 3, ultimate: 4 }
+export const rarityWithinCap = (r: MemoryRarity, cap: MemoryRarity): boolean => RARITY_RANK[r] <= RARITY_RANK[cap]
+
+export interface BaseSlotEnabler {
+  type: CreatedHeroMemory['memoryType']
+  rarityCap: MemoryRarity
+  factor: number       // multiplier for the base-slot memory's base + random VALUES (e.g. 0.4 for −60%)
+  penaltyPct: number   // positive display %, e.g. 60
+  artificialMoon: boolean
+  text: string         // enabler mod text (for the tooltip)
+}
+
+// Parse a revival mod into a base-slot enabler, or null if it isn't one. Reads sel.description (the full glossary
+// text for name-only tier-0 mods) then falls back to sel.modifier (T1/T2 carry their full text there).
+export function parseBaseSlotEnabler(sel: MemorySlotSelection | null | undefined): BaseSlotEnabler | null {
+  if (!sel) return null
+  const mod = sel.modifier || ''
+  const text = sel.description || mod
+  const artificialMoon = /^\s*Artificial Moon\s*:/i.test(mod)
+  if (!artificialMoon && !/(Base Trait|Special Memory)\s+slots?/i.test(text)) return null
+  const typeM = text.match(/\b(Origin|Discipline|Progress)\b/i)
+  if (!typeM) return null
+  const type = typeM[1].toLowerCase() as CreatedHeroMemory['memoryType']
+  const capM = text.match(/\b(Ultimate|Epic|Rare|Magic|Normal)\s+or\s+lower\b/i)
+  const rarityCap = (capM ? capM[1].toLowerCase() : 'ultimate') as MemoryRarity
+  // Penalty. T1/T2: a rolled negative pct (e.g. −57) → factor = 1 + val/100. T0: "by 60%" (positive reduction)
+  // → factor = 1 − 60/100. Fallback to the range midpoint when neither is present (shouldn't happen).
+  let factor = 1
+  if (sel.rolledValue != null) {
+    factor = 1 + sel.rolledValue / 100
+  } else {
+    const byM = text.match(/by\s+(\d+(?:\.\d+)?)\s*%/i)
+    const rngM = mod.match(/\(\s*(-?\d+(?:\.\d+)?)\s*[–\-]\s*(-?\d+(?:\.\d+)?)\s*\)/)
+    if (byM) factor = 1 - parseFloat(byM[1]) / 100
+    else if (rngM) factor = 1 + ((parseFloat(rngM[1]) + parseFloat(rngM[2])) / 2) / 100
+    // Fail SAFE, not open: every "Artificial Moon" enabler is −60% in the data. If the description text (which
+    // carries the "by 60%") didn't attach, still penalize at the known flat rate rather than contribute unpenalized.
+    else if (artificialMoon) factor = 0.4
+  }
+  factor = Math.max(0, Math.min(1, factor))
+  return { type, rarityCap, factor, penaltyPct: Math.round((1 - factor) * 100), artificialMoon, text }
+}
+
+// The active base-slot enabler among the equipped memories (only a revived memory carries one; one total in-game).
+export function activeBaseSlotEnabler(heroMemories: (CreatedHeroMemory | null)[]): BaseSlotEnabler | null {
+  for (const m of heroMemories) {
+    if (m?.revived && m.revivalMod) {
+      const cfg = parseBaseSlotEnabler(m.revivalMod)
+      if (cfg) return cfg
+    }
+  }
+  return null
+}
+
+// Resolve the base slot: the base memory only contributes when a matching enabler is equipped and its type +
+// rarity satisfy the enabler (the UI enforces this; the guard keeps the engine honest if the enabler is removed).
+export function resolveBaseSlot(
+  heroMemories: (CreatedHeroMemory | null)[], baseMemory: CreatedHeroMemory | null | undefined,
+): { enabler: BaseSlotEnabler; memory: CreatedHeroMemory } | null {
+  if (!baseMemory) return null
+  // Defense in depth: the same id must not also sit in a normal slot, or it would count twice (base + normal).
+  // The UI already prevents this; this guard also protects hand-crafted / imported build JSON.
+  if (heroMemories.some(m => m?.id === baseMemory.id)) return null
+  const enabler = activeBaseSlotEnabler(heroMemories)
+  if (!enabler) return null
+  if (baseMemory.memoryType !== enabler.type) return null
+  if (!rarityWithinCap(baseMemory.rarity, enabler.rarityCap)) return null
+  return { enabler, memory: baseMemory }
+}
+
+// Derive traitSlotLevels [base,45,60,75] from socketed memories: slots 1..3 (origin/discipline/progress) are
+// SET to their socketed memory's trait level, or 0 (INACTIVE) when the slot is empty. Base slot [0] is SET from
+// the base-slot memory's trait level when one is validly socketed (→ Artificial Moon at lv5), else passed through
+// unchanged (the base trait is always active). `heroMemories` order is [origin, discipline, progress] → [1,2,3].
+export function deriveTraitSlotLevels(
+  heroMemories: (CreatedHeroMemory | null)[], stored: number[], baseMemory: CreatedHeroMemory | null = null,
+): number[] {
+  const out = stored.slice(0, 4)
+  while (out.length < 4) out.push(1)
+  for (let i = 0; i < 3; i++) {
+    const m = heroMemories[i]
+    out[i + 1] = m ? memoryTraitLevel(m) : 0
+  }
+  const bs = resolveBaseSlot(heroMemories, baseMemory)
+  if (bs) out[0] = memoryTraitLevel(bs.memory)
+  return out
 }
 
 // Expand the level-scaling "( a / b / c / d / e )" notation in a hero-trait effect string to the value at
@@ -2719,6 +3054,9 @@ export const api = {
     ),
   getGrafts: () => get<{ season: string | null; grafts: Graft[] }>('/grafts'),
 
+  // Compendium→Builder crosswalk bridge tables (Import from Compendium). Fetched on demand by the importer.
+  getCrosswalkTables: () => get<{ season: string | null; tables: Record<string, any>; treeNames: Record<string, string> }>('/crosswalk-tables'),
+
   // Belt Blends (Blending Rituals) — a single scraper file: { entries, glossary }.
   importCrawlerBeltBlends: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>(
@@ -2742,10 +3080,15 @@ export const api = {
     fixed_affixes: HeroMemoryAffix[]
     random_affixes: HeroMemoryAffix[]
     base_stats: HeroMemoryAffix[]
+    base_stat_scaling?: HeroMemoryBaseStatScaling
   }>('/hero-memories'),
 
   importMemoryRevival: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-memory-revival', { season_name: seasonName, data }),
+  getMemoryRevival: () => get<{
+    season: string | null
+    affixes: HeroMemoryAffix[]
+  }>('/memory-revival'),
 
   importTowerSequence: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-tower-sequence', { season_name: seasonName, data }),

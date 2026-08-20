@@ -107,6 +107,9 @@ def _read_file(build_id: str) -> dict:
     hero_memories_raw = data.get('hero_memories', '')
     hero_memories = json.loads(hero_memories_raw) if hero_memories_raw else [None, None, None]
 
+    memory_inventory_raw = data.get('memoryInventory', '')
+    memory_inventory = json.loads(memory_inventory_raw) if memory_inventory_raw else []
+
     pact_spirits_raw = data.get('pact_spirits', '')
     pact_spirits = json.loads(pact_spirits_raw) if pact_spirits_raw else [None, None, None]
 
@@ -170,6 +173,7 @@ def _read_file(build_id: str) -> dict:
         'licoricePreparedSkill': licorice_prepared_skill,
         'elixirIngredients': elixir_ingredients,
         'heroMemories': hero_memories,
+        'memoryInventory': memory_inventory,
         'pactSpirits': pact_spirits,
         'fates': fates,
         'undetermined': undetermined,
@@ -236,6 +240,8 @@ def _write_file(build: dict) -> None:
         f.write(f"elixir_ingredients={json.dumps(elixir_ingredients, separators=(',', ':'))}\n")
         hero_memories = build.get('heroMemories') or [None, None, None]
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
+        memory_inventory = build.get('memoryInventory') or []
+        f.write(f"memoryInventory={json.dumps(memory_inventory, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
         f.write(f"pact_spirits={json.dumps(pact_spirits, separators=(',', ':'))}\n")
         fates = build.get('fates') or {}
