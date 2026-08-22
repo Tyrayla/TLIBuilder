@@ -29,7 +29,6 @@
     "stalker_stacks": 6.0,
     "swift_as_lightning_stacks": 10.0,
     "tenacity_blessings": 4.0,
-    "terra_charges_consumed": 1.0,
     "unique_weapon_types": 2.0,
     "well_fought_battle_stacks": 3.0,
     "willpower_stacks": 6.0
@@ -219,7 +218,6 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
-    "max_terra_charge_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",

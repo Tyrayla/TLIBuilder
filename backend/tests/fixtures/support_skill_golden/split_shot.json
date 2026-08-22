@@ -202,7 +202,6 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
-    "max_terra_charge_stacks_flat",
     "min_channeled_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",

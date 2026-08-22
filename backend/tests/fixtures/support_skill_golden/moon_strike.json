@@ -200,7 +200,6 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
-    "max_terra_charge_stacks_flat",
     "melee_dmg_additional",
     "melee_dmg_inc",
     "melee_skill_level",
