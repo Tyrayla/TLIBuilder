@@ -163,6 +163,7 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
+    "max_terra_charge_stacks_flat",
     "physical_as_cold",
     "physical_as_elemental",
     "physical_as_erosion",
