@@ -58,16 +58,6 @@ fixed (defer-behind-headline + `/api/engine/stats-batch`, commit 7c1fd09). Tiers
 - Minor render memoization (BreakdownCtx value object, `TreeNode` `React.memo`, MasonryGrid measure deps) — low
   priority (Calcs breakdowns are already lazy/hover-only).
 
-## Tooling / release — "What's New" changelog modal (low priority)
-The update "What's New in <version>" modal has two issues (seen on 0.5.3-nightly.3; not urgent):
-1. **Raw HTML shown as text** — the body renders `<p>…</p>` / `<br />` literally instead of as formatted lines
-   (changelog HTML is being escaped/displayed verbatim, not rendered).
-2. **Unhelpful auto-generated content** — it pulls raw git commit messages, including merge commits with conflict
-   markers (e.g. "Merge dev into main for release 0.5.2 / # Conflicts: CHANGELOG.md package.json src/main/index.ts").
-   Should show curated release notes (or at least filter out merge/conflict noise).
-Fix: render the changelog as HTML (or convert to plain text) and source it from a curated CHANGELOG section per
-release rather than raw commit subjects.
-
 ## Shipped in 0.5.2 (removed from the open list)
 Mana/Life sealing & reservation (incl. Lunar Eclipse) · auras & Focus as build buffs · nightly channel + silent
 auto-update + Settings overlay · full skill-data reimport · display rounding option A (sealed/unsealed + ES match
@@ -636,7 +626,6 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   Conditionals → rename "Config".
 - **Roll tier tooltips** (T1/T2/…) on gear + hero-memory tooltips — DONE (`affixTypeLabel(type, tier)`).
 - **Slate inventory + summed-bonus overview** — DONE (shipped 2026-06-15; SlateOverview + saved-slates panel).
-- **Deprecated StatsScreen.tsx** (debug dump) — remove or fold; real screen is PlayerStatsScreen.tsx.
 - **Source tagging**: add a tag/type column to Player Stats source attribution.
 - **Settings overlay follow-ups**: wire the greyed number-separator + decimal-precision controls; theme/accent;
   move "Show NYI flags" here; build defaults (default level / dummy level); restore-last-build; Open data folder /
