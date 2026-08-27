@@ -1,10 +1,11 @@
 """Build-independent, 3-state DPS-coverage roll-up (`engine/coverage.py`): `skill_coverage`,
 `trait_coverage`, `legendary_coverage` (+ the season-cached `legendary_coverage_for_season`).
 
-Ground-truth values below are engine-confirmed for the SS12 season's live data (not synthetic
-fixtures) — pulled straight from `data/seasons/SS12/_skills.json`, `_hero_traits.json` (via
-`hero_traits.has_module`/`status_lines`), and `_legendary_gear.json`. Also exercises the
-`/api/skills`, `/api/hero-traits`, `/api/legendary-gear-index` endpoint wiring.
+Ground-truth values in the `@_SS12_ONLY` classes are engine-confirmed for the SS12 season's live data
+(not synthetic fixtures) — pulled straight from `data/seasons/SS12/_skills.json`, `_hero_traits.json`
+(via `hero_traits.has_module`/`status_lines`), and `_legendary_gear.json`. The invariant/structural
+sweeps (the `*Invariants` classes + `TestEndpointWiring`) instead run against the LIVE active-season
+catalog. Also exercises the `/api/skills`, `/api/hero-traits`, `/api/legendary-gear-index` endpoint wiring.
 """
 import pytest
 
@@ -13,17 +14,21 @@ from engine.coverage import skill_coverage, trait_coverage, legendary_coverage
 
 _SEASON = season_manager.get_active_season()
 
-pytestmark = pytest.mark.skipif(
+# Season-pinned ground-truth classes (a NAMED item -> a specific status/number) stay gated to the season
+# they were captured against; the invariant/structural sweeps run against the LIVE catalog every season.
+# (Phase 0, 2026-08-22: replaced the blanket module-level skip that darkened ~660 season-independent tests.)
+_SS12_ONLY = pytest.mark.skipif(
     _SEASON != "SS12",
-    reason="SS12-specific ground-truth; SS13 values pending re-verification post-flip (see data/seasons/.active)",
+    reason="SS12-pinned ground truth; SS13 values pending re-verification post-flip (see data/seasons/.active)",
 )
 
-_SKILLS = {s["item_id"]: s for s in (season_manager.load_skills("SS12") or {}).get("skills", []) if "item_id" in s}
-_LEGENDARIES = {it["item_id"]: it for it in (season_manager.load_legendary_gear("SS12") or {}).get("items", [])
+_SKILLS = {s["item_id"]: s for s in (season_manager.load_skills(_SEASON) or {}).get("skills", []) if "item_id" in s}
+_LEGENDARIES = {it["item_id"]: it for it in (season_manager.load_legendary_gear(_SEASON) or {}).get("items", [])
                 if "item_id" in it}
 
 
 # ── Skills ─────────────────────────────────────────────────────────────────────────────────────
+@_SS12_ONLY
 class TestSkillCoverage:
     def test_chain_lightning_full(self):
         status, detail = skill_coverage(_SKILLS["chain_lightning"])
@@ -138,6 +143,7 @@ class TestResolveLineKeysScoping:
 
 # ── Overclaim flips (2026-07-12, two upstream defects — see test_dps_coverage_defect_fixes.py for the
 # low-level mechanics) ─────────────────────────────────────────────────────────────────────────────
+@_SS12_ONLY
 class TestOverclaimFlips:
     """Both fixes flip specific items from a wrongly-`full` (or wrongly-swallowed-line) `skill_coverage`
     to an honest `partial`. Pinned here as the coverage-level regression guard; the underlying
@@ -200,6 +206,7 @@ class TestOverclaimFlips:
 
 
 # ── Support / activation-medium coverage (2026-07-12 fix: every support previously read 'none') ──────
+@_SS12_ONLY
 class TestSupportCoverage:
     """Before the 2026-07-12 fix, `skill_coverage` gated EVERY support/activation-medium item on
     `skill_resolver.resolve_skill(...).supported` — a check that only makes sense for ACTIVE skills
@@ -475,6 +482,7 @@ class TestSupportCoverageInvariants:
 
 
 # ── Hero traits ────────────────────────────────────────────────────────────────────────────────
+@_SS12_ONLY
 class TestTraitCoverage:
     def test_sing_with_the_tide_partial_build_gated_context(self):
         """(2026-07-12 accuracy fix) `sing_with_the_tide.status_lines` takes `main_skill_tags`/
@@ -537,6 +545,7 @@ class TestTraitCoverage:
 
 
 # ── Legendary gear ─────────────────────────────────────────────────────────────────────────────
+@_SS12_ONLY
 class TestLegendaryCoverage:
     def test_berserker_bracer_full(self):
         status, detail = legendary_coverage(_LEGENDARIES["berserker_bracer"])
