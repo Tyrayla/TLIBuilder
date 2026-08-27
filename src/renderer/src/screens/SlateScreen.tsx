@@ -7,6 +7,7 @@ import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
 import { summarizeSlateBonuses } from '../utils/slateBonusSummary'
+import { nextOrientationIndex } from './slateOrientation'
 
 // One selectable slate modifier option (its effects badged for engine support). Extracted so the
 // status hook isn't called inside the options .map().
@@ -1511,7 +1512,10 @@ export default function SlateScreen({ treeColors }: Props) {
 
   function handleRotate() {
     if (!creator) return
-    updateCreator({ orientationIndex: (creator.orientationIndex + 1) % getOrientationCount(creator.kind) })
+    // nextOrientationIndex is a no-op when getOrientationCount() returns < 2 (e.g. 0 for an unrecognized
+    // kind), so a `% 0` NaN can never corrupt orientationIndex even if the Rotate button's `count > 1`
+    // gate is ever relaxed.
+    updateCreator({ orientationIndex: nextOrientationIndex(creator.orientationIndex, getOrientationCount(creator.kind)) })
   }
 
   // ── Board interactions ──────────────────────────────────────────────────────
