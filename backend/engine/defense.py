@@ -25,6 +25,43 @@ _BASE_BLOCK_RATIO = 0.30
 _BASE_BLOCK_RATIO_UPPER_LIMIT = 0.60
 _MAX_BLOCK_RATIO_UPPER_LIMIT = 0.80
 
+# Chance to Avoid Damage. Source: TLI Help Database — "Chance to Avoid Damage" (0% base, hard-capped at 60%,
+# rolled independently per damage type) and "Blur" (Six Gods' Blessing: each Blur Rating grants 0.25% Chance to
+# Avoid Damage, scaled by Blur Effect; Max Blur Rating 100 → 25% at +0% effect). Modeled at max rating (the
+# full-uptime planner assumption — real-uptime rating decay is a later refinement). needs-verification.
+_MAX_DMG_AVOID_CHANCE = 0.60
+_BLUR_MAX_RATING = 100.0
+_BLUR_AVOID_PER_RATING = 0.0025
+
+
+def _blur_avoid_chance(source: BuildSource) -> float:
+    """Blur's Chance to Avoid Damage: 100 rating × 0.25% × (1 + Blur Effect), applied only while Blur is active.
+    Blur Effect (blur_effect_inc) is read unconditionally so it registers as a consumed stat regardless of the
+    active gate (mirrors the consumable-universe self-record note in this module)."""
+    effect = 1.0 + source.total("blur_effect_inc")
+    if not (getattr(source, "condition_state", None) or {}).get("blur_active"):
+        return 0.0
+    return _BLUR_MAX_RATING * _BLUR_AVOID_PER_RATING * effect
+
+
+# Barrier (Six Gods' Blessing). Source: TLI Help Database — "Barrier": absorbs Hit/Secondary/Reflected damage
+# equal to 20% of (Max Life + Max Energy Shield) at a base absorption rate of 50%. Barrier Shield scales the pool
+# (increased + additional); Barrier Absorption Rate scales the rate (clamped to 100% — a barrier can't absorb more
+# than a full hit). Modeled at full strength while active; how the pool absorbs an incoming hit is WS3. needs-verification.
+_BARRIER_POOL_PCT = 0.20
+_BASE_BARRIER_ABSORPTION_RATE = 0.50
+
+
+def _barrier(source: BuildSource, max_life: float, max_es: float) -> tuple[float, float, bool]:
+    """(barrier_shield, absorption_rate, active). The barrier stats are read unconditionally so they register as
+    consumed regardless of the active gate; `active` (barrier_active condition) gates the display only."""
+    shield = (_BARRIER_POOL_PCT * (max_life + max_es)
+              * (1.0 + source.total("barrier_shield_inc"))
+              * _additional_pool_factor(source, ["barrier_shield_additional"]))
+    rate = min(_BASE_BARRIER_ABSORPTION_RATE * (1.0 + source.total("barrier_absorption_rate_inc")), 1.0)
+    active = bool((getattr(source, "condition_state", None) or {}).get("barrier_active"))
+    return shield, rate, active
+
 
 def block_ratio_value(source: BuildSource) -> tuple[float, float]:
     """(block_ratio, upper_limit) — base 30% + Σ block_ratio_inc, clamped to the Upper Limit (base 60% +
@@ -135,7 +172,15 @@ class DefenseResult:
     spell_block_chance: float = 0.0
     block_ratio: float = 0.0                  # base 30% + mods, clamped to the upper limit
     block_ratio_upper_limit: float = 0.60     # base 60%, raisable to 80%
+    # Chance to Avoid Damage: the final value AFTER the 60% cap. dmg_avoid_blur is Blur's contribution (broken
+    # out so the UI can attribute it), before the cap is applied to the sum with the gear/affix pool.
     dmg_avoid_chance: float = 0.0
+    dmg_avoid_blur: float = 0.0
+    # Barrier (Six Gods' Blessing) — the absorb pool = 20% of (Max Life + Max ES) × Barrier Shield, at a 50% ×
+    # Barrier Absorption Rate rate. `barrier_active` gates the display (its own panel appears only when on).
+    barrier_shield: float = 0.0
+    barrier_absorption_rate: float = 0.0
+    barrier_active: bool = False
     nyi: list[str] = field(default_factory=lambda: ["Effective HP"])
 
 
@@ -152,11 +197,17 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
     nonphys_rate = _BASE_NONPHYS_ARMOR_RATE + source.total("armor_effective_rate_non_physical_inc")
     _max_mana = source.total("max_mana")
     _max_life = source.total("max_life")
+    _max_es = source.total("max_energy_shield")
     _block_ratio, _block_ratio_upper_limit = block_ratio_value(source)
+    _barrier_shield, _barrier_rate, _barrier_active = _barrier(source, _max_life, _max_es)
+    _blur_avoid = _blur_avoid_chance(source)
     return DefenseResult(
         max_life=_max_life,
         max_mana=_max_mana,
-        max_energy_shield=source.total("max_energy_shield"),
+        max_energy_shield=_max_es,
+        barrier_shield=_barrier_shield,
+        barrier_absorption_rate=_barrier_rate,
+        barrier_active=_barrier_active,
         sealed_mana=_r.get("sealed_mana", 0.0),
         unsealed_mana=_r.get("unsealed_mana", _max_mana),
         sealed_life=_r.get("sealed_life", 0.0),
@@ -174,7 +225,8 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
         spell_block_chance=source.total("spell_block_chance_inc"),
         block_ratio=_block_ratio,
         block_ratio_upper_limit=_block_ratio_upper_limit,
-        dmg_avoid_chance=source.total("dmg_avoid_chance"),
+        dmg_avoid_chance=min(source.total("dmg_avoid_chance") + _blur_avoid, _MAX_DMG_AVOID_CHANCE),
+        dmg_avoid_blur=_blur_avoid,
         fire_resist=fire_c,
         cold_resist=cold_c,
         lightning_resist=lightning_c,

@@ -3015,6 +3015,13 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
         {(defense.sealed_mana ?? 0) > 0 && (
           <>
             <Row label="Sealed (Reserved) Mana" labelColor={defense.insufficient_mana ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('mana', defense.sealed_mana!)}>{fmtNum(sealedDisp(defense.max_mana, defense.unsealed_mana ?? defense.max_mana))}</Row>
+            {(defense.sealed_mana_compensation ?? 0) > 0 && (
+              <SubRow label="Sealed Mana Compensation" breakdown={{
+                title: 'Sealed Mana Compensation', keys: ['sealed_mana_compensation_inc', 'sealed_mana_compensation_additional'],
+                total: defense.sealed_mana_compensation, totalUnit: '%',
+                formula: 'Reduces effective Sealed Mana: ÷ (1 + Σ increased)(1 + Σ additional)',
+              }}>−{fmtPct2(defense.sealed_mana_compensation ?? 0)}</SubRow>
+            )}
             <Row label="Unsealed (Available) Mana" labelColor={defense.insufficient_mana ? '#e05050' : undefined} breakdown={unsealedBreakdown('mana', defense.max_mana, defense.sealed_mana!, defense.unsealed_mana ?? defense.max_mana)}>{fmtNum(availDisp(defense.unsealed_mana ?? defense.max_mana))}</Row>
             {defense.insufficient_mana && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Mana — reserved exceeds Max Mana by {fmtNum((defense.sealed_mana ?? 0) - defense.max_mana)} ({dec((((defense.sealed_mana ?? 0) / defense.max_mana - 1) * 100))}%)</div>}
           </>
@@ -3177,12 +3184,29 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
       </StatPanel>
 
       <StatPanel title="Damage Avoidance" accent="#7060b0">
-        <Row label="Chance to Avoid Damage" breakdown={{ title: 'Chance to Avoid Damage', keys: ['dmg_avoid_chance'], total: defense.dmg_avoid_chance, totalUnit: '%' }}>{fmtPct2(defense.dmg_avoid_chance)}</Row>
+        <Row label="Chance to Avoid Damage" breakdown={{
+          title: 'Chance to Avoid Damage', keys: ['dmg_avoid_chance'], total: defense.dmg_avoid_chance, totalUnit: '%',
+          formula: 'Σ sources, capped at 60% — rolled independently per damage type',
+          extra: (defense.dmg_avoid_blur ?? 0) > 0
+            ? [{ value: `+${fmtPct2(defense.dmg_avoid_blur)}`, stat: 'Blur', source: 'Status', sourceName: '0.25% per Blur Rating × Blur Effect (max 100 rating)' }]
+            : [],
+        }}>{fmtPct2(defense.dmg_avoid_chance)}</Row>
       </StatPanel>
 
-      <StatPanel title="Absorb" accent="#50a0a0">
-        <Row label="Barrier" labelColor="#555">— NYI</Row>
-      </StatPanel>
+      {defense.barrier_active && (
+        <StatPanel title="Barrier" accent="#50a0a0">
+          <Row label="Barrier Shield" breakdown={{
+            title: 'Barrier Shield', keys: ['barrier_shield_inc', 'barrier_shield_additional'], total: defense.barrier_shield,
+            formula: '20% of (Max Life + Max Energy Shield) × Barrier Shield',
+            extra: [{ value: fmtNum(0.2 * (defense.max_life + defense.max_energy_shield)), stat: 'Base', source: 'Baseline', sourceName: '20% of Max Life + Max ES' }],
+          }}>{fmtNum(defense.barrier_shield)}</Row>
+          <Row label="Absorption Rate" breakdown={{
+            title: 'Barrier Absorption Rate', keys: ['barrier_absorption_rate_inc'], total: defense.barrier_absorption_rate, totalUnit: '%',
+            formula: '50% base × Barrier Absorption Rate, capped at 100%',
+            extra: [{ value: '50%', stat: 'Base', source: 'Baseline', sourceName: 'Barrier blessing' }],
+          }}>{fmtPct2(defense.barrier_absorption_rate)}</Row>
+        </StatPanel>
+      )}
     </>
   )
 }

@@ -1033,7 +1033,11 @@ export interface DefenseResult {
   spell_block_chance: number
   block_ratio: number                // base 30% + mods, clamped to the upper limit
   block_ratio_upper_limit: number    // base 60%, raisable to 80%
-  dmg_avoid_chance: number
+  dmg_avoid_chance: number           // final, after the 60% cap
+  dmg_avoid_blur: number             // Blur's contribution (0.25%/rating × Blur Effect), pre-cap
+  barrier_shield: number             // absorb pool = 20% of (Max Life + Max ES) × Barrier Shield
+  barrier_absorption_rate: number    // 50% base × Barrier Absorption Rate, capped at 100%
+  barrier_active: boolean            // gates the Barrier panel (only shown when active)
   nyi: string[]
 }
 
