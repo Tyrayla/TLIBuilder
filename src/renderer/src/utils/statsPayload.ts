@@ -211,6 +211,8 @@ export function buildEngineStatsPayload(s: BuildState) {
     custom_mods: s.customMods,
     // Editable calc-target ("dummy") stats — percentages; the engine converts to fractions + applies mitigation.
     target_config: s.targetConfig,
+    // Incoming-hit enemy skill (kind + per-type hit/DoT) for the defensive Max-Hit / EHP calc.
+    enemy_config: s.enemyConfig,
   }
 }
 

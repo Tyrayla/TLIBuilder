@@ -6,7 +6,9 @@ read unconditionally so they register even when the mechanic is inactive.
 Sources (needs-verification): TLI Help Database — Blur.md, Chance to Avoid Damage.md, Barrier.md.
 """
 from engine.models import BuildSource
-from engine.defense import calculate_defense, _MAX_DMG_AVOID_CHANCE, _BASE_BARRIER_ABSORPTION_RATE
+from engine.defense import (
+    calculate_defense, calculate_incoming, _MAX_DMG_AVOID_CHANCE, _BASE_BARRIER_ABSORPTION_RATE,
+)
 from engine.consumable_universe import consumable_universe
 
 
@@ -82,3 +84,70 @@ def test_new_defensive_stats_are_consumed():
     for key in ("blur_effect_inc", "dmg_avoid_chance",
                 "barrier_shield_inc", "barrier_shield_additional", "barrier_absorption_rate_inc"):
         assert key in universe, f"{key} must be in the consumable universe"
+
+
+# ── Incoming damage → Max Hit / EHP (WS3) ────────────────────────────────────────
+
+def _incoming(cond=None, enemy=None, **stats):
+    s = _source(cond=cond, **stats)
+    if enemy is not None:
+        s.enemy_config = enemy
+    return calculate_incoming(s, calculate_defense(s))
+
+
+def test_resistance_mitigates_hit_and_dot():
+    inc = _incoming(fire_resistance=0.30,
+                    enemy={"kind": "attack", "damage": {"fire_hit": 1000.0, "fire_dot": 500.0}})
+    fire = inc["types"]["fire"]
+    assert fire["mitigated_hit"] == 700.0          # 1000 × (1 − 0.30)
+    assert fire["mitigated_dot"] == 350.0          # DoT also takes resistance
+
+
+def test_physical_hit_has_no_resistance():
+    inc = _incoming(enemy={"kind": "attack", "damage": {"phys_hit": 1000.0}})
+    assert inc["types"]["physical"]["mitigated_hit"] == 1000.0   # no armour, no resistance
+
+
+def test_dot_skips_armour_but_hit_does_not():
+    # Big armour so physical hit is mitigated; the DoT ignores armour (mitigated == incoming).
+    inc = _incoming(armor=50000.0, enemy={"kind": "attack", "damage": {"phys_hit": 1000.0, "phys_dot": 1000.0}})
+    phys = inc["types"]["physical"]
+    assert phys["mitigated_hit"] < 1000.0
+    assert phys["mitigated_dot"] == 1000.0
+
+
+def test_max_hit_is_pool_over_taken_fraction():
+    inc = _incoming(max_life=5000.0, max_energy_shield=1000.0, fire_resistance=0.30,
+                    enemy={"kind": "attack", "damage": {"fire_hit": 1000.0}})
+    fire = inc["types"]["fire"]
+    assert inc["pool"] == 6000.0
+    assert round(fire["max_hit"], 2) == round(6000.0 / 0.70, 2)   # pool ÷ 0.70
+
+
+def test_ehp_folds_avoidance_and_block_for_hits():
+    # Blur active → 25% avoid; Max Hit ignores it, EHP divides by (1 − 0.25).
+    inc = _incoming(cond={"blur_active": True}, max_life=6000.0,
+                    enemy={"kind": "attack", "damage": {"fire_hit": 1000.0}})
+    fire = inc["types"]["fire"]
+    assert round(fire["ehp"], 2) == round(fire["max_hit"] / (1.0 - 0.25), 2)
+
+
+def test_full_immunity_yields_none_max_hit():
+    # 100% damage-taken reduction → taken fraction 0 → Max Hit / EHP are None (the UI renders '∞').
+    inc = _incoming(dmg_taken_additional=-1.0, max_life=5000.0,
+                    enemy={"kind": "attack", "damage": {"fire_hit": 1000.0}})
+    fire = inc["types"]["fire"]
+    assert fire["hit_taken_fraction"] == 0.0
+    assert fire["mitigated_hit"] == 0.0
+    assert fire["max_hit"] is None
+    assert fire["ehp"] is None
+
+
+def test_barrier_adds_to_pool_when_active():
+    base = _incoming(max_life=1000.0, max_energy_shield=1000.0,
+                     enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
+    withb = _incoming(cond={"barrier_active": True}, max_life=1000.0, max_energy_shield=1000.0,
+                      enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
+    # Barrier = 20% of (1000+1000) = 400 added to the 2000 pool.
+    assert base["pool"] == 2000.0
+    assert withb["pool"] == 2400.0

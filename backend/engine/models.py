@@ -67,6 +67,8 @@ class BuildSource:
     referenced_conditions: set[str] = field(default_factory=set)
     # Editable calc-target stats (fractions) for offense mitigation; None → offense's Lv85 constants.
     target_config: dict | None = None
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc: {enemyId, skillId, kind, damage:{<type>_hit/_dot}}.
+    enemy_config: dict | None = None
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -150,6 +152,8 @@ class BuildInput:
     # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
     # erosion_res}. None → offense uses its historical Lv85 constants.
     target_config: dict | None = None
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc (WS3). Shape mirrors the renderer EnemyIncomingConfig.
+    enemy_config: dict | None = None
     # Unified condition state: boolean conditions store True/False, numeric store float, enum store str.
     condition_state: dict[str, float | bool | str] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
@@ -221,6 +225,7 @@ class StatResult:
     clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}
     offense:             dict | None = None      # OffenseResult as dict, or None if no skill
     defense:             dict | None = None      # DefenseResult as dict
+    incoming:            dict | None = None      # calculate_incoming: per-type Max-Hit / EHP vs the selected enemy skill
     recovery:            dict | None = None      # RecoveryResult as dict (restoration/regain/regen/temp/EHP)
     consumption:         dict | None = None      # ConsumptionResult as dict (self-consume drains + consumed-recently)
     skill_cost:          dict | None = None      # SkillCostResult as dict (active skill per-cast Mana/Life cost breakdown)

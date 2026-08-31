@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DamageRow, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from '../components/HeroTraitShared'
@@ -3282,6 +3282,54 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
 // The interactive Numbed-stacks panel was removed from this (Calculations) screen — condition stacks are set on
 // the Conditionals screen. The Numbed effect now shows read-only as a damage-type-gated box in the skill area.
 
+// ── Incoming damage / Max Hit / EHP panel (WS3) ──────────────────────────────────
+// Per-type mitigation of the selected enemy skill (Config → Enemy). Sits in the left column under the offense
+// result. Max Hit = pool ÷ always-on-taken-fraction (no evade/avoid/block); EHP folds in the probabilistic layers.
+function IncomingPanel({ incoming }: { incoming: IncomingResult | null }) {
+  if (!incoming) return null
+  const th: React.CSSProperties = { textAlign: 'right', fontSize: 11, color: '#888', fontWeight: 600, paddingBottom: 3, paddingLeft: 4, paddingRight: 4, whiteSpace: 'nowrap' }
+  const td: React.CSSProperties = { textAlign: 'right', fontSize: 12, fontVariantNumeric: 'tabular-nums', paddingLeft: 4, paddingRight: 4, color: '#e0e0e0', whiteSpace: 'nowrap' }
+  const tdLbl: React.CSSProperties = { textAlign: 'left', fontSize: 12, color: '#888', paddingRight: 8, whiteSpace: 'nowrap' }
+  const tdDim: React.CSSProperties = { ...td, color: '#555' }
+  const pct = (v: number) => `${(v * 100).toFixed(0)}%`
+  const num = (v: number | null) => (v == null ? '∞' : fmtNum(v))
+  const T = (d: string) => incoming.types[d]
+  const hasDot = ALL_DTYPES.some(d => (T(d)?.incoming_dot ?? 0) > 0)
+  const hitCell = (d: string, v: number) => <td key={d} style={T(d).incoming_hit ? td : tdDim}>{T(d).incoming_hit ? fmtNum(v) : '—'}</td>
+  const kindLabel = incoming.kind === 'spell' ? 'Spell' : 'Attack'
+  const poolExtra: ExtraRow = { value: fmtNum(incoming.pool), stat: 'Effective Pool', source: incoming.barrier_active ? 'Life + ES + Barrier' : 'Life + ES', sourceName: `unsealed Life + Energy Shield${incoming.barrier_active ? ' + Barrier (absorb pool)' : ''}` }
+  // Row label carrying a hover breakdown (formula + the inputs that used to sit in the header line). All the
+  // "vs Attack · Pool · Evade · Avoid · Block" context now lives here, per-row, and nowhere else.
+  const lbl = (text: string, color: string, formula: string, extra: ExtraRow[] = []) => (
+    <td style={{ ...tdLbl, color }}><Breakdown title={text} keys={[]} formula={formula} extra={extra}>{text}</Breakdown></td>
+  )
+  return (
+    <StatPanel title="Effective HP / Max Hit" accent="#b0503a"
+      info="Per-type mitigation of the selected enemy skill (set in Config → Enemy). Hover any row label for its formula and inputs. Max Hit = the largest single raw hit you survive, worst case (no evade / avoid / block). EHP folds in Evasion, Chance to Avoid Damage, and expected Block. DoT rows take resistance only. Mitigation order is not yet in-game-verified.">
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>
+          <th style={{ ...th, textAlign: 'left' }} />
+          {ALL_DTYPES.map(d => <th key={d} style={{ ...th, color: DTYPE_COLOR[d] }}>{DTYPE_LABEL[d]}</th>)}
+        </tr></thead>
+        <tbody>
+          <tr>{lbl('Incoming Hit', '#888', `The selected enemy skill's raw per-type hit (kind: ${kindLabel}). Set in Config → Enemy.`)}{ALL_DTYPES.map(d => hitCell(d, T(d).incoming_hit))}</tr>
+          <tr>{lbl('Mitigated Hit', '#888', 'Incoming × (1 − Armour) × (1 − Resistance) × (1 + Damage Taken). DoT skips armour.')}{ALL_DTYPES.map(d => hitCell(d, T(d).mitigated_hit))}</tr>
+          <tr>{lbl('Mitigation', '#888', '1 − taken fraction (the always-on Armour + Resistance + Damage-Taken layers).')}{ALL_DTYPES.map(d => <td key={d} style={td}>{pct(1 - T(d).hit_taken_fraction)}</td>)}</tr>
+          <tr>{lbl('Max Hit', '#d0a090', 'Effective Pool ÷ mitigated-fraction — the largest single raw hit you survive (worst case: no evade / avoid / block).', [poolExtra])}{ALL_DTYPES.map(d => <td key={d} style={{ ...td, color: '#e0b0a0' }}>{num(T(d).max_hit)}</td>)}</tr>
+          <tr>{lbl('EHP', '#9ac89a', 'Effective Pool ÷ [ mitigated-fraction × (1 − Evade) × (1 − Avoid) × (1 − Block chance × Block ratio) ] — sustained survivability including the probabilistic layers.', [poolExtra, { value: pct(incoming.evade_chance), stat: 'Evade Chance', source: kindLabel, sourceName: 'take 0 (whole hit), cap 75%' }, { value: pct(incoming.avoid_chance), stat: 'Avoid Chance', source: 'Blur / affixes', sourceName: 'take 0 per type, cap 60%' }, { value: `${pct(incoming.block_chance)} × ${pct(incoming.block_ratio)}`, stat: 'Block', source: kindLabel, sourceName: 'chance × ratio = expected reduction' }])}{ALL_DTYPES.map(d => <td key={d} style={{ ...td, color: '#b0e0b0' }}>{num(T(d).ehp)}</td>)}</tr>
+          {hasDot && (<>
+            <tr>{lbl('Incoming DoT', '#888', `The selected enemy skill's raw per-type damage-over-time. Set in Config → Enemy.`)}{ALL_DTYPES.map(d => <td key={d} style={T(d).incoming_dot ? td : tdDim}>{T(d).incoming_dot ? fmtNum(T(d).incoming_dot) : '—'}</td>)}</tr>
+            <tr>{lbl('Mitigated DoT', '#888', 'Incoming DoT × (1 − Resistance) × (1 + DoT Damage Taken) — no armour, block, or evade on DoT.')}{ALL_DTYPES.map(d => <td key={d} style={T(d).incoming_dot ? td : tdDim}>{T(d).incoming_dot ? fmtNum(T(d).mitigated_dot) : '—'}</td>)}</tr>
+          </>)}
+        </tbody>
+      </table>
+      <div style={{ fontSize: 10, color: '#777', marginTop: 5 }}>
+        Incoming values are placeholders (1000/type) until measured in-game — edit them in Config → Enemy. Mitigation order + Blur/Barrier magnitudes are needs-verification.
+      </div>
+    </StatPanel>
+  )
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function PlayerStatsScreen() {
@@ -3390,6 +3438,7 @@ export default function PlayerStatsScreen() {
 
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
+  const incoming = ((computedStats as { incoming?: IncomingResult | null }).incoming) ?? null
   const recovery = ((computedStats as { recovery?: RecoveryResult | null }).recovery) ?? null
   const skillCost = ((computedStats as { skill_cost?: SkillCost | null }).skill_cost) ?? null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
@@ -3472,6 +3521,7 @@ export default function PlayerStatsScreen() {
           {minionMode
             ? <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} reservation={selectedReservation} origin={selectedOrigin} minion />
             : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
+          <IncomingPanel incoming={incoming} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed

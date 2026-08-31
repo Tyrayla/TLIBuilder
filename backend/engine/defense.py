@@ -167,7 +167,8 @@ class DefenseResult:
     # Evasion → evade chance (fractions). Spell evade uses 60% of evasion (spell reduces evasion by 40%).
     attack_evade_chance: float = 0.0
     spell_evade_chance: float = 0.0
-    # Block (additive chance, base 0; not consumed by the engine yet — display only, verify in-game).
+    # Block (additive chance, base 0). Consumed by calculate_incoming for the EHP calc (expected reduction =
+    # block chance × block ratio); the block ratio/upper-limit still awaits in-game verification.
     attack_block_chance: float = 0.0
     spell_block_chance: float = 0.0
     block_ratio: float = 0.0                  # base 30% + mods, clamped to the upper limit
@@ -257,3 +258,89 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
         evasion_inc=source.total("evasion_inc") + source.total("evasion_gear_inc") + source.total("defense_inc"),
         evasion_additional=_additional_pool_factor(source, ["evasion_additional"]) - 1.0,
     )
+
+
+# ── Incoming damage → Max Hit / EHP (WS3) ───────────────────────────────────────────────────────────────────
+# Per-type mitigation of the selected enemy skill's damage (source.enemy_config), producing a Max-Hit and an EHP
+# figure per damage type. All magnitudes come from calculate_defense's already-computed values. The mitigation
+# ORDER is needs-verification (the standard ARPG order); the per-formula math is Help-DB sourced.
+_INCOMING_TYPES = ("physical", "fire", "cold", "lightning", "erosion")
+_INCOMING_SHORT = {"physical": "phys", "fire": "fire", "cold": "cold", "lightning": "lightning", "erosion": "erosion"}
+
+
+def _dmg_taken_factor(source: BuildSource, dtype: str, is_dot: bool) -> float:
+    """(1 + net damage-taken-additional) for this type + delivery. Sums the universal pool + the type-scoped pool
+    (physical / elemental — fire/cold/lightning; Erosion has no typed pool) + the hit-or-DoT pool. Reductions
+    (e.g. Tenacity) are negative and lower incoming; increases raise it. Clamped so the factor never goes below 0."""
+    net = source.total("dmg_taken_additional")
+    if dtype == "physical":
+        net += source.total("physical_dmg_taken_additional")
+    elif dtype in ("fire", "cold", "lightning"):
+        net += source.total("elemental_dmg_taken_additional")
+    net += source.total("dot_dmg_taken_additional") if is_dot else source.total("hit_dmg_taken_additional")
+    return max(0.0, 1.0 + net)
+
+
+def _incoming_taken_fraction(source: BuildSource, defense: DefenseResult, dtype: str, is_dot: bool) -> float:
+    """Fraction of a raw incoming hit/DoT of this type that lands after the always-on layers: armour (hit only;
+    physical rate vs the reduced non-physical rate), resistance (physical has none), and the damage-taken pools.
+    DoT skips armour. Damage-taken-as conversions are NOT yet applied (order-sensitive — a labeled follow-up)."""
+    taken = 1.0
+    if not is_dot:
+        armour_mit = defense.armor_phys_mitigation if dtype == "physical" else defense.armor_nonphys_mitigation
+        taken *= (1.0 - armour_mit)
+    resist_pct = {"physical": 0.0, "fire": defense.fire_resist, "cold": defense.cold_resist,
+                  "lightning": defense.lightning_resist, "erosion": defense.erosion_resist}[dtype]
+    taken *= (1.0 - resist_pct / 100.0)
+    taken *= _dmg_taken_factor(source, dtype, is_dot)
+    return max(0.0, taken)
+
+
+def calculate_incoming(source: BuildSource, defense: DefenseResult) -> dict:
+    """Per-type incoming-damage mitigation + Max-Hit / EHP for the selected enemy skill (source.enemy_config).
+    Max Hit = effective pool ÷ always-on-taken-fraction (worst case: no evade/avoid/block). EHP folds in the
+    probabilistic layers — Evasion (attack/spell by the skill's kind), Chance to Avoid Damage (per type), and the
+    expected Block reduction (block chance × block ratio). DoT rows take resistance + DoT damage-taken only.
+    Pool = usable Life (unsealed) + Energy Shield (+ Barrier Shield while Barrier is active). Order = needs-verification."""
+    ec = getattr(source, "enemy_config", None) or {}
+    kind = ec.get("kind", "attack")
+    dmg = ec.get("damage") or {}
+    # unsealed_life already defaults to max_life when nothing seals (and is the reduced pool when life is sealed),
+    # so use it directly — a real 0.0 (fully-sealed life) must NOT fall back to full Max Life.
+    pool = defense.unsealed_life + defense.max_energy_shield
+    if defense.barrier_active:
+        pool += defense.barrier_shield   # barrier adds absorb capacity; the absorption-rate nuance is needs-verification
+    evade = defense.attack_evade_chance if kind == "attack" else defense.spell_evade_chance
+    block_chance = defense.attack_block_chance if kind == "attack" else defense.spell_block_chance
+    avoid = defense.dmg_avoid_chance
+    ratio = defense.block_ratio
+    # EHP survival multiplier from the take-0 / partial-reduce layers (all independent). Applies to hits only.
+    ehp_mult = max(1e-9, (1.0 - evade) * (1.0 - avoid) * (1.0 - block_chance * ratio))
+    types: dict = {}
+    for t in _INCOMING_TYPES:
+        short = _INCOMING_SHORT[t]
+        f_hit = _incoming_taken_fraction(source, defense, t, is_dot=False)
+        f_dot = _incoming_taken_fraction(source, defense, t, is_dot=True)
+        hit_in = float(dmg.get(f"{short}_hit", 0.0) or 0.0)
+        dot_in = float(dmg.get(f"{short}_dot", 0.0) or 0.0)
+        types[t] = {
+            "incoming_hit": hit_in,
+            "incoming_dot": dot_in,
+            "mitigated_hit": hit_in * f_hit,
+            "mitigated_dot": dot_in * f_dot,
+            "hit_taken_fraction": f_hit,
+            "dot_taken_fraction": f_dot,
+            "max_hit": (pool / f_hit) if f_hit > 0.0 else None,
+            "ehp": (pool / (f_hit * ehp_mult)) if f_hit > 0.0 else None,
+        }
+    return {
+        "kind": kind,
+        "pool": pool,
+        "evade_chance": evade,
+        "avoid_chance": avoid,
+        "block_chance": block_chance,
+        "block_ratio": ratio,
+        "barrier_active": defense.barrier_active,
+        "types": types,
+        "nyi": ["damage-taken-as conversions", "mitigation order (needs-verification)"],
+    }

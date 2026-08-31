@@ -7,6 +7,8 @@ import CustomModsPanel from '../components/CustomModsPanel'
 import LoadingState from '../components/LoadingState'
 import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
 import { TARGET_LEVELS, presetTargetConfig, NONPHYS_ARMOR_FACTOR, type TargetLevel } from '../utils/targetPresets'
+import { ENEMY_REGISTRY, findEnemy, configForSelection } from '../utils/enemyPresets'
+import type { EnemyDamage } from '../api/client'
 
 // Categories whose conditions always show (player-side scenario inputs relevant to any build).
 const ALWAYS_SHOW_CATEGORIES = new Set([
@@ -96,6 +98,68 @@ function EnemyTargetFields() {
         <EnemyNum label="Cold Res" value={tc.coldRes} onChange={v => setField('coldRes', v)} />
         <EnemyNum label="Lightning Res" value={tc.lightningRes} onChange={v => setField('lightningRes', v)} />
         <EnemyNum label="Erosion Res" value={tc.erosionRes} onChange={v => setField('erosionRes', v)} />
+      </div>
+    </div>
+  )
+}
+
+// A plain non-negative number field for raw incoming damage (no % suffix — unlike EnemyNum).
+function EnemyDmgNum({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const [raw, setRaw] = useState(String(value))
+  useEffect(() => { setRaw(String(value)) }, [value])
+  const commit = (s: string) => {
+    const n = parseFloat(s)
+    const v = isNaN(n) || n < 0 ? 0 : n
+    onChange(v); setRaw(String(v))
+  }
+  return (
+    <div className="enemy-field">
+      <span className="enemy-field-label">{label}</span>
+      <div className="enemy-field-input">
+        <input className="cond-stack-input" type="text" inputMode="numeric" value={raw}
+          onChange={e => setRaw(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }} />
+      </div>
+    </div>
+  )
+}
+
+// The 5 damage types shared by the incoming Hit/DoT grids (label + EnemyDamage key stem).
+const ENEMY_DMG_TYPES: readonly [string, string][] = [
+  ['Phys', 'phys'], ['Fire', 'fire'], ['Cold', 'cold'], ['Lightning', 'lightning'], ['Erosion', 'erosion'],
+]
+
+// Incoming-hit editor — the enemy skill whose per-type damage the defensive Max-Hit / EHP calc mitigates.
+// Picking an enemy/skill prefills the boxes from the registry; each value is then independently editable so the
+// owner drops in measured magnitudes later. Rendered under EnemyTargetFields in the Enemy panel.
+function EnemyIncomingFields() {
+  const ec = useBuildStore(s => s.enemyConfig)
+  const setEnemyConfig = useBuildStore(s => s.setEnemyConfig)
+  const enemy = findEnemy(ec.enemyId) ?? ENEMY_REGISTRY[0]
+  const setDamage = (k: keyof EnemyDamage, v: number) => setEnemyConfig({ ...ec, damage: { ...ec.damage, [k]: v } })
+  return (
+    <div className="enemy-fields">
+      <select className="enemy-target-select" value={ec.enemyId}
+        onChange={e => setEnemyConfig(configForSelection(e.target.value, ''))}>
+        {ENEMY_REGISTRY.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+      </select>
+      <select className="enemy-target-select" value={ec.skillId}
+        onChange={e => setEnemyConfig(configForSelection(ec.enemyId, e.target.value))}>
+        {enemy.skills.map(sk => <option key={sk.id} value={sk.id}>{sk.name} ({sk.kind})</option>)}
+      </select>
+      <span className="enemy-box-note">Incoming hit for the Max-Hit / EHP calc. Picking a skill prefills these; edit any value (owner-measured later).</span>
+      <div className="enemy-res-grid">
+        {ENEMY_DMG_TYPES.map(([label, k]) => (
+          <EnemyDmgNum key={k} label={`${label} Hit`} value={ec.damage[`${k}_hit` as keyof EnemyDamage]}
+            onChange={v => setDamage(`${k}_hit` as keyof EnemyDamage, v)} />
+        ))}
+      </div>
+      <div className="enemy-res-grid">
+        {ENEMY_DMG_TYPES.map(([label, k]) => (
+          <EnemyDmgNum key={k} label={`${label} DoT`} value={ec.damage[`${k}_dot` as keyof EnemyDamage]}
+            onChange={v => setDamage(`${k}_dot` as keyof EnemyDamage, v)} />
+        ))}
       </div>
     </div>
   )
@@ -224,6 +288,7 @@ export default function BuildOverviewScreen() {
   const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
     <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
       {isEnemy && <EnemyTargetFields />}
+      {isEnemy && <EnemyIncomingFields />}
       {visibleItems.map(cond => {
         const isComputed = cond.source === 'computed_stat'
         // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).

@@ -31,5 +31,6 @@ export function getBuildPayload(): Record<string, unknown> {
     notes: s.notes,
     customMods: s.customMods,
     targetConfig: s.targetConfig,
+    enemyConfig: s.enemyConfig,
   }
 }

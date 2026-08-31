@@ -387,7 +387,7 @@ export interface PlacedPrism {
 // loadout (the "general") via `inherit`; editing an inherited area writes through to the general.
 export type AreaKey =
   | 'talents' | 'slates' | 'prisms' | 'gear' | 'skills' | 'trait'
-  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes' | 'target'
+  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes' | 'target' | 'enemy'
 
 // Editable calc-target ("training dummy") stats. Percentages (may be negative → amplification). `level` selects a
 // preset (40/60/75/85, all boss); the 5 numbers are then independently editable. Armor-vs-Non-Phys (armor×0.6) and
@@ -399,6 +399,21 @@ export interface TargetConfig {
   coldRes: number
   lightningRes: number
   erosionRes: number
+}
+
+// Incoming-hit config: the enemy skill whose damage the defensive (Max-Hit / EHP) calc mitigates. `kind` routes
+// the block/evade layer (attack-block/evade vs spell-block/evade). Per-type hit + DoT values (raw incoming, before
+// mitigation). Prefilled from the enemy registry (utils/enemyPresets.ts) on selection, then independently editable.
+export type EnemyDamageKind = 'attack' | 'spell'
+export interface EnemyDamage {
+  phys_hit: number; fire_hit: number; cold_hit: number; lightning_hit: number; erosion_hit: number
+  phys_dot: number; fire_dot: number; cold_dot: number; lightning_dot: number; erosion_dot: number
+}
+export interface EnemyIncomingConfig {
+  enemyId: string
+  skillId: string
+  kind: EnemyDamageKind
+  damage: EnemyDamage
 }
 
 export interface Loadout {
@@ -445,6 +460,7 @@ export interface Build {
   notes?: string
   customMods?: string[]
   targetConfig?: TargetConfig
+  enemyConfig?: EnemyIncomingConfig
   // Server-stamped, read-only. Never include these in getBuildPayload/encode payloads.
   createdAt?: number
   updatedAt?: number
@@ -1038,6 +1054,29 @@ export interface DefenseResult {
   barrier_shield: number             // absorb pool = 20% of (Max Life + Max ES) × Barrier Shield
   barrier_absorption_rate: number    // 50% base × Barrier Absorption Rate, capped at 100%
   barrier_active: boolean            // gates the Barrier panel (only shown when active)
+  nyi: string[]
+}
+
+// Per-type incoming-damage mitigation + Max-Hit / EHP (defense.calculate_incoming), vs the selected enemy skill.
+export interface IncomingTypeResult {
+  incoming_hit: number
+  incoming_dot: number
+  mitigated_hit: number
+  mitigated_dot: number
+  hit_taken_fraction: number   // fraction of a raw hit that lands after the always-on layers
+  dot_taken_fraction: number
+  max_hit: number | null       // largest raw hit survivable (worst case: no evade/avoid/block); null if fully immune
+  ehp: number | null           // effective HP folding in evade/avoid/expected-block
+}
+export interface IncomingResult {
+  kind: EnemyDamageKind
+  pool: number                 // usable Life + ES (+ Barrier while active)
+  evade_chance: number
+  avoid_chance: number
+  block_chance: number
+  block_ratio: number
+  barrier_active: boolean
+  types: Record<string, IncomingTypeResult>   // keyed physical/fire/cold/lightning/erosion
   nyi: string[]
 }
 

@@ -99,7 +99,7 @@ def _make_skill(is_spell):
 def consumable_universe() -> frozenset[str]:
     from models.stat_meta import STAT_META
     from engine.offense import calculate_offense, _APS_ADDITIONAL_STATS, _CAST_ADDITIONAL_STATS
-    from engine.defense import calculate_defense
+    from engine.defense import calculate_defense, calculate_incoming
     from engine.derive import derive_stats
     from engine.compute import derive_condition_maximums, derive_condition_minimums
 
@@ -121,6 +121,11 @@ def consumable_universe() -> frozenset[str]:
         s = _make_source(conv_keys, all_keys)
         fn(s)
         consumed |= s.consumed_stats
+    # calculate_incoming reads the damage-taken pools (dmg_taken_additional + typed/hit/dot) — out of the fn-loop
+    # since it needs a DefenseResult. Scan it so those reads register as consumed (Tenacity et al. are now live).
+    s = _make_source(conv_keys, all_keys)
+    calculate_incoming(s, calculate_defense(s))
+    consumed |= s.consumed_stats
     # Speed-additional pools read via source_log, not source.total → never self-record. Add them back.
     for k, _ in _APS_ADDITIONAL_STATS:
         consumed.add(k)

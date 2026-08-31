@@ -134,6 +134,9 @@ def _read_file(build_id: str) -> dict:
     target_config_raw = data.get('targetConfig', '')
     target_config = json.loads(target_config_raw) if target_config_raw else None
 
+    enemy_config_raw = data.get('enemyConfig', '')
+    enemy_config = json.loads(enemy_config_raw) if enemy_config_raw else None
+
     # Timestamps (epoch seconds). Files predating this field have neither line — fall back to the
     # file's own mtime for both, so a legacy build still sorts/displays sensibly.
     created_at_raw = data.get('createdAt', '')
@@ -182,6 +185,7 @@ def _read_file(build_id: str) -> dict:
         'loadouts': loadouts,
         'activeLoadoutId': active_loadout_id,
         'targetConfig': target_config,
+        'enemyConfig': enemy_config,
     }
 
 
@@ -260,6 +264,9 @@ def _write_file(build: dict) -> None:
         target_config = build.get('targetConfig')
         if target_config:
             f.write(f"targetConfig={json.dumps(target_config, separators=(',', ':'))}\n")
+        enemy_config = build.get('enemyConfig')
+        if enemy_config:
+            f.write(f"enemyConfig={json.dumps(enemy_config, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:

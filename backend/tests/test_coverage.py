@@ -355,18 +355,17 @@ class TestGluedClauseFullLineRule:
     multi-clause `badge_text`. No dedicated test existed for this rule before this fix; this class is that
     coverage."""
 
-    def test_fragile_resurrection_partial_with_unmodeled_damage_taken_clause(self):
-        """The specific overclaim this fix closed: fragile_resurrection's 3rd description line glues onto
-        a single `badge_text` alongside the (dropped, unconsumed) '+10% additional damage taken during the
-        supported skill's restoration effect' clause. Pre-fix, resolving the whole glued blob only ever
-        surfaced the FIRST clause's key, so this item could read 'full' despite the damage-taken clause
-        never being consumed anywhere (`dmg_taken_additional` is tracked-only in `mod_parser.py`, never
-        wired into a consumer, so never in `consumable_universe()`)."""
+    def test_fragile_resurrection_full_now_that_damage_taken_is_consumed(self):
+        """WS3 (2026-08-30) wired the damage-taken family (`dmg_taken_additional` + typed/hit/dot) into the
+        incoming-damage / Max-Hit-EHP calc (`defense.calculate_incoming`), so it is now CONSUMED and in
+        `consumable_universe()`. fragile_resurrection's '+10% additional damage taken during the supported
+        skill's restoration effect' clause therefore resolves to a modeled key, and the item now reads 'full'.
+        (Before WS3 it read 'partial' because `dmg_taken_additional` was tracked-only.) The glued-clause rule
+        itself is still exercised by `test_glued_line_with_one_unconsumed_clause_is_not_full` below, which uses
+        a damage-taken-AS conversion — a defensive key WS3 deliberately left deferred/unconsumed."""
         status, detail = skill_coverage(_SKILLS["fragile_resurrection"])
-        assert status == "partial"
-        joined = " ".join(detail).lower()
-        assert "additional damage taken" in joined
-        assert "restoration effect" in joined
+        assert status == "full"
+        assert detail == []
 
     def test_glued_line_with_one_unconsumed_clause_is_not_full(self):
         """Focused unit test of the rule itself, through `skill_coverage`'s public entry point (not the
@@ -374,22 +373,22 @@ class TestGluedClauseFullLineRule:
         `_clause_resolves` and `_reduce_tooltip_lines`). A single `badge_text` carrying two distinct
         clauses glued at the live `_strip_support_target` truncation boundary — one that resolves to a
         confident, CONSUMED key ("+50% Cold Damage for the supported skill" -> `cold_dmg_inc`, which the
-        engine reads) and one that resolves but to a key the engine never consumes (fragile_resurrection's
-        own real "+10% additional damage taken during the supported skill's restoration effect" ->
-        `dmg_taken_additional`) — must NOT count as modeled even though the first clause alone would.
+        engine reads) and one that resolves but to a key the engine never consumes ("20% of Physical Damage
+        Taken as Fire" -> `physical_taken_as_fire_inc`, a damage-taken-AS conversion WS3 deliberately left
+        deferred/unconsumed) — must NOT count as modeled even though the first clause alone would.
         `item_id='fragile_resurrection'` is passed so the second clause resolves via that item's own
         bespoke scoping (mirrors the live resolver's item-scoped lookup), same as production."""
         skill_data = {"item_id": "fragile_resurrection", "skill_type": "support_skill"}
         bt = (
             "+50 % Cold Damage for the supported skill. "
-            "+10 % additional damage taken during the supported skill's restoration effect"
+            "20 % of Physical Damage Taken as Fire"
         )
         tooltip = {"lines": [{"badge_text": bt, "text": bt}]}
         status, detail = skill_coverage(skill_data, tooltip)
         assert status == "partial"
         assert detail
         joined = " ".join(detail).lower()
-        assert "additional damage taken" in joined
+        assert "taken as fire" in joined
         # The RESOLVING clause must not itself be reported as unmodeled — only the genuinely unconsumed
         # clause belongs in coverage_detail.
         assert "cold damage" not in joined
@@ -450,10 +449,12 @@ class TestSupportCoverageInvariants:
         walking `build_tooltip`'s lines directly and re-splitting/re-resolving with the SAME coverage-local
         primitives `_reduce_tooltip_lines` itself uses (`_split_coverage_clauses` + `_clause_resolves`) —
         and confirm there is no clause left unconsumed. This is the exact guard that would have caught the
-        `fragile_resurrection` overclaim before this fix landed (its glued 3rd clause resolves to
-        `dmg_taken_additional`, a recognized-but-never-consumed key): a regression that stops splitting a
-        glued line, or starts trusting an unconsumed clause, flips a 'full' item without necessarily
-        emptying `coverage_detail` in a way the simpler invariant above would catch on its own."""
+        `fragile_resurrection` overclaim before the 2026-07-12 fix landed (its glued 3rd clause historically
+        resolved to `dmg_taken_additional` — a then-never-consumed key; WS3 has since made that family
+        consumed, so fragile_resurrection now reads 'full' honestly, but the same guard still catches any
+        glued line with a genuinely-unconsumed clause, e.g. a damage-taken-AS conversion): a regression that
+        stops splitting a glued line, or starts trusting an unconsumed clause, flips a 'full' item without
+        necessarily emptying `coverage_detail` in a way the simpler invariant above would catch on its own."""
         from engine.coverage import _SUPPORT_SKILL_TYPES, _split_coverage_clauses, _clause_resolves
         from engine.tooltip import build_tooltip
         from engine.consumable_universe import consumable_universe
@@ -552,14 +553,18 @@ class TestLegendaryCoverage:
         assert status == "full"
         assert detail == []
 
-    def test_aeterna_martyr_partial_defensive_mod_unconsumed(self):
-        """The key strict-definition case: aeterna_martyr carries a defensive "-additional Physical
-        Damage taken" affix the engine never consumes (no damage-taken-reduction stat is read for
-        this item). Even though the item has plenty of modeled offense affixes, the strict rule
-        means ANY unconsumed affix drops it to 'partial' — never silently promoted to 'full'."""
+    def test_aeterna_martyr_partial_with_unconsumed_affixes(self):
+        """The key strict-definition case: aeterna_martyr carries affixes the engine never consumes
+        (Trauma-inflict chance, Reaping Recovery Speed, per-crit additional Trauma Damage). Even with
+        plenty of modeled offense affixes, the strict rule means ANY unconsumed affix drops it to
+        'partial' — never silently promoted to 'full'. NOTE: its '-additional Physical Damage taken'
+        affix is NO LONGER an example here — WS3 made the damage-taken family CONSUMED (calculate_incoming),
+        so that clause is now modeled and must not appear as unmodeled."""
         status, detail = legendary_coverage(_LEGENDARIES["aeterna_martyr"])
         assert status == "partial"
-        assert any("physical damage taken" in d.lower() for d in detail), detail
+        assert detail
+        joined = " ".join(detail).lower()
+        assert "physical damage taken" not in joined
 
     def test_elemental_whirl_partial(self):
         status, detail = legendary_coverage(_LEGENDARIES["elemental_whirl"])
@@ -705,7 +710,8 @@ class TestEndpointWiring:
             a for a in base["explicits"] if "additional Physical Damage taken" in (a.get("raw_text") or "")
         )
         assert phys_dmg_taken["resolved_keys"] == ["physical_dmg_taken_additional"], (
-            "this affix is recognized (non-empty resolved_keys) but its key is never CONSUMED anywhere — "
-            "the reason aeterna_martyr's legendary_coverage is 'partial' despite this affix resolving; "
+            "this affix is recognized (non-empty resolved_keys) — it resolves to physical_dmg_taken_additional, "
+            "which WS3's calculate_incoming now CONSUMES (so it no longer drives aeterna_martyr's 'partial'; "
+            "the Trauma-inflict / Reaping-Recovery affixes do). This assertion just pins that the affix RESOLVES, "
             "distinct from the trauma-stacking affix above, which is genuinely unrecognized (empty list)"
         )

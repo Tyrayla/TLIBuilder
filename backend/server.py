@@ -617,6 +617,16 @@ class TargetConfigRequest(BaseModel):
     erosionRes:   float = 30.0
 
 
+class EnemyIncomingRequest(BaseModel):
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc. `kind` ('attack'|'spell') routes the
+    # block/evade layer; `damage` carries raw per-type hit/DoT magnitudes (<type>_hit / <type>_dot), passed
+    # through as-is (no percent scaling). Defaults = the Test Enemy's Test Attack (1000 per hit type).
+    enemyId: str = "test_enemy"
+    skillId: str = "test_attack"
+    kind:    str = "attack"
+    damage:  dict[str, float] = {}
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
@@ -651,6 +661,7 @@ class EngineStatsRequest(BaseModel):
     elixir_ingredients: dict[str, list[str]] = {}
     uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
     target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
+    enemy_config:    EnemyIncomingRequest | None = None  # incoming-hit enemy skill for defensive Max-Hit / EHP (WS3)
 
 
 # node_type_filter.json is ~520 KB and season-static, but was reparsed on EVERY engine_stats call (and N times
@@ -1006,6 +1017,16 @@ def engine_stats(req: EngineStatsRequest):
         "lightning_res": _tc.lightningRes / 100.0,
         "erosion_res": _tc.erosionRes / 100.0,
     }
+
+    # Incoming-hit enemy skill → passed through as-is (raw per-type damage; no percent scaling). None keeps the
+    # defensive calc on its Test-Attack default when the client sends nothing.
+    _ec = req.enemy_config
+    enemy_config = None if _ec is None else {
+        "enemyId": _ec.enemyId,
+        "skillId": _ec.skillId,
+        "kind": _ec.kind,
+        "damage": dict(_ec.damage),
+    }
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -1033,6 +1054,7 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
+        enemy_config=enemy_config,
         inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()),
     )
     from engine.identity_index import get_identity_index
@@ -1053,6 +1075,7 @@ def engine_stats(req: EngineStatsRequest):
         "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
+        "incoming": result.incoming,
         "recovery": result.recovery,
         "consumption": result.consumption,
         "skill_cost": result.skill_cost,

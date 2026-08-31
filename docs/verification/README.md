@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**87 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 47
+**88 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 50
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -47,7 +47,9 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Support universal-line rank table | Chain Lightning | supports, damage-pool | ⬜ Pending | — | [support-rank-table.md](support-rank-table.md) |
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
 | Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
+| Barrier (Six Gods' Blessing) | — | defense, barrier, absorb | ⚠️ Unverified | — | [barrier.md](barrier.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
+| Chance to Avoid Damage (incl. Blur) | — | defense, avoidance, blur | ⚠️ Unverified | — | [chance-to-avoid-damage.md](chance-to-avoid-damage.md) |
 | Chromatic Shot (+ canvas supports + SS13 Condensed quartet) | Chromatic Shot | skill, conversion, shotgun, season-data-driven, ailment | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
 | Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
 | Core talents (uniqueness / grants) | — | talent, damage-pool | ⚠️ Unverified | — | [core-talents.md](core-talents.md) |
@@ -66,6 +68,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Ill Omen (Ominous curse) + Reap Purification conversion (Psychic) | Ominous, Reap Purification | curse, stacking, conversion, trigger, damage-pool, true-damage | ⚠️ Unverified | — | [ill-omen.md](ill-omen.md) |
+| Incoming Damage / Max Hit / EHP | — | defense, ehp, max-hit, mitigation | ⚠️ Unverified | — | [incoming-mitigation-model.md](incoming-mitigation-model.md) |
 | Iris "Merged Spirit Magi" — Spirit Magus skills in Active Skill slots (soft-invalidation gating) | Spirit Magus skills (Spirit Magus-tagged) | hero-trait, slot-gating, soft-invalidation, trigger | ⚠️ Unverified | — | [merged-spirit-magi-active-slots.md](merged-spirit-magi-active-slots.md) |
 | Iris "Vigilant" — second-skill-slot restriction while Merged (SHELVED, not modeled) | Merged Spirit Magi (Iris "Vigilant" state) | hero-trait, slot-gating, methodology | ⚠️ Unverified | — | [iris-second-skill-slot-restriction.md](iris-second-skill-slot-restriction.md) |
 | Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |
@@ -92,7 +95,5 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Steel Vanguard "Knowledgeable" — Focus Skills in Active Skill slots (soft-invalidation gating) | Focus skills (Focus-tagged) | core-talent, slot-gating, soft-invalidation, reservation, sealing, trigger | ⚠️ Unverified | — | [knowledgeable-focus-active-slots.md](knowledgeable-focus-active-slots.md) |
 | Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |
 | Torturer's Touch (Affliction + Reaping) — tuning math and frame-quantization theory | Affliction, Reaping | dot, stacking, true-damage, trigger, breakpoint, tick-rounding, damage-pool | ⚠️ Unverified | — | [torturers-touch-reaping.md](torturers-touch-reaping.md) |
-| Barrier (Six Gods' Blessing) | — | defense, barrier, absorb | ⚠️ Unverified | — | [barrier.md](barrier.md) |
-| Chance to Avoid Damage (incl. Blur) | — | defense, avoidance, blur | ⚠️ Unverified | — | [chance-to-avoid-damage.md](chance-to-avoid-damage.md) |
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
 | Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |

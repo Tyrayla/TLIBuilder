@@ -709,6 +709,7 @@ def compute(
             identity_index=identity_index,
         )
         source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
+        source.enemy_config = build_input.enemy_config      # incoming-hit enemy skill → defensive Max-Hit / EHP (WS3)
 
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
@@ -1423,7 +1424,7 @@ def compute(
 
     # Post-loop offense and defense (not part of the fixed-point convergence)
     from dataclasses import asdict
-    from engine.defense import calculate_defense
+    from engine.defense import calculate_defense, calculate_incoming
     from engine.offense import calculate_offense, skill_effective_level
     from engine.skill_resolver import resolve_skill
     from engine import skill_charges
@@ -1433,7 +1434,10 @@ def compute(
     # runs the full pipeline with recording SUSPENDED inside calculate_offense, so its damage
     # mods still fall out of consumed_stats and read as inert; see offense.py's partial-support note).
     source._recording = True
-    result_defense = asdict(calculate_defense(source, reservation))
+    _defense_obj = calculate_defense(source, reservation)
+    result_defense = asdict(_defense_obj)
+    # Per-type Max-Hit / EHP vs the selected enemy skill (source.enemy_config). Reuses the defense values above.
+    result_incoming = calculate_incoming(source, _defense_obj)
 
     # Recovery / sustain (Restoration, Regain, Regen, Temporary pools, EHP) — post-loop derived display, mirrors
     # defense. Restoration inputs (Elixir-scaled tonics + Rebirth-converted regain) come from the elixir summaries.
@@ -2047,6 +2051,7 @@ def compute(
         clamp_report=clamp_report,
         offense=result_offense,
         defense=result_defense,
+        incoming=result_incoming,
         recovery=result_recovery,
         consumption=result_consumption,
         skill_cost=result_skill_cost,
