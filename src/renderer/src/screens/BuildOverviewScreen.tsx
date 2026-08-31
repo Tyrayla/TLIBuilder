@@ -12,7 +12,7 @@ import type { EnemyDamage } from '../api/client'
 
 // Categories whose conditions always show (player-side scenario inputs relevant to any build).
 const ALWAYS_SHOW_CATEGORIES = new Set([
-  'Blessings', 'Enemy', 'Resources', 'Movement', 'Character', 'Recent', 'Fervor', 'Attributes',
+  'Blessings', 'Enemy', 'Debuffs', 'Resources', 'Movement', 'Character', 'Recent', 'Fervor', 'Attributes',
 ])
 // Exceptions inside an always-show category that are instead source-gated (only shown if a mod consumes them).
 const REFERENCE_GATED_KEYS = new Set(['mana_consumed_recently', 'life_consumed_recently'])
@@ -23,7 +23,7 @@ const EQUIPMENT_GATE: Record<string, keyof WornWeaponFlags> = {
 
 // Per-category accent color for the Config panels' left border (falls back to a neutral lavender).
 const CATEGORY_ACCENT: Record<string, string> = {
-  Buffs: '#7fc97f', Enemy: '#e0726a', 'Hero Trait': '#c0a0ff', Skill: '#f0c070', Combat: '#e8923c',
+  Buffs: '#7fc97f', Enemy: '#e0726a', Debuffs: '#d06a9a', 'Hero Trait': '#c0a0ff', Skill: '#f0c070', Combat: '#e8923c',
   Recent: '#9aa0c8', Resources: '#6fc0e0', Blessings: '#9090e0', Movement: '#60c0e8', Fervor: '#c8a050',
   Character: '#e0a050', Equipment: '#8a8aa0', Tangle: '#8888ff', 'Spell Burst': '#c8a0ff', Attributes: '#6fa8e0',
 }
@@ -281,7 +281,13 @@ export default function BuildOverviewScreen() {
   }
 
   // Enemy first — the Enemy/Target editor is merged into the top of the Enemy panel, so it stays pinned at the top.
-  const condCategories = conditionsData ? Object.entries(conditionsData) : []
+  // Split the data's "Enemy" category for display: the enemy-STATUS conditions (Enemy is Ignited / Numbed /
+  // Frostbitten, ailment stacks, enemy proximity/life, …) move to a "Debuffs" group; the "Enemy" group is kept
+  // for the injected offense/defense config (target dummy + incoming skill), which renders even with zero
+  // conditions via isEnemy. Display-only remap — condition keys are unchanged, so engine gating is unaffected.
+  const condCategories: [string, ConditionDef[]][] = (conditionsData ? Object.entries(conditionsData) : [])
+    .map(([cat, items]) => (cat === 'Enemy' ? ['Debuffs', items] : [cat, items]) as [string, ConditionDef[]])
+  if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 
   // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
@@ -421,12 +427,23 @@ export default function BuildOverviewScreen() {
     }
     const isEnemy = cat === 'Enemy'
     if (cat === 'Character') {
+      // Top of the MIDDLE column.
       place({ order: -1, weight: visibleItems.length + 1, node: renderCategoryPanel(cat, visibleItems, false) }, 1)
       return
     }
-    if (visibleItems.length === 0 && !isEnemy) return
-    restPanels.push({ order: idx, weight: visibleItems.length + 1 + (isEnemy ? 5 : 0),
-      node: renderCategoryPanel(cat, visibleItems, isEnemy) })
+    if (cat === 'Resources') {
+      // MIDDLE column, directly under Character (order 0 sorts after Character's -1).
+      place({ order: 0, weight: visibleItems.length + 1, node: renderCategoryPanel(cat, visibleItems, false) }, 1)
+      return
+    }
+    if (isEnemy) {
+      // Top of the RIGHT column — the enemy offense/defense config (target dummy + incoming skill).
+      place({ order: -1, weight: visibleItems.length + 6, node: renderCategoryPanel(cat, visibleItems, isEnemy) }, 2)
+      return
+    }
+    if (visibleItems.length === 0) return
+    restPanels.push({ order: idx, weight: visibleItems.length + 1,
+      node: renderCategoryPanel(cat, visibleItems, false) })
   })
   restPanels.sort((a, b) => b.weight - a.weight)
   for (const p of restPanels) place(p, colH.indexOf(Math.min(...colH)))
