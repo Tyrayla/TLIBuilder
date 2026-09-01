@@ -1204,6 +1204,10 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   const statMapName = (stat: string) => ctx?.statMap?.[stat]?.display_name ?? stat
   const fmtGrant = (stat: string, amt: number) =>
     /_flat$/.test(stat) ? fmtNum(amt) : fmtPct(amt)
+  // Same as fmtGrant but with the source-breakdown's up-to-2-decimal percent precision (fmtPct rounds to a
+  // whole percent, which is right for the always-visible grant line but loses precision inside the hover).
+  const fmtGrant2 = (stat: string, amt: number) =>
+    /_flat$/.test(stat) ? fmtNum(amt) : `${dec(amt * 100)}%`
   return (
     <StatPanel title={`${slotLabel(slot)} — ${skill.name} (Level ${skill.level})`} accent={disabled ? '#777' : AMBER}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
@@ -1261,9 +1265,9 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
           {curse.modeled ? (() => {
             // Final = Base × (1 + Curse Effect) × (1 + Additional Curse Effect). Show the derivation on hover.
             const extra = [
-              { value: fmtPct(curse.base_amount), stat: 'Base', source: 'Curse', sourceName: curse.curse_name },
-              ...(curse.curse_effect_inc ? [{ value: `×${dec((1 + curse.curse_effect_inc))}`, stat: 'Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_inc * 100)}%` }] : []),
-              ...(curse.curse_effect_additional ? [{ value: `×${dec((1 + curse.curse_effect_additional))}`, stat: 'Additional Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_additional * 100)}%` }] : []),
+              { value: `${dec(curse.base_amount * 100)}%`, stat: 'Base', source: 'Curse', sourceName: curse.curse_name },
+              ...(curse.curse_effect_inc ? [{ value: `×${dec((1 + curse.curse_effect_inc))}`, stat: 'Curse Effect', source: '', sourceName: `+${dec(curse.curse_effect_inc * 100)}%` }] : []),
+              ...(curse.curse_effect_additional ? [{ value: `×${dec((1 + curse.curse_effect_additional))}`, stat: 'Additional Curse Effect', source: '', sourceName: `+${dec(curse.curse_effect_additional * 100)}%` }] : []),
             ]
             return (
               <Row label={_curseDebuffLabel(curse.stat_key)} breakdown={{
@@ -1309,8 +1313,8 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
             // not scaled — its base IS its final, so only show the multiplier step for the scaled buffs).
             const scaled = !g.is_aura_effect && aura.aura_effect_inc !== 0
             const extra = scaled ? [
-              { value: fmtGrant(g.stat, g.base), stat: 'Base', source: 'Aura', sourceName: aura.name },
-              { value: `×${dec((1 + aura.aura_effect_inc))}`, stat: 'Aura Effect', source: '', sourceName: `+${Math.round(aura.aura_effect_inc * 100)}%` },
+              { value: fmtGrant2(g.stat, g.base), stat: 'Base', source: 'Aura', sourceName: aura.name },
+              { value: `×${dec((1 + aura.aura_effect_inc))}`, stat: 'Aura Effect', source: '', sourceName: `+${dec(aura.aura_effect_inc * 100)}%` },
             ] : undefined
             return (
               <Row key={i} label={statMapName(g.stat)} breakdown={extra ? {
@@ -1360,8 +1364,8 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
             // Final = Base × (1 + Empower Effect); show the derivation on hover (the Empower-Effect pool isn't scaled).
             const scaled = !g.is_empower_effect && empower.empower_effect_inc !== 0
             const extra = scaled ? [
-              { value: fmtGrant(g.stat, g.base), stat: 'Base', source: 'Empower', sourceName: empower.name },
-              { value: `×${dec((1 + empower.empower_effect_inc))}`, stat: 'Empower Effect', source: '', sourceName: `+${Math.round(empower.empower_effect_inc * 100)}%` },
+              { value: fmtGrant2(g.stat, g.base), stat: 'Base', source: 'Empower', sourceName: empower.name },
+              { value: `×${dec((1 + empower.empower_effect_inc))}`, stat: 'Empower Effect', source: '', sourceName: `+${dec(empower.empower_effect_inc * 100)}%` },
             ] : undefined
             return (
               <Row key={i} label={statMapName(g.stat)} breakdown={extra ? {
@@ -1484,8 +1488,8 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
             const scaled = !g.no_scale && !g.is_elixir_effect && elixir.elixir_effect_inc !== 0
             const flag = g.no_scale
             const extra = [
-              { value: flag ? '✓' : fmtGrant(g.stat, g.base), stat: 'Base', source: 'Elixir', sourceName: elixir.name },
-              ...(scaled ? [{ value: `×${dec((1 + elixir.elixir_effect_inc))}`, stat: 'Elixir Effect', source: '', sourceName: `+${Math.round(elixir.elixir_effect_inc * 100)}%` }] : []),
+              { value: flag ? '✓' : fmtGrant2(g.stat, g.base), stat: 'Base', source: 'Elixir', sourceName: elixir.name },
+              ...(scaled ? [{ value: `×${dec((1 + elixir.elixir_effect_inc))}`, stat: 'Elixir Effect', source: '', sourceName: `+${dec(elixir.elixir_effect_inc * 100)}%` }] : []),
             ]
             // Row value is floored (against the player) so it never overstates what the engine uses (e.g. 2.3
             // projectiles → 2). The breakdown Total shows the TRUE value to 2 decimals (2.3) so the user can see
@@ -3217,7 +3221,10 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
 function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
   if (!target) return null
   const pct = (x: number) => `${Math.round(x * 100)}%`
-  const spct = (x: number) => `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`
+  // 2-decimal counterparts used only inside the source-breakdown popovers below (pct above stays
+  // whole-percent for the always-visible row value).
+  const pct2 = (x: number) => `${dec(x * 100)}%`
+  const spct2 = (x: number) => `${x >= 0 ? '+' : ''}${dec(x * 100)}%`
   const src = target.source ?? 'Target'
   const a = target.armor
   // Each row carries the SEPARATED steps: base (dummy constant) → reduction (enemy resist debuff) → resist
@@ -3242,14 +3249,14 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
     <StatPanel title={`Target (${src})`} accent="#b03030">
       {rows.map(r => {
         const amplified = r.effective < 0
-        const extra: ExtraRow[] = [{ value: pct(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
-        if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
+        const extra: ExtraRow[] = [{ value: pct2(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
+        if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct2(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
         // Penetration sources for this row — pulled from target.pen_sources (which carries skill-SCOPED pens that
         // never reach the global stat_map, so the stat_map `keys` lookup misses them). Shown as a deduction.
         for (const key of r.penKeys) {
           for (const s of (target.pen_sources?.[key] ?? [])) {
             if (Math.abs(s.amount) < 1e-9) continue
-            extra.push({ value: `−${Math.round(s.amount * 100)}%`, stat: `${r.baseStat} Penetration`,
+            extra.push({ value: `−${dec(s.amount * 100)}%`, stat: `${r.baseStat} Penetration`,
               source: s.label || s.source_type, sourceName: s.source_name || s.text || '' })
           }
         }
@@ -3285,47 +3292,75 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
 // ── Incoming damage / Max Hit / EHP panel (WS3) ──────────────────────────────────
 // Per-type mitigation of the selected enemy skill (Config → Enemy). Sits in the left column under the offense
 // result. Max Hit = pool ÷ always-on-taken-fraction (no evade/avoid/block); EHP folds in the probabilistic layers.
-function IncomingPanel({ incoming }: { incoming: IncomingResult | null }) {
+function IncomingPanel({ incoming, defense }: { incoming: IncomingResult | null; defense: DefenseResult | null }) {
   if (!incoming) return null
   const th: React.CSSProperties = { textAlign: 'right', fontSize: 11, color: '#888', fontWeight: 600, paddingBottom: 3, paddingLeft: 4, paddingRight: 4, whiteSpace: 'nowrap' }
   const td: React.CSSProperties = { textAlign: 'right', fontSize: 12, fontVariantNumeric: 'tabular-nums', paddingLeft: 4, paddingRight: 4, color: '#e0e0e0', whiteSpace: 'nowrap' }
   const tdLbl: React.CSSProperties = { textAlign: 'left', fontSize: 12, color: '#888', paddingRight: 8, whiteSpace: 'nowrap' }
-  const tdDim: React.CSSProperties = { ...td, color: '#555' }
   const pct = (v: number) => `${(v * 100).toFixed(0)}%`
-  const num = (v: number | null) => (v == null ? '∞' : fmtNum(v))
+  // 2-decimal counterpart used only inside the source-breakdown popovers below (pct above stays whole-percent
+  // for the always-visible table cells).
+  const pct2 = (v: number) => `${dec(v * 100)}%`
   const T = (d: string) => incoming.types[d]
   const hasDot = ALL_DTYPES.some(d => (T(d)?.incoming_dot ?? 0) > 0)
-  const hitCell = (d: string, v: number) => <td key={d} style={T(d).incoming_hit ? td : tdDim}>{T(d).incoming_hit ? fmtNum(v) : '—'}</td>
   const kindLabel = incoming.kind === 'spell' ? 'Spell' : 'Attack'
-  const poolExtra: ExtraRow = { value: fmtNum(incoming.pool), stat: 'Effective Pool', source: incoming.barrier_active ? 'Life + ES + Barrier' : 'Life + ES', sourceName: `unsealed Life + Energy Shield${incoming.barrier_active ? ' + Barrier (absorb pool)' : ''}` }
-  // Row label carrying a hover breakdown (formula + the inputs that used to sit in the header line). All the
-  // "vs Attack · Pool · Evade · Avoid · Block" context now lives here, per-row, and nowhere else.
-  const lbl = (text: string, color: string, formula: string, extra: ExtraRow[] = []) => (
-    <td style={{ ...tdLbl, color }}><Breakdown title={text} keys={[]} formula={formula} extra={extra}>{text}</Breakdown></td>
+  const poolSrc = incoming.barrier_active ? 'Life + ES + Barrier' : 'Life + ES'
+  // Damage-taken modifier keys still resolve to their real gear/talent/debuff sources via the shared
+  // collectSources lookup (there are usually only one or two of these, so listing them is useful, not noise).
+  const dtKeys = (d: string, dot: boolean) => [
+    'dmg_taken_additional',
+    ...(d === 'physical' ? ['physical_dmg_taken_additional'] : d === 'erosion' ? [] : ['elemental_dmg_taken_additional']),
+    dot ? 'dot_dmg_taken_additional' : 'hit_dmg_taken_additional',
+  ]
+  const RESIST_TOTAL: Record<string, number> = {
+    physical: 0, fire: defense?.fire_resist ?? 0, cold: defense?.cold_resist ?? 0,
+    lightning: defense?.lightning_resist ?? 0, erosion: defense?.erosion_resist ?? 0,
+  }
+  // Armour/Resistance are already-computed, capped totals (Armour is nonlinear rating → mitigation-%; Resistance
+  // sums many sources and caps) — show the ONE final number, never their underlying flat/inc/rating build-up.
+  const mitigExtra = (d: string, dot: boolean): ExtraRow[] => [
+    ...(dot ? [] : [{ value: pct2(d === 'physical' ? (defense?.armor_phys_mitigation ?? 0) : (defense?.armor_nonphys_mitigation ?? 0)), stat: 'Armour Mitigation', source: 'Armour', sourceName: `${fmtNum(defense?.armor ?? 0)} rating` }]),
+    ...(d === 'physical' ? [] : [{ value: `${dec(RESIST_TOTAL[d])}%`, stat: `${DTYPE_LABEL[d]} Resistance`, source: 'Resistance', sourceName: 'capped total, all sources' }]),
+  ]
+  const poolExtra: ExtraRow = { value: fmtNum(incoming.pool), stat: 'Effective Pool', source: poolSrc, sourceName: `unsealed Life + Energy Shield${incoming.barrier_active ? ' + Barrier (absorb pool)' : ''}` }
+  const maxHitExtra = (d: string): ExtraRow[] => [poolExtra, { value: pct2(1 - T(d).hit_taken_fraction), stat: 'Mitigation', source: 'Armour + Resistance + Damage Taken', sourceName: 'always-on layers (no evade / avoid / block)' }]
+  // Only surface the probabilistic layers that are actually in play — a 0% Avoid row when no affix grants it
+  // is noise, not a summary. "Chance to Avoid Damage" is the real in-game stat name (see DefensePanels above) —
+  // it is NOT specifically "Blur", Blur is just one of several sources that can feed it.
+  const ehpExtra: ExtraRow[] = [
+    poolExtra,
+    ...(incoming.evade_chance > 0 ? [{ value: pct2(incoming.evade_chance), stat: 'Evade Chance', source: kindLabel, sourceName: 'take 0 (whole hit), cap 75%' }] : []),
+    ...(incoming.avoid_chance > 0 ? [{ value: pct2(incoming.avoid_chance), stat: 'Chance to Avoid Damage', source: 'Affixes', sourceName: `take 0 per type, cap 60%${(defense?.dmg_avoid_blur ?? 0) > 0 ? ' (incl. Blur)' : ''}` }] : []),
+    ...(incoming.block_chance > 0 ? [{ value: `${pct2(incoming.block_chance)} × ${pct2(incoming.block_ratio)}`, stat: 'Block', source: kindLabel, sourceName: 'chance × ratio = expected reduction' }] : []),
+  ]
+  // A per-type value cell wrapping a Breakdown hover (keys → real sources, total → the derived value, + formula).
+  const cell = (d: string, show: boolean, disp: string, color: string, keys: string[], total: number | null, unit: string, formula: string, extra?: ExtraRow[]) => (
+    <td key={d} style={{ ...td, color: show ? color : '#555' }}>
+      {show
+        ? <Breakdown title={`${disp} — ${DTYPE_LABEL[d]}`} keys={keys} total={total ?? undefined} totalUnit={unit} formula={formula} extra={extra}>{total == null ? '∞' : disp === 'Mitigation' ? pct(1 - T(d).hit_taken_fraction) : fmtNum(total)}</Breakdown>
+        : '—'}
+    </td>
   )
   return (
     <StatPanel title="Effective HP / Max Hit" accent="#b0503a"
-      info="Per-type mitigation of the selected enemy skill (set in Config → Enemy). Hover any row label for its formula and inputs. Max Hit = the largest single raw hit you survive, worst case (no evade / avoid / block). EHP folds in Evasion, Chance to Avoid Damage, and expected Block. DoT rows take resistance only. Mitigation order is not yet in-game-verified.">
+      info="Per-type mitigation of the selected enemy skill (set in Config → Enemy). Hover any value for its formula and the contributing sources. Max Hit = the largest single raw hit you survive, worst case (no evade / avoid / block). EHP folds in Evasion, Chance to Avoid Damage, and expected Block. DoT rows take resistance only. Mitigation order is not yet in-game-verified.">
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>
           <th style={{ ...th, textAlign: 'left' }} />
           {ALL_DTYPES.map(d => <th key={d} style={{ ...th, color: DTYPE_COLOR[d] }}>{DTYPE_LABEL[d]}</th>)}
         </tr></thead>
         <tbody>
-          <tr>{lbl('Incoming Hit', '#888', `The selected enemy skill's raw per-type hit (kind: ${kindLabel}). Set in Config → Enemy.`)}{ALL_DTYPES.map(d => hitCell(d, T(d).incoming_hit))}</tr>
-          <tr>{lbl('Mitigated Hit', '#888', 'Incoming × (1 − Armour) × (1 − Resistance) × (1 + Damage Taken). DoT skips armour.')}{ALL_DTYPES.map(d => hitCell(d, T(d).mitigated_hit))}</tr>
-          <tr>{lbl('Mitigation', '#888', '1 − taken fraction (the always-on Armour + Resistance + Damage-Taken layers).')}{ALL_DTYPES.map(d => <td key={d} style={td}>{pct(1 - T(d).hit_taken_fraction)}</td>)}</tr>
-          <tr>{lbl('Max Hit', '#d0a090', 'Effective Pool ÷ mitigated-fraction — the largest single raw hit you survive (worst case: no evade / avoid / block).', [poolExtra])}{ALL_DTYPES.map(d => <td key={d} style={{ ...td, color: '#e0b0a0' }}>{num(T(d).max_hit)}</td>)}</tr>
-          <tr>{lbl('EHP', '#9ac89a', 'Effective Pool ÷ [ mitigated-fraction × (1 − Evade) × (1 − Avoid) × (1 − Block chance × Block ratio) ] — sustained survivability including the probabilistic layers.', [poolExtra, { value: pct(incoming.evade_chance), stat: 'Evade Chance', source: kindLabel, sourceName: 'take 0 (whole hit), cap 75%' }, { value: pct(incoming.avoid_chance), stat: 'Avoid Chance', source: 'Blur / affixes', sourceName: 'take 0 per type, cap 60%' }, { value: `${pct(incoming.block_chance)} × ${pct(incoming.block_ratio)}`, stat: 'Block', source: kindLabel, sourceName: 'chance × ratio = expected reduction' }])}{ALL_DTYPES.map(d => <td key={d} style={{ ...td, color: '#b0e0b0' }}>{num(T(d).ehp)}</td>)}</tr>
+          <tr><td style={tdLbl}>Incoming Hit</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_hit, 'Incoming Hit', '#e0e0e0', [], T(d).incoming_hit, '', `Raw ${kindLabel} hit from the selected enemy skill. Edit in Config → Enemy.`))}</tr>
+          <tr><td style={tdLbl}>Mitigated Hit</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_hit, 'Mitigated Hit', '#e0e0e0', dtKeys(d, false), T(d).mitigated_hit, '', 'Incoming × (1 − Armour) × (1 − Resistance) × (1 + Damage Taken).', mitigExtra(d, false)))}</tr>
+          <tr><td style={tdLbl}>Mitigation</td>{ALL_DTYPES.map(d => cell(d, true, 'Mitigation', '#e0e0e0', dtKeys(d, false), 1 - T(d).hit_taken_fraction, '%', '1 − (1 − Armour)(1 − Resistance)(1 + Damage Taken).', mitigExtra(d, false)))}</tr>
+          <tr><td style={{ ...tdLbl, color: '#d0a090' }}>Max Hit</td>{ALL_DTYPES.map(d => cell(d, true, 'Max Hit', '#e0b0a0', [], T(d).max_hit, '', `Effective Pool (${poolSrc}) ÷ mitigated-fraction — worst case (no evade / avoid / block).`, maxHitExtra(d)))}</tr>
+          <tr><td style={{ ...tdLbl, color: '#9ac89a' }}>EHP</td>{ALL_DTYPES.map(d => cell(d, true, 'EHP', '#b0e0b0', [], T(d).ehp, '', `Effective Pool (${poolSrc}) ÷ [ mitigated-fraction × (1 − Evade)(1 − Avoid)(1 − Block chance × ratio) ].`, ehpExtra))}</tr>
           {hasDot && (<>
-            <tr>{lbl('Incoming DoT', '#888', `The selected enemy skill's raw per-type damage-over-time. Set in Config → Enemy.`)}{ALL_DTYPES.map(d => <td key={d} style={T(d).incoming_dot ? td : tdDim}>{T(d).incoming_dot ? fmtNum(T(d).incoming_dot) : '—'}</td>)}</tr>
-            <tr>{lbl('Mitigated DoT', '#888', 'Incoming DoT × (1 − Resistance) × (1 + DoT Damage Taken) — no armour, block, or evade on DoT.')}{ALL_DTYPES.map(d => <td key={d} style={T(d).incoming_dot ? td : tdDim}>{T(d).incoming_dot ? fmtNum(T(d).mitigated_dot) : '—'}</td>)}</tr>
+            <tr><td style={tdLbl}>Incoming DoT</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Incoming DoT', '#e0e0e0', [], T(d).incoming_dot, '', `Raw per-type damage-over-time from the selected enemy skill. Edit in Config → Enemy.`))}</tr>
+            <tr><td style={tdLbl}>Mitigated DoT</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Mitigated DoT', '#e0e0e0', dtKeys(d, true), T(d).mitigated_dot, '', 'Incoming DoT × (1 − Resistance) × (1 + DoT Damage Taken) — no armour / block / evade.', mitigExtra(d, true)))}</tr>
           </>)}
         </tbody>
       </table>
-      <div style={{ fontSize: 10, color: '#777', marginTop: 5 }}>
-        Incoming values are placeholders (1000/type) until measured in-game — edit them in Config → Enemy. Mitigation order + Blur/Barrier magnitudes are needs-verification.
-      </div>
     </StatPanel>
   )
 }
@@ -3521,7 +3556,7 @@ export default function PlayerStatsScreen() {
           {minionMode
             ? <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} reservation={selectedReservation} origin={selectedOrigin} minion />
             : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
-          <IncomingPanel incoming={incoming} />
+          <IncomingPanel incoming={incoming} defense={defense} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed
