@@ -373,22 +373,25 @@ class TestGluedClauseFullLineRule:
         `_clause_resolves` and `_reduce_tooltip_lines`). A single `badge_text` carrying two distinct
         clauses glued at the live `_strip_support_target` truncation boundary — one that resolves to a
         confident, CONSUMED key ("+50% Cold Damage for the supported skill" -> `cold_dmg_inc`, which the
-        engine reads) and one that resolves but to a key the engine never consumes ("20% of Physical Damage
-        Taken as Fire" -> `physical_taken_as_fire_inc`, a damage-taken-AS conversion WS3 deliberately left
-        deferred/unconsumed) — must NOT count as modeled even though the first clause alone would.
+        engine reads) and one that resolves but to a key the engine never consumes ("Adds 20% of the Damage
+        of the Off-Hand Weapon to the final damage of the Main-Hand Weapon" -> `joined_force_offhand_dmg`,
+        Joined Force's off-hand-as-stat-stick mechanic, still unmodeled) — must NOT count as modeled even
+        though the first clause alone would. (Physical/elemental "Damage Taken as" conversion — the previous
+        example here — was wired into `defense.calculate_incoming` by the incoming-damage hardening pass and
+        is now CONSUMED, so it no longer demonstrates this rule; `joined_force_offhand_dmg` replaces it.)
         `item_id='fragile_resurrection'` is passed so the second clause resolves via that item's own
         bespoke scoping (mirrors the live resolver's item-scoped lookup), same as production."""
         skill_data = {"item_id": "fragile_resurrection", "skill_type": "support_skill"}
         bt = (
             "+50 % Cold Damage for the supported skill. "
-            "20 % of Physical Damage Taken as Fire"
+            "Adds 20 % of the Damage of the Off-Hand Weapon to the final damage of the Main-Hand Weapon"
         )
         tooltip = {"lines": [{"badge_text": bt, "text": bt}]}
         status, detail = skill_coverage(skill_data, tooltip)
         assert status == "partial"
         assert detail
         joined = " ".join(detail).lower()
-        assert "taken as fire" in joined
+        assert "off-hand weapon" in joined
         # The RESOLVING clause must not itself be reported as unmodeled — only the genuinely unconsumed
         # clause belongs in coverage_detail.
         assert "cold damage" not in joined

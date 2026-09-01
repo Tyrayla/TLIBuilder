@@ -143,11 +143,34 @@ def test_full_immunity_yields_none_max_hit():
     assert fire["ehp"] is None
 
 
-def test_barrier_adds_to_pool_when_active():
-    base = _incoming(max_life=1000.0, max_energy_shield=1000.0,
-                     enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
-    withb = _incoming(cond={"barrier_active": True}, max_life=1000.0, max_energy_shield=1000.0,
-                      enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
-    # Barrier = 20% of (1000+1000) = 400 added to the 2000 pool.
-    assert base["pool"] == 2000.0
-    assert withb["pool"] == 2400.0
+def test_barrier_inactive_hit_capacity_equals_pool():
+    inc = _incoming(max_life=1000.0, max_energy_shield=1000.0,
+                    enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
+    assert inc["pool"] == 2000.0
+    assert inc["hit_capacity"] == 2000.0
+
+
+def test_barrier_active_exhausted_hit_capacity():
+    # P=2000, Barrier=20%*(1000+1000)=400, rate=50%. Non-exhausted: x = P/(1-r) = 4000; check r*x=2000 <= B=400?
+    # No -> non-exhausted case invalid here, exhausted case applies: x = P + B = 2400.
+    inc = _incoming(cond={"barrier_active": True}, max_life=1000.0, max_energy_shield=1000.0,
+                    enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
+    assert inc["pool"] == 2000.0
+    assert inc["hit_capacity"] == 2400.0
+
+
+def test_barrier_non_exhausted_case_when_barrier_is_large():
+    # P=100 (small pool), Barrier=1000 (huge, from a big life/ES base with barrier_shield_inc), rate=50%.
+    # Non-exhausted: x = P/(1-r) = 200; check r*x = 100 <= B=1000 -> valid, use x=200 (barrier never exhausts).
+    inc = _incoming(cond={"barrier_active": True}, max_life=100.0, max_energy_shield=0.0,
+                    barrier_shield_inc=39.0,  # 20%*100 * (1+39) = 800; want a bigger Barrier than the exhausted case
+                    enemy={"kind": "attack", "damage": {"phys_hit": 100.0}})
+    assert inc["pool"] == 100.0
+    assert round(inc["hit_capacity"], 4) == 200.0
+
+
+def test_barrier_max_hit_uses_barrier_aware_capacity():
+    inc = _incoming(cond={"barrier_active": True}, max_life=1000.0, max_energy_shield=1000.0, fire_resistance=0.30,
+                    enemy={"kind": "attack", "damage": {"fire_hit": 1000.0}})
+    fire = inc["types"]["fire"]
+    assert round(fire["max_hit"], 2) == round(2400.0 / 0.70, 2)

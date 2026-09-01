@@ -11,6 +11,12 @@ export interface EnemySkillDef {
   name: string
   kind: EnemyDamageKind
   damage: EnemyDamage
+  // Was this damage manually measured in-game, or is it a placeholder? false/undefined = placeholder — the
+  // UI should visibly flag it as such (do NOT let it read as a confirmed enemy hit).
+  measured?: boolean
+  // Optional free-text provenance: where the value came from (a specific measurement, a source note) or why
+  // it's a placeholder. Shown alongside the skill in the Config → Enemy editor.
+  notes?: string
 }
 export interface EnemyDef {
   id: string
@@ -34,8 +40,14 @@ export const ENEMY_REGISTRY: EnemyDef[] = [
     id: 'test_enemy',
     name: 'Test Enemy',
     skills: [
-      { id: 'test_attack', name: 'Test Attack', kind: 'attack', damage: testHit() },
-      { id: 'test_spell', name: 'Test Spell', kind: 'spell', damage: testHit() },
+      {
+        id: 'test_attack', name: 'Test Attack', kind: 'attack', damage: testHit(), measured: false,
+        notes: 'Placeholder — flat 1000/type test values, not a measured enemy hit. Replace once real hits are measured in-game.',
+      },
+      {
+        id: 'test_spell', name: 'Test Spell', kind: 'spell', damage: testHit(), measured: false,
+        notes: 'Placeholder — flat 1000/type test values, not a measured enemy hit. Replace once real hits are measured in-game.',
+      },
     ],
   },
 ]

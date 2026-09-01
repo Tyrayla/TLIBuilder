@@ -68,7 +68,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Ill Omen (Ominous curse) + Reap Purification conversion (Psychic) | Ominous, Reap Purification | curse, stacking, conversion, trigger, damage-pool, true-damage | ⚠️ Unverified | — | [ill-omen.md](ill-omen.md) |
-| Incoming Damage / Max Hit / EHP | — | defense, ehp, max-hit, mitigation | ⚠️ Unverified | — | [incoming-mitigation-model.md](incoming-mitigation-model.md) |
+| Incoming Damage / Max Hit / Static EHP | — | defense, ehp, max-hit, mitigation, conversion, dot | ⚠️ Unverified | — | [incoming-mitigation-model.md](incoming-mitigation-model.md) |
 | Iris "Merged Spirit Magi" — Spirit Magus skills in Active Skill slots (soft-invalidation gating) | Spirit Magus skills (Spirit Magus-tagged) | hero-trait, slot-gating, soft-invalidation, trigger | ⚠️ Unverified | — | [merged-spirit-magi-active-slots.md](merged-spirit-magi-active-slots.md) |
 | Iris "Vigilant" — second-skill-slot restriction while Merged (SHELVED, not modeled) | Merged Spirit Magi (Iris "Vigilant" state) | hero-trait, slot-gating, methodology | ⚠️ Unverified | — | [iris-second-skill-slot-restriction.md](iris-second-skill-slot-restriction.md) |
 | Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |

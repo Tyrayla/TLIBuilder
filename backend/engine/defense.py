@@ -296,51 +296,138 @@ def _incoming_taken_fraction(source: BuildSource, defense: DefenseResult, dtype:
     return max(0.0, taken)
 
 
+def _taken_as_fracs(source: BuildSource) -> dict[str, dict[str, float]]:
+    """{src: {dst: frac}} — 'Converts N% of <src> Damage Taken to <dst> Damage' (`{src}_taken_as_{dst}_inc`,
+    engine/mod_parser.py's generic damage-taken-conversion fallback covers any src/dst pair, not just the
+    stat.py-enumerated ones). Capped to ≤100% per source, redistributed by weight when over — mirrors the
+    outgoing-conversion cap rule (offense.py::_conversion_fracs) since no in-game statement of the incoming
+    cap/normalization rule exists yet. needs-verification."""
+    fracs: dict[str, dict[str, float]] = {}
+    for s in _INCOMING_TYPES:
+        raw = {d: max(0.0, source.total(f"{s}_taken_as_{d}_inc")) for d in _INCOMING_TYPES if d != s}
+        tot = sum(raw.values())
+        if tot > 1.0:
+            raw = {d: v / tot for d, v in raw.items()}
+        fracs[s] = {d: v for d, v in raw.items() if v > 1e-12}
+    return fracs
+
+
+def _incoming_taken_fraction_converted(source: BuildSource, defense: DefenseResult,
+                                        taken_as: dict[str, dict[str, float]], src_type: str, is_dot: bool) -> float:
+    """Weighted-average taken-fraction for `src_type` after splitting through the damage-taken-as conversion:
+    the unconverted remainder keeps `src_type`'s own armour/resistance/damage-taken, each converted slice
+    picks up its LANDING type's — a physical hit converted to fire uses fire's resistance and the reduced
+    non-physical armour rate, matching the 'conversion before type-specific mitigation' ordering. Applied to
+    both Hit and DoT with the SAME fractions — no DoT-scoped `_taken_as_` stat exists to distinguish them,
+    so this is a deliberate needs-verification assumption (surfaced in calculate_incoming's nyi list), not a
+    silent claim that DoTs convert identically to hits."""
+    fracs = taken_as.get(src_type, {})
+    stay = 1.0 - sum(fracs.values())
+    total = 0.0
+    if stay > 1e-12:
+        total += stay * _incoming_taken_fraction(source, defense, src_type, is_dot)
+    for dst, frac in fracs.items():
+        total += frac * _incoming_taken_fraction(source, defense, dst, is_dot)
+    return max(0.0, total)
+
+
+def _barrier_capacity(pool: float, barrier_shield: float, absorption_rate: float, active: bool) -> float:
+    """Max post-mitigation single-hit damage `x` survivable given usable Life+ES `pool` (P), Barrier capacity
+    `barrier_shield` (B) and `absorption_rate` (r): Barrier absorbs min(r·x, B), the remainder x − min(r·x, B)
+    must fit in P. Piecewise (owner-specified): non-exhausted case x = P/(1−r), valid iff r·x ≤ B; exhausted
+    case x = P + B, valid iff r·x > B. Does NOT assume B·r is the barrier's effective pool. Inactive/no-barrier
+    reduces to the plain pool (P). Barrier's placement in the mitigation order (i.e. that `x` is post armour/
+    resistance/damage-taken, pre-Life/ES) is assumed, unverified — see barrier.json notes."""
+    if not active or barrier_shield <= 0.0:
+        return pool
+    r = min(max(absorption_rate, 0.0), 1.0)
+    candidates: list[float] = []
+    if r < 1.0:
+        x_a = pool / (1.0 - r)
+        if r * x_a <= barrier_shield + 1e-9:
+            candidates.append(x_a)
+    x_b = pool + barrier_shield
+    if r * x_b > barrier_shield - 1e-9:
+        candidates.append(x_b)
+    return max(candidates) if candidates else pool
+
+
 def calculate_incoming(source: BuildSource, defense: DefenseResult) -> dict:
-    """Per-type incoming-damage mitigation + Max-Hit / EHP for the selected enemy skill (source.enemy_config).
-    Max Hit = effective pool ÷ always-on-taken-fraction (worst case: no evade/avoid/block). EHP folds in the
-    probabilistic layers — Evasion (attack/spell by the skill's kind), Chance to Avoid Damage (per type), and the
-    expected Block reduction (block chance × block ratio). DoT rows take resistance + DoT damage-taken only.
-    Pool = usable Life (unsealed) + Energy Shield (+ Barrier Shield while Barrier is active). Order = needs-verification."""
+    """Per-type incoming-damage mitigation + Max-Hit / static EHP for the selected enemy skill
+    (source.enemy_config). Both are STATIC, scenario-based figures — no repeated-hit simulation, attack-frequency
+    assumption, or time-to-death-from-a-boss claim.
+
+    Max Hit = the largest single raw hit of this type survivable, worst case (no evade / avoid / block).
+    Static EHP = expected raw-damage capacity for a single equivalent hit, folding in Evasion (attack/spell by
+    the skill's kind), Chance to Avoid Damage (per type), and expected Block (chance × ratio) — NOT a
+    survival-time prediction. Damage-taken-as conversions (`{src}_taken_as_{dst}_inc`) are applied BEFORE
+    type-specific armour/resistance/damage-taken mitigation (see `_incoming_taken_fraction_converted`).
+
+    Barrier (while active) uses the one-hit rate-aware model (`_barrier_capacity`) instead of a simple added
+    pool, for Max Hit and static EHP alike — Barrier is NOT applied to DoT rows (its applicability to DoT is
+    unverified; excluded by default, see barrier.json). DoT rows: resistance + DoT damage-taken only (no
+    armour/block/evade), plus raw incoming DPS, mitigated DPS, a DoT effective pool (usable pool ÷ DoT taken
+    fraction), and time-to-death without recovery (usable pool ÷ mitigated DPS) — None (render N/A) when the
+    incoming DPS or the mitigated DPS is zero, never a divide-by-zero 0/∞."""
     ec = getattr(source, "enemy_config", None) or {}
     kind = ec.get("kind", "attack")
     dmg = ec.get("damage") or {}
     # unsealed_life already defaults to max_life when nothing seals (and is the reduced pool when life is sealed),
-    # so use it directly — a real 0.0 (fully-sealed life) must NOT fall back to full Max Life.
+    # so use it directly — a real 0.0 (fully-sealed life) must NOT fall back to full Max Life. DoT pools never
+    # include Barrier (excluded by default — see _barrier_capacity's docstring).
     pool = defense.unsealed_life + defense.max_energy_shield
-    if defense.barrier_active:
-        pool += defense.barrier_shield   # barrier adds absorb capacity; the absorption-rate nuance is needs-verification
+    hit_capacity = _barrier_capacity(pool, defense.barrier_shield, defense.barrier_absorption_rate, defense.barrier_active)
     evade = defense.attack_evade_chance if kind == "attack" else defense.spell_evade_chance
     block_chance = defense.attack_block_chance if kind == "attack" else defense.spell_block_chance
     avoid = defense.dmg_avoid_chance
     ratio = defense.block_ratio
     # EHP survival multiplier from the take-0 / partial-reduce layers (all independent). Applies to hits only.
     ehp_mult = max(1e-9, (1.0 - evade) * (1.0 - avoid) * (1.0 - block_chance * ratio))
+    taken_as = _taken_as_fracs(source)
     types: dict = {}
     for t in _INCOMING_TYPES:
         short = _INCOMING_SHORT[t]
-        f_hit = _incoming_taken_fraction(source, defense, t, is_dot=False)
-        f_dot = _incoming_taken_fraction(source, defense, t, is_dot=True)
+        f_hit = _incoming_taken_fraction_converted(source, defense, taken_as, t, is_dot=False)
+        f_dot = _incoming_taken_fraction_converted(source, defense, taken_as, t, is_dot=True)
         hit_in = float(dmg.get(f"{short}_hit", 0.0) or 0.0)
         dot_in = float(dmg.get(f"{short}_dot", 0.0) or 0.0)
+        mitigated_dot = dot_in * f_dot
         types[t] = {
             "incoming_hit": hit_in,
             "incoming_dot": dot_in,
             "mitigated_hit": hit_in * f_hit,
-            "mitigated_dot": dot_in * f_dot,
+            "mitigated_dot": mitigated_dot,
             "hit_taken_fraction": f_hit,
             "dot_taken_fraction": f_dot,
-            "max_hit": (pool / f_hit) if f_hit > 0.0 else None,
-            "ehp": (pool / (f_hit * ehp_mult)) if f_hit > 0.0 else None,
+            "max_hit": (hit_capacity / f_hit) if f_hit > 0.0 else None,
+            "ehp": (hit_capacity / (f_hit * ehp_mult)) if f_hit > 0.0 else None,
+            # DoT-only: effective pool (raw-DPS terms) and time-to-death without recovery. None (→ UI "N/A")
+            # when there's no incoming DPS or full DoT immunity — never a misleading 0 or infinity.
+            # FOLLOW-UP (BACKLOG.md §0h, owner 2026-09-01): time-to-death assumes zero recovery, which
+            # understates a heavy-regen build — a DoT is a sustained drain, so it should net against the
+            # build's own Life/ES regen (RecoveryResult.net_life_per_sec / net_es_per_sec), not ignore it.
+            "dot_effective_pool": (pool / f_dot) if f_dot > 0.0 else None,
+            "dot_time_to_death": (pool / mitigated_dot) if mitigated_dot > 0.0 else None,
         }
     return {
         "kind": kind,
-        "pool": pool,
+        "pool": pool,                 # usable Life + ES only (DoT rows use this; Barrier excluded)
+        "hit_capacity": hit_capacity, # Barrier-aware max survivable post-mitigation single hit (Hit rows only)
         "evade_chance": evade,
         "avoid_chance": avoid,
         "block_chance": block_chance,
         "block_ratio": ratio,
         "barrier_active": defense.barrier_active,
         "types": types,
-        "nyi": ["damage-taken-as conversions", "mitigation order (needs-verification)"],
+        "nyi": [
+            "mitigation order of operations (needs-verification)",
+            "damage-taken-as conversion: applied to both Hit and DoT with the same fractions — no DoT-scoped "
+            "stat exists to distinguish them (needs-verification)",
+            "damage-taken-as conversion cap/redistribution rule when >100% from one source (needs-verification, "
+            "modeled after the outgoing-conversion cap)",
+            "Barrier: mitigation-order placement (assumed post armour/resistance/damage-taken, pre-Life/ES) and "
+            "whether it protects DoT (excluded by default) — both needs-verification",
+            "DoT Time to Death assumes zero recovery — should net against the build's own regen instead "
+            "(BACKLOG.md §0h, follow-up, not yet implemented)",
+        ],
     }

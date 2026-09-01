@@ -20,7 +20,9 @@ barrier_shield = 0.20 · (Max Life + Max Energy Shield) · (1 + barrier_shield_i
 
 ## Notes / caveats / open questions
 
-Pool value + rate are screenshot-verifiable against the in-game Defense panel. Open: how the barrier pool ABSORBS an incoming hit (the absorption-rate application order in the mitigation chain) is deferred to the incoming-damage / EHP model (WS3). Absorption rate capped at 100% as a sane bound — not stated in the Help DB.
+Pool value + rate are screenshot-verifiable against the in-game Defense panel. Absorption rate capped at 100% as a sane bound — not stated in the Help DB.
+
+**Max Hit / static EHP one-hit model (incoming-damage hardening pass):** replaces the old 'simply add the Barrier pool' behavior. Given usable Life+ES `P`, Barrier capacity `B` and absorption rate `r`, Barrier absorbs `min(r·x, B)` from a post-mitigation hit `x`; the remainder `x − min(r·x, B)` must fit in `P`. Solved piecewise for the largest survivable `x`: non-exhausted case `x = P/(1−r)` (valid iff `r·x ≤ B`), exhausted case `x = P + B` (valid iff `r·x > B`) — engine/defense.py::_barrier_capacity. Max Hit and static EHP both use this `x` as the capacity, divided by the type's taken-fraction (and, for EHP, the expected-value multiplier) exactly as the plain-pool model did — `B·r` is explicitly NOT treated as the barrier's effective pool. OPEN / needs-verification, deliberately isolated pending live testing: (1) where Barrier sits in the mitigation order — this model assumes `x` is the damage AFTER armour/resistance/damage-taken and BEFORE Life/ES, i.e. Barrier is the last layer before the pool; (2) whether Barrier protects DoT at all — excluded by default from every DoT figure (DoT Effective Pool, Time to Death) in the incoming-damage model, a conservative default, not a confirmed 'no'. See incoming-mitigation-model.json for the full per-type pipeline this feeds into.
 
 ## Implementation (engine model)
 

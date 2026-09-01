@@ -146,9 +146,14 @@ function EnemyIncomingFields() {
       </select>
       <select className="enemy-target-select" value={ec.skillId}
         onChange={e => setEnemyConfig(configForSelection(ec.enemyId, e.target.value))}>
-        {enemy.skills.map(sk => <option key={sk.id} value={sk.id}>{sk.name} ({sk.kind})</option>)}
+        {enemy.skills.map(sk => (
+          <option key={sk.id} value={sk.id}>{sk.name} ({sk.kind}){sk.measured ? '' : ' — placeholder'}</option>
+        ))}
       </select>
-      <span className="enemy-box-note">Incoming hit for the Max-Hit / EHP calc. Picking a skill prefills these; edit any value (owner-measured later).</span>
+      <span className="enemy-box-note">
+        Incoming hit for the Max-Hit / EHP calc. Picking a skill prefills these; edit any value (owner-measured later).
+        {(() => { const sk = enemy.skills.find(s => s.id === ec.skillId); return sk?.notes ? ` ${sk.notes}` : null })()}
+      </span>
       <div className="enemy-res-grid">
         {ENEMY_DMG_TYPES.map(([label, k]) => (
           <EnemyDmgNum key={k} label={`${label} Hit`} value={ec.damage[`${k}_hit` as keyof EnemyDamage]}

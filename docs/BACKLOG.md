@@ -259,6 +259,33 @@ for Thunder Spike specifically — see below. Full detail: `data/verification/sh
   Organ item itself doesn't matter (only the legendary name it unlocks); multi-slot applicability is already
   captured (e.g. the Vorax chest page already lists all eligible chest/gloves directly). Not re-proposing.
 
+## 0h. Incoming Damage / Max Hit / Static EHP (core hardened 2026-09-01 — follow-ups)
+Shipped: damage-taken-as conversion (`{src}_taken_as_{dst}_inc`, all 20 type pairs, previously parsed but
+inert) wired into `defense.py::calculate_incoming`; Barrier's Max-Hit/EHP capacity replaced with the owner-
+specified one-hit piecewise absorb model (`_barrier_capacity`) instead of simply adding the pool; new per-type
+DoT metrics (`dot_effective_pool`, `dot_time_to_death`, no-recovery). See
+`data/verification/incoming-mitigation-model.json` for the full open-assumptions list (mitigation order,
+conversion cap rule, Hit/DoT conversion parity, Barrier placement/DoT applicability).
+
+1. **DoT Time to Death should net against the build's own recovery, not assume zero recovery.** Owner
+   observation (2026-09-01): a DoT is a sustained drain, not a burst — unlike a Hit (where regen during the
+   instant of the hit is negligible), a build's Life/ES regen is the whole story for whether a DoT is survivable
+   at all. The current `dot_time_to_death = usable pool ÷ mitigated DoT DPS` (no recovery) makes a
+   heavy-regen build look exactly as fragile as a zero-regen build, which misrepresents it — a build whose
+   regen exceeds the mitigated DoT DPS should read as effectively unkillable by that DoT, not "N seconds to
+   death." Proposed model: net DPS = `mitigated_dot_dps − total_regen_per_sec` (reuse
+   `RecoveryResult.net_life_per_sec` / `net_es_per_sec` from `engine/recovery.py`, already the engine's
+   existing "recovery minus consumption" figure — do not reimplement regen separately); if net ≤ 0, the DoT is
+   sustainable indefinitely (render "Sustainable", not a time or N/A); if net > 0, `time_to_death = usable pool
+   ÷ net DPS`. This effectively REPLACES the current "no-recovery" figure as the headline Time to Death rather
+   than sitting alongside it as a second EHP-like metric — a standalone "DoT EHP" independent of recovery was
+   the wrong shape for a continuous-drain mechanic (Max Hit/static EHP's burst framing is still correct for
+   Hits, which this does NOT change). Needs a filled `.claude/rules/engine-task-spec.md` before implementation
+   (cross-subsystem: `defense.py` reading `recovery.py`'s output, which today runs as a separate post-loop pass
+   in `compute.py` — check ordering/availability before assuming `RecoveryResult` is on hand at the point
+   `calculate_incoming` runs). `dot_effective_pool` (pool ÷ taken fraction, a capacity figure independent of
+   current incoming DPS) is unaffected — this only concerns Time to Death.
+
 ## 0g. Crit-multiplier per-source breakdown (shipped 2026-07-28 — follow-ups)
 Shipped (commit `e0c02db`, `team1-live`): the crit-DAMAGE per-mana-consumed term (Tyrant's Iron Fist,
 `crit_dmg_inc_per_mana_consumed`) moved from a display-only post-loop fold in `offense.py` into an in-loop

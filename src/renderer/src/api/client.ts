@@ -1057,20 +1057,25 @@ export interface DefenseResult {
   nyi: string[]
 }
 
-// Per-type incoming-damage mitigation + Max-Hit / EHP (defense.calculate_incoming), vs the selected enemy skill.
+// Per-type incoming-damage mitigation + Max-Hit / static EHP (defense.calculate_incoming), vs the selected enemy
+// skill. Both figures are STATIC/scenario-based — no repeated-hit simulation, attack-frequency assumption, or
+// boss time-to-death claim (see `IncomingResult.pool` / `hit_capacity` below).
 export interface IncomingTypeResult {
   incoming_hit: number
   incoming_dot: number
   mitigated_hit: number
   mitigated_dot: number
-  hit_taken_fraction: number   // fraction of a raw hit that lands after the always-on layers
+  hit_taken_fraction: number   // fraction of a raw hit that lands after the always-on layers (incl. taken-as conversion)
   dot_taken_fraction: number
   max_hit: number | null       // largest raw hit survivable (worst case: no evade/avoid/block); null if fully immune
-  ehp: number | null           // effective HP folding in evade/avoid/expected-block
+  ehp: number | null           // static/expected EHP folding in evade/avoid/expected-block — NOT a survival-time prediction
+  dot_effective_pool: number | null   // usable pool ÷ DoT taken fraction; null if fully DoT-immune
+  dot_time_to_death: number | null    // usable pool ÷ mitigated DoT DPS, no recovery; null if 0 incoming/mitigated DPS
 }
 export interface IncomingResult {
   kind: EnemyDamageKind
-  pool: number                 // usable Life + ES (+ Barrier while active)
+  pool: number                 // usable Life + ES only (Barrier excluded — DoT rows use this)
+  hit_capacity: number         // Barrier-aware max survivable post-mitigation single hit (Hit rows: Max Hit / EHP)
   evade_chance: number
   avoid_chance: number
   block_chance: number

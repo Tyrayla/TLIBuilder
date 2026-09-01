@@ -3304,7 +3304,7 @@ function IncomingPanel({ incoming, defense }: { incoming: IncomingResult | null;
   const T = (d: string) => incoming.types[d]
   const hasDot = ALL_DTYPES.some(d => (T(d)?.incoming_dot ?? 0) > 0)
   const kindLabel = incoming.kind === 'spell' ? 'Spell' : 'Attack'
-  const poolSrc = incoming.barrier_active ? 'Life + ES + Barrier' : 'Life + ES'
+  const poolSrc = incoming.barrier_active ? 'Life + ES + Barrier (one-hit model)' : 'Life + ES'
   // Damage-taken modifier keys still resolve to their real gear/talent/debuff sources via the shared
   // collectSources lookup (there are usually only one or two of these, so listing them is useful, not noise).
   const dtKeys = (d: string, dot: boolean) => [
@@ -3322,7 +3322,11 @@ function IncomingPanel({ incoming, defense }: { incoming: IncomingResult | null;
     ...(dot ? [] : [{ value: pct2(d === 'physical' ? (defense?.armor_phys_mitigation ?? 0) : (defense?.armor_nonphys_mitigation ?? 0)), stat: 'Armour Mitigation', source: 'Armour', sourceName: `${fmtNum(defense?.armor ?? 0)} rating` }]),
     ...(d === 'physical' ? [] : [{ value: `${dec(RESIST_TOTAL[d])}%`, stat: `${DTYPE_LABEL[d]} Resistance`, source: 'Resistance', sourceName: 'capped total, all sources' }]),
   ]
-  const poolExtra: ExtraRow = { value: fmtNum(incoming.pool), stat: 'Effective Pool', source: poolSrc, sourceName: `unsealed Life + Energy Shield${incoming.barrier_active ? ' + Barrier (absorb pool)' : ''}` }
+  // Max Hit/EHP use the Barrier-aware ONE-HIT capacity (hit_capacity), not the plain Life+ES pool — a large
+  // Barrier can make the survivable single hit bigger than Life+ES+Barrier would suggest if simply summed
+  // (see defense.py::_barrier_capacity). DoT rows use the plain pool (Barrier excluded, needs-verification).
+  const poolExtra: ExtraRow = { value: fmtNum(incoming.hit_capacity), stat: 'Effective Pool', source: poolSrc, sourceName: incoming.barrier_active ? 'unsealed Life + ES, with Barrier solved as a one-hit rate-aware absorb (not simply added)' : 'unsealed Life + Energy Shield' }
+  const dotPoolExtra: ExtraRow = { value: fmtNum(incoming.pool), stat: 'Usable Pool', source: 'Life + ES', sourceName: 'Barrier excluded from DoT pools — unverified whether Barrier protects DoT' }
   const maxHitExtra = (d: string): ExtraRow[] => [poolExtra, { value: pct2(1 - T(d).hit_taken_fraction), stat: 'Mitigation', source: 'Armour + Resistance + Damage Taken', sourceName: 'always-on layers (no evade / avoid / block)' }]
   // Only surface the probabilistic layers that are actually in play — a 0% Avoid row when no affix grants it
   // is noise, not a summary. "Chance to Avoid Damage" is the real in-game stat name (see DefensePanels above) —
@@ -3334,16 +3338,18 @@ function IncomingPanel({ incoming, defense }: { incoming: IncomingResult | null;
     ...(incoming.block_chance > 0 ? [{ value: `${pct2(incoming.block_chance)} × ${pct2(incoming.block_ratio)}`, stat: 'Block', source: kindLabel, sourceName: 'chance × ratio = expected reduction' }] : []),
   ]
   // A per-type value cell wrapping a Breakdown hover (keys → real sources, total → the derived value, + formula).
-  const cell = (d: string, show: boolean, disp: string, color: string, keys: string[], total: number | null, unit: string, formula: string, extra?: ExtraRow[]) => (
+  // `naWhenNull` renders a null total as "N/A" (0 incoming DPS / fully immune) instead of "∞" (Max Hit/EHP's
+  // worst-case-survives-anything reading, which stays "∞" — the two nulls mean different things).
+  const cell = (d: string, show: boolean, disp: string, color: string, keys: string[], total: number | null, unit: string, formula: string, extra?: ExtraRow[], naWhenNull?: boolean) => (
     <td key={d} style={{ ...td, color: show ? color : '#555' }}>
       {show
-        ? <Breakdown title={`${disp} — ${DTYPE_LABEL[d]}`} keys={keys} total={total ?? undefined} totalUnit={unit} formula={formula} extra={extra}>{total == null ? '∞' : disp === 'Mitigation' ? pct(1 - T(d).hit_taken_fraction) : fmtNum(total)}</Breakdown>
+        ? <Breakdown title={`${disp} — ${DTYPE_LABEL[d]}`} keys={keys} total={total ?? undefined} totalUnit={unit} formula={formula} extra={extra}>{total == null ? (naWhenNull ? 'N/A' : '∞') : disp === 'Mitigation' ? pct(1 - T(d).hit_taken_fraction) : fmtNum(total)}</Breakdown>
         : '—'}
     </td>
   )
   return (
     <StatPanel title="Effective HP / Max Hit" accent="#b0503a"
-      info="Per-type mitigation of the selected enemy skill (set in Config → Enemy). Hover any value for its formula and the contributing sources. Max Hit = the largest single raw hit you survive, worst case (no evade / avoid / block). EHP folds in Evasion, Chance to Avoid Damage, and expected Block. DoT rows take resistance only. Mitigation order is not yet in-game-verified.">
+      info="Per-type mitigation of the selected enemy skill (set in Config → Enemy). Hover any value for its formula and the contributing sources. Both figures are STATIC/scenario-based, not a repeated-hit or attack-frequency simulation. Max Hit = the largest single raw hit you survive, worst case (no evade / avoid / block). Static EHP = expected raw-damage capacity for one equivalent hit (folds in Evasion, Chance to Avoid Damage, expected Block) — not a survival-time prediction. Damage-taken-as conversions apply before per-type mitigation. DoT rows take resistance + DoT damage-taken only (no armour/block/evade/Barrier) and show a time-to-death without recovery — N/A when incoming/mitigated DPS is 0. Mitigation order, the Barrier-vs-DoT question, and the damage-taken-as cap rule are not yet in-game-verified.">
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>
           <th style={{ ...th, textAlign: 'left' }} />
@@ -3351,13 +3357,15 @@ function IncomingPanel({ incoming, defense }: { incoming: IncomingResult | null;
         </tr></thead>
         <tbody>
           <tr><td style={tdLbl}>Incoming Hit</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_hit, 'Incoming Hit', '#e0e0e0', [], T(d).incoming_hit, '', `Raw ${kindLabel} hit from the selected enemy skill. Edit in Config → Enemy.`))}</tr>
-          <tr><td style={tdLbl}>Mitigated Hit</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_hit, 'Mitigated Hit', '#e0e0e0', dtKeys(d, false), T(d).mitigated_hit, '', 'Incoming × (1 − Armour) × (1 − Resistance) × (1 + Damage Taken).', mitigExtra(d, false)))}</tr>
-          <tr><td style={tdLbl}>Mitigation</td>{ALL_DTYPES.map(d => cell(d, true, 'Mitigation', '#e0e0e0', dtKeys(d, false), 1 - T(d).hit_taken_fraction, '%', '1 − (1 − Armour)(1 − Resistance)(1 + Damage Taken).', mitigExtra(d, false)))}</tr>
+          <tr><td style={tdLbl}>Mitigated Hit</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_hit, 'Mitigated Hit', '#e0e0e0', dtKeys(d, false), T(d).mitigated_hit, '', 'Incoming × taken-as conversion × (1 − Armour) × (1 − Resistance) × (1 + Damage Taken), per landing type.', mitigExtra(d, false)))}</tr>
+          <tr><td style={tdLbl}>Mitigation</td>{ALL_DTYPES.map(d => cell(d, true, 'Mitigation', '#e0e0e0', dtKeys(d, false), 1 - T(d).hit_taken_fraction, '%', '1 − Σ conversion-weighted (1 − Armour)(1 − Resistance)(1 + Damage Taken) over each landing type.', mitigExtra(d, false)))}</tr>
           <tr><td style={{ ...tdLbl, color: '#d0a090' }}>Max Hit</td>{ALL_DTYPES.map(d => cell(d, true, 'Max Hit', '#e0b0a0', [], T(d).max_hit, '', `Effective Pool (${poolSrc}) ÷ mitigated-fraction — worst case (no evade / avoid / block).`, maxHitExtra(d)))}</tr>
-          <tr><td style={{ ...tdLbl, color: '#9ac89a' }}>EHP</td>{ALL_DTYPES.map(d => cell(d, true, 'EHP', '#b0e0b0', [], T(d).ehp, '', `Effective Pool (${poolSrc}) ÷ [ mitigated-fraction × (1 − Evade)(1 − Avoid)(1 − Block chance × ratio) ].`, ehpExtra))}</tr>
+          <tr><td style={{ ...tdLbl, color: '#9ac89a' }}>EHP</td>{ALL_DTYPES.map(d => cell(d, true, 'EHP', '#b0e0b0', [], T(d).ehp, '', `Effective Pool (${poolSrc}) ÷ [ mitigated-fraction × (1 − Evade)(1 − Avoid)(1 − Block chance × ratio) ]. Static/expected, not a survival-time claim.`, ehpExtra))}</tr>
           {hasDot && (<>
-            <tr><td style={tdLbl}>Incoming DoT</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Incoming DoT', '#e0e0e0', [], T(d).incoming_dot, '', `Raw per-type damage-over-time from the selected enemy skill. Edit in Config → Enemy.`))}</tr>
-            <tr><td style={tdLbl}>Mitigated DoT</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Mitigated DoT', '#e0e0e0', dtKeys(d, true), T(d).mitigated_dot, '', 'Incoming DoT × (1 − Resistance) × (1 + DoT Damage Taken) — no armour / block / evade.', mitigExtra(d, true)))}</tr>
+            <tr><td style={tdLbl}>Incoming DoT</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Incoming DoT', '#e0e0e0', [], T(d).incoming_dot, '', `Raw per-type damage-over-time (DPS) from the selected enemy skill. Edit in Config → Enemy.`))}</tr>
+            <tr><td style={tdLbl}>Mitigated DoT</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Mitigated DoT', '#e0e0e0', dtKeys(d, true), T(d).mitigated_dot, '', 'Incoming DoT × taken-as conversion × (1 − Resistance) × (1 + DoT Damage Taken), per landing type — no armour / block / evade / Barrier.', mitigExtra(d, true)))}</tr>
+            <tr><td style={tdLbl}>DoT Effective Pool</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'DoT Effective Pool', '#e0e0e0', [], T(d).dot_effective_pool, '', 'Usable Pool ÷ DoT taken fraction — how much raw DoT DPS of this type the pool could absorb in one instant.', [dotPoolExtra], true))}</tr>
+            <tr><td style={tdLbl}>Time to Death</td>{ALL_DTYPES.map(d => cell(d, !!T(d).incoming_dot, 'Time to Death', '#e0e0e0', [], T(d).dot_time_to_death, 's', 'Usable Pool ÷ Mitigated DoT DPS — no recovery/regen assumed; not a boss-fight or real-encounter prediction.', [dotPoolExtra], true))}</tr>
           </>)}
         </tbody>
       </table>
