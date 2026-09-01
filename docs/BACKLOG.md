@@ -979,3 +979,21 @@ need review, or other validation issues. Motivating cases:
 Design: a small badge/count in the sidebar → panel listing each issue with a jump-to-fix link
 where possible. Warnings would need a home in build state (or be re-derived), not just the notes
 string, once this lands. Until then, notes is the agreed carrier.
+
+## 11. Persistence — save-payload field enumeration is bug-prone (flagged 2026-09-01)
+
+`backend/persistence/builds_manager.py`'s on-disk `.txt` build file writer/reader explicitly
+enumerates every field by hand, and `App.tsx`'s three save-payload sites (`saveBuild`,
+`saveAsBuild`, the quit/close `onRequestSave` handler) each independently hand-duplicate the same
+field list rather than sharing one. This exact pattern has now silently dropped a field on save at
+least four separate times: `customMods`, `slateInventory` (bug-181), `traitTreeAllocations`
+(Selena2), and most recently `baseMemory`/`memoryInventory` (bug-266/bug-267, the revival Base slot
+vanishing on reload). Each was only caught by a user hitting real data loss.
+
+Worth a dedicated pass to make this class of bug structurally impossible rather than caught one
+field at a time — e.g. have all three App.tsx save sites call the existing `getBuildPayload()`
+(`utils/buildPayload.ts`) instead of hand-duplicating the literal, and/or make
+`builds_manager.py`'s file format schema-driven (a single field list shared by both `_read_file`
+and `_write_file`) instead of two independently-hand-written enumerations. Not undertaken as part
+of the baseMemory fix itself (scope discipline — a bug fix isn't the place for a persistence-layer
+refactor), but flagged here so it doesn't recur a fifth time.

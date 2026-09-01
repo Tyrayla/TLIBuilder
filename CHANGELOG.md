@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Build management
+- **Fixed: the Base/Special hero-memory slot no longer vanishes on save/reload.** A memory socketed into the revival-enabled Base slot was silently dropped by the save path (both the on-disk build file writer and the Save button's outgoing payload never carried the field) and came back empty the next time the build was opened. It now round-trips correctly.
+
 ## [0.6.4] - 2026-08-19
 
 ### Hero Memory

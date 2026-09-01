@@ -90,6 +90,28 @@ def test_trait_tree_allocations_absent_from_legacy_file_defaults_empty(tmp_path,
 
 
 # ---------------------------------------------------------------------------
+# baseMemory (the revival-enabled Base/Special hero-memory slot was dropped by the
+# fixed-schema file writer — every save silently erased it, and the App.tsx post-load
+# reconcile step then wrote that null back into the loadout snapshot too).
+# ---------------------------------------------------------------------------
+
+def test_base_memory_roundtrip(tmp_path, monkeypatch):
+    bm = {"id": "m1", "memoryType": "origin", "rarity": "epic"}
+    loaded = _save_read(tmp_path, monkeypatch, {
+        "id": "rt6", "name": "T", "slots": [None, None, None, None],
+        "baseMemory": bm,
+    })
+    assert loaded["baseMemory"] == bm
+
+
+def test_base_memory_absent_defaults_none(tmp_path, monkeypatch):
+    loaded = _save_read(tmp_path, monkeypatch, {
+        "id": "rt7", "name": "T", "slots": [None, None, None, None],
+    })
+    assert loaded["baseMemory"] is None
+
+
+# ---------------------------------------------------------------------------
 # Timestamps (createdAt / updatedAt)
 # ---------------------------------------------------------------------------
 

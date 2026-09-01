@@ -107,6 +107,9 @@ def _read_file(build_id: str) -> dict:
     hero_memories_raw = data.get('hero_memories', '')
     hero_memories = json.loads(hero_memories_raw) if hero_memories_raw else [None, None, None]
 
+    base_memory_raw = data.get('baseMemory', '')
+    base_memory = json.loads(base_memory_raw) if base_memory_raw else None
+
     memory_inventory_raw = data.get('memoryInventory', '')
     memory_inventory = json.loads(memory_inventory_raw) if memory_inventory_raw else []
 
@@ -176,6 +179,7 @@ def _read_file(build_id: str) -> dict:
         'licoricePreparedSkill': licorice_prepared_skill,
         'elixirIngredients': elixir_ingredients,
         'heroMemories': hero_memories,
+        'baseMemory': base_memory,
         'memoryInventory': memory_inventory,
         'pactSpirits': pact_spirits,
         'fates': fates,
@@ -244,6 +248,8 @@ def _write_file(build: dict) -> None:
         f.write(f"elixir_ingredients={json.dumps(elixir_ingredients, separators=(',', ':'))}\n")
         hero_memories = build.get('heroMemories') or [None, None, None]
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
+        base_memory = build.get('baseMemory')
+        f.write(f"baseMemory={json.dumps(base_memory, separators=(',', ':'))}\n")
         memory_inventory = build.get('memoryInventory') or []
         f.write(f"memoryInventory={json.dumps(memory_inventory, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
