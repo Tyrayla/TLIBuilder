@@ -73,6 +73,9 @@ def _strip_gear_item(item: dict) -> dict:
         "customizations": item.get("customizations") or [],
         # Belt-blend equip (roadmap #4) — source-of-truth on the belt item; keep so shares round-trip.
         "beltBlend": item.get("beltBlend") or None,
+        # Tower Sequence affix (crafted weapon/shield bases only) — source-of-truth on the item; keep
+        # so shares round-trip, same treatment as beltBlend.
+        "towerSequence": item.get("towerSequence") or None,
     }
     if keep_affixes:
         stripped["affixes"] = item.get("affixes") or []

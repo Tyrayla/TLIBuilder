@@ -256,6 +256,16 @@ function _buildItemContributions(
       }))]
     }
   }
+  // Tower Sequence (crafted weapon/shield bases only) — the selected entry is already concrete affix
+  // text with no ranges, so append it with no pre-resolved stat_key; it falls through to the generic
+  // `unresolved` collection below and is resolved backend-side by the same modifier-text parser every
+  // other unrecognized affix uses (same mechanism as a mutation-resolved affix, minus the pre-resolution).
+  if (item.towerSequence) {
+    affixesToProcess = [...affixesToProcess, {
+      raw_text: item.towerSequence, modifier_id: null, expression: item.towerSequence, condition: null,
+      affix_kind: 'numeric' as const, numeric_values: [], affix_type: 'Tower Sequence',
+    }]
+  }
   const contributions: GearAffixContribution[] = []
   // Cardinal rule: never silently drop. Any affix the frontend can't turn into a contribution gets
   // its raw text collected here so the backend can resolve it (and report what it still can't).

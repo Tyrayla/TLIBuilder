@@ -2988,6 +2988,17 @@ def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     return {"ok": True, "count": parsed["entry_count"]}
 
 
+@app.get("/api/tower-sequence")
+def get_tower_sequence():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "entries": []}
+    data = season_manager.load_tower_sequence(active)
+    if not data:
+        return {"season": active, "entries": []}
+    return {"season": active, "entries": data.get("entries", [])}
+
+
 class DiffSeasonsRequest(BaseModel):
     season_a: str
     season_b: str

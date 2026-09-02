@@ -567,6 +567,10 @@ def save_tower_sequence(season: str, data: dict) -> None:
     _save_singleton(season, "_tower_sequence.json", data)
 
 
+def load_tower_sequence(season: str) -> dict | None:
+    return _load_singleton(season, "_tower_sequence.json")
+
+
 def delete_tower_sequence(season: str) -> None:
     _delete_singleton(season, "_tower_sequence.json")
 

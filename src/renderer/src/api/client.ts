@@ -2911,6 +2911,11 @@ export interface EquippedGearItem {
   // Equipped belt blend (Blending Ritual) — the blend's talent_id. Belt slot only; one blend total.
   // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
   beltBlend?: string | null
+  // Selected Tower Sequence affix (crafted weapon/shield bases only) — the raw affix text itself,
+  // since _tower_sequence.json entries carry no stable id. Injected into the affix list at
+  // stats-payload time (statsPayload.ts:_buildItemContributions), same injection point as a
+  // mutation-resolved affix, and resolved backend-side by the generic modifier-text parser.
+  towerSequence?: string | null
 }
 
 // One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
@@ -2921,6 +2926,13 @@ export interface BeltBlend {
   talent_name: string | null
   effect_text: string
   effect_raw: string
+}
+
+// One entry from the Tower Sequence catalog (crafted-only, weapon/shield bases) — see backend
+// tools/singleton_importer.py:import_tower_sequence. No stable id; `affix` text is the identity.
+export interface TowerSequenceEntry {
+  affix: string
+  source: string
 }
 
 export interface GearAffixContribution {
@@ -3111,6 +3123,9 @@ export const api = {
       '/dev/import-crawler-belt-blends', { season_name: seasonName, data }
     ),
   getBeltBlends: () => get<{ season: string | null; blends: BeltBlend[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
+
+  // Tower Sequence (crafted-only, weapon/shield bases) — a single scraper file: { entries }.
+  getTowerSequence: () => get<{ season: string | null; entries: TowerSequenceEntry[] }>('/tower-sequence'),
 
   importDestiny: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),

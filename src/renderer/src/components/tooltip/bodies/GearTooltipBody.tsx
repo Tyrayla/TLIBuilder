@@ -11,7 +11,7 @@ import { tooltipAffixText, affixTypeLabel } from '../../../utils/affixText'
 import { gearQualityColor } from '../../../utils/gearItem'
 import { TooltipContributions } from '../TooltipContributions'
 import type { DamageDelta, LabeledDelta } from '../useDamageDelta'
-import { ModifierBadge, useGearModifierStatus, useGearModifierStatuses } from '../../ModifierBadge'
+import { ModifierBadge, useGearModifierStatus, useGearModifierStatuses, useTextModifierStatus } from '../../ModifierBadge'
 
 export type GearTooltipItem = LegendaryGearItem | EquippedGearItem
 
@@ -73,10 +73,12 @@ export function GearTooltipBody({ item, delta, deltas, hideBadges }: { item: Gea
   const implicits = lgItem ? getItemImplicits(lgItem) : (craftItem ? craftAffixes.slice(0, implCount) : [])
   const explicits = lgItem ? getItemExplicits(lgItem) : (craftItem ? craftAffixes.slice(implCount) : [])
   const mutText = craftItem && craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
+  const towerSeqText = craftItem?.towerSequence ?? null
 
   const implicitStatuses = useGearModifierStatuses(implicits)
   const explicitStatuses = useGearModifierStatuses(explicits)
   const mutStatus = useGearModifierStatus(craftItem?.mutation_resolved_affix ?? null)
+  const towerSeqStatus = useTextModifierStatus(towerSeqText, 'gear')
   // Name colored by quality: legendaries gold; crafted/Vorax by mod count (same system as the gear labels).
   const nameColor = craftItem ? gearQualityColor(craftItem) : '#c8a050'
 
@@ -97,8 +99,13 @@ export function GearTooltipBody({ item, delta, deltas, hideBadges }: { item: Gea
           {affix.raw_text}{!hideBadges && <ModifierBadge status={implicitStatuses[i]} />}
         </div>
       ))}
-      {implicits.length > 0 && explicits.length > 0 && (
+      {implicits.length > 0 && (explicits.length > 0 || towerSeqText) && (
         <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
+      )}
+      {towerSeqText && (
+        <div className="gear-tooltip-affix">
+          {towerSeqText}{!hideBadges && <ModifierBadge status={towerSeqStatus} />}
+        </div>
       )}
       {explicits.map((affix, i) => (
         <div key={`exp-${i}`} className="gear-tooltip-affix">
