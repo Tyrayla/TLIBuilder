@@ -237,9 +237,11 @@ class StatResult:
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
     empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)
+    warcry_summaries:    list | None = None        # per-Warcry display summary (effect, power, timing, uptime)
     elixir_summaries:    list | None = None        # per-elixir display summary (Elixir Effect, granted buffs, timing, NYI)
     curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
+    warcry_conflict:     dict | None = None         # set when multiple Warcries need a most-recent selection
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
     origin_summary:      dict | None = None         # Origin of Spirit Magus display summary: {factor, skills:[{skill_id, slot, skill_name, origin_name, factor, grants:[{label, base, value, unit}], added:[... + support_name]}]}
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns

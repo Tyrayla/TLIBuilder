@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**88 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 50
+**86 entries** — ✅ Confirmed: 17 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 47
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -24,6 +24,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Tangle (tick-rounding + model) | Spell Tangle | tick-rounding, breakpoint, trigger | ✅ Confirmed | 2026-06-19 | [tangle.md](tangle.md) |
 | Training Dummy (calc target) | — | mitigation, methodology, calc-target | ✅ Confirmed | 2026-06-10 | [training-dummy.md](training-dummy.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage, owner-confirmed | ✅ Confirmed | 2026-07-16 | [unsullied-blade.md](unsullied-blade.md) |
+| Warcry timing, power, and charges | charging_warcry, commanding_warcry, fearless_warcry, raging_warcry, resurrection_warcry, shockwave_warcry | warcry, cooldown, duration, charges, uptime | ✅ Confirmed | 2026-09-01 | [warcry.md](warcry.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed, owner-confirmed, malformed-source-text | ✅ Confirmed | 2026-07-16 | [wind-stalker.md](wind-stalker.md) |
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
@@ -47,9 +48,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Support universal-line rank table | Chain Lightning | supports, damage-pool | ⬜ Pending | — | [support-rank-table.md](support-rank-table.md) |
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
 | Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
-| Barrier (Six Gods' Blessing) | — | defense, barrier, absorb | ⚠️ Unverified | — | [barrier.md](barrier.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
-| Chance to Avoid Damage (incl. Blur) | — | defense, avoidance, blur | ⚠️ Unverified | — | [chance-to-avoid-damage.md](chance-to-avoid-damage.md) |
 | Chromatic Shot (+ canvas supports + SS13 Condensed quartet) | Chromatic Shot | skill, conversion, shotgun, season-data-driven, ailment | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
 | Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
 | Core talents (uniqueness / grants) | — | talent, damage-pool | ⚠️ Unverified | — | [core-talents.md](core-talents.md) |
@@ -68,7 +67,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Ill Omen (Ominous curse) + Reap Purification conversion (Psychic) | Ominous, Reap Purification | curse, stacking, conversion, trigger, damage-pool, true-damage | ⚠️ Unverified | — | [ill-omen.md](ill-omen.md) |
-| Incoming Damage / Max Hit / Static EHP | — | defense, ehp, max-hit, mitigation, conversion, dot | ⚠️ Unverified | — | [incoming-mitigation-model.md](incoming-mitigation-model.md) |
 | Iris "Merged Spirit Magi" — Spirit Magus skills in Active Skill slots (soft-invalidation gating) | Spirit Magus skills (Spirit Magus-tagged) | hero-trait, slot-gating, soft-invalidation, trigger | ⚠️ Unverified | — | [merged-spirit-magi-active-slots.md](merged-spirit-magi-active-slots.md) |
 | Iris "Vigilant" — second-skill-slot restriction while Merged (SHELVED, not modeled) | Merged Spirit Magi (Iris "Vigilant" state) | hero-trait, slot-gating, methodology | ⚠️ Unverified | — | [iris-second-skill-slot-restriction.md](iris-second-skill-slot-restriction.md) |
 | Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |

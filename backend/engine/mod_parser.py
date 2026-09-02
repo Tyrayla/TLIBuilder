@@ -137,6 +137,13 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "terra skill level +(#)":                            "terra_skill_level",
     # Warcry
     "+(#) max warcry skill charges":                     "max_warcry_skill_charges_flat",
+    "+(#) % additional warcry skill effect":           "warcry_effect_additional",
+    "+(#) % warcry skill area":                        "warcry_skill_area_inc",
+    "+(#) % duration":                                  "duration_inc",
+    "+(#) % warcry skill effect duration":              "warcry_skill_effect_duration_inc",
+    "+(#) to the minimum number of enemies affected by warcry": "warcry_min_targets_flat",
+    "for each different warcry cast +(#) to the minimum number of enemies affected by warcry for (#) s": "warcry_min_targets_flat",
+    "+(#) % additional warcry effect and +(#) % additional warcry cooldown recovery speed for each different warcry cast for (#) s multiplies": "warcry_effect_additional",
     # Shadow
     "shadow quantity +(#)":                              "max_shadow_quantity_flat",
     # Ignite

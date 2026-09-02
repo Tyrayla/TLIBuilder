@@ -153,6 +153,9 @@ def _classify_effect(effect: str, parse_mod, translate_cond) -> dict:
     if re.search(r"skills?\s+no\s+longer\s+cost(?:s)?\s+mana", text, re.I):
         return {"kind": "flag", "flag": "skill_no_mana_cost"}
 
+    if re.search(r"doubles?\s+max\s+warcry\s+skill\s+effects", text, re.I):
+        return {"kind": "flag", "flag": "formless_warcry_effects"}
+
     flag = _gain_on_hit_flag(text)
     if flag:
         return {"kind": "automax", "flag": flag}

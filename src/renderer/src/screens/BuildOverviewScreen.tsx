@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { ConditionDef, CurseConflict } from '../api/client'
+import type { ConditionDef, CurseConflict, WarcryConflict } from '../api/client'
 import CustomModsPanel from '../components/CustomModsPanel'
 import LoadingState from '../components/LoadingState'
 import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
@@ -191,6 +191,8 @@ export default function BuildOverviewScreen() {
   const [showAll, setShowAll] = useState(false)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
+  const warcryConflict = useBuildStore(
+    s => (s.computedStats as { warcry_conflict?: WarcryConflict | null }).warcry_conflict) ?? null
   const warnings = useBuildStore(
     s => (s.computedStats as { warnings?: { kind: string; text: string }[] | null }).warnings) ?? null
 
@@ -209,6 +211,11 @@ export default function BuildOverviewScreen() {
     arr[i] = v
     applyCurseSelection(arr)
   }
+  const chooseWarcry = (group: WarcryConflict['groups'][number], key: string) => {
+    const next = { ...conditionState }
+    for (const item of group.active) next[item.sel_key] = item.sel_key === key
+    setConditionState(next)
+  }
 
   // General CONFLICTS (red) — these block correct calculation until the player resolves them. Curse over-limit
   // is the only one today; future blocking conflicts append here so the banner stays one general surface.
@@ -218,6 +225,10 @@ export default function BuildOverviewScreen() {
     title: 'Curse conflict',
     detail: `${curseConflict.active.length} curses are active but your curse limit is ${curseConflict.limit} — `
       + 'resolve it in the Curse Conflict panel below (curse damage-taken isn\'t applied until you do).',
+  })
+  if (warcryConflict && !warcryConflict.resolved) conflicts.push({
+    title: 'Warcry conflict',
+    detail: `Duplicate Warcry skills are equipped — select the most recently cast copy before that Warcry's effect is applied.`,
   })
 
   const worn = wornWeaponFlags(gear)
@@ -414,6 +425,26 @@ export default function BuildOverviewScreen() {
               .filter(a => a.sel_key === curseSelected[i] || !curseSelected.includes(a.sel_key))
               .map(a => <option key={a.sel_key} value={a.sel_key}>{a.name} ({a.source})</option>)}
           </select>
+        ))}
+      </ConfigPanel>
+    ) }, 0)
+  }
+  if (warcryConflict) {
+    place({ order: -1, weight: warcryConflict.groups.length + 2, node: (
+      <ConfigPanel key="warcry" title="⚠ Warcry Conflict" accent="#c0392b" headerColor="#e07a6e">
+        <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
+          Only one copy of each duplicated Warcry can apply. Select the most recently cast copy:
+        </div>
+        {warcryConflict.groups.map(group => (
+          <div key={group.name} style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 10, color: '#cfcfe6', marginBottom: 3 }}>{group.name}</div>
+            <select className="cond-stack-input" style={{ width: '100%' }}
+              value={group.active.find(a => conditionState[a.sel_key] === true)?.sel_key ?? ''}
+              onChange={e => chooseWarcry(group, e.target.value)}>
+              <option value="">— Select most recent copy —</option>
+              {group.active.map(a => <option key={a.sel_key} value={a.sel_key}>{a.source}</option>)}
+            </select>
+          </div>
         ))}
       </ConfigPanel>
     ) }, 0)

@@ -1097,6 +1097,8 @@ class OffenseResult:
     shadow_chance_quantity: float = 0.0
     shadow_dmg_additional: float = 0.0
     shadow_mult: float = 1.0
+    shadow_tracking_area_inc: float = 0.0
+    shadow_tracking_distance: float = 0.0
     # Phase 1 primitive (2026-07-15, docs/BACKLOG.md §0f): expected Shadow-hit RATE — E[shadow_count] × cast
     # rate, where E[shadow_count] = shadow_count + shadow_chance_pct·shadow_chance_quantity is the LINEAR
     # expectation of the Despised-Shadow chance-mix. Distinct from shadow_mult's damage EV mix (which is
@@ -2248,7 +2250,12 @@ def calculate_offense(
     shadow_chance_quantity = 0.0
     shadow_dmg_additional_total = 0.0
     shadow_mult = 1.0
+    shadow_tracking_area_inc = 0.0
+    shadow_tracking_distance = 0.0
     shadow_hits_per_sec = 0.0
+    if "shadow strike" in skill_tags_lower:
+        shadow_tracking_area_inc = source.total("shadow_strike_tracking_area_inc")
+        shadow_tracking_distance = 9.5 * (1.0 + shadow_tracking_area_inc)
     if shadow:
         shadow_dmg_additional_total = source.total("shadow_dmg_additional")
         shadow_count = int(shadow.get("count", 0) or 0)
@@ -2767,7 +2774,12 @@ def calculate_offense(
         # each contributed an element tag (first multi-tag case; single-tag sets never showed it).
         skill_tags=(skill.tags + sorted(t for t in (add_mod_tags or set())
                                         if t.lower() not in {x.lower() for x in skill.tags})),
-        skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
+        skill_area_inc=(
+            (1.0 + source.total("skill_area_inc")
+             + (source.total("warcry_skill_area_inc") if "warcry" in skill_tags_lower else 0.0)
+             + spell_burst_area_display)
+            * additional_total_product(source, "skill_area_additional") - 1.0
+        ) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
         # Only jump skills consume extra_jumps_flat (reading source.total marks it consumed) — guard on jumps_base
@@ -2790,6 +2802,8 @@ def calculate_offense(
         shadow_chance_quantity=shadow_chance_quantity,
         shadow_dmg_additional=shadow_dmg_additional_total,
         shadow_mult=shadow_mult,
+        shadow_tracking_area_inc=shadow_tracking_area_inc,
+        shadow_tracking_distance=shadow_tracking_distance,
         shadow_hits_per_sec=shadow_hits_per_sec,
         channel_attack_ticks=channel_attack_ticks,
         channel_attack_smooth_sps=channel_attack_smooth_sps,

@@ -45,7 +45,7 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
 
 _ALL_TAGS = [
     "attack", "spell", "minion", "projectile", "ranged", "channeled", "area", "melee", "trauma", "wilt",
-    "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike", "spell_burst", "terra",
+    "ignite", "tangle", "sentry", "warcry", "shadow strike", "reaping", "affliction", "multistrike", "spell_burst", "terra",
     # Damage-type tags — element-tagged stats (e.g. fire_crit_dmg_inc) are read only when the skill's
     # mod_tags include that element (offense._CRIT_DMG_STATS tag-filter). The universe is the union over
     # ALL skills, so it carries every element tag; omitting these falsely badges type crit damage "yellow".
@@ -149,7 +149,11 @@ def consumable_universe() -> frozenset[str]:
     # Recovery Speed scales cooldown, Charging Progress + Max Charge feed charges — all outside the synthetic passes.
     consumed |= {"elixir_effect_inc", "elixir_effect_additional",
                  "elixir_duration_additional", "elixir_charging_progress_flat",
-                 "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc"}
+                 "duration_inc", "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc", "cdr_speed_additional"}
+    # engine.warcry reads these only for the active Warcry summary.
+    consumed |= {"warcry_effect_inc", "warcry_effect_additional", "warcry_skill_effect_duration_inc", "warcry_cdr_speed_inc",
+                 "warcry_min_targets_flat", "shadow_strike_tracking_area_inc", "warcry_cdr_speed_additional",
+                 "warcry_skill_effect_duration_additional"}
     # engine.recovery (post-loop sustain stage) reads the Restoration / Regain / Regen / Temporary-pool stats —
     # outside the synthetic offense/defense/derive passes, so whitelist them.
     consumed |= {"restoration_effect_inc", "restoration_effect_additional",

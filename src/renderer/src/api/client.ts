@@ -932,6 +932,8 @@ export interface OffenseResult {
   shadow_chance_quantity?: number
   shadow_dmg_additional?: number
   shadow_mult?: number
+  shadow_tracking_area_inc?: number
+  shadow_tracking_distance?: number
   // Demolisher Charge mode (Groundshaker etc.): the skill regains a single charge over time and consumes it on
   // cast to add the secondary explosion. Primary fissure fires at demolisher_cast_rate, secondary at
   // demolisher_charged_rate. The breakpoint fields drive the restoration-vs-cadence helper. "" / 0 when not a
@@ -1286,6 +1288,7 @@ export interface StatSheetResponse {
   curse_meta?: Record<string, CurseMeta>
   curse_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
   curse_conflict?: CurseConflict | null
+  warcry_conflict?: WarcryConflict | null
   // General build warnings/diagnostics (e.g. a curse amplifying a damage type the build doesn't deal).
   warnings?: { kind: string; text: string }[]
   // Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
@@ -1345,6 +1348,49 @@ export interface EmpowerSummary {
   enabled?: boolean   // false → shown in the panel but NOT applied to the build
   stack_condition?: string | null
   max_stacks?: number | null
+}
+
+export interface WarcrySummary {
+  skill_id: string
+  name: string
+  level: number
+  slot: number
+  warcry_effect_inc: number
+  warcry_effect_additional: number
+  warcry_effect: number
+  contributions: WarcryContribution[]
+  power_base: number
+  power_minimum: number
+  power_selected: number
+  power_is_manual: boolean
+  power_cap: number
+  power: number
+  base_cooldown: number
+  cooldown: number
+  cdr_inc: number
+  cdr_additional: number
+  base_charges: number
+  extra_charges: number
+  max_charges: number
+  base_duration: number
+  duration: number
+  duration_inc: number
+  duration_additional: number
+  uptime: number
+}
+
+export interface WarcryContribution {
+  label: string
+  base: number
+  level_one: number
+  level_twenty: number | null
+  per_power: boolean
+  per_stack: boolean
+  max_stacks: number | null
+  minimum_amount?: number | null
+  unit: 'pct' | string
+  scales_warcry_effect?: boolean
+  amount: number
 }
 
 export interface ElixirGrant { stat: string; base: number; amount: number; text: string; no_scale?: boolean; is_elixir_effect?: boolean }
@@ -1416,6 +1462,11 @@ export interface CurseMeta {
 export interface CurseConflict {
   limit: number
   active: { name: string; source: string; sel_key: string }[]
+  resolved: boolean
+}
+
+export interface WarcryConflict {
+  groups: { name: string; active: { name: string; source: string; sel_key: string }[]; resolved: boolean }[]
   resolved: boolean
 }
 

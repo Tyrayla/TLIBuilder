@@ -839,6 +839,8 @@ class Stat(Enum):
     CDR_SPEED_INC = "cdr_speed_inc"
     CDR_SPEED_ADDITIONAL = "cdr_speed_additional"   # additional (multiplicative) CDR pool; pairs with CDR_SPEED_INC
     WARCRY_CDR_SPEED_INC = "warcry_cdr_speed_inc"
+    WARCRY_CDR_SPEED_ADDITIONAL = "warcry_cdr_speed_additional"
+    WARCRY_SKILL_EFFECT_DURATION_ADDITIONAL = "warcry_skill_effect_duration_additional"
 
     # ── Skill Mechanics ───────────────────────────────────────────────────────
     SKILL_AREA_INC = "skill_area_inc"
@@ -849,6 +851,7 @@ class Stat(Enum):
     SKILL_AREA_TO_STEEP_STRIKE_DMG = "skill_area_to_steep_strike_dmg"
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
     SKILL_EFFECT_DURATION_ADDITIONAL = "skill_effect_duration_additional"
+    DURATION_INC = "duration_inc"  # generic "+X% Duration" (e.g. Extended Duration support)
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
     # ── Restoration / Recovery (heal-over-time; see engine/recovery.py) ────────
     # Restoration total = base × (1 + Σ restoration_effect_inc) × Π(1 + restoration_effect_additional). Duration =
@@ -887,7 +890,10 @@ class Stat(Enum):
     MOON_STRIKE_CIRCULAR_CHANCE = "moon_strike_circular_chance"
     BLUR_EFFECT_INC = "blur_effect_inc"
     WARCRY_EFFECT_INC = "warcry_effect_inc"
+    WARCRY_EFFECT_ADDITIONAL = "warcry_effect_additional"
+    WARCRY_SKILL_EFFECT_DURATION_INC = "warcry_skill_effect_duration_inc"
     WARCRY_SKILL_AREA_INC = "warcry_skill_area_inc"
+    SHADOW_STRIKE_TRACKING_AREA_INC = "shadow_strike_tracking_area_inc"
     ELIXIR_EFFECT_INC = "elixir_effect_inc"
     ELIXIR_EFFECT_ADDITIONAL = "elixir_effect_additional"
     ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"

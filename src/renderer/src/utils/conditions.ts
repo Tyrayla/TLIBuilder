@@ -25,6 +25,8 @@ export function buildDefaultConditionState(
 ): Record<string, number | boolean | string> {
   const state: Record<string, number | boolean | string> = {}
   for (const def of defs) {
+    // Keep engine-derived defaults absent so they are not mistaken for user overrides.
+    if (def.source === 'auto') continue
     if (def.value_type === 'boolean') state[def.key] = def.default_bool ?? false
     else if (def.value_type === 'enum') state[def.key] = def.default_enum ?? (def.enum_values?.[0] ?? '')
     else state[def.key] = def.default_value ?? 0

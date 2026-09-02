@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary, WarcrySummary } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from '../components/HeroTraitShared'
@@ -42,6 +42,8 @@ interface BreakdownCtxValue {
   // The skill slot currently being viewed — slot-local contributions are filtered to this so a stat's
   // breakdown shows only the selected skill's supports (plus global sources), never another slot's.
   selectedSlot: number
+  // Tag-scoped entries are exported for every skill, then filtered for the selected skill here.
+  selectedSkillTags: Set<string>
 }
 
 const MEMORY_NAMES: Record<string, string> = {
@@ -52,7 +54,7 @@ const BreakdownCtx = React.createContext<BreakdownCtxValue | null>(null)
 interface Collected {
   statKey: string; statName: string; unit: string
   source_type: string; label: string; text: string; source_name: string | null
-  amount: number; points: number; slot: number | null
+  amount: number; points: number; slot: number | null; scope: string | null
 }
 
 // Qualify a stat's display name by its pool so a combined breakdown (e.g. Max Life = flat/increased/additional,
@@ -72,9 +74,9 @@ function collectSources(keys: string[], stats: Record<string, StatEntry>): { mai
     if (!entry) continue
     const base = { statKey: k, statName: qualifiedStatName(k, entry.display_name || k), unit: entry.unit || '' }
     for (const s of entry.sources ?? [])
-      main.push({ ...base, source_type: s.source_type, label: s.label, text: s.text, source_name: s.source_name ?? null, amount: s.amount, points: s.points, slot: s.slot ?? null })
+      main.push({ ...base, source_type: s.source_type, label: s.label, text: s.text, source_name: s.source_name ?? null, amount: s.amount, points: s.points, slot: s.slot ?? null, scope: s.scope ?? null })
     for (const s of entry.slot_sources ?? [])
-      slot.push({ ...base, source_type: s.source_type, label: s.label, text: s.text, source_name: s.source_name ?? null, amount: s.amount, points: s.points, slot: s.slot ?? null })
+      slot.push({ ...base, source_type: s.source_type, label: s.label, text: s.text, source_name: s.source_name ?? null, amount: s.amount, points: s.points, slot: s.slot ?? null, scope: s.scope ?? null })
   }
   return { main, slot }
 }
@@ -111,6 +113,7 @@ const BD_GRID = 'auto auto auto minmax(0,1fr)'
 function fmtTotalVal(v: number, unit: string): string {
   if (unit === '%') return `${dec(v * 100)}%`   // up to 2 decimals, trims trailing zeros (14.44%, 50%)
   if (unit === '×') return `×${dec(v)}`   // multiplier pools (e.g. Total Additional = Π(1+x))
+  if (unit === 'm') return `${dec(v)} m`
   return v % 1 === 0 ? v.toFixed(0) : dec(v)
 }
 
@@ -282,14 +285,21 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
   const headerVal = totalOverride !== undefined ? totalOverride : keys.reduce((s, k) => s + (ctx.statMap[k]?.total ?? 0), 0)
   const headerUnit = totalOverride !== undefined ? (totalUnit ?? '') : (ctx.statMap[keys[0]]?.unit ?? '')
   const groupedMain = groupCollected(main)
+  // Tag-scoped sources are exported with a null slot: they are not tied to one
+  // equipped gem, but compute has already filtered them to the skill currently
+  // shown. They must not go through the numeric-slot filter below (null became
+  // 0, silently hiding every such source from breakdowns).
+  const scopedRows = groupCollected(slot).filter(g =>
+    g.slot == null && (g.scope == null || ctx.selectedSkillTags.has(g.scope.toLowerCase())))
   const slotGroups = new Map<number, GroupedCollected[]>()
   for (const g of groupCollected(slot)) {
-    const k = g.slot ?? 0
+    if (g.slot == null) continue
+    const k = g.slot
     if (k !== ctx.selectedSlot) continue   // show only the slot being viewed — no cross-slot leak
     if (!slotGroups.has(k)) slotGroups.set(k, [])
     slotGroups.get(k)!.push(g)
   }
-  const empty = groupedMain.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(sections && sections.length)
+  const empty = groupedMain.length === 0 && scopedRows.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(sections && sections.length)
   return (
     // Flex column that fills the size-capped .tooltip--breakdown height: the title header stays fixed at the top
     // and the rows scroll into whatever space remains, so the popover always fits the viewport (no top cutoff)
@@ -308,6 +318,12 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
           <BreakdownColHeader />
           {(extra ?? []).map((e, i) => <ExtraRowView key={`e${i}`} e={e} />)}
           {groupedMain.map((g, i) => <BreakdownSourceRow key={`m${i}`} g={g} ctx={ctx} />)}
+          {scopedRows.length > 0 && <>
+            <div style={{ gridColumn: '1 / -1', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#7a9af0', margin: '6px 0 2px' }}>
+              Skill-specific (matching tag)
+            </div>
+            {scopedRows.map((g, i) => <BreakdownSourceRow key={`tag${i}`} g={g} ctx={ctx} />)}
+          </>}
           {[...slotGroups.entries()].map(([slotNo, rows]) => (
             <React.Fragment key={`s${slotNo}`}>
               <div style={{ gridColumn: '1 / -1', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#7a9af0', margin: '6px 0 2px' }}>
@@ -1523,7 +1539,93 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   )
 }
 
-function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost, origin, minion = false }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null; origin?: OriginSkillSummary | null; minion?: boolean }) {
+function WarcryBox({ warcry }: { warcry: WarcrySummary }) {
+  return (
+    <StatPanel title="Warcry" accent={AMBER}>
+      <Row label="Warcry Effect" breakdown={{
+        title: 'Warcry Effect', keys: ['warcry_effect_inc', 'warcry_effect_additional'], total: warcry.warcry_effect, totalUnit: '%',
+        formula: '(1 + Increased Warcry Effect) × (1 + Additional Warcry Skill Effect) − 1',
+      }}>{dec(warcry.warcry_effect * 100)}%</Row>
+      <Row label="Warcry Power" breakdown={{
+        title: 'Warcry Power', keys: ['warcry_min_targets_flat'], total: warcry.power, totalUnit: '',
+        formula: warcry.power_is_manual
+          ? 'Manual Power, capped at the current Power Cap'
+          : 'min(Power Cap, max(Enemy Count, Minimum Enemies))',
+        extra: [
+          ...(warcry.power_is_manual
+            ? [{ value: dec(warcry.power_selected), stat: 'Manual Power', source: 'Config', sourceName: 'user override' }]
+            : [{ value: dec(warcry.power_base), stat: 'Enemy Count', source: 'Target', sourceName: 'Enemy Rarity' }]),
+          { value: dec(warcry.power_cap), stat: 'Warcry Power Cap', source: warcry.power_cap > 8 ? 'Core Talent' : 'Baseline', sourceName: warcry.power_cap > 8 ? 'Formless' : 'Base cap' },
+        ],
+      }}>{dec(warcry.power)}</Row>
+      <Row label="Cooldown" breakdown={{
+        title: 'Warcry Cooldown', keys: ['cdr_speed_inc', 'warcry_cdr_speed_inc', 'cdr_speed_additional', 'warcry_cdr_speed_additional'], total: warcry.cooldown, totalUnit: ' s',
+        formula: 'Base Cooldown ÷ (1 + Increased Cooldown Recovery Speed) ÷ (1 + Additional Cooldown Recovery Speed)',
+        extra: [
+          { value: `${dec(warcry.base_cooldown)} s`, stat: 'Base Cooldown', source: 'Skill', sourceName: warcry.name },
+        ],
+      }}>{dec(warcry.cooldown)} s</Row>
+      <Row label="Charges" breakdown={{
+        title: 'Max Warcry Skill Charges', keys: ['max_warcry_skill_charges_flat'], total: warcry.max_charges, totalUnit: '',
+        formula: 'Base Charges + Max Warcry Skill Charges',
+        extra: [{ value: dec(warcry.base_charges), stat: 'Base Charges', source: 'Skill', sourceName: warcry.name }],
+      }}>{dec(warcry.max_charges)}</Row>
+      <Row label="Duration" breakdown={{
+        title: 'Warcry Duration', keys: ['duration_inc', 'skill_effect_duration_inc', 'warcry_skill_effect_duration_inc', 'skill_effect_duration_additional', 'warcry_skill_effect_duration_additional'], total: warcry.duration, totalUnit: ' s',
+        formula: 'Base Duration × (1 + Increased Duration) × (1 + Additional Skill Effect Duration)',
+        extra: [
+          { value: `${dec(warcry.base_duration)} s`, stat: 'Base Duration', source: 'Skill', sourceName: warcry.name },
+        ],
+      }}>{dec(warcry.duration)} s</Row>
+      <Row label="Uptime" breakdown={{
+        title: 'Warcry Uptime', keys: [], total: warcry.uptime, totalUnit: '%',
+        formula: 'min(1, Duration ÷ Cooldown)',
+      }}>{dec(warcry.uptime * 100)}%</Row>
+      <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Total Contributions</div>
+      {warcry.contributions.map((contribution, index) => (
+        <Row key={`${contribution.label}-${index}`} label={contribution.label} breakdown={{
+          title: contribution.label,
+          keys: [],
+          total: contribution.amount, totalUnit: contribution.unit === 'pct' ? '%' : contribution.unit,
+          formula: contribution.scales_warcry_effect === false
+            ? 'Skill level value (not affected by Warcry Effect)'
+            : contribution.minimum_amount != null
+              ? 'max(Total Contribution Cap, Base Effect × Warcry Power × (1 + Warcry Effect))'
+            : contribution.per_stack
+              ? 'Base Effect × (1 + Warcry Effect), per Combo Finisher'
+              : contribution.per_power
+                ? 'Base Effect × Warcry Power × (1 + Warcry Effect)'
+                : 'Base Effect × (1 + Warcry Effect)',
+          extra: [
+            { value: contribution.unit === 'pct'
+                ? `${contribution.base >= 0 ? '+' : ''}${dec(contribution.base * 100)}%`
+                : dec(contribution.base),
+              stat: 'Base Effect', source: 'Skill', sourceName: warcry.name },
+            ...(contribution.level_twenty !== null
+              ? [{ value: `${dec(contribution.level_one * 100)}% → ${dec(contribution.level_twenty * 100)}%`, stat: 'Level Scaling', source: 'Skill', sourceName: 'Lv1 → Lv20' }]
+              : []),
+            ...(contribution.per_power
+              ? [{ value: dec(warcry.power), stat: 'Warcry Power', source: 'Config', sourceName: warcry.power_is_manual ? 'Manual Override' : 'Derived Power' }]
+              : []),
+            ...(contribution.scales_warcry_effect === false
+              ? []
+              : [{ value: `${warcry.warcry_effect >= 0 ? '+' : ''}${dec(warcry.warcry_effect * 100)}%`, stat: 'Total Warcry Effect', source: 'Calculated', sourceName: 'Increased + Additional' }]),
+            ...(contribution.per_stack && contribution.max_stacks
+              ? [{ value: dec(contribution.max_stacks), stat: 'Maximum Combo Finisher Stacks', source: 'Skill', sourceName: warcry.name }]
+              : []),
+            ...(contribution.minimum_amount != null
+              ? [{ value: `${dec(contribution.minimum_amount * 100)}%`, stat: 'Total Contribution Cap', source: 'Skill', sourceName: warcry.name }]
+              : []),
+          ],
+        }}>{contribution.unit === 'pct'
+          ? `${contribution.amount >= 0 ? '+' : ''}${dec(contribution.amount * 100)}%`
+          : `${dec(contribution.amount)}${contribution.unit}`}</Row>
+      ))}
+    </StatPanel>
+  )
+}
+
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, warcry, elixir, skillCost, origin, minion = false }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; warcry?: WarcrySummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null; origin?: OriginSkillSummary | null; minion?: boolean }) {
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
@@ -1535,7 +1637,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse/empower), show its
     // foundation panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
+      ? <>{warcry && <GridBox><WarcryBox warcry={warcry} /></GridBox>}<SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} /></>
       : <StatPanel title={slotLabel(slot)} accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
@@ -1583,7 +1685,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   // that would state a damage number (the hit-damage table, DPS rows, delivery multipliers). Buff-type
   // skills with a modeled summary (aura / curse / empower / elixir) keep their richer foundation panel.
   const partial = !offense.supported
-  if (partial && skill && (aura || curse || empower || elixir || reservation)) {
+  if (partial && skill && (aura || curse || empower || elixir || reservation) && !warcry) {
     return <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
   }
 
@@ -1672,7 +1774,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     )
   }
 
-  const isSpell = hasTag(offense,'spell')
+  const isWarcry = !!warcry
+  const isSpell = hasTag(offense,'spell') || isWarcry
   const rateLabel = isSpell ? 'Casts per Second' : 'Attacks per Second'
   // Minion abilities are scaled ONLY by minion-scoped speed pools — the player's attack/cast speed (incl. any
   // Origin +6% AS granted to the SUMMONER) must never appear in a minion's hit-rate breakdown.
@@ -1919,7 +2022,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           </StatPanel>
         </GridBox>
 
-        <GridBox>
+        {!isWarcry && <GridBox>
           <StatPanel title="Critical Strikes" accent={AMBER}>
             {/* Hover for the full breakdown (like the other rows) — no inline accordion. For spells the
                 intrinsic base crit rating is shown as a "Spell base" baseline; for attacks the weapon's base
@@ -1979,7 +2082,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               }}>{dec((offense.quad_dmg_chance! * 100))}%</Row>
             )}
           </StatPanel>
-        </GridBox>
+        </GridBox>}
 
         {/* Spirit Magi — the minion's Growth-subsystem state (Growth / Stage / Enhanced chance / Physique / Skill
             Area / Max in Map). Replaces the player Skill Effects box in minion mode. Physique & Skill Area are
@@ -2076,9 +2179,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               <StatPanel title="Skill Effects" accent={AMBER}>
                 {hasTag(offense, 'area') && (
                   <Row label="Area of Effect" breakdown={{
-                    title: 'Area of Effect', keys: ['skill_area_inc'],
-                    total: offense.skill_area_inc, totalUnit: '%', formula: 'Σ Increased Skill Area',
-                  }}>{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
+                    title: 'Area of Effect', keys: hasTag(offense, 'warcry')
+                      ? ['skill_area_inc', 'warcry_skill_area_inc', 'skill_area_additional']
+                      : ['skill_area_inc', 'skill_area_additional'],
+                    total: offense.skill_area_inc, totalUnit: '%', formula: '(1 + total increased Skill Area) × each additional Skill Area factor − 1',
+                  }}>{offense.skill_area_inc !== 0 ? `${offense.skill_area_inc > 0 ? '+' : ''}${dec(offense.skill_area_inc * 100)}%` : '+0%'}</Row>
                 )}
                 {hasTag(offense, 'projectile') && (
                   (offense.projectile_count ?? -1) >= 0
@@ -2246,6 +2351,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           }}>{dec(offense.tangle_attach_range)} m</Row>
         </StatPanel></GridBox>
       )}
+
+      {warcry && <GridBox><WarcryBox warcry={warcry} /></GridBox>}
 
       {(offense.spell_burst_count ?? 0) > 0 && (
         <GridBox><StatPanel title="Spell Burst" accent={SKYBLUE}
@@ -2680,6 +2787,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             title: 'Max Shadow Quantity', keys: ['max_shadow_quantity_flat'], total: offense.shadow_count ?? 0, totalUnit: '',
             formula: 'Σ Shadow Quantity — gear / support / talent lines granting +Shadow Quantity',
           }}>{offense.shadow_count ?? 0}</Row>
+          <Row label="Tracking Distance" breakdown={{
+            title: 'Shadow Tracking Distance', keys: ['shadow_strike_tracking_area_inc'], total: offense.shadow_tracking_distance ?? 9.5, totalUnit: 'm',
+            formula: 'Base 9.5 m × (1 + total Tracking Area contribution). Not affected by Skill Area.',
+            extra: [{ value: '9.5 m', stat: 'Base tracking distance', source: 'Baseline', sourceName: 'Shadow Strike' }],
+          }}>{dec(offense.shadow_tracking_distance ?? 9.5)} m</Row>
           {(offense.shadow_chance_pct ?? 0) > 0 && (
             <>
               <Row label="Bonus-Shadow Chance" breakdown={{
@@ -3539,6 +3651,7 @@ export default function PlayerStatsScreen() {
   const curses = ((computedStats as { curses?: CurseSummary[] | null }).curses) ?? null
   const curseMeta = ((computedStats as { curse_meta?: Record<string, CurseMeta> | null }).curse_meta) ?? null
   const empowers = ((computedStats as { empowers?: EmpowerSummary[] | null }).empowers) ?? null
+  const warcries = ((computedStats as { warcries?: WarcrySummary[] | null }).warcries) ?? null
   const elixirs = ((computedStats as { elixirs?: ElixirSummary[] | null }).elixirs) ?? null
   const reservation = ((computedStats as { reservation?: ReservationResult | null }).reservation) ?? null
   const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
@@ -3546,6 +3659,7 @@ export default function PlayerStatsScreen() {
   const selectedCurse = curses?.find(c => c.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurseMeta = (curseMeta && selectedSkill?.item_id) ? curseMeta[selectedSkill.item_id] ?? null : null
   const selectedEmpower = empowers?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
+  const selectedWarcry = warcries?.find(w => w.skill_id === selectedSkill?.item_id && w.slot === selectedSlot) ?? null
   const selectedElixir = elixirs?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
   const selectedReservation = reservation?.per_skill?.find(
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
@@ -3553,7 +3667,7 @@ export default function PlayerStatsScreen() {
     s => s.skill_id === selectedSkill?.item_id && s.slot === selectedSlot) ?? null
 
   return (
-    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot }}>
+    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot, selectedSkillTags: new Set((selectedSkill?.skill_tags ?? []).map(tag => tag.toLowerCase())) }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '55', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
@@ -3563,7 +3677,7 @@ export default function PlayerStatsScreen() {
             calcMode={calcMode} onCalcMode={setCalcMode} />
           {minionMode
             ? <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} reservation={selectedReservation} origin={selectedOrigin} minion />
-            : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
+            : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} warcry={selectedWarcry} elixir={selectedElixir} skillCost={skillCost} />}
           <IncomingPanel incoming={incoming} defense={defense} />
         </div>
 

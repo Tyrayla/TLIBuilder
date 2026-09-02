@@ -1110,6 +1110,7 @@ def engine_stats(req: EngineStatsRequest):
         # Per-empower summary (Empower Effect + granted buffs + NYI) for the Skill panel, statuses, and the
         # settable per-empower buff-stack conditions (sliders).
         "empowers": result.empower_summaries,
+        "warcries": result.warcry_summaries,
         "empower_statuses": empower_statuses,
         "empower_stack_conditions": empower_stack_conditions,
         # Per-elixir summary (Elixir Effect + granted buffs + timing + NYI) for the Skill panel, plus statuses.
@@ -1121,6 +1122,7 @@ def engine_stats(req: EngineStatsRequest):
         "curse_meta": curse_meta,
         "curse_statuses": curse_statuses,
         "curse_conflict": result.curse_conflict,
+        "warcry_conflict": result.warcry_conflict,
         # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
         # Bespoke-trait status lines flagged "warning" (e.g. Licorice Note's activation-medium pitfall) are merged
         # here so they surface on the Config screen's warnings banner (trait_mod_statuses itself isn't shown).
@@ -1175,6 +1177,7 @@ def get_conditions():
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":
             entry["is_derived"] = True
+        entry["source"] = c.source
         if not c.visible:
             entry["visible"] = False
         if c.trait_id:
@@ -2004,6 +2007,8 @@ _BLESSING_KEY_MAP = {
 # listed before their positive counterparts so "not low" wins over "low". A value can be a static expr
 # or a callable(match)->expr for thresholds. These map onto conditions in data/conditions.json.
 _COND_PATTERNS: list[tuple] = [
+    (re.compile(r"for\s+each\s+different\s+warcry\s+cast\s+for\s+8\s*s", re.I),
+     {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}),
     # Low-resource gates (self) — negated first
     (re.compile(r"energy\s+shield\s+is\s+not\s+low|not\s+at\s+low\s+energy\s+shield", re.I), {"not": "low_energy_shield"}),
     (re.compile(r"life\s+is\s+not\s+low|not\s+at\s+low\s+life", re.I), {"not": "low_life"}),
@@ -2309,6 +2314,50 @@ def _resolve_gear_affix_clauses(text: str) -> list[dict]:
         return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
     out: list[dict] = []
     for clause in _expand_named_buffs(text):
+        if re.search(r"each\s+different\s+warcry\s+cast", clause, re.I):
+            cond_expr = {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}
+            parsed = []
+            minimum = re.search(r"\+([\d.]+)\s+to\s+the\s+minimum\s+number", clause, re.I)
+            effect = re.search(r"\+([\d.]+)\s*%\s+additional\s+warcry\s+effect", clause, re.I)
+            cdr = re.search(r"\+([\d.]+)\s*%\s+additional\s+warcry\s+cooldown\s+recovery\s+speed", clause, re.I)
+            # Corroded Kragol has a separate, ordinary (not "additional")
+            # Warcry Effect roll on both of its Warcry clauses.
+            effect_inc = re.search(r"\+([\d.]+)\s*%\s+(?<!additional\s)warcry\s+effect", clause, re.I)
+            if minimum:
+                parsed.append({"stat_key": "warcry_min_targets_flat", "amount": float(minimum.group(1)), "text": clause})
+            if effect:
+                parsed.append({"stat_key": "warcry_effect_additional", "amount": float(effect.group(1)) / 100, "text": clause})
+            if cdr:
+                parsed.append({"stat_key": "warcry_cdr_speed_additional", "amount": float(cdr.group(1)) / 100, "text": clause})
+            out.append({"clause": clause, "parsed": parsed, "cond_expr": cond_expr,
+                        "resolved": bool(parsed), "curse": None})
+            if effect_inc:
+                # The Corroded plain "Warcry Effect" roll is not introduced by
+                # "for each different cast"; preserve it as an unconditional
+                # increased-effect source rather than scaling it by that count.
+                out.append({"clause": clause, "parsed": [
+                    {"stat_key": "warcry_effect_inc", "amount": float(effect_inc.group(1)) / 100,
+                     "text": clause}], "cond_expr": None, "resolved": True, "curse": None})
+            continue
+        # Kragol's duration line is scoped to Warcries and scales by the
+        # resolved Warcry Power (each enemy affected).  It intentionally uses
+        # its own additional-duration pool so it cannot change other skills.
+        if re.search(r"additional\s+duration\s+for\s+the\s+current\s+warcry", clause, re.I):
+            duration = re.search(r"([+-])\s*([\d.]+)\s*%\s+additional\s+duration", clause, re.I)
+            effect_inc = re.search(r"\+([\d.]+)\s*%\s+(?<!additional\s)warcry\s+effect", clause, re.I)
+            parsed = []
+            if duration:
+                sign = -1.0 if duration.group(1) == "-" else 1.0
+                parsed.append({"stat_key": "warcry_skill_effect_duration_additional",
+                               "amount": sign * float(duration.group(2)) / 100, "text": clause})
+            out.append({"clause": clause, "parsed": parsed,
+                        "cond_expr": {"key": "warcry_power", "op": "per", "divisor": 1},
+                        "resolved": bool(parsed), "curse": None})
+            if effect_inc:
+                out.append({"clause": clause, "parsed": [
+                    {"stat_key": "warcry_effect_inc", "amount": float(effect_inc.group(1)) / 100,
+                     "text": clause}], "cond_expr": None, "resolved": True, "curse": None})
+            continue
         cond_expr = None
         parsed = _parse_custom_mod_text(clause)
         if not parsed:

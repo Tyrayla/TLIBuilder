@@ -973,7 +973,9 @@ def resolve_skill(skill_data: dict) -> ResolvedSkill:
             max_level=0,
             hit_forms_by_level={},
             supported=False,
-            is_spell=any(str(t).lower() == "spell" for t in _tags),
+            # Warcries are non-damaging cast skills. They use the cast-time/rate path for display and supports,
+            # while remaining unsupported for damage (no hit forms / DPS model).
+            is_spell=any(str(t).lower() in {"spell", "warcry"} for t in _tags),
             base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
         )
     resolved.main_stat = _parse_main_stats(skill_data.get("main_stat"))

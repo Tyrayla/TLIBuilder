@@ -586,9 +586,11 @@ def compute(
 
     aura_summaries: list[dict] = []
     empower_summaries: list[dict] = []
+    warcry_summaries: list[dict] = []
     elixir_summaries: list[dict] = []
     curse_summaries: list[dict] = []
     curse_conflict: dict | None = None
+    warcry_conflict: dict | None = None
     reservation: dict | None = None
     _prev_consumed_recently_life = 0.0   # carries consumed-recently across passes for the AS-per-consumed feedback
     _prev_burst_rate = 0.0               # carries the burst-trigger rate across passes for the Flash Flood AS/CS feedback
@@ -700,6 +702,27 @@ def compute(
                 manual_cond_keys.add(_ck)
         active_booleans, numeric_vals = _derive_views(condition_state)
 
+        from engine.warcry import WARCRY_SKILL_IDS
+        _kragol_key = "kragols_roar_distinct_warcries"
+        _kragol_active = any(
+            isinstance(c.get("condition"), dict) and c["condition"].get("key") == _kragol_key
+            for item in build_input.gear for c in item.get("contributions", []))
+        _kragol_max = len({sk.get("skill_id") for sk in (skills_input or [])
+                           if sk.get("enabled", True) and sk.get("skill_id") in WARCRY_SKILL_IDS})
+        if _kragol_active:
+            if _kragol_key in manual_cond_keys:
+                # This Config input represents casts in the item's eight-second
+                # window; the user may lower it, but cannot exceed the number
+                # of distinct equipped Warcry skills that could have cast.
+                condition_state[_kragol_key] = min(
+                    max(0.0, float(condition_state.get(_kragol_key) or 0.0)),
+                    float(_kragol_max),
+                )
+            else:
+                condition_state[_kragol_key] = float(_kragol_max)
+        # The gear effects above are condition-scaled, so derive their numeric
+        # view after the automatic/default value (or manual clamp) is settled.
+        active_booleans, numeric_vals = _derive_views(condition_state)
         source = aggregate(
             build_input,
             season_trees,
@@ -710,6 +733,39 @@ def compute(
         )
         source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
         source.enemy_config = build_input.enemy_config      # incoming-hit enemy skill → defensive Max-Hit / EHP (WS3)
+
+        # Warcry Power is the greater of target rarity and the build's minimum-enemies value, capped at
+        # 8 (16 with Formless). The same cap clamps a manual Config value.
+        _has_warcry = any(
+            sk.get("enabled", True) and sk.get("skill_id") in WARCRY_SKILL_IDS
+            for sk in (skills_input or [])
+        )
+        if _has_warcry:
+            if _kragol_active:
+                source.referenced_conditions.add(_kragol_key)
+                auto_sources[_kragol_key] = "Kragol's Roar (distinct equipped Warcries)"
+                auto_values[_kragol_key] = float(_kragol_max)
+                if _kragol_key not in manual_cond_keys:
+                    condition_state[_kragol_key] = float(_kragol_max)
+            _warcry_cap = 16.0 if condition_state.get("formless_warcry_effects") else 8.0
+            _warcry_minimum = source.total("warcry_min_targets_flat")
+            _warcry_default = min(_warcry_cap, max(float(condition_state.get("enemy_count_weight") or 5.0), _warcry_minimum))
+            auto_sources["warcry_power"] = "Maximum of target enemy count and minimum enemies affected by Warcry"
+            auto_values["warcry_power"] = _warcry_default
+            if "warcry_power" not in manual_cond_keys:
+                condition_state["warcry_power"] = _warcry_default
+
+        _has_shockwave_warcry = any(
+            sk.get("enabled", True) and sk.get("skill_id") == "shockwave_warcry"
+            for sk in (skills_input or [])
+        )
+        if _has_shockwave_warcry:
+            _shockwave_stacks_key = "shockwave_warcry_combo_finisher_stacks"
+            source.referenced_conditions.add(_shockwave_stacks_key)
+            auto_sources[_shockwave_stacks_key] = "Shockwave Warcry (full stacks)"
+            auto_values[_shockwave_stacks_key] = 5.0
+            if _shockwave_stacks_key not in manual_cond_keys:
+                condition_state[_shockwave_stacks_key] = 5.0
 
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
@@ -794,6 +850,14 @@ def compute(
         # in player-wide. Full uptime assumed while enabled. Runs each pass like the auras.
         elixir_summaries = apply_elixir_buffs(
             source, build_input.elixir_buffs, build_input.elixir_meta, active_booleans, numeric_vals)
+
+        # Warcries are ordinary timed buffs. Their scoped/global effects resolve into the
+        # same pools as their native modifiers; Real uptime only scales the persistent buff,
+        # while Resurrection's fixed restoration total is scheduled by its cooldown.
+        from engine.warcry import apply_warcry_buffs
+        warcry_loop_summaries, warcry_restoration_inputs, warcry_conflict = apply_warcry_buffs(
+            skills_input, skills_by_id, source, condition_state, build_input.uptime_mode,
+            power_is_manual="warcry_power" in manual_cond_keys)
 
         # Curses: scale each applied curse by the now-aggregated Curse Effect and bake the per-final-type
         # *_curse_taken enemy-vulnerability pools (consumed by offense). Runs each pass like the auras so curse
@@ -1253,6 +1317,12 @@ def compute(
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
+        if _has_warcry:
+            maxes["warcry_power"] = 16.0 if condition_state.get("formless_warcry_effects") else 8.0
+            if _kragol_active:
+                maxes["kragols_roar_distinct_warcries"] = _kragol_max
+        if _has_shockwave_warcry:
+            maxes["shockwave_warcry_combo_finisher_stacks"] = 5.0
 
         # "Gain on hit" core talents (Chilly/Perception/Tenacity, Ambition) → model the blessing/Fervor at
         # MAX (full-uptime approximation; future: selectable uptime calc modes). Flags arrive in
@@ -1447,6 +1517,7 @@ def compute(
     _restoration_inputs = []
     for _es in (elixir_summaries or []):
         _restoration_inputs.extend(_es.get("restoration") or [])
+    _restoration_inputs.extend(warcry_restoration_inputs or [])
     # Self-consume drains (Mana Boil / life-consume affixes). Per-use consume needs the active skill's use rate +
     # the attack-use rate (its rate when it is an attack); the heavy damage calc stays post-loop below.
     _cons_active = resolve_skill(skill_data) if (skill_data and build_input.main_skill and main_enabled) else None
@@ -2004,13 +2075,10 @@ def compute(
 
     # Tag-scoped contributions (add_scoped — e.g. Aim/Euphoria's Ranged/Beam +additional (Ailment) Damage, or a
     # "Ranged Damage" gear line) live in scoped_log and apply only to skills carrying the tag. They're absent from
-    # `total`/`sources` AND from slot_log, so they never showed in the breakdown. Surface those whose scope matches
-    # the MAIN skill's tags (so the shown entries actually apply to it) in the same slot_sources list, with the
-    # scope noted. Display-only; totals stay byte-identical.
-    _main_tags = {t.lower() for t in (result_offense.get("skill_tags") or [])} if result_offense else set()
+    # `total`/`sources` AND from slot_log, so they never showed in the breakdown. Export all of them with their
+    # scope; the renderer filters against the currently selected skill's tags, not only the main skill's tags.
+    # Display-only; totals stay byte-identical.
     for (stat, _amount, scope), entry in zip(source.scoped_entries, source.scoped_log):
-        if scope is not None and scope.lower() not in _main_tags:
-            continue
         if stat not in stat_map:
             meta = next((m for s, m in STAT_META.items() if s.value == stat), None)
             stat_map[stat] = {
@@ -2044,6 +2112,11 @@ def compute(
         if _is_active(v)
     }
 
+    from engine.warcry import summarize_warcries
+    warcry_summaries = summarize_warcries(
+        skills_input, skills_by_id, source, condition_state,
+        power_is_manual="warcry_power" in manual_cond_keys)
+
     return StatResult(
         stat_map=stat_map,
         condition_maximums=maxes,
@@ -2063,9 +2136,11 @@ def compute(
         blessings=blessings,
         aura_summaries=aura_summaries,
         empower_summaries=empower_summaries,
+        warcry_summaries=warcry_summaries,
         elixir_summaries=elixir_summaries,
         curse_summaries=curse_summaries,
         curse_conflict=curse_conflict,
+        warcry_conflict=warcry_conflict,
         warnings=warnings,
         origin_summary=origin_summary,
         reservation=reservation,

@@ -546,8 +546,10 @@
     "shadow_dmg_additional": 0.0,
     "shadow_hits_per_sec": 0.0,
     "shadow_mult": 1.0,
+    "shadow_tracking_area_inc": 0.0,
+    "shadow_tracking_distance": 0.0,
     "shotgun_hits": 1,
-    "skill_area_inc": 1.0,
+    "skill_area_inc": 1.3399999999999999,
     "skill_name": "Berserking Blade",
     "skill_tags": [
       "Attack",
@@ -885,8 +887,10 @@
       "shadow_dmg_additional": 0.0,
       "shadow_hits_per_sec": 0.0,
       "shadow_mult": 1.0,
+      "shadow_tracking_area_inc": 0.0,
+      "shadow_tracking_distance": 0.0,
       "shotgun_hits": 1,
-      "skill_area_inc": 1.0,
+      "skill_area_inc": 1.3399999999999999,
       "skill_name": "Berserking Blade",
       "skill_tags": [
         "Attack",
