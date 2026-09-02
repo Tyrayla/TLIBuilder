@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Warcry
+- **Warcry skills now have a dedicated Calcs panel and are fully modeled.** All six Warcries (Charging, Commanding, Fearless, Raging, Resurrection, Shockwave) show live Warcry Effect, Power, Cooldown, Duration, Charges, Uptime, and a per-contribution breakdown. Warcry Power auto-derives from target enemy count and any minimum-enemies modifiers (capped at 8, or 16 with Formless), with a manual override available in Config. Charging Warcry's Shadow Strike Tracking Distance is now modeled as its own 9.5m-base pool, separate from general Skill Area. Kragol's Roar's distinct-cast counter and Warcry-only cooldown/duration bonuses are wired in, and duplicate equipped copies of the same Warcry resolve to the most recently cast one.
+- **Fixed: Berserking Blade's Sweep support "additional Skill Area" bonus wasn't applying.** It was being parsed and tracked but silently dropped from the skill's actual Skill Area total; it's now correctly folded in, alongside every other skill's `additional` Skill Area contributions (e.g. Shockwave Warcry's Combo Finisher stacking).
+
 ### Build management
 - **Fixed: the Base/Special hero-memory slot no longer vanishes on save/reload.** A memory socketed into the revival-enabled Base slot was silently dropped by the save path (both the on-disk build file writer and the Save button's outgoing payload never carried the field) and came back empty the next time the build was opened. It now round-trips correctly.
 

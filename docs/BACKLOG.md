@@ -183,12 +183,14 @@ for Thunder Spike specifically — see below. Full detail: `data/verification/sh
   shadow-hit-count expected-value modeling before they can be wired; this EV model is the shared unlock for
   both proc lines.
 - **Tremble Noble** on-crit "+(66–71)% Numbed Effect for 2s" buff — unmodeled.
-- **Tracking Area entirely unmodeled**: Thunder Spike's own "100% of Skill Area increase/decrease also applied
-  to Shadows' Tracking Area, up to 100%", the dedicated `+% Shadow(s) Tracking Area` stat family, Dual Kismet:
-  Ghost Bee ("+50% Shadow Tracking Area +50% Shadow Strike Skill Area"), and Charging Warcry's "+20% Tracking
-  Area for Shadow Strike Skills while the skill lasts" — no AoE/targeting model exists to consume any of it.
+- **Tracking Area mostly unmodeled**: Thunder Spike's own "100% of Skill Area increase/decrease also applied
+  to Shadows' Tracking Area, up to 100%", the dedicated `+% Shadow(s) Tracking Area` stat family, and Dual
+  Kismet: Ghost Bee ("+50% Shadow Tracking Area +50% Shadow Strike Skill Area") — no AoE/targeting model
+  exists to consume any of it. **Charging Warcry's own "+20% Tracking Area for Shadow Strike Skills while the
+  skill lasts" IMPLEMENTED** (2026-09-02, `engine/warcry.py`) as a dedicated `shadow_strike_tracking_area_inc`
+  pool — Distance = 9.5m × (1 + total tracking contribution), explicitly excluded from general Skill Area.
 - **Charging Warcry** "4% additional damage and Ailment Damage per enemy affected" for Shadow Strike skills —
-  per-enemy-affected scaling unmodeled.
+  **IMPLEMENTED** (2026-09-02, `engine/warcry.py`), per-enemy-affected scaling via Warcry Power.
 - **Frost Spike / Double Thrusts** — the other two Shadow Strike skills — remain unregistered in
   `skill_resolver._REGISTRY`; Thunder Spike is the only one live in v1. Detection is tag-driven off the
   "Shadow Strike" skill tag (not hardcoded to `thunder_spike`), so both light up automatically once registered
