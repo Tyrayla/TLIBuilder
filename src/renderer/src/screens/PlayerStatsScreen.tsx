@@ -1928,20 +1928,22 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     <>
       <StatPanel title={<>
         {slotLabel(slot)} — {offense.skill_name} (
-        {offense.level_summary ? (
-          <Breakdown
+        {offense.level_summary ? (() => {
+          const levelSources = levelSourceRows(offense.level_summary.bonus_sources ?? [])
+          return <Breakdown
             title="Effective Skill Level"
-            // Source rows come from the engine's materialized calculation context.  Do not also
-            // collect the global stat-map keys here: that would repeat every applicable source.
-            keys={[]}
+            // New engine payloads carry materialized sources so scoped/slot-local bonuses stay exact.
+            // Older/cached payloads can lack that optional field; fall back to the stat-map rows rather
+            // than leaving a correct effective total with no explanation.  Never render both paths.
+            keys={levelSources.length ? [] : offense.level_summary.bonus_stat_keys}
             total={offense.level_summary.effective_level}
             formula={`${offense.level_summary.base_level} base ${offense.level_summary.bonus_level >= 0 ? '+' : '−'} ${Math.abs(offense.level_summary.bonus_level)} bonus = ${offense.level_summary.effective_level} effective`}
             extra={[{ value: `${offense.level_summary.base_level}`, stat: 'Skill Level', source: 'Skill', sourceName: offense.skill_name }]}
-            displaySources={levelSourceRows(offense.level_summary.bonus_sources ?? [])}
+            displaySources={levelSources.length ? levelSources : undefined}
           >
             <span style={{ color: '#f0c070', textTransform: 'none', letterSpacing: 0 }}>Level {offense.level_summary.effective_level}</span>
           </Breakdown>
-        ) : `Level ${offense.effective_level}`}
+        })() : `Level ${offense.effective_level}`}
         )
       </>} accent={AMBER} info={dotDominant ? DOT_DISCLAIMER : undefined}>
         {partial ? (
