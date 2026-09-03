@@ -1140,36 +1140,47 @@ def compute(
         # items, no scope word in the raw text). Same per-unit + explicit-divisor fold shape as the
         # per-consumed added-damage loop above, keyed off the attribute totals computed just above instead
         # of a consumed-recently value. floor(attribute/N) quantizes to whole N-chunks before scaling.
+        # Grouped PER ORIGINATING SOURCE by RAW affix text — deliberately NOT pooling_uuid or
+        # affix_identity(text): both are value-stripped identities (pooling_uuid is minted FROM
+        # affix_identity, see engine/identity_index.py) meant to pool multiple ROLLS of the SAME affix
+        # template together, which is exactly wrong here — it collapses two DIFFERENT items sharing the
+        # "Adds A-B <Type> Damage per N <Attribute>" template (their divisor is a stripped value token)
+        # into one group even though their divisors differ. Raw text keeps the divisor digits, so two
+        # items sharing a (damage type, attribute) pair with DIFFERENT divisors each floor against their
+        # OWN divisor instead of source.total()'s cross-source sum corrupting both.
         # Own import (NOT the `_floored` bound above) — that one only executes inside the self-consume
         # branch, so a build with this gear but no consume mechanic would hit an unbound name otherwise.
         from engine.consumption import floored_consumed as _floored_attr
         for _attr, _at in (("strength", _str_t), ("dexterity", _dex_t), ("intelligence", _int_t)):
             for _dtype in ("physical", "fire", "cold", "lightning", "erosion"):
-                _pu_min = source.total(f"{_dtype}_dmg_flat_min_per_{_attr}")
-                _pu_max = source.total(f"{_dtype}_dmg_flat_max_per_{_attr}")
-                if not (_pu_min or _pu_max):
+                _min_key = f"{_dtype}_dmg_flat_min_per_{_attr}"
+                _max_key = f"{_dtype}_dmg_flat_max_per_{_attr}"
+                _unit_key = f"{_dtype}_dmg_flat_per_{_attr}_unit"
+                _entries = [e for e in source.source_log if e.stat in (_min_key, _max_key, _unit_key)]
+                if not _entries:
                     continue
-                _unit = source.total(f"{_dtype}_dmg_flat_per_{_attr}_unit")
-                if _unit <= 0:
-                    continue
-                source.consumed_stats.update({
-                    f"{_dtype}_dmg_flat_min_per_{_attr}", f"{_dtype}_dmg_flat_max_per_{_attr}",
-                    f"{_dtype}_dmg_flat_per_{_attr}_unit"})
-                _cr = _floored_attr(_at, _unit)
-                _orig = next((e for e in source.source_log
-                              if e.stat in (f"{_dtype}_dmg_flat_min_per_{_attr}",
-                                            f"{_dtype}_dmg_flat_max_per_{_attr}")), None)
-                for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
-                    _amt = _cr * _pu
-                    if not _amt:
+                source.consumed_stats.update({_min_key, _max_key, _unit_key})
+                _groups: dict[str, dict] = {}
+                for e in _entries:
+                    gkey = e.text
+                    grp = _groups.setdefault(gkey, {"_entry": e})
+                    grp[e.stat] = grp.get(e.stat, 0.0) + e.amount
+                for _grp in _groups.values():
+                    _pu_min, _pu_max = _grp.get(_min_key, 0.0), _grp.get(_max_key, 0.0)
+                    _unit = _grp.get(_unit_key, 0.0)
+                    if not (_pu_min or _pu_max) or _unit <= 0:
                         continue
-                    for _cls in ("attack", "spell"):
-                        source.add_with_source(f"{_dtype}_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
-                            stat=f"{_dtype}_{_cls}_dmg_flat_{_mm}", amount=_amt,
-                            source_type=(_orig.source_type if _orig else "gear"),
-                            label=(_orig.label if _orig else "Gear · Item"), points=1,
-                            text=(_orig.text if _orig else f"Adds {_dtype.title()} Damage per {_attr.title()}"),
-                            source_name=(_orig.source_name if _orig else f"{_attr.title()}-scaled")))
+                    _cr = _floored_attr(_at, _unit)
+                    _orig = _grp["_entry"]
+                    for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
+                        _amt = _cr * _pu
+                        if not _amt:
+                            continue
+                        for _cls in ("attack", "spell"):
+                            source.add_with_source(f"{_dtype}_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
+                                stat=f"{_dtype}_{_cls}_dmg_flat_{_mm}", amount=_amt,
+                                source_type=_orig.source_type, label=_orig.label, points=1,
+                                text=_orig.text, source_name=_orig.source_name))
 
         # "Enemy is Nearby" (boolean) implies at least one nearby enemy → keep the numeric enemies_nearby
         # count at >= 1 so "when only/at least N enemies nearby" gates resolve (doesn't drop a higher count).
