@@ -3,6 +3,49 @@ from dataclasses import dataclass, field
 from engine.models import BuildSource
 
 
+_LOCAL_GEAR_DEFENSE = {
+    "energy_shield_gear_flat": "energy_shield_gear_inc",
+    "armor_gear_flat": "armor_gear_inc",
+    "evasion_gear_flat": "evasion_gear_inc",
+}
+
+
+def local_gear_defense_sources(source: BuildSource, flat_key: str) -> list[dict]:
+    """Finalized, per-item local-defense rows for computation and stat-breakdown display."""
+    inc_key = _LOCAL_GEAR_DEFENSE[flat_key]
+    flat_entries = [e for e in source.source_log if e.stat == flat_key and e.source_type == "gear"]
+    if not flat_entries:
+        return []
+
+    # Mark the normal local increased stat as consumed; values are selected per item below.
+    source.total(inc_key)
+    chest_inc = source.total("chest_defense_inc")
+    shield_defense_inc = source.total("shield_defense_inc")
+    shield_es_inc = source.total("shield_energy_shield_inc") if flat_key == "energy_shield_gear_flat" else 0.0
+    inc_entries = [e for e in source.source_log if e.stat == inc_key and e.source_type == "gear"]
+    rows = []
+    for flat in flat_entries:
+        local_inc = sum(e.amount for e in inc_entries if e.gear_slot == flat.gear_slot)
+        if flat.gear_slot == "chest":
+            local_inc += chest_inc
+        if flat.is_shield:
+            local_inc += shield_defense_inc + shield_es_inc
+        rows.append({
+            "amount": flat.amount * (1.0 + local_inc),
+            "multiplier": 1.0 + local_inc,
+            "label": flat.label,
+            "source_name": flat.source_name,
+            "text": flat.text,
+        })
+    return rows
+
+
+def local_gear_defense_total(source: BuildSource, flat_key: str) -> float:
+    """Compute one defense type from the item's raw flat and its additive local increased pool."""
+    rows = local_gear_defense_sources(source, flat_key)
+    return sum(row["amount"] for row in rows) if rows else source.total(flat_key)
+
+
 @dataclass
 class DerivedStat:
     """
@@ -59,9 +102,9 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     ),
     DerivedStat(
         key="max_energy_shield",
-        # *_gear_flat already has the item's "% gear X" applied locally (statsPayload.foldLocalGearDefense),
+        # *_gear_flat is folded per item by local_gear_defense_total(), not in the global increased pool.
         # so the gear % is NOT a global inc here — only the truly-global "% increased Max ES" pools.
-        flat_keys=["max_energy_shield_flat", "energy_shield_gear_flat"],
+        flat_keys=["max_energy_shield_flat"],
         inc_keys=["max_energy_shield_inc"],
         add_pools=[["max_energy_shield_additional"]],
     ),
@@ -72,13 +115,13 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     # *_gear_flat is pre-scaled by the item's local "% gear X" (statsPayload) — not a global inc.
     DerivedStat(
         key="armor",
-        flat_keys=["armor_flat", "armor_gear_flat"],
+        flat_keys=["armor_flat"],
         inc_keys=["armor_inc", "defense_inc"],
         add_pools=[["armor_additional"]],
     ),
     DerivedStat(
         key="evasion",
-        flat_keys=["evasion_flat", "evasion_gear_flat"],
+        flat_keys=["evasion_flat"],
         inc_keys=["evasion_inc", "defense_inc"],
         add_pools=[["evasion_additional"]],
     ),
@@ -121,6 +164,12 @@ def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None)
             value = max(0.0, float(overrides[d.key]))
         else:
             flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
+            if d.key == "max_energy_shield":
+                flat_total += local_gear_defense_total(source, "energy_shield_gear_flat")
+            elif d.key == "armor":
+                flat_total += local_gear_defense_total(source, "armor_gear_flat")
+            elif d.key == "evasion":
+                flat_total += local_gear_defense_total(source, "evasion_gear_flat")
             # Tortoise Shell: a % of FINAL Max Life is added as flat Energy Shield BEFORE ES inc/additional scale
             # it. max_life is derived earlier in this same pass (it precedes max_energy_shield), so read the just-
             # computed value from `results`. Done inline (not source.add) so it can't accumulate across passes.

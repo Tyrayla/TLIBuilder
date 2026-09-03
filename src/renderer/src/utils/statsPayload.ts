@@ -296,7 +296,7 @@ function _buildItemContributions(
         handled = true
       }
       // Armour base defense implicit ("+N gear Energy Shield|Armour|Evasion") — the base item's flat
-      // defense, which feeds that item's local gear pool (scaled by its "% gear X" affixes below).
+      // defense, which feeds that item's local gear pool (scaled by its "% gear X" affixes in the backend).
       const defM = affix.raw_text.match(/^\+?([\d.]+)\s+gear\s+(energy shield|armou?r|evasion)$/i)
       if (defM) {
         const key = ({ 'energy shield': 'energy_shield_gear_flat', 'armor': 'armor_gear_flat',
@@ -380,38 +380,12 @@ function _buildItemContributions(
     }
   })
 
-  foldLocalGearDefense(contributions, item.name)
   return contributions
 }
 
-// Gear defense is LOCAL: each item's flat ES/Armour/Evasion (base implicit + explicit affixes) is
-// scaled by that item's "% gear X" affixes, and only the scaled flat feeds the global pool. So we
-// pre-apply the local "% gear X" here and emit one folded flat per defense type — the "% gear X" must
-// never reach the global increased pool (derive no longer reads *_gear_inc). Global "% increased /
-// additional Max X" (max_*_inc / max_*_additional) are separate and still pool globally.
-const _GEAR_DEFENSE: { flat: string; inc: string }[] = [
-  { flat: 'energy_shield_gear_flat', inc: 'energy_shield_gear_inc' },
-  { flat: 'armor_gear_flat',         inc: 'armor_gear_inc' },
-  { flat: 'evasion_gear_flat',       inc: 'evasion_gear_inc' },
-]
-function foldLocalGearDefense(contribs: GearAffixContribution[], itemName: string): void {
-  for (const { flat, inc } of _GEAR_DEFENSE) {
-    let flatSum = 0, incSum = 0   // incSum is in percent points (e.g. 57 for "+57% gear ES")
-    for (const c of contribs) {
-      if (c.stat === flat) flatSum += c.display_value
-      else if (c.stat === inc) incSum += c.display_value
-    }
-    // Drop the raw flat + inc rows for this defense type…
-    for (let i = contribs.length - 1; i >= 0; i--) {
-      if (contribs[i].stat === flat || contribs[i].stat === inc) contribs.splice(i, 1)
-    }
-    // …and re-emit the locally-scaled flat (base + explicit) × (1 + Σ % gear X).
-    if (flatSum > 0) {
-      contribs.push({ stat: flat, display_value: flatSum * (1 + incSum / 100), unit: '',
-        item_name: itemName, text: `Local gear defense (×${(1 + incSum / 100).toFixed(2)})`, slot: null, condition: null })
-    }
-  }
-}
+// Gear defense stays as raw per-item flat and "% gear" contributions until backend aggregation. That lets
+// talent modifiers such as "Defense from Shield" join the SAME local increased pool as an item's own gear %.
+// Global "% increased / additional Max X" pools remain separate.
 
 function _isWeaponSpecificStat(stat: string): boolean {
   // Weapon implicit base stats (attack speed, base damage, flat CSR) and per-weapon gear
@@ -636,7 +610,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // Carry item_name + slot on the unresolved push so backend-resolved affixes (e.g. per-consumed flat
     // damage) attribute to the actual item in the breakdown's Source Name (+ gear tooltip) and to its real
     // slot in the Source column — not a generic "Gear" / "Item".
-    result.push(unresolved.length ? { ...gi, item_name: item.name, slot: slots[0] ?? null, unresolved_texts: unresolved } : gi)
+    result.push({ ...gi, item_name: item.name, slot: slots[0] ?? null, is_shield: isShieldItem(item),
+      ...(unresolved.length ? { unresolved_texts: unresolved } : {}) })
 
     // Additional slots (same-item dual wield): emit ONLY global affixes.
     // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
@@ -647,7 +622,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
       const globalContribs = _buildItemContributions(item, slots[i], u)
         .filter(c => !_isWeaponSpecificStat(c.stat))
       if (globalContribs.length > 0) {
-        result.push({ contributions: globalContribs })
+        result.push({ contributions: globalContribs, item_name: item.name, slot: slots[i] ?? null, is_shield: isShieldItem(item) })
       }
       // The 2nd copy's untyped global affixes/implicits (e.g. a wand's "+40% Spell Damage") stack too.
       if (u.length > 0) {
@@ -665,7 +640,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
       const unresolved: string[] = []
       const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot, unresolved) }, item)
       // Carry item_name + slot (see note above) so single-weapon unresolved affixes attribute to the item/slot.
-      result.push(unresolved.length ? { ...gi, item_name: item.name, slot: (Array.isArray(item.slot) ? item.slot[0] : item.slot) ?? null, unresolved_texts: unresolved } : gi)
+      result.push({ ...gi, item_name: item.name, slot: (Array.isArray(item.slot) ? item.slot[0] : item.slot) ?? null,
+        is_shield: isShieldItem(item), ...(unresolved.length ? { unresolved_texts: unresolved } : {}) })
     }
   }
 

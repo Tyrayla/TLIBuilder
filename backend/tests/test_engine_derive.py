@@ -4,8 +4,9 @@ Formula per stat: value = (base + sum(flat_keys)) * (1 + sum(inc_keys)) * prod(1
 clamped at 0, then injected back into the source. inc/additional values are decimals.
 """
 import pytest
-from engine.models import BuildSource
+from engine.models import BuildSource, SourceEntry
 from engine.derive import derive_stats
+from engine.defense import calculate_defense
 
 
 def _src(**stats) -> BuildSource:
@@ -13,6 +14,13 @@ def _src(**stats) -> BuildSource:
     for k, v in stats.items():
         s.add(k, v)
     return s
+
+
+def _gear(source: BuildSource, stat: str, amount: float, slot: str, *, shield: bool = False) -> None:
+    source.add_with_source(stat, amount, SourceEntry(
+        stat=stat, amount=amount, source_type="gear", label=f"Gear · {slot}", text=stat,
+        gear_slot=slot, is_shield=shield,
+    ))
 
 
 class TestAttributes:
@@ -59,6 +67,46 @@ class TestArmorEvasion:
     def test_defense_inc_is_shared_by_evasion(self):
         # 1000 * (1 + 0.5 defense_inc) = 1500
         assert derive_stats(_src(evasion_flat=1000, defense_inc=0.5))["evasion"] == pytest.approx(1500)
+
+
+class TestSlotLocalGearDefense:
+    def test_chest_defense_scales_only_chest_defense_types(self):
+        s = _src(chest_defense_inc=0.4, max_energy_shield_flat=50, armor_flat=25)
+        _gear(s, "energy_shield_gear_flat", 100, "chest")
+        _gear(s, "armor_gear_flat", 200, "chest")
+        _gear(s, "evasion_gear_flat", 300, "chest")
+        _gear(s, "armor_gear_flat", 400, "helmet")
+        r = derive_stats(s)
+        assert r["max_energy_shield"] == pytest.approx(190)
+        assert r["armor"] == pytest.approx(705)
+        assert r["evasion"] == pytest.approx(420)
+
+    def test_shield_modifiers_join_normal_local_increased_pool_additively(self):
+        s = _src(shield_defense_inc=0.25, shield_energy_shield_inc=0.15)
+        _gear(s, "energy_shield_gear_flat", 100, "weapon2", shield=True)
+        _gear(s, "energy_shield_gear_inc", 0.20, "weapon2", shield=True)
+        _gear(s, "armor_gear_flat", 200, "weapon2", shield=True)
+        _gear(s, "armor_gear_inc", 0.10, "weapon2", shield=True)
+        _gear(s, "evasion_gear_flat", 300, "weapon2", shield=True)
+        r = derive_stats(s)
+        assert r["max_energy_shield"] == pytest.approx(160)  # 100 × (1 + .20 + .25 + .15)
+        assert r["armor"] == pytest.approx(270)               # 200 × (1 + .10 + .25)
+        assert r["evasion"] == pytest.approx(375)             # 300 × (1 + .25)
+        d = calculate_defense(s)
+        assert d.es_flat == pytest.approx(160)
+        assert d.armor_flat == pytest.approx(270)
+        assert d.evasion_flat == pytest.approx(375)
+        assert len(d.local_gear_sources["energy_shield"]) == 1
+        assert d.local_gear_sources["energy_shield"][0]["amount"] == pytest.approx(160)
+        assert d.local_gear_sources["energy_shield"][0]["multiplier"] == pytest.approx(1.6)
+
+    def test_shield_modifier_does_not_scale_an_offhand_weapon(self):
+        s = _src(shield_defense_inc=0.25, shield_energy_shield_inc=0.15)
+        _gear(s, "energy_shield_gear_flat", 100, "weapon2")
+        _gear(s, "armor_gear_flat", 200, "weapon2")
+        r = derive_stats(s)
+        assert r["max_energy_shield"] == pytest.approx(100)
+        assert r["armor"] == pytest.approx(200)
 
 
 class TestEdgeCases:

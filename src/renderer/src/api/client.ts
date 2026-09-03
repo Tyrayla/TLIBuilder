@@ -1004,6 +1004,7 @@ export interface DefenseResult {
   max_life: number
   max_mana: number
   max_energy_shield: number
+  local_gear_sources?: Record<string, { amount: number; multiplier: number; label: string; source_name?: string | null; text: string }[]>
   // Mana/Life sealing & reservation (defaults: full pools when nothing seals).
   sealed_mana?: number
   unsealed_mana?: number
@@ -3031,6 +3032,8 @@ export interface GearEngineItem {
   // Item-level slot for attributing unresolved_texts to a real slot ("Off-Hand"/"Ring 1") in the breakdown
   // Source column, instead of a generic "Item". Per-contribution slot covers typed contributions.
   slot?: string | null
+  // Required by slot-local defense modifiers: distinguishes an off-hand shield from an off-hand weapon.
+  is_shield?: boolean
 }
 
 export interface SeasonDiffNode {

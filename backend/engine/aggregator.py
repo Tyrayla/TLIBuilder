@@ -348,7 +348,8 @@ def aggregate(
     # consumed in the node-contributions loop below — no more precomputed recipes.
 
     # ── Equipped gear affixes ──────────────────────────────────────────────────
-    for contrib in (c for item in build.gear for c in item.get("contributions", [])):
+    for item in build.gear:
+      for contrib in item.get("contributions", []):
         stat = contrib.get("stat")
         if not stat:
             continue
@@ -368,7 +369,7 @@ def aggregate(
         val = contrib.get("display_value", 0)
         unit = contrib.get("unit", "")
         amount = val / 100.0 if unit == "%" else float(val)
-        _gslot = contrib.get("slot")
+        _gslot = contrib.get("slot") or item.get("slot")
         slot_label = (_gslot or "item").replace("1", " 1").replace("2", " 2").title()
         entry = SourceEntry(
             stat=stat,
@@ -382,6 +383,8 @@ def aggregate(
             points=1,
             # Preserve weapon identity so offense can scope a main-hand-only modifier to the weapon1 base.
             weapon_slot=_gslot if _gslot in ("weapon1", "weapon2") else None,
+            gear_slot=_gslot,
+            is_shield=bool(item.get("is_shield", False)),
             pooling_uuid=_stamp(contrib.get("text") or contrib.get("item_name", "")),
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)

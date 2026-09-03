@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from engine.models import BuildSource
-from engine.derive import _additional_pool_factor
+from engine.derive import _additional_pool_factor, local_gear_defense_sources, local_gear_defense_total
 
 
 _BASE_RESIST_CAP     = 60.0
@@ -182,6 +182,8 @@ class DefenseResult:
     barrier_shield: float = 0.0
     barrier_absorption_rate: float = 0.0
     barrier_active: bool = False
+    # Finalized per-item local gear-defense contributions, used to reconcile the stat breakdown with totals.
+    local_gear_sources: dict[str, list[dict]] = field(default_factory=dict)
     nyi: list[str] = field(default_factory=lambda: ["Effective HP"])
 
 
@@ -202,6 +204,11 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
     _block_ratio, _block_ratio_upper_limit = block_ratio_value(source)
     _barrier_shield, _barrier_rate, _barrier_active = _barrier(source, _max_life, _max_es)
     _blur_avoid = _blur_avoid_chance(source)
+    local_gear_sources = {
+        "energy_shield": local_gear_defense_sources(source, "energy_shield_gear_flat"),
+        "armor": local_gear_defense_sources(source, "armor_gear_flat"),
+        "evasion": local_gear_defense_sources(source, "evasion_gear_flat"),
+    }
     return DefenseResult(
         max_life=_max_life,
         max_mana=_max_mana,
@@ -228,6 +235,7 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
         block_ratio_upper_limit=_block_ratio_upper_limit,
         dmg_avoid_chance=min(source.total("dmg_avoid_chance") + _blur_avoid, _MAX_DMG_AVOID_CHANCE),
         dmg_avoid_blur=_blur_avoid,
+        local_gear_sources=local_gear_sources,
         fire_resist=fire_c,
         cold_resist=cold_c,
         lightning_resist=lightning_c,
@@ -248,14 +256,14 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
         mana_flat=source.total("max_mana_flat"),
         mana_inc=source.total("max_mana_inc"),
         mana_additional=_additional_pool_factor(source, ["max_mana_additional"]) - 1.0,
-        es_flat=source.total("max_energy_shield_flat") + source.total("energy_shield_gear_flat"),
-        es_inc=source.total("max_energy_shield_inc") + source.total("energy_shield_gear_inc"),
+        es_flat=source.total("max_energy_shield_flat") + local_gear_defense_total(source, "energy_shield_gear_flat"),
+        es_inc=source.total("max_energy_shield_inc"),
         es_additional=_additional_pool_factor(source, ["max_energy_shield_additional"]) - 1.0,
-        armor_flat=source.total("armor_flat") + source.total("armor_gear_flat"),
-        armor_inc=source.total("armor_inc") + source.total("armor_gear_inc") + source.total("defense_inc"),
+        armor_flat=source.total("armor_flat") + local_gear_defense_total(source, "armor_gear_flat"),
+        armor_inc=source.total("armor_inc") + source.total("defense_inc"),
         armor_additional=_additional_pool_factor(source, ["armor_additional"]) - 1.0,
-        evasion_flat=source.total("evasion_flat") + source.total("evasion_gear_flat"),
-        evasion_inc=source.total("evasion_inc") + source.total("evasion_gear_inc") + source.total("defense_inc"),
+        evasion_flat=source.total("evasion_flat") + local_gear_defense_total(source, "evasion_gear_flat"),
+        evasion_inc=source.total("evasion_inc") + source.total("defense_inc"),
         evasion_additional=_additional_pool_factor(source, ["evasion_additional"]) - 1.0,
     )
 
