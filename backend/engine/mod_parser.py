@@ -205,6 +205,11 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "+(#) to maximum life":          "max_life_flat",
     "+(#) maximum mana":             "max_mana_flat",
     "+(#) to maximum mana":          "max_mana_flat",
+    # Bare "+N Mana" (no "Max/Maximum" qualifier) — the in-game talent phrasing for the Intelligence-scaling
+    # mana node (arcanist.json: "+1 Mana per 6 Intelligence") always means the max mana pool; every other
+    # "N Mana" occurrence in the data (on-hit restore, per-second regen, consumed/sealed) carries trailing
+    # words that keep its own normalized expression distinct from this exact "+(#) mana" phrase.
+    "+(#) mana":                     "max_mana_flat",
     "+(#) maximum energy shield":    "energy_shield_gear_flat",
     "+(#) to maximum energy shield": "energy_shield_gear_flat",
 }
@@ -795,6 +800,19 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
             out.append({"stat_key": "minion_ultimate_cast_speed_additional_per_40_growth", "amount": amt, "text": t})
         return out
 
+    # Troublemaker — "For every 100 Growth a Spirit Magus has, it deals +(16-18)% additional damage and
+    # -3% additional Attack and Cast Speed" (corroded: +(22-25)% damage and +1% additional Attack and Cast
+    # Speed — the speed side can be either sign). Same per-Growth fold family as the 20/40 patterns above,
+    # divisor baked into the stat key; range-collapsed copy so the ranged damage% is still caught.
+    m = re.search(r'for\s+every\s+100\s+growth\s+a\s+spirit\s+mag(?:i|us)\s+has.*?'
+                  r'([+\-]?[\d.]+)\s*%\s*additional\s+damage\s+and\s+([+\-]?[\d.]+)\s*%\s*additional\s+'
+                  r'attack\s+and\s+cast\s+speed', _tc, re.I)
+    if m:
+        dmg_amt, spd_amt = float(m.group(1)) / 100.0, float(m.group(2)) / 100.0
+        return [{"stat_key": "minion_dmg_additional_per_100_growth", "amount": dmg_amt, "text": t},
+                {"stat_key": "minion_attack_speed_additional_per_100_growth", "amount": spd_amt, "text": t},
+                {"stat_key": "minion_cast_speed_additional_per_100_growth", "amount": spd_amt, "text": t}]
+
     # Focused Strike — "Minions' Area Skills deal up to +N% additional damage to enemies at the center" → an
     # Area-scoped, full-uptime ("up to") minion additional pool (mirrors the player at-center / Epicenter).
     m = re.search(r'minions?.{0,25}area\s+skills?\s+deal\s+up\s+to\s+\+?([\d.]+)\s*%\s*additional\s+damage.*?at\s+the\s+cent', t, re.I)
@@ -1180,6 +1198,46 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         for d in dests:
             out.append({"stat_key": f"{dtype}_{d}_dmg_flat_min", "amount": lo, "text": t})
             out.append({"stat_key": f"{dtype}_{d}_dmg_flat_max", "amount": hi, "text": t})
+        return out
+
+    # "Adds A-B <Type> Damage {per|for every} N <Attribute>" (Ralph's Burial / Magnus' Jealousy — armor
+    # pieces with NO "to Attacks/Spells" scope word in the raw text; owner-confirmed 2026-09-02: applies to
+    # BOTH Attacks and Spells, never Minions). Normalized to per-1-attribute-point + an explicit divisor
+    # stat (compute.py folds them back with floor(attribute_total/divisor), mirroring the per-consumed
+    # added-damage folds above). Range-collapsed copy so the doubly-ranged min/max ("(2-3) - (4-5)") and a
+    # possibly-ranged corroded divisor ("per (7-8) Strength") are all caught.
+    m = re.search(r'adds\s+([\d.]+)\s*-\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+'
+                  r'(?:per|for\s+every)\s+([\d.]+)\s+(strength|dexterity|intelligence)\b', _tc, re.I)
+    if m:
+        _mn, _mx, _dtype, _n, _attr = m.groups()
+        _n = float(_n)
+        _dtype, _attr = _dtype.lower(), _attr.lower()
+        if _n > 0:
+            return [{"stat_key": f"{_dtype}_dmg_flat_min_per_{_attr}", "amount": float(_mn) / _n, "text": t},
+                    {"stat_key": f"{_dtype}_dmg_flat_max_per_{_attr}", "amount": float(_mx) / _n, "text": t},
+                    {"stat_key": f"{_dtype}_dmg_flat_per_{_attr}_unit", "amount": _n, "text": t}]
+
+    # "The base main stat/attribute no longer additionally increases damage[. -N% additional <A> and
+    # <B>][ +(X-Y) <C>]" (Ralph's Journey/Burial, Magnus' Jealousy/Scar companion line — owner-confirmed
+    # 2026-09-02): (1) disables ONLY the generic Main-Stat Damage Bonus (offense.py's 0.5%/point flat
+    # multiplier) — an item's own explicit per-attribute lines (e.g. "+1% Lightning Damage per 10
+    # Dexterity") are unaffected, those go through the normal per-attribute condition path; (2) an optional
+    # "-99% additional <A> and <B>" reduction on the OTHER two (non-scaling) attributes, present on both
+    # variants of Ralph's Journey/Magnus' Scar but absent on Ralph's Burial/Magnus' Jealousy; (3) an
+    # optional flat bonus to the item's own scaling attribute, corroded-only on all four items.
+    m = re.match(r'the\s+base\s+main\s+(?:stat|attribute)\s+no\s+longer\s+(?:additionally\s+)?increases?\s+damage'
+                 r'(?:\.\s*-([\d.]+)\s*%\s*additional\s+(strength|dexterity|intelligence)\s+and\s+'
+                 r'(strength|dexterity|intelligence))?'
+                 r'(?:\s*\+([\d.]+)\s+(strength|dexterity|intelligence))?', _tc, re.I)
+    if m:
+        _pct, _s1, _s2, _flat, _flat_stat = m.groups()
+        out = [{"stat_key": "main_stat_damage_bonus_disabled_flag", "amount": 1.0, "text": t}]
+        if _pct:
+            _amt = -float(_pct) / 100.0
+            out.append({"stat_key": f"{_s1.lower()}_additional", "amount": _amt, "text": t})
+            out.append({"stat_key": f"{_s2.lower()}_additional", "amount": _amt, "text": t})
+        if _flat:
+            out.append({"stat_key": f"{_flat_stat.lower()}_flat", "amount": float(_flat), "text": t})
         return out
 
     # Range: "50-80 fire attack damage"

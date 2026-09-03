@@ -154,6 +154,7 @@
     "lightning_taken_as_physical_inc",
     "lucky_crit",
     "main_skill_level",
+    "main_stat_damage_bonus_disabled_flag",
     "mana_consume_external_blocked",
     "mana_consumed_flat_per_attack_use",
     "mana_consumed_flat_per_cast",
@@ -342,6 +343,14 @@
     ],
     "jumps": 0,
     "jumps_base": 0,
+    "level_summary": {
+      "above_max_sources": [],
+      "base_level": 20,
+      "bonus_level": 0,
+      "bonus_sources": [],
+      "bonus_stat_keys": [],
+      "effective_level": 20
+    },
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
       "intelligence"
@@ -550,6 +559,14 @@
       ],
       "jumps": 0,
       "jumps_base": 0,
+      "level_summary": {
+        "above_max_sources": [],
+        "base_level": 20,
+        "bonus_level": 0,
+        "bonus_sources": [],
+        "bonus_stat_keys": [],
+        "effective_level": 20
+      },
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
         "intelligence"

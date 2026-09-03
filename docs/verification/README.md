@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**86 entries** — ✅ Confirmed: 17 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 47
+**89 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 51
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -24,7 +24,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Tangle (tick-rounding + model) | Spell Tangle | tick-rounding, breakpoint, trigger | ✅ Confirmed | 2026-06-19 | [tangle.md](tangle.md) |
 | Training Dummy (calc target) | — | mitigation, methodology, calc-target | ✅ Confirmed | 2026-06-10 | [training-dummy.md](training-dummy.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage, owner-confirmed | ✅ Confirmed | 2026-07-16 | [unsullied-blade.md](unsullied-blade.md) |
-| Warcry timing, power, and charges | charging_warcry, commanding_warcry, fearless_warcry, raging_warcry, resurrection_warcry, shockwave_warcry | warcry, cooldown, duration, charges, uptime | ✅ Confirmed | 2026-09-01 | [warcry.md](warcry.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed, owner-confirmed, malformed-source-text | ✅ Confirmed | 2026-07-16 | [wind-stalker.md](wind-stalker.md) |
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
@@ -46,8 +45,10 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Numbed (lightning vulnerability) | Chain Lightning | enemy-vulnerability, ailment, damage-pool | ⬜ Pending | — | [numbed.md](numbed.md) |
 | Skill mana/life cost model | — | cost, sustain | ⬜ Pending | — | [skill-cost.md](skill-cost.md) |
 | Support universal-line rank table | Chain Lightning | supports, damage-pool | ⬜ Pending | — | [support-rank-table.md](support-rank-table.md) |
+| "The base main stat no longer additionally increases damage" companion line | — | condition, damage-pool | ⚠️ Unverified | — | [main-stat-damage-bonus-override.md](main-stat-damage-bonus-override.md) |
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
 | Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
+| Attribute-Scaled Added Elemental Damage ("Adds A-B Damage per N Strength/Dexterity") | — | breakpoint, step-function, damage-pool | ⚠️ Unverified | — | [attribute-scaled-added-damage.md](attribute-scaled-added-damage.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
 | Chromatic Shot (+ canvas supports + SS13 Condensed quartet) | Chromatic Shot | skill, conversion, shotgun, season-data-driven, ailment | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
 | Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
@@ -82,6 +83,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Origin of Thunder (summoner buff) | Summon Thunder Magus | minion, spirit-magus, buff | ⚠️ Unverified | — | [origin-of-thunder.md](origin-of-thunder.md) |
 | Origin-effect scalar supports (Precise: Superpower / Friend of Spirit Magi) | Precise: Superpower, Friend of Spirit Magi, Precise: Friend of Spirit Magi | minion, spirit-magus, support | ⚠️ Unverified | — | [origin-effect-scalar-supports.md](origin-effect-scalar-supports.md) |
 | Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
+| Per-Attribute Scaling ("+X per N Strength/Dexterity/Intelligence") | — | breakpoint, condition, step-function | ⚠️ Unverified | — | [attribute-scaling-condition.md](attribute-scaling-condition.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |
@@ -93,5 +95,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Steel Vanguard "Knowledgeable" — Focus Skills in Active Skill slots (soft-invalidation gating) | Focus skills (Focus-tagged) | core-talent, slot-gating, soft-invalidation, reservation, sealing, trigger | ⚠️ Unverified | — | [knowledgeable-focus-active-slots.md](knowledgeable-focus-active-slots.md) |
 | Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |
 | Torturer's Touch (Affliction + Reaping) — tuning math and frame-quantization theory | Affliction, Reaping | dot, stacking, true-damage, trigger, breakpoint, tick-rounding, damage-pool | ⚠️ Unverified | — | [torturers-touch-reaping.md](torturers-touch-reaping.md) |
+| Troublemaker - per-100-Growth damage + Attack/Cast Speed | Troublemaker | step-function, damage-pool | ⚠️ Unverified | — | [troublemaker-growth-scaling.md](troublemaker-growth-scaling.md) |
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
 | Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |

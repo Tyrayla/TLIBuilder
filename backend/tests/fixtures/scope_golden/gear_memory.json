@@ -191,6 +191,7 @@
     "lucky_crit",
     "lucky_lightning",
     "main_skill_level",
+    "main_stat_damage_bonus_disabled_flag",
     "mana_consume_external_blocked",
     "mana_consumed_flat_per_attack_use",
     "mana_consumed_flat_per_cast",
@@ -477,6 +478,14 @@
     "intrinsic_additional_sources": [],
     "jumps": 2,
     "jumps_base": 2,
+    "level_summary": {
+      "above_max_sources": [],
+      "base_level": 14,
+      "bonus_level": 0,
+      "bonus_sources": [],
+      "bonus_stat_keys": [],
+      "effective_level": 14
+    },
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
       "dexterity",

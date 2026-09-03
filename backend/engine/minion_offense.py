@@ -138,7 +138,8 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
     """Fold `spirit_magi_*` damage/crit pools into the generic `minion_*` pools IN PLACE. Call on a source COPY a
     magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
     otherwise drop on the `spirit_magi` tag) actually apply to the magus. Also folds the per-Growth pools (Talons
-    of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth."""
+    of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth, and
+    Troublemaker's dmg + Attack/Cast Speed per 100 Growth."""
     def _add(dst: str, amt: float, text: str) -> None:
         if amt:
             source.add_with_source(dst, amt, SourceEntry(
@@ -157,6 +158,14 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
         _add("minion_ultimate_cast_speed_additional",
              source.total("minion_ultimate_cast_speed_additional_per_40_growth") * (growth // 40),
              "Talons of Abyss: Ultimate Cast Speed per 40 Growth")
+        _add("minion_dmg_additional", source.total("minion_dmg_additional_per_100_growth") * (growth // 100),
+             "Troublemaker: additional damage per 100 Growth")
+        _add("minion_attack_speed_additional",
+             source.total("minion_attack_speed_additional_per_100_growth") * (growth // 100),
+             "Troublemaker: Attack Speed per 100 Growth")
+        _add("minion_cast_speed_additional",
+             source.total("minion_cast_speed_additional_per_100_growth") * (growth // 100),
+             "Troublemaker: Cast Speed per 100 Growth")
 
 
 def _minion_target_mitigation(source: BuildSource, dtype: str) -> float:

@@ -2003,6 +2003,37 @@ _BLESSING_KEY_MAP = {
 }
 
 
+# A bare number or a "(a-b)" range — several legendary-gear "per N <Attribute>" affixes roll the divisor
+# (or the "up to Y%" cap) itself as a range across tiers/corrosion states, e.g. Royal Cycle's
+# "per (10-12) Strength". Mirrors mod_parser's established range→midpoint convention (see
+# mod_parser._parse_custom_mod_text_base's leading-range collapse) so this table stays consistent with it.
+_NUM_TOKEN = r"\d+(?:\.\d+)?|\(\s*\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*\)"
+
+
+def _resolve_num_token(tok: str) -> float:
+    tok = tok.strip()
+    rm = re.match(r"\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)", tok)
+    if rm:
+        return (float(rm.group(1)) + float(rm.group(2))) / 2.0
+    return float(tok)
+
+
+def _attr_per_pattern(attr_word: str, key: str) -> tuple:
+    """'+X per N <Attr>[, up to Y%]' → {"key": key, "op": "per", "divisor": N, cap?: Y/100}. N and Y may
+    each be a plain number or a "(a-b)" range (collapsed to its midpoint)."""
+    pat = re.compile(
+        rf"(?:per|for\s+every)\s+({_NUM_TOKEN})\s+{attr_word}\b"
+        rf"(?:\s*,?\s*up\s+to\s+\+?({_NUM_TOKEN})\s*%)?", re.I)
+
+    def build(m: "re.Match") -> dict:
+        expr = {"key": key, "op": "per", "divisor": _resolve_num_token(m.group(1))}
+        if m.group(2):
+            expr["cap"] = _resolve_num_token(m.group(2)) / 100.0
+        return expr
+
+    return pat, build
+
+
 # Condition-clause patterns → engine condition expressions (for talent/affix gates). Negated forms are
 # listed before their positive counterparts so "not low" wins over "low". A value can be a static expr
 # or a callable(match)->expr for thresholds. These map onto conditions in data/conditions.json.
@@ -2170,6 +2201,15 @@ _COND_PATTERNS: list[tuple] = [
     # Per-Fervor-Rating scaling: "+X per N Fervor Rating" → ×floor(fervor/N).
     (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
     (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
+    # Per-attribute scaling: "+X per N Strength/Dexterity/Intelligence[, up to Y%]" → ×floor(total/N),
+    # optionally capped. Mirrors the fervor_rating / remaining_energy per+cap pattern shape; N and Y may
+    # roll as a "(a-b)" range (Royal Cycle, Ralph's Journey, Last Words of Chaos) — see _attr_per_pattern.
+    _attr_per_pattern("strength", "strength_total"),
+    _attr_per_pattern("dexterity", "dexterity_total"),
+    _attr_per_pattern("intelligence", "intelligence_total"),
+    # Royal Cycle: "for every N of the highest stat among Strength, Dexterity, and Intelligence"
+    (re.compile(rf"for\s+every\s+({_NUM_TOKEN})\s+of\s+the\s+highest\s+stat\s+among\s+strength\s*,?\s*dexterity\s*,?\s*(?:and\s+)?intelligence\b", re.I),
+     lambda m: {"key": "highest_attribute_total", "op": "per", "divisor": _resolve_num_token(m.group(1))}),
     # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True Body hits an
     # enemy" — True Body is ASSUMED to mean the player's own cast (not a Shadow), which would happen every
     # cast, so the owner-approved model is a DEFAULT-ON condition (thunder_spike_true_body_buff,

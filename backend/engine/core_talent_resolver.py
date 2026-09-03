@@ -48,7 +48,7 @@ _TRAIL_COND_RE = re.compile(
     r"\b(?:when|while|if|against|upon|after)\b|\bfrom\s+\w+\s+enem|\bat\s+(?:low|full|max)\b|\bfor\s+[\d.]+\s*s\b"
     r"|\bper\s+(?:\d+\s+)?stack|\bfor\s+every\b|\bfor\s+each\b"
     r"|\bdealt\s+to\b|\bto\s+(?:nearby|distant)\s+enem|\b(?:to\s+enemies\s+)?in\s+proximity\b"
-    r"|\bper\s+(?:\d+\s+)?(?:fervor|command|strength|dexterity|intelligence|growth)\b", re.I)
+    r"|\bper\s+(?:(?:\d+(?:\.\d+)?|\([\d.]+\s*[-–]\s*[\d.]+\))\s+)?(?:fervor|command|strength|dexterity|intelligence|growth)\b", re.I)
 
 
 # Compound lines join several "+N% Stat" mods with "and"/"," — split BEFORE a conjunction that precedes

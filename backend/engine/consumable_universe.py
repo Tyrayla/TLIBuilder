@@ -185,7 +185,10 @@ def consumable_universe() -> frozenset[str]:
                  "minion_dmg_additional_per_20_growth",
                  "minion_ultimate_attack_speed_additional", "minion_ultimate_cast_speed_additional",
                  "minion_ultimate_attack_speed_additional_per_40_growth",
-                 "minion_ultimate_cast_speed_additional_per_40_growth"}
+                 "minion_ultimate_cast_speed_additional_per_40_growth",
+                 "minion_dmg_additional_per_100_growth",
+                 "minion_attack_speed_additional_per_100_growth",
+                 "minion_cast_speed_additional_per_100_growth"}
     consumed |= {f"minion_lucky_{t}" for t in ("physical", "fire", "cold", "lightning", "erosion")}
     # Minion multistrike — read explicitly in calculate_minion_offense (mirrors the player multistrike model).
     consumed |= {"minion_multistrike_chance", "minion_multistrike_increasing_dmg_inc"}
@@ -213,6 +216,16 @@ def consumable_universe() -> frozenset[str]:
                  for mm in ("min", "max")}
     consumed |= {"physical_dmg_flat_per_life_consumed_cap", "physical_dmg_flat_per_mana_consumed_cap",
                  "crit_rating_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed"}
+    # Attribute-scaled added elemental damage (Ralph's Burial / Magnus' Jealousy): "Adds A-B <Type> Damage
+    # per N <Attribute>" — folded in-loop into the REAL {dtype}_{attack,spell}_dmg_flat_{min,max} stats
+    # (engine.compute), so whitelist the per-unit consumer + its divisor to badge Consumed (green).
+    consumed |= {f"{dtype}_dmg_flat_{mm}_per_{attr}"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")
+                 for mm in ("min", "max")}
+    consumed |= {f"{dtype}_dmg_flat_per_{attr}_unit"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")}
     # Compensatory Life: increased Spell Damage + Mana Regeneration Speed per Mana consumed — folded in-loop into the
     # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
     consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",

@@ -1860,11 +1860,17 @@ def calculate_offense(
     #     attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
     # Folded into BOTH type_add and generic_add below so the per-type breakdown ratio cancels it cleanly
     # (it's a uniform multiplier, not a type-specific one) and "Total Additional" still reflects it.
-    main_stat_bonus = sum(source.total(a) for a in skill.main_stat) * _MAIN_STAT_DAMAGE_PER_POINT
-    # Lightchaser (Chromatic Shot) raises the main-attribute damage ratio by a % (0.5%/pt → 0.625%/pt). Presence-
-    # gated so builds without it consume nothing and stay golden-identical.
-    _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
-    main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
+    # "The base main stat no longer additionally increases damage" (Ralph's Journey/Burial, Magnus'
+    # Jealousy/Scar) disables ONLY this generic bonus — the item's own explicit per-attribute lines are a
+    # separate condition-driven contribution and are unaffected.
+    if source.total("main_stat_damage_bonus_disabled_flag"):
+        main_stat_bonus = 0.0
+    else:
+        main_stat_bonus = sum(source.total(a) for a in skill.main_stat) * _MAIN_STAT_DAMAGE_PER_POINT
+        # Lightchaser (Chromatic Shot) raises the main-attribute damage ratio by a % (0.5%/pt → 0.625%/pt).
+        # Presence-gated so builds without it consume nothing and stay golden-identical.
+        _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
+        main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
     main_stat_factor = 1.0 + main_stat_bonus
     intrinsic_add = (1.0 + extra_additional) * main_stat_factor
 
