@@ -230,6 +230,7 @@ class StatResult:
     consumption:         dict | None = None      # ConsumptionResult as dict (self-consume drains + consumed-recently)
     skill_cost:          dict | None = None      # SkillCostResult as dict (active skill per-cast Mana/Life cost breakdown)
     skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported
+    support_slots:       list[dict] | None = None  # per-support effective-level display summaries
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot

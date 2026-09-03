@@ -446,6 +446,40 @@ def _support_level_bonus(source, tags) -> int:
     return int(bonus)
 
 
+def support_level_summary(source, tags, base_level: int) -> dict:
+    """Return the display contract for the exact support-level rule used by this resolver."""
+    if source is None:
+        return {"base_level": int(base_level), "bonus_level": 0,
+                "effective_level": int(base_level), "bonus_stat_keys": [], "bonus_sources": []}
+    tag_lower = {str(t).lower() for t in (tags or [])}
+    keys = ("all_skill_level", "support_skill_level") + tuple(
+        f"{tag}_skill_level" for tag in _SUPPORT_LEVEL_TAGS if tag in tag_lower)
+    contributions = [(key, int(source.total(key))) for key in keys if int(source.total(key))]
+    bonus = sum(amount for _, amount in contributions)
+    bonus_sources: list[dict] = []
+    for key, amount in contributions:
+        attributed = 0
+        for entry in (entry for entry in source.source_log if entry.stat == key):
+            levels = int(entry.amount * max(1, entry.points))
+            if not levels:
+                continue
+            bonus_sources.append({"levels": levels, "stat": key, "source_type": entry.source_type,
+                                  "label": entry.label, "text": entry.text,
+                                  "source_name": entry.source_name or entry.text})
+            attributed += levels
+        residual = amount - attributed
+        if residual:
+            bonus_sources.append({"levels": residual, "stat": key, "source_type": "custom",
+                                  "label": "Support Skill Level", "text": key, "source_name": key})
+    return {
+        "base_level": int(base_level),
+        "bonus_level": bonus,
+        "effective_level": int(base_level) + bonus,
+        "bonus_stat_keys": [key for key, _ in contributions],
+        "bonus_sources": bonus_sources,
+    }
+
+
 def _progression_for_tier(progression, tier: int) -> dict | None:
     """Find the progression entry whose level == tier; fall back to tier 1, then any entry."""
     if not isinstance(progression, list) or not progression:

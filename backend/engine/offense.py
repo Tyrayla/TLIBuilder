@@ -1012,6 +1012,7 @@ class OffenseResult:
     skill_name: str
     supported: bool             # False = NYI; when False no numeric fields are meaningful
     effective_level: int = 0
+    level_summary: dict | None = None  # base + applicable level sources; display-only
     hit_forms: list[HitFormResult] = field(default_factory=list)
     crit_chance: float = 0.0            # EFFECTIVE crit chance (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
     crit_chance_uncapped: float = 0.0   # TRUE chance from rating (may exceed 1.0) — display-only, surfaces over-cap
@@ -1450,15 +1451,82 @@ def skill_effective_level(
     is_main_skill: bool = False,
 ) -> int:
     """Compute effective skill level from base_level + all applicable +Skill Level bonuses."""
+    return skill_level_summary(source, skill_tags, base_level, is_main_skill)["effective_level"]
+
+
+def skill_level_summary(
+    source: BuildSource,
+    skill_tags: list[str],
+    base_level: int,
+    is_main_skill: bool = False,
+    max_level: int | None = None,
+) -> dict:
+    """Explain the same effective-level calculation used by offense for display consumers."""
     tags_lower = {t.lower() for t in skill_tags}
-    bonus = sum(
-        int(source.total(key))
+    contributions = [
+        (key, int(source.total(key)))
         for key, tags in _SKILL_LEVEL_STATS
-        if not tags or tags & tags_lower
-    )
+        if (not tags or tags & tags_lower) and int(source.total(key))
+    ]
     if is_main_skill:
-        bonus += int(source.total("main_skill_level"))
-    return max(1, base_level + bonus)
+        main_bonus = int(source.total("main_skill_level"))
+        if main_bonus:
+            contributions.append(("main_skill_level", main_bonus))
+    bonus = sum(amount for _, amount in contributions)
+    # Preserve the materialized source entries that supplied each applicable level bonus. Unlike a
+    # stat-map lookup, this list has already excluded nonmatching scoped and slot-local contributors.
+    bonus_sources: list[dict] = []
+    for key, amount in contributions:
+        attributed = 0
+        for entry in (e for e in source.source_log if e.stat == key):
+            levels = int(entry.amount * max(1, entry.points))
+            if not levels:
+                continue
+            bonus_sources.append({"levels": levels, "stat": key, "source_type": entry.source_type,
+                                  "label": entry.label, "text": entry.text,
+                                  "source_name": entry.source_name or entry.text})
+            attributed += levels
+        residual = amount - attributed
+        if residual:
+            bonus_sources.append({"levels": residual, "stat": key, "source_type": "custom",
+                                  "label": "Skill Level", "text": key, "source_name": key})
+    # Attribute the above-max multiplier in deterministic stat/source order so the UI can explain which
+    # level grants crossed the cap. The product is identical to _above_max_mult(final_level, max_level).
+    above_max_sources: list[dict] = []
+    if max_level is not None:
+        def _segment_mult(start: int, levels: int) -> float:
+            result = 1.0
+            for level in range(start + 1, start + max(0, levels) + 1):
+                if level <= max_level:
+                    continue
+                result *= 1.10 if level - max_level <= 10 else 1.08
+            return result
+
+        current_level = 0
+        base_mult = _segment_mult(current_level, int(base_level))
+        if base_mult != 1.0:
+            above_max_sources.append({"levels": int(base_level), "multiplier": base_mult,
+                                      "stat": "Skill Level", "source_type": "skill", "label": "Skill",
+                                      "text": "Base skill level", "source_name": "Base skill level"})
+        current_level += int(base_level)
+        for entry in bonus_sources:
+            levels = entry["levels"]
+            # A negative source removes the last-added levels. Attribute its inverse factor so all
+            # displayed rows still multiply exactly to the final above-max multiplier.
+            mult = (_segment_mult(current_level, levels) if levels > 0
+                    else 1.0 / _segment_mult(current_level + levels, -levels) if levels < 0 else 1.0)
+            if mult != 1.0:
+                above_max_sources.append({**entry, "multiplier": mult})
+            current_level += levels
+
+    return {
+        "base_level": int(base_level),
+        "bonus_level": bonus,
+        "effective_level": max(1, int(base_level) + bonus),
+        "bonus_stat_keys": [key for key, _ in contributions],
+        "bonus_sources": bonus_sources,
+        "above_max_sources": above_max_sources,
+    }
 
 
 def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags_lower=None) -> dict:

@@ -705,6 +705,7 @@ export interface AttachedSupportInput {
   level: number
   specific_rolls?: Record<string, number>
   slot?: number     // the host skill's slot (default 1); contributions are local to this slot
+  support_index?: number // stable UI identity inside the host's support sockets
   enabled?: boolean // default true; disabled supports drop out of the calc
 }
 
@@ -728,13 +729,49 @@ export interface OriginSkillSummary {
   added: OriginGrant[]    // magnificent supports' added origin effects
 }
 
+export interface LevelSummary {
+  base_level: number
+  bonus_level: number
+  effective_level: number
+  // Engine stat keys whose normal stat-map source rows supplied the applicable bonus.
+  bonus_stat_keys: string[]
+  bonus_sources?: Array<{
+    levels: number
+    stat: string
+    source_type: string
+    label: string
+    text: string
+    source_name: string
+  }>
+  above_max_sources?: Array<{
+    levels: number
+    multiplier: number
+    stat: string
+    source_type: string
+    label: string
+    text: string
+    source_name: string
+  }>
+}
+
 export interface SkillSlotSummary {
   slot: number
   skill_id: string
   skill_name: string
   level: number
   effective_level: number
+  level_summary?: LevelSummary
   supported: boolean
+}
+
+export interface SupportSlotSummary {
+  slot: number
+  support_index?: number
+  item_id: string
+  skill_name: string
+  level: number
+  effective_level: number
+  level_summary?: LevelSummary
 }
 
 // One Euphoria buff granted by a minion Empower (base magnitude → effective, after Empower Effect × uptime).
@@ -814,6 +851,7 @@ export interface OffenseResult {
   skill_name: string
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
+  level_summary?: LevelSummary | null
   hit_forms: HitFormResult[]
   crit_chance: number            // effective (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
   crit_chance_uncapped?: number  // true chance from rating (may exceed 1.0) — display-only, surfaces over-cap
@@ -1242,6 +1280,7 @@ export interface StatSheetResponse {
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]
   skill_slots?: SkillSlotSummary[]
+  support_slots?: SupportSlotSummary[]
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null

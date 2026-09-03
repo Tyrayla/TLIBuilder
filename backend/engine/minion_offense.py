@@ -409,6 +409,87 @@ def nyi_offense(minion_skill: dict, level: int) -> OffenseResult:
     )
 
 
+def _minion_level_summary(source: BuildSource, base_level: int, max_level: int) -> dict:
+    """Return the minion-specific equivalent of the player skill-level explanation.
+
+    Minion abilities have their own two applicable level pools.  Keep this output in the
+    shared shape so the Calcs renderer can explain both their effective level and any
+    above-cap multiplier using the actual, materialized source entries.
+    """
+    keys = ("minion_skill_level", "spirit_magi_skill_level")
+    # Preserve the calculation's established rounding boundary: the two pools are added first,
+    # then rounded once.  Rounding each pool independently would turn +0.5 and +0.5 into zero.
+    bonus = max(0, int(round(sum(source.total(key) for key in keys))))
+    bonus_sources: list[dict] = []
+    if bonus:
+        for key in keys:
+            total = source.total(key)
+            if not total:
+                continue
+            attributed = 0.0
+            for entry in (entry for entry in source.source_log if entry.stat == key):
+                # Keep fractional contributions intact.  The engine rounds their combined
+                # total once, so collapsing each source independently loses real attribution.
+                levels = entry.amount * max(1, entry.points)
+                if not levels:
+                    continue
+                bonus_sources.append({"levels": levels, "stat": key, "source_type": entry.source_type,
+                                      "label": entry.label, "text": entry.text,
+                                      "source_name": entry.source_name or entry.text})
+                attributed += levels
+            residual = total - attributed
+            if abs(residual) > 1e-9:
+                bonus_sources.append({"levels": residual, "stat": key, "source_type": "custom",
+                                      "label": "Minion Skill Level", "text": key, "source_name": key})
+        # The engine applies the integer result after combining both pools.  Put that
+        # rounding delta on the largest real contributor (rather than inventing a new
+        # source) so the source rows and their above-cap factors match the applied level.
+        rounding_delta = bonus - sum(entry["levels"] for entry in bonus_sources)
+        if abs(rounding_delta) > 1e-9 and bonus_sources:
+            target = max(bonus_sources, key=lambda entry: abs(entry["levels"]))
+            target["levels"] += rounding_delta
+
+    def segment_mult(start: float, levels: float) -> float:
+        """Apply a source's (possibly fractional) level share across cap bands.
+
+        Fractional source amounts still resolve to an integer effective level only after
+        combined rounding, but their displayed shares must multiply back to that same result.
+        """
+        result = 1.0
+        current = start
+        remaining = levels
+        while remaining > 1e-9:
+            next_level = int(current + 1e-9) + 1
+            step = min(remaining, next_level - current)
+            if next_level > max_level:
+                result *= (1.10 if next_level - max_level <= 10 else 1.08) ** step
+            current += step
+            remaining -= step
+        return result
+
+    above_max_sources: list[dict] = []
+    current_level = 0
+    base_mult = segment_mult(current_level, int(base_level))
+    if base_mult != 1.0:
+        above_max_sources.append({"levels": int(base_level), "multiplier": base_mult,
+                                  "stat": "Skill Level", "source_type": "skill", "label": "Skill",
+                                  "text": "Base skill level", "source_name": "Base skill level"})
+    current_level += int(base_level)
+    for entry in bonus_sources:
+        levels = entry["levels"]
+        # Removing levels reverses the factor that those levels had supplied.  Keeping that
+        # inverse makes the displayed source-row product reconcile with the final total.
+        mult = (segment_mult(current_level, levels) if levels > 0
+                else 1.0 / segment_mult(current_level + levels, -levels) if levels < 0 else 1.0)
+        if mult != 1.0:
+            above_max_sources.append({**entry, "multiplier": mult})
+        current_level += levels
+
+    return {"base_level": int(base_level), "bonus_level": bonus,
+            "effective_level": int(base_level) + bonus, "bonus_stat_keys": list(keys),
+            "bonus_sources": bonus_sources, "above_max_sources": above_max_sources}
+
+
 def calculate_minion_offense(
     source: BuildSource,
     minion_skill: dict,
@@ -448,8 +529,8 @@ def calculate_minion_offense(
     # level. Coefficient + shared base plateau at the data max (≤ 20); above level 20 the standard compounding
     # multiplier applies (×1.10 per level 21-30, ×1.08 per level 31+). spirit_magi_skill_level stacks for magi.
     _MINION_MAX_LEVEL = 20
-    skill_level_bonus = int(round(source.total("minion_skill_level") + source.total("spirit_magi_skill_level")))
-    effective_level = level + max(0, skill_level_bonus)
+    level_summary = _minion_level_summary(source, level, _MINION_MAX_LEVEL)
+    effective_level = level_summary["effective_level"]
     above_mult = _above_max_mult(effective_level, _MINION_MAX_LEVEL)
     # Thread the SAME season the caller loaded `base_stats` for (stamped on it by `load_minion_base_stats`) into
     # coefficient resolution — never the global active season — so an explicit prior-season load resolves that
@@ -459,10 +540,12 @@ def calculate_minion_offense(
     shared_base = _interp_level_table((base_stats or {}).get("base_damage_by_level") or {}, effective_level)
     if base_stats is None or shared_base <= 0:
         r = nyi_offense(minion_skill, level)
+        r.level_summary = level_summary
         r.nyi = ["Minion Base Damage table not filled (data/seasons/<S>/_minion_base_stats.json)"]
         return r
     if coeff <= 0:
         r = nyi_offense(minion_skill, level)
+        r.level_summary = level_summary
         r.nyi = [f"{name}: no '% of Base Damage' coefficient (pure buff/utility ability — no hit modelled)"]
         return r
 
@@ -622,7 +705,7 @@ def calculate_minion_offense(
     )
     _finalize_damage_row_pcts(damage_rows, per_minion_vs * count)
     return OffenseResult(
-        skill_name=name, supported=True, effective_level=effective_level, hit_forms=[form],
+        skill_name=name, supported=True, effective_level=effective_level, level_summary=level_summary, hit_forms=[form],
         above_max_mult=above_mult,
         crit_chance=crit_chance, crit_chance_uncapped=crit_chance_uncapped, crit_multiplier=crit_mult,
         double_dmg_chance=double_chance, double_dmg_factor=double_factor,

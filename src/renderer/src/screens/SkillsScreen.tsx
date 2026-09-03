@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import {
   api,
@@ -296,6 +296,9 @@ interface Props {
 export default function SkillsScreen(_props: Props) {
   const equippedSkills = useBuildStore(s => s.skills)
   const onSkillsChange = useBuildStore(s => s.setSkills)
+  const computedStats = useBuildStore(s => s.computedStats)
+  const buildVersion = useBuildStore(s => s.buildVersion)
+  const computedVersion = useBuildStore(s => s.computedVersion)
   const gear = useBuildStore(s => s.gear)
   // Character level now comes from the `level` condition (default 90); the old level control is gone.
   const conditionState = useBuildStore(s => s.conditionState)
@@ -365,6 +368,40 @@ export default function SkillsScreen(_props: Props) {
   const getEquipped = (slot: number) => equippedSkills.find(s => s.slot === slot) ?? null
   const getSupport = (skill: EquippedSkill, idx: number) =>
     (skill.supports ?? []).find(s => s.support_index === idx) ?? null
+
+  // A base-level edit does not change the bonus, but gear/support/tag changes can. Compare a payload signature
+  // with skill base levels stripped: only that narrow edit may reuse the last calculated bonus while a request
+  // is in flight; all other changes show pending rather than claiming a stale effective level.
+  const levelBonusSignature = useMemo(() => {
+    const payload = buildEngineStatsPayload(useBuildStore.getState() as BuildState)
+    return JSON.stringify({
+      ...payload,
+      main_skill: payload.main_skill ? { ...payload.main_skill, level: 0 } : null,
+      skills: payload.skills.map(skill => ({ ...skill, level: 0 })),
+    })
+  }, [buildVersion])
+  const latestLevelBonusSignature = useRef<string | null>(null)
+  useEffect(() => {
+    if (computedVersion === buildVersion) latestLevelBonusSignature.current = levelBonusSignature
+  }, [computedVersion, buildVersion, levelBonusSignature])
+  const levelBonusFresh = computedVersion === buildVersion || latestLevelBonusSignature.current === levelBonusSignature
+  const skillLevelBySlot = useMemo(() => new Map(
+    (computedStats.skill_slots ?? []).map(s => [s.slot, s.level_summary])), [computedStats.skill_slots])
+  const supportLevelBySocket = useMemo(() => new Map(
+    (computedStats.support_slots ?? []).map(s => [`${s.slot}:${s.support_index ?? s.item_id}`, s.level_summary])),
+  [computedStats.support_slots])
+  const skillLevelText = (base: number, summary?: { bonus_level: number } | null) => {
+    if (!levelBonusFresh) return `Lv.${base} â€¦`
+    const bonus = summary?.bonus_level ?? 0
+    return bonus ? `Lv.${base} (${bonus > 0 ? '+' : ''}${bonus})` : `Lv.${base}`
+  }
+  const skillLevelBonusText = (summary?: { bonus_level: number } | null) => {
+    if (!levelBonusFresh) return 'â€¦'
+    const bonus = summary?.bonus_level ?? 0
+    return bonus ? `(${bonus > 0 ? '+' : ''}${bonus})` : ''
+  }
+  const supportLevelText = (slot: number, support: EquippedSupportSkill) =>
+    skillLevelText(support.level, supportLevelBySocket.get(`${slot}:${support.support_index}`))
 
   const focusedEquipped = focusedSlot !== null ? getEquipped(focusedSlot) : null
 
@@ -697,7 +734,7 @@ export default function SkillsScreen(_props: Props) {
             </div>
             {eq && (
               <div className="skill-slot-right">
-                <span className="skill-slot-level-badge">Lv.{eq.level}</span>
+                <span className="skill-slot-level-badge">{skillLevelText(eq.level, skillLevelBySlot.get(slot))}</span>
                 <button
                   className="skill-slot-remove"
                   onClick={e => { e.stopPropagation(); removeSkill(slot) }}
@@ -865,6 +902,9 @@ export default function SkillsScreen(_props: Props) {
                 onChange={e => setEquippedLevel(Number(e.target.value) || 1)}
               />
               <button className="skill-level-btn" onClick={() => setEquippedLevel(focusedEquipped.level + 1)}>+</button>
+              <span className="skill-effective-level" title="Effective level after applicable bonuses">
+                {skillLevelBonusText(skillLevelBySlot.get(focusedSlot))}
+              </span>
             </div>
           </div>
         </div>
@@ -904,6 +944,9 @@ export default function SkillsScreen(_props: Props) {
                     <span className="skill-support-slot-name"
                           style={sup.enabled === false ? { opacity: 0.45, textDecoration: 'line-through' } : undefined}>
                       {sup.name}{sup.enabled === false ? ' (off)' : ''}
+                    </span>
+                    <span className="skill-effective-level skill-effective-level--support" title="Effective level after applicable bonuses">
+                      {supportLevelText(focusedSlot, sup)}
                     </span>
                     <button className="skill-slot-remove" onClick={e => removeSupport(idx, e)}>×</button>
                   </>
@@ -955,6 +998,9 @@ export default function SkillsScreen(_props: Props) {
                                    descLines={existingSupport.description_lines}>
                   {tp => <span {...tp} className="skill-support-current-name" style={{ cursor: 'help' }}>{existingSupport.name}</span>}
                 </SkillHoverTooltip>
+                <span className="skill-effective-level" title="Effective level after applicable bonuses">
+                  {supportLevelText(focusedSlot, existingSupport)}
+                </span>
                 <button
                   className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-success'}`}
                   style={{ marginLeft: 6 }}

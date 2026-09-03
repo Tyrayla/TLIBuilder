@@ -1495,7 +1495,7 @@ def compute(
     # Post-loop offense and defense (not part of the fixed-point convergence)
     from dataclasses import asdict
     from engine.defense import calculate_defense, calculate_incoming
-    from engine.offense import calculate_offense, skill_effective_level
+    from engine.offense import calculate_offense, skill_level_summary
     from engine.skill_resolver import resolve_skill
     from engine import skill_charges
 
@@ -1726,6 +1726,8 @@ def compute(
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
             demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
+        _res["level_summary"] = skill_level_summary(
+            eff, list(resolved.tags) + sorted(add_mod_tags or ()), level, is_main, resolved.max_level)
         # Surface the intrinsic 'additional damage' pool (applied via offense.intrinsic_add, previously invisible
         # in the breakdown — e.g. Split Shot: Rapid Advance's +% per additional Max Channeled Stack, Focused
         # Slash's Fervor bonus) as labelled breakdown entries for the "Total Additional" panel.
@@ -1959,20 +1961,46 @@ def compute(
             sd = skills_by_id.get(sk["skill_id"])
             if sd:
                 resolved_sk = resolve_skill(sd)
-                eff = skill_effective_level(
+                level_summary = (slot_offense.get(sk["slot"]) or {}).get("level_summary")
+                if level_summary is None:
+                    level_summary = skill_level_summary(
                     # Granted Tags (e.g. Condensed's Fire Tag) count for +<Tag> Skill Level — keep this
                     # display in lockstep with the offense math (owner-ruled 2026-08-10).
-                    source, resolved_sk.tags + sorted(_granted_tags_by_slot.get(sk["slot"], ())), sk["level"],
+                    source.materialize_for_skill(
+                        {t.lower() for t in resolved_sk.tags} | _granted_tags_by_slot.get(sk["slot"], set()), sk["slot"]),
+                    resolved_sk.tags + sorted(_granted_tags_by_slot.get(sk["slot"], ())), sk["level"],
                     is_main_skill=(sk["slot"] == 1),
-                )
+                    max_level=resolved_sk.max_level,
+                    )
                 result_skill_slots.append({
                     "slot":           sk["slot"],
                     "skill_id":       sk["skill_id"],
                     "skill_name":     resolved_sk.name or sd.get("name", sk["skill_id"]),
                     "level":          sk["level"],
-                    "effective_level": eff,
+                    "effective_level": level_summary["effective_level"],
+                    "level_summary": level_summary,
                     "supported":      resolved_sk.supported,
                 })
+
+    result_support_slots: list[dict] | None = None
+    if build_input.attached_supports and skills_by_id is not None:
+        from engine.support_resolver import _tier_value, support_level_summary
+        result_support_slots = []
+        for sup in build_input.attached_supports:
+            data = skills_by_id.get(sup.get("item_id"))
+            if not data:
+                continue
+            base_level = _tier_value(sup.get("level"))
+            level_summary = support_level_summary(source, data.get("skill_tags"), base_level)
+            result_support_slots.append({
+                "slot": sup.get("slot", 1),
+                "support_index": sup.get("support_index"),
+                "item_id": sup.get("item_id"),
+                "skill_name": data.get("name") or sup.get("item_id"),
+                "level": base_level,
+                "effective_level": level_summary["effective_level"],
+                "level_summary": level_summary,
+            })
 
     # Calculation-target (dummy) profile for the enemy-stats panel: base + effective armor/resist after
     # this build's penetration, plus the active enemy debuffs (user-set / auto-derived conditions).
@@ -2129,6 +2157,7 @@ def compute(
         consumption=result_consumption,
         skill_cost=result_skill_cost,
         skill_slots=result_skill_slots,
+        support_slots=result_support_slots,
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,

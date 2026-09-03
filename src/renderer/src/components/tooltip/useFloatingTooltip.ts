@@ -7,7 +7,7 @@
 import React, { useCallback, useState } from 'react'
 import {
   useFloating, autoUpdate, offset, flip, shift, size,
-  useHover, useClick, useDismiss, useInteractions, safePolygon,
+  useHover, useClick, useDismiss, useFocus, useInteractions, safePolygon,
   type Placement,
 } from '@floating-ui/react'
 
@@ -76,10 +76,11 @@ export function useFloatingTooltip(opts: UseFloatingTooltipOptions): FloatingToo
     handleClose: interactive ? safePolygon() : null,   // lets the cursor travel into an interactive body
   })
   const click = useClick(context, { enabled: trigger === 'click' })
+  const focus = useFocus(context)
   // Click popovers dismiss on outside-click/Escape; hover tooltips only when pinned.
   const dismiss = useDismiss(context, { enabled: trigger === 'click' || pinned })
 
-  const { getReferenceProps, getFloatingProps } = useInteractions([hover, click, dismiss])
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover, click, focus, dismiss])
 
   // Merge the ref in explicitly rather than relying on getReferenceProps to forward it.
   // Only inject the pin onClick for hover+pinnable; click-triggered popovers let useClick own

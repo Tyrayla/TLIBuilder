@@ -4455,6 +4455,16 @@ span.gear-affix-label {
   gap: 4px;
 }
 
+/* Read-only game-style effective level. The adjacent steppers still edit only the slotted/base level. */
+.skill-effective-level {
+  margin-left: 5px;
+  color: #8fa8df;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.skill-effective-level--support { margin-left: auto; font-size: 10px; }
+
 .skill-level-btn {
   background: var(--bg-surface);
   border: 1px solid var(--border);
