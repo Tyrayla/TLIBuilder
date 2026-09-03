@@ -76,7 +76,11 @@ export function useFloatingTooltip(opts: UseFloatingTooltipOptions): FloatingToo
     handleClose: interactive ? safePolygon() : null,   // lets the cursor travel into an interactive body
   })
   const click = useClick(context, { enabled: trigger === 'click' })
-  const focus = useFocus(context)
+  // Guard `window`/`navigator` — floating-ui's useFocus effect touches both unconditionally whenever
+  // enabled, and the vitest suite renders this in a DOM-less `node` environment (react-test-renderer,
+  // no jsdom). Real app always has a window, so this is a no-op guard outside tests. Mirrors the
+  // `typeof window === 'undefined'` guard already used for the mobile tree-toggle effect.
+  const focus = useFocus(context, { enabled: typeof window !== 'undefined' && typeof navigator !== 'undefined' })
   // Click popovers dismiss on outside-click/Escape; hover tooltips only when pinned.
   const dismiss = useDismiss(context, { enabled: trigger === 'click' || pinned })
 
