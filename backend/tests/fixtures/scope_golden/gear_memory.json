@@ -24,6 +24,8 @@
     "mercury_points": 100.0,
     "murderous_intent": 100.0,
     "numbed_stacks": 10.0,
+    "rage_amount": 100.0,
+    "rage_infusion_stacks": 8.0,
     "rapid_sweep_stacks": 10.0,
     "regain_stacks": 4.0,
     "shockwave_warcry_combo_finisher_stacks": 5.0,
