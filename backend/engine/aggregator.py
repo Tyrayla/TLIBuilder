@@ -538,6 +538,7 @@ def aggregate(
         _emit(source, stat, amount, contrib.get("scope"), SourceEntry(
             stat=stat, amount=amount, source_type=src_type,
             label=contrib.get("label", "Talent"), text=contrib.get("text", ""), points=1,
+            source_name=contrib.get("source_name"),
         ))
 
     # ── Isomorphic Arms (God of Machines): minions inherit the Main-Hand Weapon's bonuses ─────────────────

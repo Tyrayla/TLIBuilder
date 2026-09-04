@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from engine.models import BuildSource
+from engine.models import BuildSource, SourceEntry
 
 
 _LOCAL_GEAR_DEFENSE = {
@@ -19,23 +19,65 @@ def local_gear_defense_sources(source: BuildSource, flat_key: str) -> list[dict]
 
     # Mark the normal local increased stat as consumed; values are selected per item below.
     source.total(inc_key)
-    chest_inc = source.total("chest_defense_inc")
-    shield_defense_inc = source.total("shield_defense_inc")
-    shield_es_inc = source.total("shield_energy_shield_inc") if flat_key == "energy_shield_gear_flat" else 0.0
     inc_entries = [e for e in source.source_log if e.stat == inc_key and e.source_type == "gear"]
-    rows = []
+    targeted_keys = []
+    if any(e.gear_slot == "chest" for e in flat_entries):
+        targeted_keys.append("chest_defense_inc")
+    if any(e.is_shield for e in flat_entries):
+        targeted_keys.append("shield_defense_inc")
+        if flat_key == "energy_shield_gear_flat":
+            targeted_keys.append("shield_energy_shield_inc")
+    targeted_entries = {key: [e for e in source.source_log if e.stat == key] for key in targeted_keys}
+    targeted_totals = {key: source.total(key) for key in targeted_keys}
+
+    # One row per equipped item, rather than one for each of its raw base/implicit/affix lines.
+    # The nested increase rows retain the exact originating talent/gear source for the click-to-expand UI.
+    items: dict[tuple[str | None, str | None, str], list[SourceEntry]] = {}
     for flat in flat_entries:
-        local_inc = sum(e.amount for e in inc_entries if e.gear_slot == flat.gear_slot)
+        identity = (flat.gear_slot, flat.source_name, flat.label)
+        items.setdefault(identity, []).append(flat)
+
+    rows = []
+    for (_slot, _name, _label), item_flats in items.items():
+        flat = item_flats[0]
+        raw_amount = sum(e.amount for e in item_flats)
+        applicable = [e for e in inc_entries if e.gear_slot == flat.gear_slot]
         if flat.gear_slot == "chest":
-            local_inc += chest_inc
+            applicable.extend(targeted_entries.get("chest_defense_inc", []))
         if flat.is_shield:
-            local_inc += shield_defense_inc + shield_es_inc
+            applicable.extend(targeted_entries.get("shield_defense_inc", []))
+            if flat_key == "energy_shield_gear_flat":
+                applicable.extend(targeted_entries.get("shield_energy_shield_inc", []))
+        local_inc = sum(e.amount for e in applicable)
+        local_increases = [{
+            "amount": e.amount,
+            "label": e.label,
+            "source_name": e.source_name,
+            "text": e.text,
+            "source_type": e.source_type,
+        } for e in applicable]
+        # Source-less targeted modifiers are uncommon (normal gameplay supplies source_log entries),
+        # but preserve their numerical contribution for programmatic/custom builds as well.
+        for key in targeted_keys:
+            applies = (key == "chest_defense_inc" and flat.gear_slot == "chest") or (key != "chest_defense_inc" and flat.is_shield)
+            logged = sum(e.amount for e in targeted_entries[key])
+            if applies and logged == 0 and targeted_totals[key]:
+                local_inc += targeted_totals[key]
+                local_increases.append({
+                    "amount": targeted_totals[key],
+                    "label": "Unattributed",
+                    "source_name": None,
+                    "text": key,
+                    "source_type": "custom",
+                })
         rows.append({
-            "amount": flat.amount * (1.0 + local_inc),
+            "amount": raw_amount * (1.0 + local_inc),
+            "raw_amount": raw_amount,
             "multiplier": 1.0 + local_inc,
             "label": flat.label,
             "source_name": flat.source_name,
             "text": flat.text,
+            "local_increases": local_increases,
         })
     return rows
 

@@ -1004,7 +1004,15 @@ export interface DefenseResult {
   max_life: number
   max_mana: number
   max_energy_shield: number
-  local_gear_sources?: Record<string, { amount: number; multiplier: number; label: string; source_name?: string | null; text: string }[]>
+  local_gear_sources?: Record<string, {
+    amount: number
+    raw_amount: number
+    multiplier: number
+    label: string
+    source_name?: string | null
+    text: string
+    local_increases: { amount: number; label: string; source_name?: string | null; text: string; source_type: string }[]
+  }[]>
   // Mana/Life sealing & reservation (defaults: full pools when nothing seals).
   sealed_mana?: number
   unsealed_mana?: number

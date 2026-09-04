@@ -81,7 +81,7 @@ function collectSources(keys: string[], stats: Record<string, StatEntry>): { mai
   return { main, slot }
 }
 
-type GroupedCollected = Collected & { count: number }
+type GroupedCollected = Collected & { count: number; reservePercentSpace?: boolean }
 function groupCollected(list: Collected[]): GroupedCollected[] {
   const out: GroupedCollected[] = []
   for (const c of list) {
@@ -92,7 +92,7 @@ function groupCollected(list: Collected[]): GroupedCollected[] {
   return out
 }
 
-function fmtSourceValue(c: Collected): string {
+function fmtSourceValue(c: Collected & { reservePercentSpace?: boolean }): string {
   const v = c.amount
   // Increased/additional pools are stored as fractions (0.09 = 9%) — show them as percent, not "0.09%".
   if (c.unit === '%') {
@@ -101,13 +101,14 @@ function fmtSourceValue(c: Collected): string {
     return `${v > 0 ? '+' : ''}${s}%`
   }
   const s = v % 1 === 0 ? v.toFixed(0) : dec(v)
-  return `${v > 0 ? '+' : ''}${s}`
+  return `${v > 0 ? '+' : ''}${s}${c.reservePercentSpace ? '\u00a0' : ''}`
 }
 
 // Grid shared by the breakdown header + each source row: Value · Stat · Source · Source Name.
 // Value/Stat/Source size to their content (Stat is often a single repeated name like "Max Life", so it
 // shouldn't eat width); Source Name is the only flexible track, absorbing slack and truncating long names.
-const BD_GRID = 'auto auto auto minmax(0,1fr)'
+// A fixed Value track keeps +511 and +57% aligned without a percent glyph shifting the other columns.
+const BD_GRID = '8px 52px minmax(0, 1fr) 62px minmax(0, 1.1fr)'
 
 // Format a breakdown TOTAL: '%' unit treats the value as a fraction (0.6 → "60%"); else plain number.
 function fmtTotalVal(v: number, unit: string): string {
@@ -142,7 +143,7 @@ function BreakdownHeader({ title, total, totalUnit, formula, totalSuffix }: { ti
 function BreakdownColHeader() {
   return (
     <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', paddingBottom: 3, borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, background: '#0e0e1e', zIndex: 1 }}>
-      <span style={{ textAlign: 'right' }}>Value</span><span>Stat</span><span>Source</span><span>Source Name</span>
+      <span /><span style={{ textAlign: 'right' }}>Value</span><span>Stat</span><span>Source</span><span>Source Name</span>
     </div>
   )
 }
@@ -150,7 +151,7 @@ function BreakdownColHeader() {
 // One breakdown row: Value · Stat · Source(type+context) · Source Name. The Source Name hovers a
 // type-appropriate tooltip — gear → item tooltip + unequip delta, talent → mini tree, spirit/memory/
 // support → their effect lines.
-function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtxValue }) {
+function BreakdownSourceRow({ g, ctx, nested = false, hierarchy, sameItemAsParent = false }: { g: GroupedCollected; ctx: BreakdownCtxValue; nested?: boolean; hierarchy?: 'branch' | 'last'; sameItemAsParent?: boolean }) {
   const isGear = g.source_type === 'gear' || g.source_type === 'normal_gear' || g.source_type === 'legendary_gear'
   const isTalent = g.source_type === 'talent' || g.source_type === 'slate'
   const isLines = g.source_type === 'pact_spirit' || g.source_type === 'hero_memory' || g.source_type === 'support' || g.source_type === 'aura'
@@ -168,7 +169,9 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
     : undefined
   // Talent: tree name + node id from the "Tree · node_id" label; the mini tree highlights the node.
   const hasNodeLabel = g.label.includes(' · ')
-  const treeName = g.source_name || (hasNodeLabel ? g.label.split(' · ')[0] : g.label)
+  // `source_name` may be a human-readable node identity ("The Brave · Legendary Medium Talent").
+  // The label retains the tree + node id needed for the mini-tree highlight and branch color.
+  const treeName = hasNodeLabel ? g.label.split(' · ')[0] : (g.source_name || g.label)
   const nodeId = hasNodeLabel ? g.label.split(' · ').slice(-1)[0] : ''
   // Support keeps its full effect list (that's the gem's identity, not stacked ranks). Pact spirit /
   // hero memory show ONLY this contribution's own line — not the spirit's entire rank/value dump
@@ -191,7 +194,7 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const traitNode = g.source_type === 'hero_trait' && g.source_name ? ctx.traitNodeTooltip(g.source_name) : null
 
   const hasHover = !!matchedItem || (isTalent && !!nodeId) || !!supSpec || (isLines && lines.length > 0) || !!traitNode
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'left', interactive: true })
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', interactive: true })
 
   // Color by attribution (pure display — no recompute): gear → rarity/legendary color; talent + core talent
   // → their tree's branch color; hero memory → its rarity color; else the flat source-type color.
@@ -214,21 +217,29 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const coreName = g.source_type === 'core_talent' && hasNodeLabel
     ? g.label.split(' · ').slice(1).join(' · ')
     : null
-  // Source Name column = the real name (item / spirit / memory / support / tree); talents show just the tree.
-  const sourceName = coreName || g.source_name || charName || (isTalent ? treeName : (g.text || g.label || '—'))
+  // Tree/slate sources always display their TREE name. The source payload may carry a node-type label from
+  // older builds, but that is neither a stable identity nor useful here; label still retains the node id for
+  // the mini-tree hover. Other source kinds keep their own concrete identity.
+  const sourceName = coreName || charName || (isTalent ? treeName : (g.source_name || g.text || g.label || '—'))
 
   return (
     <>
       <div {...(hasHover ? tip.triggerProps : {})}
-        style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: hasHover ? 'help' : undefined, outline: tip.open ? '1px solid #fff' : undefined, outlineOffset: tip.open ? 3 : undefined, background: tip.open ? 'rgba(255,255,255,0.06)' : undefined }}>
+        style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: hasHover ? 'help' : undefined, outline: tip.open ? '1px solid #fff' : undefined, outlineOffset: tip.open ? 3 : undefined, background: tip.open ? 'rgba(255,255,255,0.06)' : nested ? 'rgba(255,255,255,0.035)' : undefined }}>
+        <span style={{ color: '#c8a050', textAlign: 'center', alignSelf: 'center', lineHeight: 1 }}>{hierarchy === 'branch' ? '│' : hierarchy === 'last' ? '└' : ''}</span>
         <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>
           {g.count > 1 && <span style={{ color: '#666' }}>×{g.count} </span>}{fmtSourceValue(g)}
         </span>
         <span style={{ color: '#888', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{g.statName}</span>
-        <span style={{ color: kindColor, fontSize: 10, whiteSpace: 'nowrap' }}>{sourceLabel}</span>
-        <span style={{ color: kindColor, whiteSpace: 'normal', overflowWrap: 'anywhere', textDecoration: hasHover ? 'underline dotted' : undefined }}>
-          {sourceName}
-        </span>
+        {sameItemAsParent ? (
+          <span aria-label={`Same item as above: ${sourceName}`} title={`Same item as above: ${sourceName}`}
+            style={{ gridColumn: '4 / -1', color: kindColor, fontSize: 12, lineHeight: 1, alignSelf: 'center' }}>↑</span>
+        ) : <>
+          <span style={{ color: kindColor, fontSize: 10, whiteSpace: 'nowrap' }}>{sourceLabel}</span>
+          <span style={{ color: kindColor, whiteSpace: 'normal', overflowWrap: 'anywhere', textDecoration: hasHover ? 'underline dotted' : undefined }}>
+            {sourceName}
+          </span>
+        </>}
       </div>
       {hasHover && tip.open && (
         <FloatingPortal>
@@ -261,6 +272,61 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
 // base crit rating or the ×1.5 base crit multiplier) — no stat_map source backs it.
 interface ExtraRow { value: string; stat: string; source: string; sourceName: string }
 
+type LocalGearDefenseSource = NonNullable<DefenseResult['local_gear_sources']>[string][number]
+
+// Engine pooling identities keep distinct node/slate instances mathematically separate. They are metadata,
+// never player-facing modifier text (e.g. "|node|the_brave_c3_r4").
+function localDefenseEffectText(text: string): string {
+  return text.replace(/\s*\|(node|slate)\|[^|]+$/, '')
+}
+
+function localDefenseStatName(increase: LocalGearDefenseSource['local_increases'][number], defenseName: string): string {
+  if (increase.source_type === 'gear') return `Increased ${defenseName} (gear)`
+  const text = localDefenseEffectText(increase.text).replace(/^[+−-]?\(?[\d\s.,–-]+\)?\s*%?\s*/, '').trim()
+  return text || `Increased ${defenseName}`
+}
+
+// Local gear defense is calculated per item, not as a global stat-map source. Keep that item as the
+// first-class row, then let the user expand it to see the raw defense and every local increase that formed it.
+function LocalGearDefenseRow({ source, defenseName, ctx }: { source: LocalGearDefenseSource; defenseName: string; ctx: BreakdownCtxValue }) {
+  const [expanded, setExpanded] = useState(false)
+  const item = ctx.gear.find(it => it.name === source.source_name && String((it as { slot?: unknown }).slot).toLowerCase() === source.label.replace(/^Gear · /, '').replace(/\s+/g, '').toLowerCase())
+    ?? ctx.gear.find(it => it.name === source.source_name)
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', interactive: true })
+  const itemName = source.source_name ?? source.text ?? source.label
+  return (
+    <>
+      <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}
+        style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'center', padding: '3px 0', border: 0, borderBottom: '1px solid rgba(255,255,255,0.04)', background: expanded ? 'rgba(255,255,255,0.06)' : 'transparent', color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
+        <span style={{ color: '#c8a050', textAlign: 'center' }}>{expanded ? '▾' : '▸'}</span>
+        <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtNum(source.amount)}</span>
+        <span style={{ color: '#888' }}>{defenseName}</span>
+        <span style={{ color: sourceKindColor('gear'), fontSize: 10, whiteSpace: 'nowrap' }}>{source.label.replace(/^Gear · /, '')}</span>
+        <span {...(item ? tip.triggerProps : {})} onClick={event => event.stopPropagation()} style={{ color: item ? gearQualityColor(item) : sourceKindColor('gear'), whiteSpace: 'normal', overflowWrap: 'anywhere', textDecoration: item ? 'underline dotted' : undefined }}>{itemName}</span>
+      </button>
+      {expanded && <>
+        <BreakdownSourceRow nested sameItemAsParent hierarchy={source.local_increases.length ? 'branch' : 'last'} ctx={ctx} g={{
+          statKey: `local_${defenseName.toLowerCase().replace(/\s+/g, '_')}_flat`,
+          statName: `Flat ${defenseName}`, unit: '', source_type: 'gear', label: source.label,
+          text: source.text, source_name: source.source_name ?? null, amount: source.raw_amount,
+          points: 1, slot: null, scope: null, count: 1, reservePercentSpace: true,
+        }} />
+        {source.local_increases.map((increase, index) => (
+          <BreakdownSourceRow key={index} nested hierarchy={index === source.local_increases.length - 1 ? 'last' : 'branch'}
+            sameItemAsParent={increase.source_type === 'gear' && increase.label === source.label && increase.source_name === source.source_name} ctx={ctx} g={{
+            statKey: `local_${defenseName.toLowerCase().replace(/\s+/g, '_')}_inc`,
+            statName: localDefenseStatName(increase, defenseName), unit: '%',
+            source_type: increase.source_type, label: increase.label, text: increase.text,
+            source_name: increase.source_name ?? null, amount: increase.amount, points: 1,
+            slot: null, scope: null, count: 1,
+          }} />
+        ))}
+      </>}
+      {item && tip.open && <FloatingPortal><div className="tooltip tooltip--gear" {...tip.floatingProps}><GearTooltipBody item={item} hideBadges /></div></FloatingPortal>}
+    </>
+  )
+}
+
 // A secondary labelled group inside a breakdown (e.g. "Max Fire Resistance" under "Fire Resistance"),
 // with its own baseline rows + stat_map sources.
 interface BreakdownSection { label: string; keys: string[]; extra?: ExtraRow[]; formula?: string; total?: number; totalUnit?: string }
@@ -269,6 +335,7 @@ interface BreakdownSection { label: string; keys: string[]; extra?: ExtraRow[]; 
 function ExtraRowView({ e }: { e: ExtraRow }) {
   return (
     <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <span />
       <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>{e.value}</span>
       <span style={{ color: '#888', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{e.stat}</span>
       <span style={{ color: '#8a8aa0', fontSize: 10, whiteSpace: 'nowrap' }}>{e.source}</span>
@@ -277,7 +344,14 @@ function ExtraRowView({ e }: { e: ExtraRow }) {
   )
 }
 
-function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, formula, sections, totalSuffix }: { title: string; keys: string[]; ctx: BreakdownCtxValue; totalOverride?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string }) {
+function localDefenseName(title: string): string {
+  if (title.includes('Energy Shield')) return 'Energy Shield'
+  if (title.includes('Armour')) return 'Armour'
+  if (title.includes('Evasion')) return 'Evasion'
+  return title
+}
+
+function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, localGearSources, formula, sections, totalSuffix }: { title: string; keys: string[]; ctx: BreakdownCtxValue; totalOverride?: number; totalUnit?: string; extra?: ExtraRow[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string }) {
   const { main, slot } = collectSources(keys, ctx.statMap)
   // When a row passes its already-derived value (e.g. Max Energy Shield = flat × (1+increased)), show THAT
   // as the header — summing mixed flat/increased/additional keys is meaningless (it printed "0.27" for a 0
@@ -299,12 +373,12 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
     if (!slotGroups.has(k)) slotGroups.set(k, [])
     slotGroups.get(k)!.push(g)
   }
-  const empty = groupedMain.length === 0 && scopedRows.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(sections && sections.length)
+  const empty = groupedMain.length === 0 && scopedRows.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(localGearSources && localGearSources.length) && !(sections && sections.length)
   return (
     // Flex column that fills the size-capped .tooltip--breakdown height: the title header stays fixed at the top
     // and the rows scroll into whatever space remains, so the popover always fits the viewport (no top cutoff)
     // regardless of where the anchor sits or how many sources there are. Mirrors the .tooltip--stat pattern.
-    <div style={{ minWidth: 340, maxWidth: 520, fontSize: 11, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+    <div style={{ minWidth: 340, maxWidth: 620, fontSize: 11, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       <BreakdownHeader title={title} total={headerVal} totalUnit={headerUnit} formula={formula} totalSuffix={totalSuffix} />
       {empty ? <div style={{ color: '#555' }}>No sources found</div> : (
         // ONE grid so every column sizes to the widest entry across ALL rows (header + extras + sources);
@@ -314,9 +388,10 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
         // popover stays SHORT (never fills the window / hugs the top chrome); flex:1 + min-height:0 keep the
         // header pinned and let it scroll when long. So the title is always visible whether the anchor is high
         // or low on-screen — a long breakdown (Max Life's ~40 sources) just scrolls inside this box.
-        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px', flex: 1, minHeight: 0, maxHeight: 'min(50vh, 360px)', overflowY: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 5, padding: '0 8px', flex: 1, minHeight: 0, maxHeight: 'min(50vh, 360px)', overflowY: 'auto' }}>
           <BreakdownColHeader />
           {(extra ?? []).map((e, i) => <ExtraRowView key={`e${i}`} e={e} />)}
+          {(localGearSources ?? []).map((source, i) => <LocalGearDefenseRow key={`local-gear-${i}`} source={source} defenseName={localDefenseName(title)} ctx={ctx} />)}
           {groupedMain.map((g, i) => <BreakdownSourceRow key={`m${i}`} g={g} ctx={ctx} />)}
           {scopedRows.length > 0 && <>
             <div style={{ gridColumn: '1 / -1', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#7a9af0', margin: '6px 0 2px' }}>
@@ -355,7 +430,7 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
 
 // Wrap any value/label to make it a hover-open, click-pin source breakdown. No-op (renders children
 // only) outside a BreakdownCtx provider.
-function Breakdown({ title, keys, children, block, total, totalUnit, extra, formula, sections }: { title: string; keys: string[]; children: React.ReactNode; block?: boolean; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] }) {
+function Breakdown({ title, keys, children, block, total, totalUnit, extra, localGearSources, formula, sections }: { title: string; keys: string[]; children: React.ReactNode; block?: boolean; total?: number; totalUnit?: string; extra?: ExtraRow[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[] }) {
   const ctx = useContext(BreakdownCtx)
   // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
   // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
@@ -367,7 +442,7 @@ function Breakdown({ title, keys, children, block, total, totalUnit, extra, form
       {tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={title} keys={keys} ctx={ctx} totalOverride={total} totalUnit={totalUnit} extra={extra} formula={formula} sections={sections} />
+            <BreakdownBody title={title} keys={keys} ctx={ctx} totalOverride={total} totalUnit={totalUnit} extra={extra} localGearSources={localGearSources} formula={formula} sections={sections} />
           </div>
         </FloatingPortal>
       )}
@@ -420,7 +495,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
   label: string; children: React.ReactNode; labelColor?: string;
   onClick?: (e: React.MouseEvent) => void;
   expandable?: boolean; expanded?: boolean;
-  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
+  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
 }) {
   const ctx = useContext(BreakdownCtx)
   // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
@@ -443,7 +518,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} localGearSources={breakdown!.localGearSources} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -2841,7 +2916,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
 // ── Defense panels ────────────────────────────────────────────────────────────
 
-function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string } }) {
+function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string } }) {
   const ctx = useContext(BreakdownCtx)
   // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
   // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
@@ -2857,7 +2932,7 @@ function SubRow({ label, children, breakdown }: { label: string; children: React
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} localGearSources={breakdown!.localGearSources} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -3007,6 +3082,7 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
   // truncate every stat display (option B) — tracked in docs/BACKLOG.md.
   const availDisp = (unsealedExact: number) => Math.floor(unsealedExact)
   const sealedDisp = (max: number, unsealedExact: number) => Math.round(max) - Math.floor(unsealedExact)
+  const localGearSources = (kind: string) => defense.local_gear_sources?.[kind] ?? []
   return (
     <>
       <StatPanel title="Life" accent="#c03030">
@@ -3200,8 +3276,8 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
 
       <StatPanel title="Energy Shield" accent="#5aa0d0">
         {/* Energy Shield is truncated in-game, not rounded (Ward example: 78.81 → 78) — floor the display. */}
-        <Row label="Max Energy Shield" breakdown={{ title: 'Max Energy Shield', keys: ['max_energy_shield_flat', 'max_energy_shield_inc', 'max_energy_shield_additional'], total: defense.max_energy_shield, formula: DEF_FORMULA, extra: (defense.local_gear_sources?.energy_shield ?? []).map(s => ({ value: fmtNum(s.amount), stat: `Local Gear Defense (×${s.multiplier.toFixed(2)})`, source: s.label, sourceName: s.source_name ?? s.text })) }}>{fmtNum(Math.floor(defense.max_energy_shield))}</Row>
-        {defense.es_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Energy Shield — Flat Added', keys: ['max_energy_shield_flat'], extra: (defense.local_gear_sources?.energy_shield ?? []).map(s => ({ value: fmtNum(s.amount), stat: `Local Gear Defense (×${s.multiplier.toFixed(2)})`, source: s.label, sourceName: s.source_name ?? s.text })) }}>{fmtNum(defense.es_flat)}</SubRow>}
+        <Row label="Max Energy Shield" breakdown={{ title: 'Max Energy Shield', keys: ['max_energy_shield_flat', 'max_energy_shield_inc', 'max_energy_shield_additional'], total: defense.max_energy_shield, formula: DEF_FORMULA, localGearSources: localGearSources('energy_shield') }}>{fmtNum(Math.floor(defense.max_energy_shield))}</Row>
+        {defense.es_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Energy Shield — Flat Added', keys: ['max_energy_shield_flat'], localGearSources: localGearSources('energy_shield') }}>{fmtNum(defense.es_flat)}</SubRow>}
         {defense.es_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Energy Shield — Increased', keys: ['max_energy_shield_inc'] }}>{fmtPct(defense.es_inc)}</SubRow>}
         {defense.es_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Energy Shield — Additional', keys: ['max_energy_shield_additional'], total: 1 + defense.es_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.es_additional)}</SubRow>}
         {/* Stable ES: the steady-state ES pool an ES-consume build settles at (recovery == consumption). */}
@@ -3269,8 +3345,8 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
       </StatPanel>
 
       <StatPanel title="Armour" accent="#8a6a3a">
-        <Row label="Armour" breakdown={{ title: 'Armour', keys: ['armor_flat', 'armor_inc', 'defense_inc', 'armor_additional'], total: defense.armor, formula: DEF_FORMULA, extra: (defense.local_gear_sources?.armor ?? []).map(s => ({ value: fmtNum(s.amount), stat: `Local Gear Defense (×${s.multiplier.toFixed(2)})`, source: s.label, sourceName: s.source_name ?? s.text })) }}>{fmtNum(defense.armor)}</Row>
-        {defense.armor_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Armour — Flat Added', keys: ['armor_flat'], extra: (defense.local_gear_sources?.armor ?? []).map(s => ({ value: fmtNum(s.amount), stat: `Local Gear Defense (×${s.multiplier.toFixed(2)})`, source: s.label, sourceName: s.source_name ?? s.text })) }}>{fmtNum(defense.armor_flat)}</SubRow>}
+        <Row label="Armour" breakdown={{ title: 'Armour', keys: ['armor_flat', 'armor_inc', 'defense_inc', 'armor_additional'], total: defense.armor, formula: DEF_FORMULA, localGearSources: localGearSources('armor') }}>{fmtNum(defense.armor)}</Row>
+        {defense.armor_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Armour — Flat Added', keys: ['armor_flat'], localGearSources: localGearSources('armor') }}>{fmtNum(defense.armor_flat)}</SubRow>}
         {defense.armor_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Armour — Increased', keys: ['armor_inc', 'defense_inc'] }}>{fmtPct(defense.armor_inc)}</SubRow>}
         {defense.armor_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Armour — Additional', keys: ['armor_additional'], total: 1 + defense.armor_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.armor_additional)}</SubRow>}
         <Row label="Physical Damage Mitigation" breakdown={{ title: 'Physical Damage Mitigation', keys: [], total: defense.armor_phys_mitigation, totalUnit: '%', formula: 'Armor ÷ (0.9×Armor + 3000 + 300×min(Lvl,90)), cap 80%', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.armor_phys_mitigation)}</Row>
@@ -3278,8 +3354,8 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
       </StatPanel>
 
       <StatPanel title="Evasion" accent="#3a8a66">
-        <Row label="Evasion" breakdown={{ title: 'Evasion', keys: ['evasion_flat', 'evasion_inc', 'defense_inc', 'evasion_additional'], total: defense.evasion, formula: EVASION_FORMULA, extra: (defense.local_gear_sources?.evasion ?? []).map(s => ({ value: fmtNum(s.amount), stat: `Local Gear Defense (×${s.multiplier.toFixed(2)})`, source: s.label, sourceName: s.source_name ?? s.text })) }}>{fmtNum(defense.evasion)}</Row>
-        {defense.evasion_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Evasion — Flat Added', keys: ['evasion_flat'], extra: (defense.local_gear_sources?.evasion ?? []).map(s => ({ value: fmtNum(s.amount), stat: `Local Gear Defense (×${s.multiplier.toFixed(2)})`, source: s.label, sourceName: s.source_name ?? s.text })) }}>{fmtNum(defense.evasion_flat)}</SubRow>}
+        <Row label="Evasion" breakdown={{ title: 'Evasion', keys: ['evasion_flat', 'evasion_inc', 'defense_inc', 'evasion_additional'], total: defense.evasion, formula: EVASION_FORMULA, localGearSources: localGearSources('evasion') }}>{fmtNum(defense.evasion)}</Row>
+        {defense.evasion_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Evasion — Flat Added', keys: ['evasion_flat'], localGearSources: localGearSources('evasion') }}>{fmtNum(defense.evasion_flat)}</SubRow>}
         {defense.evasion_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Evasion — Increased', keys: ['evasion_inc', 'defense_inc'] }}>{fmtPct(defense.evasion_inc)}</SubRow>}
         {defense.evasion_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Evasion — Additional', keys: ['evasion_additional'], total: 1 + defense.evasion_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.evasion_additional)}</SubRow>}
         <Row label="Attack Evasion Rate" breakdown={{ title: 'Attack Evasion Rate', keys: [], total: defense.attack_evade_chance, totalUnit: '%', formula: '1 − (Acc×1.15)/(Acc + 0.5×Evasion^0.75), cap 75%', extra: [{ value: fmtNum(defense.evasion), stat: 'Evasion', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.attack_evade_chance)}</Row>

@@ -98,7 +98,29 @@ class TestSlotLocalGearDefense:
         assert d.evasion_flat == pytest.approx(375)
         assert len(d.local_gear_sources["energy_shield"]) == 1
         assert d.local_gear_sources["energy_shield"][0]["amount"] == pytest.approx(160)
+        assert d.local_gear_sources["energy_shield"][0]["raw_amount"] == pytest.approx(100)
         assert d.local_gear_sources["energy_shield"][0]["multiplier"] == pytest.approx(1.6)
+        assert {row["text"] for row in d.local_gear_sources["energy_shield"][0]["local_increases"]} == {
+            "energy_shield_gear_inc", "shield_defense_inc", "shield_energy_shield_inc",
+        }
+
+    def test_local_gear_rows_aggregate_one_item_and_keep_talent_attribution(self):
+        s = BuildSource()
+        _gear(s, "energy_shield_gear_flat", 200, "chest")
+        _gear(s, "energy_shield_gear_flat", 300, "chest")
+        s.add_with_source("chest_defense_inc", 0.4, SourceEntry(
+            stat="chest_defense_inc", amount=0.4, source_type="talent", label="Goddess of Knowledge · node_1",
+            text="+40% Defense from Chest", source_name="Goddess of Knowledge",
+        ))
+
+        row = calculate_defense(s).local_gear_sources["energy_shield"][0]
+        assert row["raw_amount"] == pytest.approx(500)
+        assert row["amount"] == pytest.approx(700)
+        assert row["multiplier"] == pytest.approx(1.4)
+        assert row["local_increases"] == [{
+            "amount": 0.4, "label": "Goddess of Knowledge · node_1", "source_name": "Goddess of Knowledge",
+            "text": "+40% Defense from Chest", "source_type": "talent",
+        }]
 
     def test_shield_modifier_does_not_scale_an_offhand_weapon(self):
         s = _src(shield_defense_inc=0.25, shield_energy_shield_inc=0.15)

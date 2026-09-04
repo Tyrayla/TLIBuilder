@@ -36,6 +36,7 @@ class TestRankScaling:
         for pts, expect in [(1, 0.09), (2, 0.18), (3, 0.27)]:
             c, _ = resolve_nodes([_slot("Warrior", "warrior_c0_r0", pts)], [], trees, pm, tc)
             assert _amounts(c).get("dmg_inc") == pytest.approx(expect)
+            assert c[0]["source_name"] == "Warrior"
 
     def test_medium_scales_linearly(self):
         node = {"id": "warrior_c0_r0", "node_type": "Medium Talent", "effects": ["+18 % Attack Damage"]}
