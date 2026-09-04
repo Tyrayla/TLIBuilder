@@ -1092,6 +1092,9 @@ def engine_stats(req: EngineStatsRequest):
         # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
         # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
         "minion_offense": result.minion_offense,
+        # {"seething_spirit": OffenseResult} — Seething Silhouette's Seething Spirit, a second independent
+        # calculate_offense() on the player's own main-skill stats + its own modifiers. Additive.
+        "spirit_offense": result.spirit_offense,
         # Origin of Spirit Magus display summary ({factor, effects[]}) — None when no magus is slotted. Additive.
         "origin_summary": result.origin_summary,
         "consumed_stats": result.consumed_stats,

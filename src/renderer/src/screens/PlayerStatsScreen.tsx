@@ -3648,6 +3648,13 @@ export default function PlayerStatsScreen() {
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
   const minionOffense = ((computedStats as { minion_offense?: Record<string, OffenseResult> | null }).minion_offense) ?? null
+  // Seething Spirit (Seething Silhouette hero trait): a second, independent OffenseResult computed
+  // off the player's own main-skill stats. Not tied to a real skill slot (unlike minions), so it's
+  // a standalone toggle rather than a per-slot selection — offered whenever it exists at all.
+  const spiritOffense = ((computedStats as { spirit_offense?: Record<string, OffenseResult> | null }).spirit_offense) ?? null
+  const spiritResult = spiritOffense ? Object.values(spiritOffense)[0] ?? null : null
+  const [showSpirit, setShowSpirit] = useState(false)
+  const spiritMode = showSpirit && !!spiritResult
   // Minion mode: when the selected slot's skill is a minion OWNER, the panels show its ONE minion OffenseResult
   // (its damage abilities are hit forms — like a player multi-form skill) instead of the owner's damage-less
   // offense. It flows through the SAME form-dropdown / % of Total path as a player skill.
@@ -3657,9 +3664,12 @@ export default function PlayerStatsScreen() {
 
   // slot_offense holds EVERY active slot's offense (incl. the main slot), so index it by the selected
   // slot directly — don't assume the main skill is slot 1. Fall back to the headline offense only if the
-  // per-slot map is absent (legacy response). In minion mode the minion's single OffenseResult drives the panels.
+  // per-slot map is absent (legacy response). In minion mode the minion's single OffenseResult drives the
+  // panels; in spirit mode (a standalone toggle, not slot-based) Seething Spirit's does.
   const shownOffense = minionMode
     ? minionResult
+    : spiritMode
+    ? spiritResult
     : slotOffense
     ? (slotOffense[String(selectedSlot)] ?? null)
     : (selectedSlot === 1 ? offense : null)
@@ -3724,6 +3734,16 @@ export default function PlayerStatsScreen() {
             skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
             forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
             calcMode={calcMode} onCalcMode={setCalcMode} />
+          {spiritResult && (
+            <div style={{ display: 'flex', gap: 8, margin: '4px 0 8px' }}>
+              <button className={`sidebar-nav-btn${!showSpirit ? ' active' : ''}`} onClick={() => setShowSpirit(false)}>
+                Player
+              </button>
+              <button className={`sidebar-nav-btn${showSpirit ? ' active' : ''}`} onClick={() => setShowSpirit(true)}>
+                Seething Spirit
+              </button>
+            </div>
+          )}
           {minionMode
             ? <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} reservation={selectedReservation} origin={selectedOrigin} minion />
             : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} warcry={selectedWarcry} elixir={selectedElixir} skillCost={skillCost} />}

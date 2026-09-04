@@ -1793,6 +1793,7 @@ def compute(
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
+    spirit_offense: dict[str, dict] = {}
     _resolved_by_slot: dict[int, object] = {}
     if skill_data and build_input.main_skill and main_enabled:
         _resolved_main = resolve_skill(skill_data)
@@ -1800,6 +1801,70 @@ def compute(
         result_offense = _offense_for_slot(
             _resolved_main, build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
+
+        # ── Spirit grant (e.g. Seething Silhouette's Seething Spirit) ── a hero trait may grant an
+        # autonomous copy that casts the player's own main skill using the player's own stats (not a
+        # separate minion stat pool) — dispatched generically via `hero_traits.spirit_grant(trait_id,
+        # ...)` (the registry, same as `apply`/`stash`/`status_lines`/`virtual_supports`), never a
+        # per-trait `==` check here. Computed as a SECOND, independent `calculate_offense` call on a
+        # CLONE of the main slot's already-materialized stat source (never mutating the shared
+        # `source`/`eff`) — deliberately bypassing `_offense_for_slot` so `skill_effects.
+        # apply_slot_effects` does not re-fire for this slot (it already ran once for the player's own
+        # hit above; re-running it would double-count slot-local buffs, e.g. Berserking Blade's
+        # intrinsic buff). Scope cut (Tyra-approved, see `hero_traits/seething_silhouette.py`'s
+        # docstring): tangle/spell-burst/demolisher/shadow modes are not modeled for the granted
+        # copy's hit. `spirit_grant()` is the single source of truth for whether it exists this pass
+        # and its modifiers — this block owns only the generic "second damage source" plumbing, not
+        # any specific trait's knowledge.
+        if _trait_active:
+            _spirit_berserk = condition_state.get("berserk_active")
+            _spirit_berserk = True if _spirit_berserk is None else bool(_spirit_berserk)
+            _spirit_grant = hero_traits.spirit_grant(
+                _trait_id, slot_levels=build_input.trait_slot_levels,
+                advanced_picks=build_input.advanced_trait_selections, berserk_active=_spirit_berserk)
+            if _spirit_grant is not None:
+                _spirit_mt = ({t.lower() for t in _resolved_main.tags}
+                              | {t.lower() for t in getattr(_resolved_main, "extra_damage_mod_tags", [])})
+                _spirit_eff = source.materialize_for_skill(_spirit_mt, main_slot)
+                _spirit_entries = list(_spirit_eff._entries)
+                _spirit_log = list(_spirit_eff.source_log)
+                # `player_only_dmg_to_exclude`: the additional-damage pool is a per-affix PRODUCT of
+                # (1+amount) factors (offense._build_additional_factors) — negative contributions are
+                # ALWAYS their own separate factor, never netted against a positive one. So offsetting
+                # via a fresh negative BuildSource.add() would compound instead of cancel (e.g.
+                # (1+0.78)×(1-0.78) = 0.39, not 1.0). The only correct exclusion is removing the
+                # player-only tracked SourceEntry (and its paired _entries tuple) so it contributes NO
+                # factor at all — same effect as it never having been emitted for Spirit's clone.
+                if _spirit_grant["player_only_dmg_to_exclude"]:
+                    _exclude_amt = _spirit_grant["player_only_dmg_to_exclude"]
+                    _exclude_name = _spirit_grant["source"]
+                    for _i, _e in enumerate(_spirit_log):
+                        if (_e.stat == "dmg_additional" and _e.source_name == _exclude_name
+                                and abs(_e.amount - _exclude_amt) < 1e-9):
+                            del _spirit_log[_i]
+                            break
+                    for _i, (_s, _a) in enumerate(_spirit_entries):
+                        if _s == "dmg_additional" and abs(_a - _exclude_amt) < 1e-9:
+                            del _spirit_entries[_i]
+                            break
+                _spirit_source = BuildSource(
+                    _entries=_spirit_entries, source_log=_spirit_log,
+                    consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording)
+                if _spirit_grant["spirit_dmg_additional"]:
+                    _spirit_source.add("dmg_additional", _spirit_grant["spirit_dmg_additional"])
+                if _spirit_grant["spirit_attack_speed_additional"]:
+                    _spirit_source.add("attack_speed_additional", _spirit_grant["spirit_attack_speed_additional"])
+                _spirit_uptime = max(0.0, min(100.0, float(
+                    condition_state.get("seething_spirit_uptime", 100.0) or 0.0))) / 100.0
+                _spirit_result = asdict(calculate_offense(
+                    _spirit_source, _resolved_main, build_input.main_skill.level, is_main_skill=False))
+                _spirit_result["total_dps"] = _spirit_result.get("total_dps", 0.0) * _spirit_uptime
+                _spirit_result["total_dps_vs_target"] = _spirit_result.get("total_dps_vs_target", 0.0) * _spirit_uptime
+                _spirit_result["skill_name"] = f"Seething Spirit ({result_offense.get('skill_name', '')})"
+                spirit_offense["seething_spirit"] = _spirit_result
+                if _spirit_grant["player_disarmed"]:
+                    result_offense["total_dps"] = 0.0
+                    result_offense["total_dps_vs_target"] = 0.0
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
     # cross-contamination between setups). Today's payloads carry only the main skill, so this is empty and
@@ -2217,6 +2282,7 @@ def compute(
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         minion_offense=minion_offense or None,
+        spirit_offense=spirit_offense or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
         empower_summaries=empower_summaries,

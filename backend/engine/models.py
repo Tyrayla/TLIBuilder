@@ -235,6 +235,7 @@ class StatResult:
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     minion_offense:      dict | None = None       # {owner_id: OffenseResult dict} per slotted minion owner — ONE result whose hit_forms are the minion's damage abilities (NYI/supported=False unless the owner has a bespoke module)
+    spirit_offense:      dict | None = None       # {"seething_spirit": OffenseResult dict} — Seething Silhouette's Seething Spirit, a second independent calculate_offense() on the player's own main-skill stats + its own modifiers; None unless granted
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
     empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)

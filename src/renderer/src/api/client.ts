@@ -1289,6 +1289,11 @@ export interface StatSheetResponse {
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
   // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
   minion_offense?: Record<string, OffenseResult> | null
+  // {"seething_spirit": OffenseResult} — Seething Silhouette's Seething Spirit, a second independent
+  // OffenseResult computed off the player's own main-skill stats + its own modifiers (Ritual of
+  // Offering / Fury's Onslaught). Additive — folded into Full DPS. Absent unless a Spirit-granting
+  // pick is active.
+  spirit_offense?: Record<string, OffenseResult> | null
   // Origin of Spirit Magus display summary — PER-SKILL entries feeding the empower-style GRANTS section
   // on each magus's foundation panel. Each grant carries the raw data magnitude (`base`), the emitted
   // magnitude (`value` = base × that magus's origin factor, clamped), and a unit; the frontend renders

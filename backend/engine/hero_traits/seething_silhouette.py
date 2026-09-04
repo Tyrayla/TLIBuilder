@@ -17,14 +17,20 @@ Tyra-confirmed modeling (2026-09-03):
 - The Attack-Speed-per-Rage line is ALWAYS active (independent of Berserk state) — confirmed
   against the base tooltip's own placement of that clause.
 - Seething Spirit's own DPS (Ritual of Offering's permanent Spirit; Fury's Onslaught's
-  use-triggered Spirit) and Ritual of Offering's player-Disarm zero-out are NOT modeled here.
-  `apply()` runs pre-offense (inside the stat-aggregation loop) and cannot zero or derive from an
-  already-resolved main-skill `OffenseResult` — that needs a new post-offense compute.py pass
-  (a `StatResult.spirit_offense` sibling field, mirroring how `minion_offense` is computed),
-  scoped as a separate follow-up. Surfaced here as explicit `warning`/`informational` status rows,
-  never silently dropped. Ritual of Offering's own tiered +Spirit Damage and Fury's Onslaught's
-  -30% Spirit Attack Speed are Spirit-only modifiers — also deferred to that follow-up, not
-  applied to the player's own stats.
+  use-triggered Spirit) and Ritual of Offering's player-Disarm zero-out are computed in a
+  DEDICATED `compute.py` post-offense pass (`StatResult.spirit_offense`, mirroring how
+  `minion_offense` is computed), NOT here — `apply()` runs pre-offense (inside the stat-
+  aggregation loop) and cannot zero or derive from an already-resolved main-skill
+  `OffenseResult`. `spirit_grant()` below is the single source of truth `compute.py` calls for
+  "does Spirit exist this pass, and what are its modifiers" — it does not itself touch offense.
+  Spirit is modeled as a SECOND, independent `calculate_offense` call using the player's own
+  materialized main-slot stats (Seething Spirit "casts your ... skill", i.e. uses your gear/stats,
+  not a separate minion stat pool) plus its own tiered/flat modifiers on top, scaled by the
+  `seething_spirit_uptime` condition (0-100%, default 100 — a user-tunable knob rather than a
+  computed real-time ramp, per Tyra's call). Deliberately NOT modeled for Spirit (scope cut,
+  surfaced via `compute.py`'s own inline comments, not this module): tangle/spell-burst/
+  demolisher/shadow-strike modes, and skill_effects.apply_slot_effects (already ran once for the
+  player's own hit; re-running it would double-count slot-local buffs like Berserking Blade's).
 - No `_catalog` season-catalog lookups: this is a first-time implementation off current SS13 data
   (not a season-drift fix), so per-tier values are plain literals, matching the more common
   module convention (e.g. `wind_stalker.py`) rather than the 3 modules confirmed to need
@@ -47,7 +53,9 @@ _ARTIFICIAL_MOON_DD_PER_5_RAGE = 0.01                       # Artificial Moon: +
 
 # ── Advanced picks ────────────────────────────────────────────────────────────────
 _RITUAL_OF_OFFERING_MS = -0.30                              # -30% Movement Speed while Berserk is active (flat, all tiers)
+_RITUAL_OF_OFFERING_SPIRIT_DMG = [0.20, 0.25, 0.30, 0.35, 0.40]  # +X% additional Seething Spirit Damage
 _FURYS_ONSLAUGHT_PLAYER_DMG = [0.50, 0.57, 0.64, 0.71, 0.78]  # +X% additional damage dealt by the player, while Berserk
+_FURYS_ONSLAUGHT_SPIRIT_AS = -0.30                          # -30% additional Seething Spirit Attack Speed (flat, all tiers)
 _HYSTERIA_PER_MISSING_LIFE = [0.003, 0.004, 0.005, 0.006, 0.007]  # +X% additional Attack Damage per 1% Missing Life
 _SPLIT_FORM_MAX_LIFE = [-0.15, -0.10, -0.05, 0.0, 0.05]     # signed +X% additional Max Life
 _RAGE_INFUSION_CAP = [4, 5, 6, 7, 8]                        # max Rage Infusion stacks by tier
@@ -78,6 +86,47 @@ def _enabled(slot_levels, idx):
 def _flag(condition_state, key, default):
     v = condition_state.get(key, default)
     return bool(v) if v is not None else default
+
+
+def spirit_grant(*, slot_levels, advanced_picks, berserk_active):
+    """Whether Seething Spirit exists this pass, and its modifiers/player-Disarm status. Called by
+    `compute.py`'s dedicated post-offense pass (see module docstring) — NOT by `apply()`, since it
+    needs no stat-source access, only the trait's own pick/level/Berserk state.
+
+    Returns None when no Spirit-granting pick (Ritual of Offering / Fury's Onslaught) is selected
+    and enabled, or `berserk_active` is False (both picks' Spirit only exists "while Berserk is
+    active"). Otherwise: {"source": "Ritual of Offering"|"Fury's Onslaught",
+    "spirit_dmg_additional": float, "spirit_attack_speed_additional": float,
+    "player_only_dmg_to_exclude": float, "player_disarmed": bool}.
+
+    `player_disarmed` is True only for Ritual of Offering, and only when Rage Infusion is NOT also
+    selected+enabled — Rage Infusion's "no longer Disarmed after Berserk has been active for 5s"
+    is treated as immediate for a steady-state DPS calc (the 5s ramp is negligible), so picking
+    both means the player's own damage and Spirit's both contribute simultaneously.
+
+    `player_only_dmg_to_exclude`: Spirit is computed off a CLONE of the player's fully-aggregated
+    stats (it "casts your ... skill"), so it inherits every character-wide bonus by default —
+    correct for gear/other traits, and for this trait's own Berserk-gated/Hysteria/Rage-Infusion
+    damage lines (their tooltip text carries no player-only qualifier). Fury's Onslaught's own
+    line is the one exception: its tooltip explicitly says "additional damage dealt BY THE
+    PLAYER" (contrasted against Spirit's own damage), so that specific tiered amount — already
+    baked into the cloned source by `apply()` — must be subtracted back out of Spirit's clone.
+    """
+    picks = set(advanced_picks or [])
+    slot_levels = list(slot_levels or [1, 1, 1, 1])
+    if not berserk_active or not _enabled(slot_levels, _SLOT_45):
+        return None
+    t = _tier(slot_levels, _SLOT_45)
+    if "Ritual of Offering" in picks:
+        un_disarmed = "Rage Infusion" in picks and _enabled(slot_levels, _SLOT_75)
+        return {"source": "Ritual of Offering", "spirit_dmg_additional": _RITUAL_OF_OFFERING_SPIRIT_DMG[t],
+                "spirit_attack_speed_additional": 0.0, "player_only_dmg_to_exclude": 0.0,
+                "player_disarmed": not un_disarmed}
+    if "Fury's Onslaught" in picks:
+        return {"source": "Fury's Onslaught", "spirit_dmg_additional": 0.0,
+                "spirit_attack_speed_additional": _FURYS_ONSLAUGHT_SPIRIT_AS,
+                "player_only_dmg_to_exclude": _FURYS_ONSLAUGHT_PLAYER_DMG[t], "player_disarmed": False}
+    return None
 
 
 def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, advanced_picks, **_):
@@ -218,14 +267,17 @@ def status_lines(*, slot_levels, advanced_picks, main_skill_tags=None, main_skil
                  f"Non-Channeled melee Attack Skill and will not cast it.", "Seething Silhouette")
 
     if "Ritual of Offering" in picks:
-        warn("Ritual of Offering: Seething Spirit's own damage and the player-Disarm zero-out while Berserk "
-             "are NOT YET MODELED — pending a Seething Spirit engine pass. -30% Movement Speed is modeled.",
-             "Ritual of Offering")
+        working("Ritual of Offering: Seething Spirit casts your main skill continuously while Berserk "
+                 "(own DPS row, scaled by Seething Spirit Uptime), with +additional Spirit Damage by level. "
+                 "Your own damage is zeroed (Disarmed) unless Rage Infusion is also selected. "
+                 "-30% Movement Speed is modeled.", "Ritual of Offering")
         info("Ritual of Offering: while Berserk, takes 1% of current Life as Secondary Physical Damage every "
              "0.2s (unaffected by bonuses) — defensive, not modeled (DPS calculator)", "Ritual of Offering")
     if "Fury's Onslaught" in picks:
-        warn("Fury's Onslaught: Seething Spirit's own damage/-30% Attack Speed are NOT YET MODELED — pending "
-             "a Seething Spirit engine pass. The player's own +additional damage is modeled.", "Fury's Onslaught")
+        working("Fury's Onslaught: Seething Spirit casts your main skill while Berserk (own DPS row, scaled "
+                 "by Seething Spirit Uptime), with -30% additional Spirit Attack Speed. Your own damage is "
+                 "NOT zeroed. The player's own +additional damage is modeled and correctly excluded from "
+                 "Spirit's copy (tooltip: 'dealt by the player').", "Fury's Onslaught")
         info("Fury's Onslaught: Rage no longer naturally consumed while Berserk; Melee Attack Skill Rage cost "
              "halved — not simulated (Rage isn't modeled)", "Fury's Onslaught")
     if "Hysteria" in picks:
@@ -244,8 +296,9 @@ def status_lines(*, slot_levels, advanced_picks, main_skill_tags=None, main_skil
     if "Rage Infusion" in picks:
         working("Rage Infusion: +additional damage per stack of Rage gained recently (user-set, defaults to cap)",
                 "Rage Infusion")
-        info("Rage Infusion: no longer Disarmed after Berserk has been active for 5s (interacts with Ritual of "
-             "Offering's Disarm — not modeled until the Disarm zero-out lands); +40% Rage gained — not simulated",
-             "Rage Infusion")
+        working("Rage Infusion: cancels Ritual of Offering's Disarm (5s ramp treated as immediate) — if both "
+                "are selected, your own damage is NOT zeroed and contributes alongside Seething Spirit's",
+                "Rage Infusion")
+        info("Rage Infusion: +40% Rage gained — not simulated (Rage isn't modeled)", "Rage Infusion")
 
     return out

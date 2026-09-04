@@ -1,10 +1,25 @@
 """Rehan — Seething Silhouette (trait_id "seething_silhouette"). Base trait + Artificial Moon +
-all 6 advanced picks, EXCLUDING Seething Spirit's own damage / the player-Disarm zero-out (deferred
-to a separate post-offense engine pass — see the module docstring). Unit-tests the module directly,
-matching wind_stalker's convention (exact contribution amounts, not a full engine_stats integration run).
+all 6 advanced picks, plus Seething Spirit's own derived-offense pass (compute.py) and the
+Ritual of Offering player-Disarm zero-out. Unit-tests `apply()`/`spirit_grant()` directly
+(matching wind_stalker's convention — exact contribution amounts) and integration-tests the
+`spirit_offense` field end to end via `engine_stats`.
 """
 import pytest
 from engine.hero_traits import seething_silhouette as ss
+from server import engine_stats, EngineStatsRequest
+from tests.mock_build import make_request, weapon
+
+SKILL = "chain_lightning"   # a SPELL — cast_speed, not attack_speed; isolates the dmg_additional pool math
+ATTACK_SKILL = "focused_slash"   # a real melee attack skill — needed to exercise attack_speed_additional
+ATTACK_WEAPON = [weapon("weapon1", "Blade", 350, 350, 1.5, 500)]
+
+
+def _run(picks=None, extra_conditions=None, slot_levels=(5, 5, 1, 1), skill=SKILL, gear=None, dual_wield=True):
+    req = make_request(skill, 20, trait_id="seething_silhouette", trait_slot_levels=list(slot_levels),
+                        advanced_trait_selections=list(picks or []), gear=gear, dual_wield=dual_wield,
+                        extra_conditions={"berserk_active": True, **(extra_conditions or {})})
+    r = engine_stats(EngineStatsRequest(**req))
+    return r.model_dump() if hasattr(r, "model_dump") else r
 
 
 def _apply(levels, picks=None, conds=None):
@@ -139,11 +154,11 @@ def test_status_lines_surface_every_pick():
     assert "Growing Anger" in texts and "Rage Infusion" in texts
 
 
-def test_status_lines_warns_seething_spirit_not_modeled():
+def test_status_lines_reports_seething_spirit_as_working():
     s = ss.status_lines(slot_levels=[1, 1, 1, 1], advanced_picks=["Ritual of Offering"])
-    assert any(x["status"] == "warning" and "NOT YET MODELED" in x["text"] for x in s)
+    assert any(x["status"] == "working" and "Seething Spirit" in x["text"] and "Disarmed" in x["text"] for x in s)
     s2 = ss.status_lines(slot_levels=[1, 1, 1, 1], advanced_picks=["Fury's Onslaught"])
-    assert any(x["status"] == "warning" and "NOT YET MODELED" in x["text"] for x in s2)
+    assert any(x["status"] == "working" and "Seething Spirit" in x["text"] for x in s2)
 
 
 def test_status_lines_warns_growing_anger_without_spirit():
@@ -163,6 +178,123 @@ def test_status_lines_warns_non_melee_attack_main_skill():
 def test_status_lines_no_warning_for_qualifying_melee_attack_skill():
     s = ss.status_lines(slot_levels=[1, 1, 1, 1], advanced_picks=[], main_skill_tags=["attack", "melee"])
     assert not any(x["status"] == "warning" for x in s)
+
+
+# ── spirit_grant() unit tests ────────────────────────────────────────────────
+def test_spirit_grant_none_without_pick_or_berserk():
+    assert ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=[], berserk_active=True) is None
+    assert ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Ritual of Offering"],
+                            berserk_active=False) is None
+    assert ss.spirit_grant(slot_levels=[1, -1, 1, 1], advanced_picks=["Ritual of Offering"],
+                            berserk_active=True) is None   # lv45 node disabled
+
+
+def test_spirit_grant_ritual_of_offering():
+    g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Ritual of Offering"], berserk_active=True)
+    assert g == {"source": "Ritual of Offering", "spirit_dmg_additional": 0.20,
+                 "spirit_attack_speed_additional": 0.0, "player_only_dmg_to_exclude": 0.0,
+                 "player_disarmed": True}
+    g5 = ss.spirit_grant(slot_levels=[1, 5, 1, 1], advanced_picks=["Ritual of Offering"], berserk_active=True)
+    assert g5["spirit_dmg_additional"] == pytest.approx(0.40)
+
+
+def test_spirit_grant_ritual_of_offering_undisarmed_by_rage_infusion():
+    g = ss.spirit_grant(slot_levels=[1, 1, 1, 5], advanced_picks=["Ritual of Offering", "Rage Infusion"],
+                         berserk_active=True)
+    assert g["player_disarmed"] is False
+    # Rage Infusion node disabled → still disarmed even though the pick name is present.
+    g2 = ss.spirit_grant(slot_levels=[1, 1, 1, -5], advanced_picks=["Ritual of Offering", "Rage Infusion"],
+                          berserk_active=True)
+    assert g2["player_disarmed"] is True
+
+
+def test_spirit_grant_furys_onslaught():
+    g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Fury's Onslaught"], berserk_active=True)
+    assert g == {"source": "Fury's Onslaught", "spirit_dmg_additional": 0.0,
+                 "spirit_attack_speed_additional": -0.30, "player_only_dmg_to_exclude": 0.50,
+                 "player_disarmed": False}
+    g5 = ss.spirit_grant(slot_levels=[1, 5, 1, 1], advanced_picks=["Fury's Onslaught"], berserk_active=True)
+    assert g5["player_only_dmg_to_exclude"] == pytest.approx(0.78)
+
+
+def test_spirit_grant_ritual_takes_precedence_if_both_named():
+    # Not a real build state (pick-one-from-two), but spirit_grant should still resolve deterministically.
+    g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Ritual of Offering", "Fury's Onslaught"],
+                         berserk_active=True)
+    assert g["source"] == "Ritual of Offering"
+
+
+# ── spirit_offense integration tests (via engine_stats) ──────────────────────
+def _spirit_dps(resp):
+    so = resp.get("spirit_offense") or {}
+    r = so.get("seething_spirit")
+    return r["total_dps_vs_target"] if r else None
+
+
+def test_no_spirit_pick_no_spirit_offense():
+    resp = _run(picks=[])
+    assert resp.get("spirit_offense") is None
+
+
+def test_ritual_of_offering_disarms_player_and_populates_spirit():
+    resp = _run(picks=["Ritual of Offering"])
+    assert resp["offense"]["total_dps_vs_target"] == 0.0
+    assert _spirit_dps(resp) > 0.0
+
+
+def test_furys_onslaught_does_not_disarm_and_excludes_player_only_dmg():
+    resp = _run(picks=["Fury's Onslaught"])
+    player_dps = resp["offense"]["total_dps_vs_target"]
+    spirit_dps = _spirit_dps(resp)
+    assert player_dps > 0.0
+    assert spirit_dps is not None and spirit_dps > 0.0
+    assert spirit_dps < player_dps
+
+
+def test_furys_onslaught_spirit_dmg_pool_excludes_exact_ratio_not_double_penalized():
+    # Regression for a real bug caught in review: the additional-damage pool is a per-affix PRODUCT of
+    # (1+amount) factors (offense._build_additional_factors) where negatives NEVER net against positives
+    # — so naively offsetting Fury's Onslaught's own +78% (dealt BY THE PLAYER) with an untracked
+    # BuildSource.add(-0.78) would compound to (1.78)x(0.22)=0.3916 instead of cleanly omitting it. The
+    # fix removes the tracked SourceEntry itself. chain_lightning is a SPELL (cast_speed, not attack_speed)
+    # so Fury's Onslaught's -30% additional Spirit Attack Speed contributes NO rate difference here — this
+    # isolates the dmg_additional pool math exactly: player = (1.44 base)x(1.78 FO) = 2.5632, spirit =
+    # 1.44 base only (FO's own +78% excluded, nothing else differs) -> ratio = 1.44/2.5632.
+    resp = _run(picks=["Fury's Onslaught"])
+    player_dps = resp["offense"]["total_dps_vs_target"]
+    spirit_dps = _spirit_dps(resp)
+    assert spirit_dps / player_dps == pytest.approx(1.44 / 2.5632, rel=1e-4)
+
+
+def test_furys_onslaught_spirit_attack_speed_penalty_applies_on_a_real_attack_skill():
+    # attack_speed_additional only affects rate for ATTACK skills (offense.py: spells use cast_speed
+    # instead) — chain_lightning (a spell) can't exercise this path, so use a real melee attack skill.
+    # Expected ratio = the same dmg-pool-only ratio (1.44/2.5632) further multiplied by the -30% Spirit
+    # Attack Speed factor (0.70) — confirms the penalty actually reduces Spirit's rate, not just its damage.
+    resp = _run(picks=["Fury's Onslaught"], skill=ATTACK_SKILL, gear=ATTACK_WEAPON, dual_wield=False)
+    player_dps = resp["offense"]["total_dps_vs_target"]
+    spirit_dps = _spirit_dps(resp)
+    assert spirit_dps / player_dps == pytest.approx((1.44 / 2.5632) * 0.70, rel=1e-3)
+
+
+def test_seething_spirit_uptime_scales_linearly():
+    full = _spirit_dps(_run(picks=["Ritual of Offering"], extra_conditions={"seething_spirit_uptime": 100}))
+    half = _spirit_dps(_run(picks=["Ritual of Offering"], extra_conditions={"seething_spirit_uptime": 50}))
+    assert half == pytest.approx(full / 2, rel=1e-6)
+
+
+def test_berserk_off_no_spirit_and_no_disarm():
+    resp = _run(picks=["Ritual of Offering"], extra_conditions={"berserk_active": False})
+    assert resp.get("spirit_offense") is None
+    assert resp["offense"]["total_dps_vs_target"] > 0.0   # NOT disarmed outside Berserk
+
+
+def test_rage_infusion_undisarms_player_alongside_ritual_of_offering():
+    disarmed = _run(picks=["Ritual of Offering"])
+    both = _run(picks=["Ritual of Offering", "Rage Infusion"])
+    assert disarmed["offense"]["total_dps_vs_target"] == 0.0
+    assert both["offense"]["total_dps_vs_target"] > 0.0
+    assert _spirit_dps(both) > 0.0   # Spirit still contributes alongside the un-disarmed player
 
 
 def test_status_lines_warns_channeled_mobility_only_with_spirit_pick():
