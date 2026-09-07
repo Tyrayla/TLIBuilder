@@ -32,6 +32,10 @@ class SourceEntry:
     # for gear contributions. Lets offense scope a main-hand-only modifier to the weapon1 base share (see
     # BuildSource.main_hand_flat). None for non-weapon sources. Not read by compute.py's stat_map → output-neutral.
     weapon_slot:  str | None = None
+    # Equipped item slot and shield identity. Used only by local defense calculation, where a talent can
+    # scale the flat defense belonging to a chest or shield without touching other equipped items.
+    gear_slot:    str | None = None
+    is_shield:    bool = False
     # Minted language-independent pooling identity (engine/identity_index.py), stamped by the aggregator on
     # DEFINITION-level contributions only (gear/character/spirit/memory/trait/custom). offense pools by
     # `pooling_uuid or affix_identity(text)`. None on minted-suffix entries (supports/nodes/cores — their

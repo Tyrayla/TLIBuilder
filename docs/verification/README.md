@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**89 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 51
+**90 entries** — ✅ Confirmed: 16 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 52
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -75,6 +75,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
 | Life/Mana consumption subsystem | — | sustain, cost | ⚠️ Unverified | — | [consumption-subsystem.md](consumption-subsystem.md) |
 | Loadouts | — | build-system | ⚠️ Unverified | — | [loadouts.md](loadouts.md) |
+| Local Gear-Defense Affix Pooling (Armour / Energy Shield / Evasion) | — | defense, pooling, gear | ⚠️ Unverified | — | [local-gear-defense-pooling.md](local-gear-defense-pooling.md) |
 | Magnificent supports adding Origin of Spirit Magus effects | Fire Ward, Cold Ward, Lightning Ward, Unyielding, Plague Source | minion, spirit-magus, support, buff | ⚠️ Unverified | — | [magnificent-origin-effects.md](magnificent-origin-effects.md) |
 | Minion Lucky damage (Queer Angle) | — | minion, lucky | ⚠️ Unverified | — | [minion-lucky-damage.md](minion-lucky-damage.md) |
 | Minion modifier coverage (parser + consumption + remap) | — | minion, modifier, parser | ⚠️ Unverified | — | [minion-mod-coverage.md](minion-mod-coverage.md) |

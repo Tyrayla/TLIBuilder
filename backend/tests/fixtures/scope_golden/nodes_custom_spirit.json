@@ -49,7 +49,6 @@
     "armor_effective_rate_non_physical_inc",
     "armor_flat",
     "armor_gear_flat",
-    "armor_gear_inc",
     "armor_inc",
     "armor_pen",
     "at_center_dmg_additional",
@@ -114,7 +113,6 @@
     "energy_shield_consumed_pct_current_per_sec",
     "energy_shield_consumed_pct_max_per_sec",
     "energy_shield_gear_flat",
-    "energy_shield_gear_inc",
     "energy_shield_per_sealed_life",
     "energy_shield_per_sealed_mana",
     "energy_shield_regain_inc",
@@ -136,7 +134,6 @@
     "evasion_additional",
     "evasion_flat",
     "evasion_gear_flat",
-    "evasion_gear_inc",
     "evasion_inc",
     "excess_restoration_to_es_pct",
     "extra_jumps_flat",
@@ -350,6 +347,11 @@
     "lightning_resist": 0.0,
     "lightning_resist_max": 60.0,
     "lightning_resist_raw": 0.0,
+    "local_gear_sources": {
+      "armor": [],
+      "energy_shield": [],
+      "evasion": []
+    },
     "mana_additional": 0.0,
     "mana_flat": 0,
     "mana_inc": 0,
@@ -690,7 +692,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c1_r1",
           "points": 1,
-          "source_name": null,
+          "source_name": "Assassin",
           "source_type": "talent",
           "text": "+3 % Attack Speed |node|assassin_c1_r1"
         },
@@ -714,7 +716,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c1_r1",
           "points": 1,
-          "source_name": null,
+          "source_name": "Assassin",
           "source_type": "talent",
           "text": "+3 % Cast Speed |node|assassin_c1_r1"
         },
@@ -810,7 +812,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
-          "source_name": null,
+          "source_name": "Assassin",
           "source_type": "talent",
           "text": "+3 % Max Energy Shield |node|assassin_c0_r2"
         },
@@ -818,7 +820,7 @@
           "amount": 0.18,
           "label": "Assassin \u00b7 assassin_c1_r2",
           "points": 1,
-          "source_name": null,
+          "source_name": "Assassin",
           "source_type": "talent",
           "text": "+6 % Max Energy Shield |node|assassin_c1_r2"
         }
@@ -834,7 +836,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
-          "source_name": null,
+          "source_name": "Assassin",
           "source_type": "talent",
           "text": "+3 % Max Life |node|assassin_c0_r2"
         },
@@ -842,7 +844,7 @@
           "amount": 0.18,
           "label": "Assassin \u00b7 assassin_c1_r2",
           "points": 1,
-          "source_name": null,
+          "source_name": "Assassin",
           "source_type": "talent",
           "text": "+6 % Max Life |node|assassin_c1_r2"
         }

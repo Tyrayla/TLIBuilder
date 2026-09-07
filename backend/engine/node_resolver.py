@@ -54,7 +54,7 @@ def _slug_from_node_id(node_id: str) -> str:
 
 
 def _resolve_node(node_id: str, effects, points: int, label: str, source_text_tag: str,
-                  parse_mod, translate_cond) -> tuple[list[dict], list[dict]]:
+                  parse_mod, translate_cond, source_name: str | None = None) -> tuple[list[dict], list[dict]]:
     """Resolve one allocated node's effects at `points`. Mirrors core_talent_resolver._resolve_talent but
     scales each contribution amount by `points` (linear per-rank) and tags pooling identity per node id."""
     contribs: list[dict] = []
@@ -81,6 +81,7 @@ def _resolve_node(node_id: str, effects, points: int, label: str, source_text_ta
                         "amount": c["amount"] * points,          # linear per-rank scaling
                         "text": f"{c.get('text', sub)} |{source_text_tag}|{node_id}",
                         "label": label,
+                        "source_name": source_name,
                         "condition_expr": cls["condition_expr"],
                         # Confidence bit from mod_parser._resolve_gear_stat (2026-07-12, coverage
                         # strictness) — absent/True for every structured regex branch in
@@ -156,8 +157,10 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms
             node = nodes_by_id.get(node_id)
             if not node:
                 continue
-            c, s = _resolve_node(node_id, node.get("effects") or [], int(points),
-                                 f"{tree_name} · {node_id}", "node", parse_mod, translate_cond)
+            c, s = _resolve_node(
+                node_id, node.get("effects") or [], int(points), f"{tree_name} · {node_id}", "node",
+                parse_mod, translate_cond, tree_name,
+            )
             contribs.extend(c)
             statuses.extend(s)
 
