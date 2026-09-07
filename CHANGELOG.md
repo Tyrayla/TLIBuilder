@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-07
+
 ### Hero Traits
 - **Seething Silhouette (Rehan) is now modeled.** The base trait, the Artificial Moon revival, and all six advanced picks are implemented. Rage and Berserk are user-set conditions rather than simulated from combat. Seething Spirit — the trait's spirit summon — computes its own independent DPS (cloned from the player's own main-slot stats) and appears as its own row in the build sidebar, with a Player / Seething Spirit toggle on the stats screen. Ritual of Offering correctly zeroes the player's own DPS (Disarm) unless Rage Infusion is also picked. Recorded as unverified pending in-game confirmation.
 
