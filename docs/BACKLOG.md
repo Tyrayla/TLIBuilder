@@ -58,16 +58,6 @@ fixed (defer-behind-headline + `/api/engine/stats-batch`, commit 7c1fd09). Tiers
 - Minor render memoization (BreakdownCtx value object, `TreeNode` `React.memo`, MasonryGrid measure deps) — low
   priority (Calcs breakdowns are already lazy/hover-only).
 
-## Tooling / release — "What's New" changelog modal (low priority)
-The update "What's New in <version>" modal has two issues (seen on 0.5.3-nightly.3; not urgent):
-1. **Raw HTML shown as text** — the body renders `<p>…</p>` / `<br />` literally instead of as formatted lines
-   (changelog HTML is being escaped/displayed verbatim, not rendered).
-2. **Unhelpful auto-generated content** — it pulls raw git commit messages, including merge commits with conflict
-   markers (e.g. "Merge dev into main for release 0.5.2 / # Conflicts: CHANGELOG.md package.json src/main/index.ts").
-   Should show curated release notes (or at least filter out merge/conflict noise).
-Fix: render the changelog as HTML (or convert to plain text) and source it from a curated CHANGELOG section per
-release rather than raw commit subjects.
-
 ## Shipped in 0.5.2 (removed from the open list)
 Mana/Life sealing & reservation (incl. Lunar Eclipse) · auras & Focus as build buffs · nightly channel + silent
 auto-update + Settings overlay · full skill-data reimport · display rounding option A (sealed/unsealed + ES match
@@ -193,12 +183,14 @@ for Thunder Spike specifically — see below. Full detail: `data/verification/sh
   shadow-hit-count expected-value modeling before they can be wired; this EV model is the shared unlock for
   both proc lines.
 - **Tremble Noble** on-crit "+(66–71)% Numbed Effect for 2s" buff — unmodeled.
-- **Tracking Area entirely unmodeled**: Thunder Spike's own "100% of Skill Area increase/decrease also applied
-  to Shadows' Tracking Area, up to 100%", the dedicated `+% Shadow(s) Tracking Area` stat family, Dual Kismet:
-  Ghost Bee ("+50% Shadow Tracking Area +50% Shadow Strike Skill Area"), and Charging Warcry's "+20% Tracking
-  Area for Shadow Strike Skills while the skill lasts" — no AoE/targeting model exists to consume any of it.
+- **Tracking Area mostly unmodeled**: Thunder Spike's own "100% of Skill Area increase/decrease also applied
+  to Shadows' Tracking Area, up to 100%", the dedicated `+% Shadow(s) Tracking Area` stat family, and Dual
+  Kismet: Ghost Bee ("+50% Shadow Tracking Area +50% Shadow Strike Skill Area") — no AoE/targeting model
+  exists to consume any of it. **Charging Warcry's own "+20% Tracking Area for Shadow Strike Skills while the
+  skill lasts" IMPLEMENTED** (2026-09-02, `engine/warcry.py`) as a dedicated `shadow_strike_tracking_area_inc`
+  pool — Distance = 9.5m × (1 + total tracking contribution), explicitly excluded from general Skill Area.
 - **Charging Warcry** "4% additional damage and Ailment Damage per enemy affected" for Shadow Strike skills —
-  per-enemy-affected scaling unmodeled.
+  **IMPLEMENTED** (2026-09-02, `engine/warcry.py`), per-enemy-affected scaling via Warcry Power.
 - **Frost Spike / Double Thrusts** — the other two Shadow Strike skills — remain unregistered in
   `skill_resolver._REGISTRY`; Thunder Spike is the only one live in v1. Detection is tag-driven off the
   "Shadow Strike" skill tag (not hardcoded to `thunder_spike`), so both light up automatically once registered
@@ -268,6 +260,33 @@ for Thunder Spike specifically — see below. Full detail: `data/verification/sh
   Core Organ pages (`tlidb-crawler`). Owner declined: crafting costs aren't data the engine uses; the Core
   Organ item itself doesn't matter (only the legendary name it unlocks); multi-slot applicability is already
   captured (e.g. the Vorax chest page already lists all eligible chest/gloves directly). Not re-proposing.
+
+## 0h. Incoming Damage / Max Hit / Static EHP (core hardened 2026-09-01 — follow-ups)
+Shipped: damage-taken-as conversion (`{src}_taken_as_{dst}_inc`, all 20 type pairs, previously parsed but
+inert) wired into `defense.py::calculate_incoming`; Barrier's Max-Hit/EHP capacity replaced with the owner-
+specified one-hit piecewise absorb model (`_barrier_capacity`) instead of simply adding the pool; new per-type
+DoT metrics (`dot_effective_pool`, `dot_time_to_death`, no-recovery). See
+`data/verification/incoming-mitigation-model.json` for the full open-assumptions list (mitigation order,
+conversion cap rule, Hit/DoT conversion parity, Barrier placement/DoT applicability).
+
+1. **DoT Time to Death should net against the build's own recovery, not assume zero recovery.** Owner
+   observation (2026-09-01): a DoT is a sustained drain, not a burst — unlike a Hit (where regen during the
+   instant of the hit is negligible), a build's Life/ES regen is the whole story for whether a DoT is survivable
+   at all. The current `dot_time_to_death = usable pool ÷ mitigated DoT DPS` (no recovery) makes a
+   heavy-regen build look exactly as fragile as a zero-regen build, which misrepresents it — a build whose
+   regen exceeds the mitigated DoT DPS should read as effectively unkillable by that DoT, not "N seconds to
+   death." Proposed model: net DPS = `mitigated_dot_dps − total_regen_per_sec` (reuse
+   `RecoveryResult.net_life_per_sec` / `net_es_per_sec` from `engine/recovery.py`, already the engine's
+   existing "recovery minus consumption" figure — do not reimplement regen separately); if net ≤ 0, the DoT is
+   sustainable indefinitely (render "Sustainable", not a time or N/A); if net > 0, `time_to_death = usable pool
+   ÷ net DPS`. This effectively REPLACES the current "no-recovery" figure as the headline Time to Death rather
+   than sitting alongside it as a second EHP-like metric — a standalone "DoT EHP" independent of recovery was
+   the wrong shape for a continuous-drain mechanic (Max Hit/static EHP's burst framing is still correct for
+   Hits, which this does NOT change). Needs a filled `.claude/rules/engine-task-spec.md` before implementation
+   (cross-subsystem: `defense.py` reading `recovery.py`'s output, which today runs as a separate post-loop pass
+   in `compute.py` — check ordering/availability before assuming `RecoveryResult` is on hand at the point
+   `calculate_incoming` runs). `dot_effective_pool` (pool ÷ taken fraction, a capacity figure independent of
+   current incoming DPS) is unaffected — this only concerns Time to Death.
 
 ## 0g. Crit-multiplier per-source breakdown (shipped 2026-07-28 — follow-ups)
 Shipped (commit `e0c02db`, `team1-live`): the crit-DAMAGE per-mana-consumed term (Tyrant's Iron Fist,
@@ -636,7 +655,6 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   Conditionals → rename "Config".
 - **Roll tier tooltips** (T1/T2/…) on gear + hero-memory tooltips — DONE (`affixTypeLabel(type, tier)`).
 - **Slate inventory + summed-bonus overview** — DONE (shipped 2026-06-15; SlateOverview + saved-slates panel).
-- **Deprecated StatsScreen.tsx** (debug dump) — remove or fold; real screen is PlayerStatsScreen.tsx.
 - **Source tagging**: add a tag/type column to Player Stats source attribution.
 - **Settings overlay follow-ups**: wire the greyed number-separator + decimal-precision controls; theme/accent;
   move "Show NYI flags" here; build defaults (default level / dummy level); restore-last-build; Open data folder /
@@ -963,3 +981,21 @@ need review, or other validation issues. Motivating cases:
 Design: a small badge/count in the sidebar → panel listing each issue with a jump-to-fix link
 where possible. Warnings would need a home in build state (or be re-derived), not just the notes
 string, once this lands. Until then, notes is the agreed carrier.
+
+## 11. Persistence — save-payload field enumeration is bug-prone (flagged 2026-09-01)
+
+`backend/persistence/builds_manager.py`'s on-disk `.txt` build file writer/reader explicitly
+enumerates every field by hand, and `App.tsx`'s three save-payload sites (`saveBuild`,
+`saveAsBuild`, the quit/close `onRequestSave` handler) each independently hand-duplicate the same
+field list rather than sharing one. This exact pattern has now silently dropped a field on save at
+least four separate times: `customMods`, `slateInventory` (bug-181), `traitTreeAllocations`
+(Selena2), and most recently `baseMemory`/`memoryInventory` (bug-266/bug-267, the revival Base slot
+vanishing on reload). Each was only caught by a user hitting real data loss.
+
+Worth a dedicated pass to make this class of bug structurally impossible rather than caught one
+field at a time — e.g. have all three App.tsx save sites call the existing `getBuildPayload()`
+(`utils/buildPayload.ts`) instead of hand-duplicating the literal, and/or make
+`builds_manager.py`'s file format schema-driven (a single field list shared by both `_read_file`
+and `_write_file`) instead of two independently-hand-written enumerations. Not undertaken as part
+of the baseMemory fix itself (scope discipline — a bug fix isn't the place for a persistence-layer
+refactor), but flagged here so it doesn't recur a fifth time.

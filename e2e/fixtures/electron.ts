@@ -30,15 +30,21 @@ interface ElectronTestFixtures {
 export async function launchApp(dirs: E2eDirs): Promise<ElectronApplication> {
   // The unpackaged main spawns venv/Scripts/python.exe — fail fast with a real message instead of
   // an opaque firstWindow()/readiness timeout when the venv isn't provisioned.
-  const venvPython = path.join(REPO_ROOT, 'venv', 'Scripts', 'python.exe')
-  if (!existsSync(venvPython)) {
-    throw new Error(`E2E needs the backend venv: ${venvPython} not found — run python -m venv venv && venv\\Scripts\\pip install -r backend\\requirements.txt`)
+  const venvCandidates = [
+    process.env.TLI_DEV_PYTHON,
+    path.join(REPO_ROOT, 'venv', 'Scripts', 'python.exe'),
+    path.resolve(REPO_ROOT, '..', '..', 'tlibuilder', 'venv', 'Scripts', 'python.exe'),
+  ].filter((candidate): candidate is string => !!candidate)
+  const venvPython = venvCandidates.find(existsSync)
+  if (!venvPython) {
+    throw new Error(`E2E needs a backend venv. Checked: ${venvCandidates.join(', ')}. Create one with: python -m venv venv && venv\\Scripts\\pip install -r backend\\requirements.txt`)
   }
   const app = await electron.launch({
     args: [path.join(REPO_ROOT, 'out', 'main', 'index.js')],
     cwd: REPO_ROOT,
     env: {
       ...process.env,
+      TLI_DEV_PYTHON: venvPython,
       TLI_E2E_USERDATA: dirs.userData,
       TLI_E2E_PYTHON_PORT: String(E2E_PYTHON_PORT),
       TLI_DATA_DIR: dirs.dataDir,
@@ -88,7 +94,12 @@ export const test = base.extend<ElectronTestFixtures, ElectronWorkerFixtures>({
       const dataDir = path.join(root, 'data')
       mkdirSync(userData, { recursive: true })
       // Seed app-managed data but NOT the owner's saved builds/save.json — tests start empty.
-      const src = path.join(REPO_ROOT, 'data')
+      const dataCandidates = [
+        path.join(REPO_ROOT, 'data'),
+        path.resolve(REPO_ROOT, '..', '..', 'tlibuilder', 'data'),
+      ]
+      const src = dataCandidates.find(existsSync)
+      if (!src) throw new Error(`E2E data not found. Checked: ${dataCandidates.join(', ')}`)
       cpSync(src, dataDir, {
         recursive: true,
         filter: (p) => {

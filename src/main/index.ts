@@ -3,7 +3,7 @@ const { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme } =
   require('electron') as typeof import('electron')
 // Force dark mode so the native window title bar / frame renders dark (not the OS-default white).
 nativeTheme.themeSource = 'dark'
-import { join, relative, sep } from 'path'
+import { join, relative, resolve, sep } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
 import { existsSync, cpSync, readFileSync, writeFileSync } from 'fs'
@@ -142,7 +142,16 @@ const _USER_DATA_TOP = new Set(['builds', 'save.json'])
 
 function bootstrapDataDir(): string {
   if (!app.isPackaged) {
-    return join(__dirname, '../../data')
+    const dataCandidates = [
+      process.env.TLI_DATA_DIR,
+      join(__dirname, '../../data'),
+      resolve(__dirname, '../../../../tlibuilder/data'),
+    ].filter((candidate): candidate is string => !!candidate)
+    const dataDir = dataCandidates.find(existsSync)
+    if (!dataDir) {
+      throw new Error(`App data not found. Checked: ${dataCandidates.join(', ')}`)
+    }
+    return dataDir
   }
   const bundled = join(process.resourcesPath, 'data')
   const userDataPath = join(app.getPath('userData'), 'data')
@@ -179,7 +188,7 @@ function bootstrapDataDir(): string {
 // Spawns Python and resolves with the detected port once Python prints its ready message.
 // Does NOT call resolvePort() — caller does that after TCP confirmation.
 function startPython(): Promise<number> {
-  return new Promise<number>((resolve) => {
+  return new Promise<number>((resolvePort, reject) => {
     log('startPython — begin')
     // Dev and the installed (packaged) app must use DIFFERENT ports. They both spawn a Python backend and kill
     // whatever holds their port on startup; sharing one port meant running both made each kill the other's
@@ -205,20 +214,28 @@ function startPython(): Promise<number> {
     } else {
       const script = join(__dirname, '../../backend/server.py')
       const cwd = join(__dirname, '../../backend')
-      const venvPython = join(__dirname, '../../venv/Scripts/python.exe')
-      if (!existsSync(venvPython)) {
-        throw new Error(`venv not found at ${venvPython} — run: python -m venv venv && venv\\Scripts\\pip install -r backend\\requirements.txt`)
+      // Worktrees normally do not carry their own venv. Prefer an explicit interpreter or a local venv,
+      // then share the primary checkout's venv so `npm run dev` works from dev/dev2 without setup duplication.
+      const venvCandidates = [
+        process.env.TLI_DEV_PYTHON,
+        join(__dirname, '../../venv/Scripts/python.exe'),
+        resolve(__dirname, '../../../../tlibuilder/venv/Scripts/python.exe'),
+      ].filter((candidate): candidate is string => !!candidate)
+      const venvPython = venvCandidates.find(existsSync)
+      if (!venvPython) {
+        reject(new Error(`Python venv not found. Checked: ${venvCandidates.join(', ')}. Create one with: python -m venv venv && venv\\Scripts\\pip install -r backend\\requirements.txt`))
+        return
       }
       spawnCmd = venvPython
       spawnArgs = [script, ...pythonArgs]
-      spawnOpts = { cwd, env: { ...process.env, TLI_DEV_MODE: '1' } }
+      spawnOpts = { cwd, env: { ...process.env, TLI_DATA_DIR: dataDir, TLI_DEV_MODE: '1' } }
       log(`startPython — dev mode, spawning: ${venvPython} ${script} --port ${PYTHON_PORT}`)
       log(`startPython — cwd: ${cwd}`)
     }
 
     pythonProcess = spawn(spawnCmd, spawnArgs, spawnOpts)
     let resolved = false
-    const done = (port: number) => { if (!resolved) { resolved = true; PYTHON_PORT = port; resolve(port) } }
+    const done = (port: number) => { if (!resolved) { resolved = true; PYTHON_PORT = port; resolvePort(port) } }
 
     pythonProcess.stdout?.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
@@ -461,6 +478,11 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch((e: unknown) => {
+  const message = e instanceof Error ? e.message : String(e)
+  console.error('[main] Startup failed:', message)
+  dialog.showErrorBox('TLI Builder failed to start', message)
+  app.exit(1)
 })
 
 app.on('before-quit', () => {

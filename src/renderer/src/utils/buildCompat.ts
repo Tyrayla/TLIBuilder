@@ -11,7 +11,7 @@ export const KNOWN_BUILD_KEYS = new Set<string>([
   'traitTreeAllocations',
   'heroMemories', 'baseMemory', 'memoryInventory', 'pactSpirits', 'notes', 'customMods',
   // Current fields (loadouts, pact fates/kismets, per-loadout target config, trait skill supports).
-  'loadouts', 'activeLoadoutId', 'fates', 'undetermined', 'targetConfig', 'traitSkillSupports',
+  'loadouts', 'activeLoadoutId', 'fates', 'undetermined', 'targetConfig', 'enemyConfig', 'traitSkillSupports',
   'licoricePreparedSkill', 'elixirIngredients',
 ])
 

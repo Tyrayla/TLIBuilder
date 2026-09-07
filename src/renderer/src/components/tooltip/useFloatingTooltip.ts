@@ -7,7 +7,7 @@
 import React, { useCallback, useState } from 'react'
 import {
   useFloating, autoUpdate, offset, flip, shift, size,
-  useHover, useClick, useDismiss, useInteractions, safePolygon,
+  useHover, useClick, useDismiss, useFocus, useInteractions, safePolygon,
   type Placement,
 } from '@floating-ui/react'
 
@@ -76,10 +76,15 @@ export function useFloatingTooltip(opts: UseFloatingTooltipOptions): FloatingToo
     handleClose: interactive ? safePolygon() : null,   // lets the cursor travel into an interactive body
   })
   const click = useClick(context, { enabled: trigger === 'click' })
+  // Guard `window`/`navigator` — floating-ui's useFocus effect touches both unconditionally whenever
+  // enabled, and the vitest suite renders this in a DOM-less `node` environment (react-test-renderer,
+  // no jsdom). Real app always has a window, so this is a no-op guard outside tests. Mirrors the
+  // `typeof window === 'undefined'` guard already used for the mobile tree-toggle effect.
+  const focus = useFocus(context, { enabled: typeof window !== 'undefined' && typeof navigator !== 'undefined' })
   // Click popovers dismiss on outside-click/Escape; hover tooltips only when pinned.
   const dismiss = useDismiss(context, { enabled: trigger === 'click' || pinned })
 
-  const { getReferenceProps, getFloatingProps } = useInteractions([hover, click, dismiss])
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover, click, focus, dismiss])
 
   // Merge the ref in explicitly rather than relying on getReferenceProps to forward it.
   // Only inject the pin onClick for hover+pinnable; click-triggered popovers let useClick own

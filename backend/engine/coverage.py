@@ -462,6 +462,8 @@ _ALL_ADVANCED_PICKS: tuple[str, ...] = (
     "Licorice Tincture Blend", "Scent of Ambition", "Elixir of Immortality", "Everlasting Nectar",
     # lightning_shadow
     "Dazzling Lightning", "Electroplated Motif", "Swift as Lightning", "Charging Equation",
+    # seething_silhouette
+    "Ritual of Offering", "Fury's Onslaught", "Hysteria", "Growing Anger", "Split Form", "Rage Infusion",
     # sing_with_the_tide
     "Undersea Ballad", "Sea Foam Nocturne", "Chantey of Sinking", "Murmurs of the Distant Tide",
     "Idyll of the Tide", "Wave Aria",

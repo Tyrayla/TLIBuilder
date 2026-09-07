@@ -3,10 +3,11 @@ import { deepEqual as isEqual } from '../utils/fn'
 import type {
   TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput, InstalledFate, UndeterminedFate,
-  Loadout, TargetConfig,
+  Loadout, TargetConfig, EnemyIncomingConfig,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
 import { DEFAULT_TARGET_CONFIG } from '../utils/targetPresets'
+import { DEFAULT_ENEMY_CONFIG } from '../utils/enemyPresets'
 import {
   ALL_AREAS, readArea, resolvedPatch, loadoutById, ownerLoadout, snapshotAllAreas,
   loadoutKeyFromResolved, loadoutKeyFromState,
@@ -50,6 +51,7 @@ export interface LoadedBuild {
   notes: string
   customMods: string[]
   targetConfig: TargetConfig
+  enemyConfig: EnemyIncomingConfig
   loadouts: Loadout[]
   activeLoadoutId: string
 }
@@ -123,6 +125,9 @@ interface BuildStore {
   // Calc-target ("training dummy") stats — per-loadout (a loadout area). Bumps buildVersion to recompute DPS-vs-target.
   targetConfig: TargetConfig
   setTargetConfig: (t: TargetConfig) => void
+  // Incoming-hit enemy skill — per-loadout (a loadout area). Drives the defensive Max-Hit / EHP calc.
+  enemyConfig: EnemyIncomingConfig
+  setEnemyConfig: (c: EnemyIncomingConfig) => void
   // Uptime calc mode (global): 'max' (assume-max, default) | 'real' (compute ramp). Not part of the saved
   // build — a display/calc preference. Drives the engine's uptime_mode for ailment ramp (Numbed, …).
   uptimeMode: 'max' | 'real'
@@ -218,6 +223,7 @@ const DEFAULT_BUILD: LoadedBuild = {
   notes: '',
   customMods: [],
   targetConfig: DEFAULT_TARGET_CONFIG,
+  enemyConfig: DEFAULT_ENEMY_CONFIG,
   loadouts: [],
   activeLoadoutId: '',
 }
@@ -302,6 +308,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),
   setTargetConfig: (targetConfig) => set((s) => ({ targetConfig, buildVersion: s.buildVersion + 1 })),
+  setEnemyConfig: (enemyConfig) => set((s) => ({ enemyConfig, buildVersion: s.buildVersion + 1 })),
   setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
   setBaseMemory: (baseMemory) => set((s) => ({ baseMemory, buildVersion: s.buildVersion + 1 })),

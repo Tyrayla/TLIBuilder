@@ -4,6 +4,7 @@ import type { LoadedBuild } from '../store/buildStore'
 import { EMPTY_STAT_SHEET } from '../api/client'
 import type { EquippedSkill, Loadout, PactSpirit, StatSheetResponse, SlateTemplate, CreatedHeroMemory } from '../api/client'
 import { DEFAULT_TARGET_CONFIG } from '../utils/targetPresets'
+import { DEFAULT_ENEMY_CONFIG } from '../utils/enemyPresets'
 
 // Full initial snapshot (captured before any test mutates the singleton store) — used to fully
 // reset the store between tests via setState(initial, true) (replace).
@@ -26,7 +27,7 @@ const baseLoadedBuild: LoadedBuild = {
   licoricePreparedSkill: null, elixirIngredients: {},
   heroMemories: [null, null, null], memoryInventory: [], pactSpirits: [null, null, null],
   fates: {}, undetermined: [null, null, null], notes: '', customMods: [],
-  targetConfig: DEFAULT_TARGET_CONFIG, loadouts: [], activeLoadoutId: '',
+  targetConfig: DEFAULT_TARGET_CONFIG, enemyConfig: DEFAULT_ENEMY_CONFIG, loadouts: [], activeLoadoutId: '',
 }
 
 describe('traitTreeAllocations round-trip (via loadBuild — feeds App.getBuildPayload)', () => {

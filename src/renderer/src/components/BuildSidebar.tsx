@@ -75,7 +75,18 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
       })
     : []
 
-  const allContributors = [...contributors, ...minionContributors]
+  // Seething Spirit (Seething Silhouette hero trait): a second, independent damage source computed
+  // off the player's own main-skill stats + its own modifiers (backend/engine/compute.py). Only
+  // ever the single "seething_spirit" key — present only when a Spirit-granting pick is active.
+  const spiritOffense = (computedStats as { spirit_offense?: Record<string, OffenseResult> | null }).spirit_offense ?? null
+  const spiritContributors = spiritOffense
+    ? Object.values(spiritOffense).flatMap(result => {
+        const dps = result.supported ? (result.total_dps_vs_target ?? 0) : 0
+        return dps > 0 ? [{ name: result.skill_name || 'Seething Spirit', dps }] : []
+      })
+    : []
+
+  const allContributors = [...contributors, ...minionContributors, ...spiritContributors]
   const total = allContributors.reduce((s, c) => s + c.dps, 0)
 
   // Keep showing the last computed total/rows while a recompute is in flight (computedStats holds the

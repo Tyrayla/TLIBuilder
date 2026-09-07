@@ -91,6 +91,10 @@ class Stat(Enum):
     # carries the Aim LEVEL as its value (like has_squidnova_flag carries a threshold); compute auto-enables
     # aim_active + aim_level, and the aggregator applies the Euphoria effects (Ranged/Beam scoped).
     AIM_TRIGGER_FLAG = "aim_trigger_flag"
+    # "The base main stat no longer additionally increases damage" (Ralph's Journey/Burial, Magnus'
+    # Jealousy/Scar) — disables ONLY offense.py's generic Main-Stat Damage Bonus (0.5%/point); the item's
+    # own explicit per-attribute lines are a separate contribution and are unaffected.
+    MAIN_STAT_DAMAGE_BONUS_DISABLED_FLAG = "main_stat_damage_bonus_disabled_flag"
     # Skill Area for skills cast by Spell Burst (Prairie Fire / Kismet Ripple) — DISPLAY-only (Skill Area isn't a DPS
     # lever). Scales by Max Spell Burst M: the support pool is pre-scaled ×min(M,cap) in compute; the _PER pool is
     # per-burst-stack, scaled ×M in offense. Folded into the displayed skill_area_inc in burst mode.
@@ -198,6 +202,10 @@ class Stat(Enum):
     MINION_ULTIMATE_CAST_SPEED_ADDITIONAL = "minion_ultimate_cast_speed_additional"
     MINION_ULTIMATE_AS_ADDITIONAL_PER_40_GROWTH = "minion_ultimate_attack_speed_additional_per_40_growth"
     MINION_ULTIMATE_CS_ADDITIONAL_PER_40_GROWTH = "minion_ultimate_cast_speed_additional_per_40_growth"
+    # Troublemaker — per-100-Growth damage + Attack/Cast Speed
+    MINION_DMG_ADDITIONAL_PER_100_GROWTH = "minion_dmg_additional_per_100_growth"
+    MINION_ATTACK_SPEED_ADDITIONAL_PER_100_GROWTH = "minion_attack_speed_additional_per_100_growth"
+    MINION_CAST_SPEED_ADDITIONAL_PER_100_GROWTH = "minion_cast_speed_additional_per_100_growth"
     # Core-talent additional-pool minion mods (subsystem not yet simulated — tracked, Inactive)
     MINION_PHYSICAL_DMG_ADDITIONAL = "minion_physical_dmg_additional"
     MINION_SPELL_DMG_ADDITIONAL = "minion_spell_dmg_additional"
@@ -755,6 +763,15 @@ class Stat(Enum):
     PHYSICAL_SPELL_DMG_FLAT_MAX_PER_MANA_CONSUMED = "physical_spell_dmg_flat_max_per_mana_consumed"
     PHYSICAL_DMG_FLAT_PER_LIFE_CONSUMED_CAP = "physical_dmg_flat_per_life_consumed_cap"
     PHYSICAL_DMG_FLAT_PER_MANA_CONSUMED_CAP = "physical_dmg_flat_per_mana_consumed_cap"
+    # Attribute-scaled added elemental damage (Ralph's Burial / Magnus' Jealousy — armor pieces with no
+    # "to Attacks/Spells" scope word; owner-confirmed applies to BOTH Attacks and Spells). Normalized
+    # per-1-attribute-point + an explicit divisor; folded into {dtype}_{attack,spell}_dmg_flat_{min,max}.
+    LIGHTNING_DMG_FLAT_MIN_PER_DEXTERITY = "lightning_dmg_flat_min_per_dexterity"
+    LIGHTNING_DMG_FLAT_MAX_PER_DEXTERITY = "lightning_dmg_flat_max_per_dexterity"
+    LIGHTNING_DMG_FLAT_PER_DEXTERITY_UNIT = "lightning_dmg_flat_per_dexterity_unit"
+    FIRE_DMG_FLAT_MIN_PER_STRENGTH = "fire_dmg_flat_min_per_strength"
+    FIRE_DMG_FLAT_MAX_PER_STRENGTH = "fire_dmg_flat_max_per_strength"
+    FIRE_DMG_FLAT_PER_STRENGTH_UNIT = "fire_dmg_flat_per_strength_unit"
     # Crit per N consumed (Tyrant's Iron Fist = +5% INCREASED Crit Rating + ADDITIVE Crit Damage per ~890 Mana,
     # uncapped). Fold into crit_rating_inc and crit_dmg_inc (× consumed_recently_mana) in the offense crit stage.
     CRIT_RATING_INC_PER_MANA_CONSUMED = "crit_rating_inc_per_mana_consumed"
@@ -839,6 +856,8 @@ class Stat(Enum):
     CDR_SPEED_INC = "cdr_speed_inc"
     CDR_SPEED_ADDITIONAL = "cdr_speed_additional"   # additional (multiplicative) CDR pool; pairs with CDR_SPEED_INC
     WARCRY_CDR_SPEED_INC = "warcry_cdr_speed_inc"
+    WARCRY_CDR_SPEED_ADDITIONAL = "warcry_cdr_speed_additional"
+    WARCRY_SKILL_EFFECT_DURATION_ADDITIONAL = "warcry_skill_effect_duration_additional"
 
     # ── Skill Mechanics ───────────────────────────────────────────────────────
     SKILL_AREA_INC = "skill_area_inc"
@@ -849,6 +868,7 @@ class Stat(Enum):
     SKILL_AREA_TO_STEEP_STRIKE_DMG = "skill_area_to_steep_strike_dmg"
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
     SKILL_EFFECT_DURATION_ADDITIONAL = "skill_effect_duration_additional"
+    DURATION_INC = "duration_inc"  # generic "+X% Duration" (e.g. Extended Duration support)
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
     # ── Restoration / Recovery (heal-over-time; see engine/recovery.py) ────────
     # Restoration total = base × (1 + Σ restoration_effect_inc) × Π(1 + restoration_effect_additional). Duration =
@@ -887,7 +907,10 @@ class Stat(Enum):
     MOON_STRIKE_CIRCULAR_CHANCE = "moon_strike_circular_chance"
     BLUR_EFFECT_INC = "blur_effect_inc"
     WARCRY_EFFECT_INC = "warcry_effect_inc"
+    WARCRY_EFFECT_ADDITIONAL = "warcry_effect_additional"
+    WARCRY_SKILL_EFFECT_DURATION_INC = "warcry_skill_effect_duration_inc"
     WARCRY_SKILL_AREA_INC = "warcry_skill_area_inc"
+    SHADOW_STRIKE_TRACKING_AREA_INC = "shadow_strike_tracking_area_inc"
     ELIXIR_EFFECT_INC = "elixir_effect_inc"
     ELIXIR_EFFECT_ADDITIONAL = "elixir_effect_additional"
     ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"

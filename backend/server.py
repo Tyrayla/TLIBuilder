@@ -617,6 +617,16 @@ class TargetConfigRequest(BaseModel):
     erosionRes:   float = 30.0
 
 
+class EnemyIncomingRequest(BaseModel):
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc. `kind` ('attack'|'spell') routes the
+    # block/evade layer; `damage` carries raw per-type hit/DoT magnitudes (<type>_hit / <type>_dot), passed
+    # through as-is (no percent scaling). Defaults = the Test Enemy's Test Attack (1000 per hit type).
+    enemyId: str = "test_enemy"
+    skillId: str = "test_attack"
+    kind:    str = "attack"
+    damage:  dict[str, float] = {}
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
@@ -651,6 +661,7 @@ class EngineStatsRequest(BaseModel):
     elixir_ingredients: dict[str, list[str]] = {}
     uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
     target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
+    enemy_config:    EnemyIncomingRequest | None = None  # incoming-hit enemy skill for defensive Max-Hit / EHP (WS3)
 
 
 # node_type_filter.json is ~520 KB and season-static, but was reparsed on EVERY engine_stats call (and N times
@@ -1006,6 +1017,16 @@ def engine_stats(req: EngineStatsRequest):
         "lightning_res": _tc.lightningRes / 100.0,
         "erosion_res": _tc.erosionRes / 100.0,
     }
+
+    # Incoming-hit enemy skill → passed through as-is (raw per-type damage; no percent scaling). None keeps the
+    # defensive calc on its Test-Attack default when the client sends nothing.
+    _ec = req.enemy_config
+    enemy_config = None if _ec is None else {
+        "enemyId": _ec.enemyId,
+        "skillId": _ec.skillId,
+        "kind": _ec.kind,
+        "damage": dict(_ec.damage),
+    }
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -1033,6 +1054,7 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
+        enemy_config=enemy_config,
         inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()),
     )
     from engine.identity_index import get_identity_index
@@ -1053,6 +1075,7 @@ def engine_stats(req: EngineStatsRequest):
         "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
+        "incoming": result.incoming,
         "recovery": result.recovery,
         "consumption": result.consumption,
         "skill_cost": result.skill_cost,
@@ -1069,6 +1092,9 @@ def engine_stats(req: EngineStatsRequest):
         # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
         # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
         "minion_offense": result.minion_offense,
+        # {"seething_spirit": OffenseResult} — Seething Silhouette's Seething Spirit, a second independent
+        # calculate_offense() on the player's own main-skill stats + its own modifiers. Additive.
+        "spirit_offense": result.spirit_offense,
         # Origin of Spirit Magus display summary ({factor, effects[]}) — None when no magus is slotted. Additive.
         "origin_summary": result.origin_summary,
         "consumed_stats": result.consumed_stats,
@@ -1087,6 +1113,7 @@ def engine_stats(req: EngineStatsRequest):
         # Per-empower summary (Empower Effect + granted buffs + NYI) for the Skill panel, statuses, and the
         # settable per-empower buff-stack conditions (sliders).
         "empowers": result.empower_summaries,
+        "warcries": result.warcry_summaries,
         "empower_statuses": empower_statuses,
         "empower_stack_conditions": empower_stack_conditions,
         # Per-elixir summary (Elixir Effect + granted buffs + timing + NYI) for the Skill panel, plus statuses.
@@ -1098,6 +1125,7 @@ def engine_stats(req: EngineStatsRequest):
         "curse_meta": curse_meta,
         "curse_statuses": curse_statuses,
         "curse_conflict": result.curse_conflict,
+        "warcry_conflict": result.warcry_conflict,
         # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
         # Bespoke-trait status lines flagged "warning" (e.g. Licorice Note's activation-medium pitfall) are merged
         # here so they surface on the Config screen's warnings banner (trait_mod_statuses itself isn't shown).
@@ -1152,6 +1180,7 @@ def get_conditions():
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":
             entry["is_derived"] = True
+        entry["source"] = c.source
         if not c.visible:
             entry["visible"] = False
         if c.trait_id:
@@ -1977,10 +2006,43 @@ _BLESSING_KEY_MAP = {
 }
 
 
+# A bare number or a "(a-b)" range — several legendary-gear "per N <Attribute>" affixes roll the divisor
+# (or the "up to Y%" cap) itself as a range across tiers/corrosion states, e.g. Royal Cycle's
+# "per (10-12) Strength". Mirrors mod_parser's established range→midpoint convention (see
+# mod_parser._parse_custom_mod_text_base's leading-range collapse) so this table stays consistent with it.
+_NUM_TOKEN = r"\d+(?:\.\d+)?|\(\s*\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*\)"
+
+
+def _resolve_num_token(tok: str) -> float:
+    tok = tok.strip()
+    rm = re.match(r"\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)", tok)
+    if rm:
+        return (float(rm.group(1)) + float(rm.group(2))) / 2.0
+    return float(tok)
+
+
+def _attr_per_pattern(attr_word: str, key: str) -> tuple:
+    """'+X per N <Attr>[, up to Y%]' → {"key": key, "op": "per", "divisor": N, cap?: Y/100}. N and Y may
+    each be a plain number or a "(a-b)" range (collapsed to its midpoint)."""
+    pat = re.compile(
+        rf"(?:per|for\s+every)\s+({_NUM_TOKEN})\s+{attr_word}\b"
+        rf"(?:\s*,?\s*up\s+to\s+\+?({_NUM_TOKEN})\s*%)?", re.I)
+
+    def build(m: "re.Match") -> dict:
+        expr = {"key": key, "op": "per", "divisor": _resolve_num_token(m.group(1))}
+        if m.group(2):
+            expr["cap"] = _resolve_num_token(m.group(2)) / 100.0
+        return expr
+
+    return pat, build
+
+
 # Condition-clause patterns → engine condition expressions (for talent/affix gates). Negated forms are
 # listed before their positive counterparts so "not low" wins over "low". A value can be a static expr
 # or a callable(match)->expr for thresholds. These map onto conditions in data/conditions.json.
 _COND_PATTERNS: list[tuple] = [
+    (re.compile(r"for\s+each\s+different\s+warcry\s+cast\s+for\s+8\s*s", re.I),
+     {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}),
     # Low-resource gates (self) — negated first
     (re.compile(r"energy\s+shield\s+is\s+not\s+low|not\s+at\s+low\s+energy\s+shield", re.I), {"not": "low_energy_shield"}),
     (re.compile(r"life\s+is\s+not\s+low|not\s+at\s+low\s+life", re.I), {"not": "low_life"}),
@@ -2142,6 +2204,15 @@ _COND_PATTERNS: list[tuple] = [
     # Per-Fervor-Rating scaling: "+X per N Fervor Rating" → ×floor(fervor/N).
     (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
     (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
+    # Per-attribute scaling: "+X per N Strength/Dexterity/Intelligence[, up to Y%]" → ×floor(total/N),
+    # optionally capped. Mirrors the fervor_rating / remaining_energy per+cap pattern shape; N and Y may
+    # roll as a "(a-b)" range (Royal Cycle, Ralph's Journey, Last Words of Chaos) — see _attr_per_pattern.
+    _attr_per_pattern("strength", "strength_total"),
+    _attr_per_pattern("dexterity", "dexterity_total"),
+    _attr_per_pattern("intelligence", "intelligence_total"),
+    # Royal Cycle: "for every N of the highest stat among Strength, Dexterity, and Intelligence"
+    (re.compile(rf"for\s+every\s+({_NUM_TOKEN})\s+of\s+the\s+highest\s+stat\s+among\s+strength\s*,?\s*dexterity\s*,?\s*(?:and\s+)?intelligence\b", re.I),
+     lambda m: {"key": "highest_attribute_total", "op": "per", "divisor": _resolve_num_token(m.group(1))}),
     # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True Body hits an
     # enemy" — True Body is ASSUMED to mean the player's own cast (not a Shadow), which would happen every
     # cast, so the owner-approved model is a DEFAULT-ON condition (thunder_spike_true_body_buff,
@@ -2286,6 +2357,50 @@ def _resolve_gear_affix_clauses(text: str) -> list[dict]:
         return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
     out: list[dict] = []
     for clause in _expand_named_buffs(text):
+        if re.search(r"each\s+different\s+warcry\s+cast", clause, re.I):
+            cond_expr = {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}
+            parsed = []
+            minimum = re.search(r"\+([\d.]+)\s+to\s+the\s+minimum\s+number", clause, re.I)
+            effect = re.search(r"\+([\d.]+)\s*%\s+additional\s+warcry\s+effect", clause, re.I)
+            cdr = re.search(r"\+([\d.]+)\s*%\s+additional\s+warcry\s+cooldown\s+recovery\s+speed", clause, re.I)
+            # Corroded Kragol has a separate, ordinary (not "additional")
+            # Warcry Effect roll on both of its Warcry clauses.
+            effect_inc = re.search(r"\+([\d.]+)\s*%\s+(?<!additional\s)warcry\s+effect", clause, re.I)
+            if minimum:
+                parsed.append({"stat_key": "warcry_min_targets_flat", "amount": float(minimum.group(1)), "text": clause})
+            if effect:
+                parsed.append({"stat_key": "warcry_effect_additional", "amount": float(effect.group(1)) / 100, "text": clause})
+            if cdr:
+                parsed.append({"stat_key": "warcry_cdr_speed_additional", "amount": float(cdr.group(1)) / 100, "text": clause})
+            out.append({"clause": clause, "parsed": parsed, "cond_expr": cond_expr,
+                        "resolved": bool(parsed), "curse": None})
+            if effect_inc:
+                # The Corroded plain "Warcry Effect" roll is not introduced by
+                # "for each different cast"; preserve it as an unconditional
+                # increased-effect source rather than scaling it by that count.
+                out.append({"clause": clause, "parsed": [
+                    {"stat_key": "warcry_effect_inc", "amount": float(effect_inc.group(1)) / 100,
+                     "text": clause}], "cond_expr": None, "resolved": True, "curse": None})
+            continue
+        # Kragol's duration line is scoped to Warcries and scales by the
+        # resolved Warcry Power (each enemy affected).  It intentionally uses
+        # its own additional-duration pool so it cannot change other skills.
+        if re.search(r"additional\s+duration\s+for\s+the\s+current\s+warcry", clause, re.I):
+            duration = re.search(r"([+-])\s*([\d.]+)\s*%\s+additional\s+duration", clause, re.I)
+            effect_inc = re.search(r"\+([\d.]+)\s*%\s+(?<!additional\s)warcry\s+effect", clause, re.I)
+            parsed = []
+            if duration:
+                sign = -1.0 if duration.group(1) == "-" else 1.0
+                parsed.append({"stat_key": "warcry_skill_effect_duration_additional",
+                               "amount": sign * float(duration.group(2)) / 100, "text": clause})
+            out.append({"clause": clause, "parsed": parsed,
+                        "cond_expr": {"key": "warcry_power", "op": "per", "divisor": 1},
+                        "resolved": bool(parsed), "curse": None})
+            if effect_inc:
+                out.append({"clause": clause, "parsed": [
+                    {"stat_key": "warcry_effect_inc", "amount": float(effect_inc.group(1)) / 100,
+                     "text": clause}], "cond_expr": None, "resolved": True, "curse": None})
+            continue
         cond_expr = None
         parsed = _parse_custom_mod_text(clause)
         if not parsed:
@@ -2963,6 +3078,17 @@ def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     parsed = import_tower_sequence(req.data, req.season_name)
     season_manager.save_tower_sequence(req.season_name, parsed)
     return {"ok": True, "count": parsed["entry_count"]}
+
+
+@app.get("/api/tower-sequence")
+def get_tower_sequence():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "entries": []}
+    data = season_manager.load_tower_sequence(active)
+    if not data:
+        return {"season": active, "entries": []}
+    return {"season": active, "entries": data.get("entries", [])}
 
 
 class DiffSeasonsRequest(BaseModel):

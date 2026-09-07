@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-07
+
+### Hero Traits
+- **Seething Silhouette (Rehan) is now modeled.** The base trait, the Artificial Moon revival, and all six advanced picks are implemented. Rage and Berserk are user-set conditions rather than simulated from combat. Seething Spirit — the trait's spirit summon — computes its own independent DPS (cloned from the player's own main-slot stats) and appears as its own row in the build sidebar, with a Player / Seething Spirit toggle on the stats screen. Ritual of Offering correctly zeroes the player's own DPS (Disarm) unless Rage Infusion is also picked. Recorded as unverified pending in-game confirmation.
+
+### Engine & DPS
+- **Attribute-scaling talents and 6 named legendary items now resolve to full coverage.** A new generic per-attribute condition (Strength/Dexterity/Intelligence) covers 8 core-talent lines plus most of Royal Cycle, Last Words of Chaos, Ralph's Journey, and Magnus' Scar; Troublemaker's per-100-Growth damage/Attack-Speed line extends the existing per-Growth fold family; attribute-scaled added elemental damage (Ralph's Burial, Magnus' Jealousy) and the "main stat no longer increases damage" companion line (which disables only the generic Main-Stat Damage Bonus, leaving an item's own per-attribute lines untouched) are both wired in. All recorded as unverified pending in-game confirmation. Along the way, two silent-drop parser bugs were fixed (a ranged-divisor text clause and bare "Mana" talent phrasing weren't resolving).
+- **Effective skill/support level displays and their source breakdowns are corrected.** Above-max-level multipliers in Calcs are now attributed to their source, and the Skills screen shows the same effective level the damage math actually uses.
+- **Local gear-defense breakdowns (Armour/Energy Shield/Evasion) are reworked.** Per-item local "% increased" affixes (chest, shield) were pooling globally with every other local-defense source instead of applying only to their own item's flat value; each item's local increase now applies to that item alone, with a per-item breakdown row showing the raw value, its own local multiplier, and every contributing source. Recorded as unverified pending in-game confirmation.
+
+### Warcry
+- **Warcry skills now have a dedicated Calcs panel and are fully modeled.** All six Warcries (Charging, Commanding, Fearless, Raging, Resurrection, Shockwave) show live Warcry Effect, Power, Cooldown, Duration, Charges, Uptime, and a per-contribution breakdown. Warcry Power auto-derives from target enemy count and any minimum-enemies modifiers (capped at 8, or 16 with Formless), with a manual override available in Config. Charging Warcry's Shadow Strike Tracking Distance is now modeled as its own 9.5m-base pool, separate from general Skill Area. Kragol's Roar's distinct-cast counter and Warcry-only cooldown/duration bonuses are wired in, and duplicate equipped copies of the same Warcry resolve to the most recently cast one.
+- **Fixed: Berserking Blade's Sweep support "additional Skill Area" bonus wasn't applying.** It was being parsed and tracked but silently dropped from the skill's actual Skill Area total; it's now correctly folded in, alongside every other skill's `additional` Skill Area contributions (e.g. Shockwave Warcry's Combo Finisher stacking).
+
+### Build management
+- **Fixed: the Base/Special hero-memory slot no longer vanishes on save/reload.** A memory socketed into the revival-enabled Base slot was silently dropped by the save path (both the on-disk build file writer and the Save button's outgoing payload never carried the field) and came back empty the next time the build was opened. It now round-trips correctly.
+
+### Under the hood
+- Fixed a flaky CI run: floating-ui's `useFocus` is now guarded against the DOM-less Vitest environment.
+
 ## [0.6.4] - 2026-08-19
 
 ### Hero Memory

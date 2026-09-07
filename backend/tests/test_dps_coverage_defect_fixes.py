@@ -27,12 +27,11 @@ from engine.tooltip import build_tooltip, _is_dup
 
 _SEASON = season_manager.get_active_season()
 
-pytestmark = pytest.mark.skipif(
-    _SEASON != "SS12",
-    reason="SS12-specific ground-truth; SS13 values pending re-verification post-flip (see data/seasons/.active)",
-)
-
-_SKILLS = season_manager.load_skills("SS12")
+# These 13 tests pin the LOW-LEVEL mechanics of the two 2026-07-12 defect fixes (map_conditional_line's
+# "additional damage" scope guard, _is_dup's scope-qualifier strip, the strict confident-resolution
+# classifier) — they are mechanism-pinned, not value-pinned, so they hold across seasons. Un-gated in
+# Phase 0 (2026-08-22) and repointed to the live catalog; the five named items still exist in SS13.
+_SKILLS = season_manager.load_skills(_SEASON)
 _BY_ID = {s["item_id"]: s for s in _SKILLS["skills"] if "item_id" in s}
 
 

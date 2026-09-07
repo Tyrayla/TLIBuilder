@@ -4,7 +4,7 @@ import {
   LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
   LegendaryRandomAffixGroup,
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
-  Graft, GraftAffix, BeltBlend, api,
+  Graft, GraftAffix, BeltBlend, TowerSequenceEntry, api,
 } from '../api/client'
 import { FloatingPortal } from '@floating-ui/react'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -435,10 +435,14 @@ interface CustomizePanelProps {
     clearRandomAffixIndices?: number[]
   ) => void
   onRandomAffixChange: (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => void
+  isBelt: boolean
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onBeltBlendChange: (talentId: string | null) => void
 }
 
-// Belt-blend equip (roadmap #4) — rendered in the editor column for any belt, independent of which
-// editor (Customize / Craft / Vorax) is open. One blend total; shows the resolved effect text.
+// Belt-blend equip (roadmap #4) — rendered as a slot row directly under Corrosion in whichever editor
+// (Customize / Craft / Vorax) is open, gated on the edited item being a belt. Per-item value, not global.
 const beltBlendLabel = (b: BeltBlend) => b.talent_name || b.effect_text || b.effect_raw || b.talent_id
 
 // Searchable belt-blend picker styled like the affix modifier box (reuses the gear-craft-mod-* UI), with
@@ -490,7 +494,7 @@ function BeltBlendSearchSelect({ beltBlends, beltBlend, onChange }: {
   })() : {}
 
   return (
-    <div ref={containerRef} className="gear-craft-mod-select">
+    <div ref={containerRef} className="gear-craft-mod-select" style={{ flex: 1 }}>
       <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
         <span className={selected ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
           {selected ? beltBlendLabel(selected) : '— none —'}
@@ -534,17 +538,222 @@ function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
   // other modifier uses, so it carries the full 4-state (Consumed / Inactive / Unconsumed / NYI).
   const badge = useTextModifierStatus(selected ? effText : null, 'talent')
   return (
-    <div className="gear-belt-blend-section">
-      <div className="gear-belt-blend-header">Belt Blend</div>
-      <BeltBlendSearchSelect beltBlends={beltBlends} beltBlend={beltBlend} onChange={onBeltBlendChange} />
+    <div className="gear-corrosion-section">
+      <div className="gear-corrosion-row gear-corrosion-row--stacked">
+        <span className="gear-corrosion-label">Belt Blend</span>
+        <BeltBlendSearchSelect beltBlends={beltBlends} beltBlend={beltBlend} onChange={onBeltBlendChange} />
+      </div>
       {selected && (
-        <div className="gear-belt-blend-effect">{effText}<ModifierBadge status={badge} /></div>
+        <div className="gear-affix-label">{effText}<ModifierBadge status={badge} /></div>
       )}
     </div>
   )
 }
 
-function CustomizePanel({ item, customizations, isEditing, editActions, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, previewDeltas, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
+// Tower Sequence entries carry a trailing "<Intermediate|Advanced> Sequence <n|n|n>" suffix — the
+// crafting minigame's bookkeeping, not part of the actual effect. Strip it for display AND for what
+// gets stored/sent to the engine (a clean raw_text matches existing modifier-text patterns better);
+// the sequence-number identity is meaningless once the affix is equipped. `group` drives the
+// Intermediate/Advanced sectioning in the picker, mirroring how prefix/suffix pickers group by tier.
+function parseTowerSequenceEntry(affix: string): { label: string; group: string } {
+  const m = affix.match(/^(.*?)\s+(Intermediate|Advanced)\s+Sequence\s+[\d|]+\s*$/i)
+  if (!m) return { label: affix.trim(), group: 'Other' }
+  return { label: m[1].trim(), group: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() }
+}
+
+// Tower Sequence — crafted-only affix pick for weapon/shield bases. Options are grouped into
+// Intermediate / Advanced sections, mirroring the Base/Prefix/Suffix affix picker's tier grouping.
+// A width-capped portal dropdown (not a native <select>) — the native popup sizes to its widest
+// option and overflows past the panel, which is exactly the clipping this replaces.
+function TowerSequenceSelector({ entries, towerSequence, onTowerSequenceChange }: {
+  entries: TowerSequenceEntry[]
+  towerSequence: string | null
+  onTowerSequenceChange: (affix: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const MAX_DROPDOWN_H = 260
+
+  useEffect(() => {
+    if (!open) { setTriggerRect(null); return }
+    if (containerRef.current) setTriggerRect(containerRef.current.getBoundingClientRect())
+  }, [open])
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const parsed = useMemo(() => entries.map(e => parseTowerSequenceEntry(e.affix)), [entries])
+  const groups = useMemo(() => {
+    const byGroup: Record<string, Set<string>> = {}
+    for (const p of parsed) {
+      if (!byGroup[p.group]) byGroup[p.group] = new Set()
+      byGroup[p.group].add(p.label)
+    }
+    return ['Intermediate', 'Advanced', 'Other']
+      .filter(g => byGroup[g])
+      .map(g => ({ group: g, labels: [...byGroup[g]] }))
+  }, [parsed])
+
+  const badge = useTextModifierStatus(towerSequence, 'gear')
+
+  const dropdownStyle = triggerRect ? (() => {
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && triggerRect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const, left: triggerRect.left, width: triggerRect.width, maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove ? { bottom: window.innerHeight - triggerRect.top + 2 } : { top: triggerRect.bottom + 2 }),
+    }
+  })() : {}
+
+  return (
+    <div className="gear-corrosion-section">
+      <div className="gear-corrosion-row gear-corrosion-row--stacked">
+        <span className="gear-corrosion-label">Tower Sequence</span>
+        <div ref={containerRef} className="gear-craft-mod-select">
+          <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
+            <span className={towerSequence ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
+              {towerSequence || 'None'}
+            </span>
+            {towerSequence && (
+              <span
+                className="gear-craft-mod-clear"
+                onMouseDown={e => { e.stopPropagation(); onTowerSequenceChange(null); setOpen(false) }}
+              >×</span>
+            )}
+          </div>
+          {open && triggerRect && createPortal(
+            <div ref={dropdownRef} className="gear-craft-mod-dropdown" style={dropdownStyle}>
+              <div className="gear-craft-mod-list">
+                {groups.length === 0
+                  ? <div className="gear-craft-mod-empty">No entries</div>
+                  : groups.map(g => (
+                      <React.Fragment key={g.group}>
+                        <div className="gear-craft-mod-group">{g.group} Sequence</div>
+                        {g.labels.map(label => (
+                          <div
+                            key={label}
+                            className={`gear-craft-mod-option${label === towerSequence ? ' selected' : ''}`}
+                            onMouseDown={() => { onTowerSequenceChange(label); setOpen(false) }}
+                          >{label}</div>
+                        ))}
+                      </React.Fragment>
+                    ))}
+              </div>
+            </div>,
+            document.body
+          )}
+        </div>
+      </div>
+      {towerSequence && (
+        <div className="gear-affix-label">{towerSequence}<ModifierBadge status={badge} /></div>
+      )}
+    </div>
+  )
+}
+
+// Mutation corrosion's base-affix pool picker — searchable, width-capped portal dropdown, matching
+// every other modifier picker in this screen (previously a plain native <select>, unsearchable and
+// prone to the same native-popup overflow Tower Sequence had).
+function MutationAffixSearchSelect({ corrosionBaseAffixes, mutationAffixText, onChange }: {
+  corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>
+  mutationAffixText: string | null
+  onChange: (text: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const MAX_DROPDOWN_H = 260
+
+  useEffect(() => {
+    if (!open) { setQuery(''); setTriggerRect(null); return }
+    if (containerRef.current) setTriggerRect(containerRef.current.getBoundingClientRect())
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const consumed = useConsumedStatSet()
+  const universe = useConsumableUniverse()
+  const unresolved = useGearUnresolvedTexts()
+  const statusByText = useMemo(() => {
+    const m: Record<string, ReturnType<typeof gearModifierStatus>> = {}
+    for (const a of corrosionBaseAffixes) {
+      if (!(a.modifier_text in m)) m[a.modifier_text] = gearModifierStatus(a, consumed, universe, unresolved)
+    }
+    return m
+  }, [corrosionBaseAffixes, consumed, universe, unresolved])
+
+  const q = query.trim().toLowerCase()
+  const filtered = q ? corrosionBaseAffixes.filter(a => a.modifier_text.toLowerCase().includes(q)) : corrosionBaseAffixes
+
+  const dropdownStyle = triggerRect ? (() => {
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && triggerRect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const, left: triggerRect.left, width: triggerRect.width, maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove ? { bottom: window.innerHeight - triggerRect.top + 2 } : { top: triggerRect.bottom + 2 }),
+    }
+  })() : {}
+
+  return (
+    <div ref={containerRef} className="gear-craft-mod-select">
+      <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
+        <span className={mutationAffixText ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
+          {mutationAffixText || '— select mutation —'}
+          {mutationAffixText && <ModifierBadge status={statusByText[mutationAffixText] ?? null} />}
+        </span>
+        {mutationAffixText && (
+          <span className="gear-craft-mod-clear" onMouseDown={e => { e.stopPropagation(); onChange(null); setOpen(false) }}>×</span>
+        )}
+      </div>
+      {open && triggerRect && createPortal(
+        <div ref={dropdownRef} className="gear-craft-mod-dropdown" style={dropdownStyle}>
+          <input
+            ref={inputRef}
+            className="gear-craft-mod-search"
+            placeholder="Search mutations…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onMouseDown={e => e.stopPropagation()}
+          />
+          <div className="gear-craft-mod-list">
+            {filtered.length === 0
+              ? <div className="gear-craft-mod-empty">No matches</div>
+              : filtered.map((a, i) => (
+                  <div
+                    key={i}
+                    className={`gear-craft-mod-option${a.modifier_text === mutationAffixText ? ' selected' : ''}`}
+                    onMouseDown={() => { onChange(a.modifier_text); setOpen(false) }}
+                  >
+                    {a.modifier_text}
+                    <ModifierBadge status={statusByText[a.modifier_text] ?? null} />
+                  </div>
+                ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+function CustomizePanel({ item, customizations, isEditing, editActions, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, previewDeltas, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange, isBelt, beltBlends, beltBlend, onBeltBlendChange }: CustomizePanelProps) {
   const baseTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const custPanelId = useId()
   const consumedStats = useConsumedStatSet() // for inert-modifier badges on affix rows
@@ -1013,16 +1222,11 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
           </div>
           {corrosionType === 'mutation' && (
             corrosionBaseAffixes.length > 0 ? (
-              <select
-                className="gear-mutation-select"
-                value={mutationAffixText ?? ''}
-                onChange={e => onCorrosionChange('mutation', [], e.target.value || null, null)}
-              >
-                <option value="">— select mutation —</option>
-                {corrosionBaseAffixes.map((a, i) => (
-                  <option key={i} value={a.modifier_text}>{a.modifier_text}</option>
-                ))}
-              </select>
+              <MutationAffixSearchSelect
+                corrosionBaseAffixes={corrosionBaseAffixes}
+                mutationAffixText={mutationAffixText}
+                onChange={text => onCorrosionChange('mutation', [], text, null)}
+              />
             ) : (
               <div className="gear-mutation-unavailable">
                 Mutation data not available — re-import craft data from DevTools.
@@ -1030,6 +1234,10 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
             )
           )}
         </div>
+      )}
+
+      {isBelt && (
+        <BeltBlendSelector beltBlends={beltBlends} beltBlend={beltBlend} onBeltBlendChange={onBeltBlendChange} />
       )}
 
       <div className="gear-customize-affixes">
@@ -1887,9 +2095,13 @@ interface VoraxEditorPanelProps {
   onBack: () => void
   initialState?: VoraxInitialState | null
   onSaveBuildItem?: (item: EquippedGearItem) => void
+  isBelt: boolean
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onBeltBlendChange: (talentId: string | null) => void
 }
 
-function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBuild, onClose, onBack, initialState, onSaveBuildItem }: VoraxEditorPanelProps) {
+function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBuild, onClose, onBack, initialState, onSaveBuildItem, isBelt, beltBlends, beltBlend, onBeltBlendChange }: VoraxEditorPanelProps) {
   const [baseSlots, setBaseSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot]>(
     () => initialState?.baseSlots ?? [emptyVoraxSlot(), emptyVoraxSlot()]
   )
@@ -2003,6 +2215,9 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBu
       legendary_source: legSourceName,
       legendary_affix_count: legendaryCount,
       craft_slot_positions: craftSlotPositions,
+      // Stamped here (not just at commit) so the live preview/damage-delta reflects it immediately —
+      // GearScreen's withBeltBlend re-stamps the same value at commit, which is a harmless no-op.
+      beltBlend: isBelt ? beltBlend : undefined,
     }
   }
 
@@ -2036,6 +2251,10 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBu
 
   const voraxPreviewName = `${getVoraxDisplayName(graft)} (Vorax)`
   const voraxPreviewLines = useMemo((): PreviewLine[] => {
+    const beltBlendEntry = isBelt ? beltBlends.find(b => b.talent_id === beltBlend) : null
+    const beltBlendLine: PreviewLine = beltBlendEntry
+      ? { text: beltBlendEntry.effect_text || beltBlendEntry.effect_raw, label: 'Belt Blend' }
+      : null
     const baseLines: PreviewLine[] = baseSlots
       .filter(s => s.affix)
       .map(s => ({ text: reconstructAffixText(craftAffixToLegendary(s.affix as GraftAffix), s.chosenValues), label: affixTypeLabel((s.affix as GraftAffix).affix_type) }))
@@ -2044,13 +2263,16 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBu
       .map(s => s.isLegendary
         ? { text: reconstructAffixText(s.affix as LegendaryAffix, s.chosenValues), label: 'Legendary Affix' }
         : { text: reconstructAffixText(craftAffixToLegendary(s.affix as GraftAffix), s.chosenValues), label: affixTypeLabel((s.affix as GraftAffix).affix_type) })
-    if (baseLines.length > 0 && explicitLines.length > 0) return [...baseLines, null, ...explicitLines]
-    return [...baseLines, ...explicitLines]
-  }, [baseSlots, prefixSlots, suffixSlots])
+    // Belt Blend renders with the explicit affixes (default color), not prepended to baseLines (which
+    // render blue, the "implicit/base stat" color) — it isn't a base stat.
+    const allExplicit = beltBlendLine ? [beltBlendLine, ...explicitLines] : explicitLines
+    if (baseLines.length > 0 && allExplicit.length > 0) return [...baseLines, null, ...allExplicit]
+    return [...baseLines, ...allExplicit]
+  }, [baseSlots, prefixSlots, suffixSlots, isBelt, beltBlend, beltBlends])
 
   // Live damage delta for the vorax item as currently configured. Pinned to the graft's slot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const voraxPreviewItem = useMemo((): EquippedGearItem => buildVoraxItem(), [baseSlots, prefixSlots, suffixSlots, legSourceName])
+  const voraxPreviewItem = useMemo((): EquippedGearItem => buildVoraxItem(), [baseSlots, prefixSlots, suffixSlots, legSourceName, isBelt, beltBlend])
   const voraxPreviewDeltas = useGearPreviewDeltas(voraxPreviewItem, VORAX_GRAFT_SLOTS[graft.item_id]?.[0])
 
   return (
@@ -2061,6 +2283,10 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, editActions, onAddToBu
           <button className="gear-craft-reset-btn" onClick={onBack} title="Back to search">←</button>
         </div>
       </div>
+
+      {isBelt && (
+        <BeltBlendSelector beltBlends={beltBlends} beltBlend={beltBlend} onBeltBlendChange={onBeltBlendChange} />
+      )}
 
       <div className="gear-craft-slots-scroll">
         {/* Legendary source selector */}
@@ -2304,9 +2530,16 @@ interface CraftEditorProps {
   onSaveBuildItem?: (item: EquippedGearItem) => void
   corrosionType: 'none' | 'desecration' | 'mutation'
   onCorrosionTypeChange: (type: 'none' | 'desecration' | 'mutation') => void
+  isBelt: boolean
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onBeltBlendChange: (talentId: string | null) => void
+  towerSequence: string | null
+  onTowerSequenceChange: (affix: string | null) => void
+  towerSequenceEntries: TowerSequenceEntry[]
 }
 
-function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, editActions, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, previewDeltas, onSaveBuildItem, corrosionType, onCorrosionTypeChange }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, editActions, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, previewDeltas, onSaveBuildItem, corrosionType, onCorrosionTypeChange, isBelt, beltBlends, beltBlend, onBeltBlendChange, towerSequence, onTowerSequenceChange, towerSequenceEntries }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -2548,6 +2781,12 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
   const weaponStats = CRAFT_WEAPON_STATS[baseType.item_id]
   const currentItemName = baseItem?.name ?? baseType.name
   const implicitTexts = baseItemImplicits[currentItemName] ?? []
+  // Tower Sequence is crafted-only, and only for weapon/shield base types (CRAFT_CLASSIFICATIONS is
+  // keyed by exactly those 22 item_ids — weapons + STR/DEX/INT shields, since shields occupy the weapon slot).
+  const isCraftedWeaponBase = !!classification
+  const towerSequenceOptions = isCraftedWeaponBase
+    ? towerSequenceEntries.filter(e => e.source === baseType.name)
+    : []
 
   const isCraftSlotCorrupted = (i: number, slot: CraftSlotState): boolean => {
     if (!slot.affix) return false
@@ -2561,7 +2800,17 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
         <div className="gear-craft-editing-header-top">
           {classification && <span className="gear-craft-classification">{classification}</span>}
           <span className="gear-craft-base-name">{baseType.name} (Crafted)</span>
-          <button className="gear-craft-reset-btn" onClick={() => { setBaseType(null); setBaseItem(null); setSlots(Array.from({ length: 8 }, emptyCraftSlot)); onCorrosionTypeChange('none') }} title="Back to search">←</button>
+          <button
+            className="gear-craft-reset-btn"
+            onClick={() => {
+              // Belt Blend / Tower Sequence are base-type-specific (a belt vs. a weapon/shield) — switching
+              // base type without clearing them left a stale selection stamped onto the NEW item on Add to
+              // Build (review-correctness finding).
+              setBaseType(null); setBaseItem(null); setSlots(Array.from({ length: 8 }, emptyCraftSlot))
+              onCorrosionTypeChange('none'); onBeltBlendChange(null); onTowerSequenceChange(null)
+            }}
+            title="Back to search"
+          >←</button>
         </div>
         {sortedBaseItems.length > 0 && (
           <BaseItemSelect
@@ -2609,6 +2858,16 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
           </select>
         </div>
       </div>
+      {isBelt && (
+        <BeltBlendSelector beltBlends={beltBlends} beltBlend={beltBlend} onBeltBlendChange={onBeltBlendChange} />
+      )}
+      {isCraftedWeaponBase && (
+        <TowerSequenceSelector
+          entries={towerSequenceOptions}
+          towerSequence={towerSequence}
+          onTowerSequenceChange={onTowerSequenceChange}
+        />
+      )}
       <div className="gear-craft-slots-scroll">
         {slots.map((slot, i) => {
           if (i === 1 && corrosionType === 'mutation') return null
@@ -2809,6 +3068,9 @@ export default function GearScreen(_props: Props) {
   // Belt-blend state — the blend equipped on the belt being edited (one total), plus the catalog.
   const [beltBlend, setBeltBlend] = useState<string | null>(null)
   const [beltBlends, setBeltBlends] = useState<BeltBlend[]>([])
+  // Tower Sequence state — the affix selected for the crafted weapon/shield base being edited, plus the catalog.
+  const [towerSequence, setTowerSequence] = useState<string | null>(null)
+  const [towerSequenceEntries, setTowerSequenceEntries] = useState<TowerSequenceEntry[]>([])
   // Craft state
   const [craftOpen, setCraftOpen] = useState(false)
   const [craftBaseType, setCraftBaseType] = useState<CraftBaseType | null>(null)
@@ -2829,6 +3091,7 @@ export default function GearScreen(_props: Props) {
     setMutationAffixText(null)
     setSelectedRandomAffixes({})
     setBeltBlend(null)
+    setTowerSequence(null)
   }
 
   const openCraft = () => {
@@ -2868,6 +3131,15 @@ export default function GearScreen(_props: Props) {
     api.getBeltBlends()
       .then(res => { if (!cancelled) setBeltBlends(res.blends ?? []) })
       .catch(() => { /* selector simply shows no blends if the catalog is unavailable */ })
+    return () => { cancelled = true }
+  }, [])
+
+  // Tower Sequence entries are season-global; load once for the craft-flow weapon/shield selector.
+  useEffect(() => {
+    let cancelled = false
+    api.getTowerSequence()
+      .then(res => { if (!cancelled) setTowerSequenceEntries(res.entries ?? []) })
+      .catch(() => { /* selector simply shows no options if the catalog is unavailable */ })
     return () => { cancelled = true }
   }, [])
 
@@ -2914,6 +3186,14 @@ export default function GearScreen(_props: Props) {
   // the no-blend case pass through unchanged.
   const withBeltBlend = (item: EquippedGearItem): EquippedGearItem =>
     editorTargetIsBelt ? { ...item, beltBlend } : item
+
+  // Whether the item currently being crafted/edited is a weapon or shield base — Tower Sequence is
+  // crafted-only, so this only ever applies inside the Craft flow (never Customize or Vorax).
+  const editorTargetIsCraftedWeaponBase = craftOpen && !!CRAFT_CLASSIFICATIONS[craftBaseType?.item_id ?? '']
+
+  // Stamp the selected Tower Sequence affix onto a crafted weapon/shield item at save time.
+  const withTowerSequence = (item: EquippedGearItem): EquippedGearItem =>
+    editorTargetIsCraftedWeaponBase ? { ...item, towerSequence } : item
 
   // The catalog LegendaryGearItem backing the currently-displayed CustomizePanel item
   const legendaryCatalogItem = useMemo((): LegendaryGearItem | null => {
@@ -2972,6 +3252,8 @@ export default function GearScreen(_props: Props) {
     const item = gear[idx]
     // Belt blend rides every editor flow (crafted / vorax / legendary), so seed it up front.
     setBeltBlend(item.beltBlend ?? null)
+    // Tower Sequence only rides the crafted-weapon flow, but seeding here is harmless for other items.
+    setTowerSequence(item.towerSequence ?? null)
     if (item.is_crafted && !item.is_vorax) {
       const bt = craftBases.find(b => b.base_items.some(bi => bi.name === item.base_type))
       if (bt) {
@@ -3032,7 +3314,7 @@ export default function GearScreen(_props: Props) {
     // (mirroring handleSaveBuildItem) — but the display label lives on the committed item, so
     // carry it across explicitly or the copy would lose its name.
     const source = idx === editingBuildIdx && previewItem
-      ? { ...previewItem, beltBlend, displayName: cur[idx]?.displayName }
+      ? { ...previewItem, beltBlend, towerSequence, displayName: cur[idx]?.displayName }
       : cur[idx]
     const copy = JSON.parse(JSON.stringify(source)) as EquippedGearItem
     copy.slot = null
@@ -3236,13 +3518,31 @@ export default function GearScreen(_props: Props) {
         const corroded = craftCorrosionType === 'mutation' ? i < 2 : craftCorrosionType === 'desecration' && s.affix.tier === '0+'
         return [{ text: reconstructAffixText(craftAffixToLegendary(s.affix), s.chosenValues), label: affixTypeLabel(s.affix.affix_type), corroded: corroded || undefined }]
       })
-      if (implicitLines.length > 0 && craftLines.length > 0) return [...implicitLines, null, ...craftLines]
+      // Belt Blend / Tower Sequence are staged separately from craftSlots (they're not real crafted
+      // affix slots) — surface them in the live preview so the preview panel and its damage delta
+      // actually reflect what the player just picked. They go with the EXPLICIT affixes, not the base
+      // implicits — base stat values (implicitLines) always stay at the top, and these render with the
+      // default explicit-line color rather than the implicit section's blue.
+      const beltBlendEntry = editorTargetIsBelt ? beltBlends.find(b => b.talent_id === beltBlend) : null
+      const beltBlendLine: PreviewLine = beltBlendEntry
+        ? { text: beltBlendEntry.effect_text || beltBlendEntry.effect_raw, label: 'Belt Blend' }
+        : null
+      const towerSequenceLine: PreviewLine = editorTargetIsCraftedWeaponBase && towerSequence
+        ? { text: towerSequence, label: 'Tower Sequence' }
+        : null
+      const extraLines = [beltBlendLine, towerSequenceLine].filter((l): l is NonNullable<PreviewLine> => l !== null)
+      const allExplicit = [...extraLines, ...craftLines]
+      if (implicitLines.length > 0 && allExplicit.length > 0) return [...implicitLines, null, ...allExplicit]
       if (implicitLines.length > 0) return implicitLines
-      return craftLines
+      return allExplicit
     }
     if (customizeItem) {
       const mutationLine: PreviewLine = corrosionType === 'mutation' && mutationAffixText
         ? { text: mutationAffixText, corroded: true }
+        : null
+      const beltBlendEntry = editorTargetIsBelt ? beltBlends.find(b => b.talent_id === beltBlend) : null
+      const beltBlendLine: PreviewLine = beltBlendEntry
+        ? { text: beltBlendEntry.effect_text || beltBlendEntry.effect_raw, label: 'Belt Blend' }
         : null
       if (isLegendaryGearItem(customizeItem)) {
         const implicits = getItemImplicits(customizeItem)
@@ -3266,8 +3566,9 @@ export default function GearScreen(_props: Props) {
           return { text: tooltipAffixText(displayAffix, implicits.length + i, isCorroded ? undefined : customizations), corroded: isCorroded }
         })
         const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
-        if (allImplicits.length > 0 && explicitLines.length > 0) return [...allImplicits, null, ...explicitLines]
-        return [...allImplicits, ...explicitLines]
+        const allExplicit = beltBlendLine ? [beltBlendLine, ...explicitLines] : explicitLines
+        if (allImplicits.length > 0 && allExplicit.length > 0) return [...allImplicits, null, ...allExplicit]
+        return [...allImplicits, ...allExplicit]
       }
       const craftItem = customizeItem as EquippedGearItem
       const implicitCount = craftItem.implicit_count ?? 0
@@ -3289,20 +3590,28 @@ export default function GearScreen(_props: Props) {
         }
       })
       const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
-      if (allImplicits.length > 0 && explicitLines.length > 0) return [...allImplicits, null, ...explicitLines]
-      return [...allImplicits, ...explicitLines]
+      const allExplicit = beltBlendLine ? [beltBlendLine, ...explicitLines] : explicitLines
+      if (allImplicits.length > 0 && allExplicit.length > 0) return [...allImplicits, null, ...allExplicit]
+      return [...allImplicits, ...allExplicit]
     }
     return null
-  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem, selectedRandomAffixes])
+  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem, selectedRandomAffixes, editorTargetIsBelt, editorTargetIsCraftedWeaponBase, beltBlend, beltBlends, towerSequence])
 
   // The in-progress item being priced for the live preview (craft + customize modes; vorax prices
   // itself inside its own panel). Mirrors exactly what "Add to build" / "Save" would persist.
   const previewItem = useMemo((): EquippedGearItem | null => {
+    // Belt Blend / Tower Sequence are staged separately (not baked into makeCraftedItem/makeCatalogItem's
+    // output), so every branch below is stamped through the same withBeltBlend/withTowerSequence helpers
+    // used at commit time — otherwise the live preview's damage delta silently ignores whichever one the
+    // player just picked, moving only once the item is actually added to the build.
     if (craftOpen && selectedGraft) return null // vorax: handled in VoraxEditorPanel
-    if (craftOpen) return makeCraftedItem(craftSlots, craftBaseType, craftBaseItem, craftCorrosionType, baseItemImplicits)
+    if (craftOpen) {
+      const item = makeCraftedItem(craftSlots, craftBaseType, craftBaseItem, craftCorrosionType, baseItemImplicits)
+      return item ? withTowerSequence(withBeltBlend(item)) : null
+    }
     if (customizeItem) {
       if (isLegendaryGearItem(customizeItem)) {
-        return makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
+        return withBeltBlend(makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText))
       }
       // Editing a build item: re-derive from its catalog legendary so STAGED corrosion / random-affix /
       // slider edits all show in the live preview WITHOUT mutating the live build (bug-223). Keep the item's
@@ -3310,12 +3619,12 @@ export default function GearScreen(_props: Props) {
       // item (unresolvable crafted) has no catalog backing → just apply pending slider rolls.
       if (legendaryCatalogItem) {
         const derived = makeCatalogItem(legendaryCatalogItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
-        return { ...derived, slot: customizeItem.slot ?? null }
+        return withBeltBlend({ ...derived, slot: customizeItem.slot ?? null })
       }
-      return { ...customizeItem, customizations } // editing a build item → apply pending slider rolls
+      return withBeltBlend({ ...customizeItem, customizations }) // editing a build item → apply pending slider rolls
     }
     return null
-  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText, legendaryCatalogItem])
+  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText, legendaryCatalogItem, beltBlend, towerSequence, editorTargetIsBelt, editorTargetIsCraftedWeaponBase])
 
   // The damage-delta request(s) for the live preview:
   //   - Editing an item already PLACED in the build (incl. multi-slot like a dual-equipped ring or
@@ -3476,9 +3785,6 @@ export default function GearScreen(_props: Props) {
 
         {/* Panel 3: Customize or Craft */}
         <div className="gear-editor-column">
-          {editorTargetIsBelt && (
-            <BeltBlendSelector beltBlends={beltBlends} beltBlend={beltBlend} onBeltBlendChange={setBeltBlend} />
-          )}
           {craftOpen && selectedGraft ? (
             <VoraxEditorPanel
               graft={selectedGraft}
@@ -3492,6 +3798,10 @@ export default function GearScreen(_props: Props) {
               onSaveBuildItem={editingBuildIdx !== null
                 ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot, displayName: orig.displayName }) : g)); setEditingBuildIdx(null) }
                 : undefined}
+              isBelt={editorTargetIsBelt}
+              beltBlends={beltBlends}
+              beltBlend={beltBlend}
+              onBeltBlendChange={setBeltBlend}
             />
           ) : craftOpen ? (
             <CraftEditorPanel
@@ -3508,7 +3818,7 @@ export default function GearScreen(_props: Props) {
               setBaseItem={setCraftBaseItem}
               slots={craftSlots}
               setSlots={setCraftSlots}
-              onAddToBuild={item => setGear([...gear, withBeltBlend(item)])}
+              onAddToBuild={item => setGear([...gear, withTowerSequence(withBeltBlend(item))])}
               onClose={closeCraft}
               craftSearch={craftSearch}
               setCraftSearch={setCraftSearch}
@@ -3519,8 +3829,15 @@ export default function GearScreen(_props: Props) {
               corrosionType={craftCorrosionType}
               onCorrosionTypeChange={setCraftCorrosionType}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot, displayName: orig.displayName }) : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withTowerSequence(withBeltBlend({ ...item, slot: orig.slot, displayName: orig.displayName })) : g)); setEditingBuildIdx(null) }
                 : undefined}
+              isBelt={editorTargetIsBelt}
+              beltBlends={beltBlends}
+              beltBlend={beltBlend}
+              onBeltBlendChange={setBeltBlend}
+              towerSequence={towerSequence}
+              onTowerSequenceChange={setTowerSequence}
+              towerSequenceEntries={towerSequenceEntries}
             />
           ) : (
             <CustomizePanel
@@ -3543,6 +3860,10 @@ export default function GearScreen(_props: Props) {
               selectedRandomAffixes={selectedRandomAffixes}
               onCorrosionChange={handleCorrosionChange}
               onRandomAffixChange={handleRandomAffixChange}
+              isBelt={editorTargetIsBelt}
+              beltBlends={beltBlends}
+              beltBlend={beltBlend}
+              onBeltBlendChange={setBeltBlend}
             />
           )}
         </div>

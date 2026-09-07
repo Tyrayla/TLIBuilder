@@ -2739,6 +2739,20 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=65,                source_types=_T,
     ),
+    Stat.WARCRY_CDR_SPEED_ADDITIONAL: StatMeta(
+        "Additional Warcry Cooldown Recovery Speed", "Utility", "additional", "%",
+        subgroup="utility",            stacking_rule="additive",
+        ui_priority=63,                source_types=_TB,
+    ),
+    Stat.WARCRY_SKILL_EFFECT_DURATION_ADDITIONAL: StatMeta(
+        "Additional Warcry Skill Effect Duration", "Utility", "additional", "%",
+        subgroup="utility", stacking_rule="additive", ui_priority=63, source_types=_TB,
+    ),
+    Stat.DURATION_INC: StatMeta(
+        "Duration", "Utility", "increased", "%",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=65,                source_types=_TB,
+    ),
     Stat.RESTORATION_EFFECT_INC: StatMeta(
         "Restoration Effect", "Utility", "increased", "%",
         subgroup="skill_mechanics",    stacking_rule="additive",
@@ -2930,10 +2944,25 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_TB,
     ),
+    Stat.WARCRY_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Warcry Skill Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="multiplicative",
+        ui_priority=70,                source_types=_TB,
+    ),
+    Stat.WARCRY_SKILL_EFFECT_DURATION_INC: StatMeta(
+        "Warcry Skill Effect Duration", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_TB,
+    ),
     Stat.WARCRY_SKILL_AREA_INC: StatMeta(
         "Warcry Skill Area", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=71,                source_types=_T,
+    ),
+    Stat.SHADOW_STRIKE_TRACKING_AREA_INC: StatMeta(
+        "Shadow Strike Tracking Area", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=72,                source_types=(),
     ),
     Stat.WARCRY_CAST_SPEED_INC: StatMeta(
         "Warcry Cast Speed", "Buffs", "increased", "%",

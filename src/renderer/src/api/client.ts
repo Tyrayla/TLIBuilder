@@ -387,7 +387,7 @@ export interface PlacedPrism {
 // loadout (the "general") via `inherit`; editing an inherited area writes through to the general.
 export type AreaKey =
   | 'talents' | 'slates' | 'prisms' | 'gear' | 'skills' | 'trait'
-  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes' | 'target'
+  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes' | 'target' | 'enemy'
 
 // Editable calc-target ("training dummy") stats. Percentages (may be negative → amplification). `level` selects a
 // preset (40/60/75/85, all boss); the 5 numbers are then independently editable. Armor-vs-Non-Phys (armor×0.6) and
@@ -399,6 +399,21 @@ export interface TargetConfig {
   coldRes: number
   lightningRes: number
   erosionRes: number
+}
+
+// Incoming-hit config: the enemy skill whose damage the defensive (Max-Hit / EHP) calc mitigates. `kind` routes
+// the block/evade layer (attack-block/evade vs spell-block/evade). Per-type hit + DoT values (raw incoming, before
+// mitigation). Prefilled from the enemy registry (utils/enemyPresets.ts) on selection, then independently editable.
+export type EnemyDamageKind = 'attack' | 'spell'
+export interface EnemyDamage {
+  phys_hit: number; fire_hit: number; cold_hit: number; lightning_hit: number; erosion_hit: number
+  phys_dot: number; fire_dot: number; cold_dot: number; lightning_dot: number; erosion_dot: number
+}
+export interface EnemyIncomingConfig {
+  enemyId: string
+  skillId: string
+  kind: EnemyDamageKind
+  damage: EnemyDamage
 }
 
 export interface Loadout {
@@ -445,6 +460,7 @@ export interface Build {
   notes?: string
   customMods?: string[]
   targetConfig?: TargetConfig
+  enemyConfig?: EnemyIncomingConfig
   // Server-stamped, read-only. Never include these in getBuildPayload/encode payloads.
   createdAt?: number
   updatedAt?: number
@@ -689,6 +705,7 @@ export interface AttachedSupportInput {
   level: number
   specific_rolls?: Record<string, number>
   slot?: number     // the host skill's slot (default 1); contributions are local to this slot
+  support_index?: number // stable UI identity inside the host's support sockets
   enabled?: boolean // default true; disabled supports drop out of the calc
 }
 
@@ -712,13 +729,49 @@ export interface OriginSkillSummary {
   added: OriginGrant[]    // magnificent supports' added origin effects
 }
 
+export interface LevelSummary {
+  base_level: number
+  bonus_level: number
+  effective_level: number
+  // Engine stat keys whose normal stat-map source rows supplied the applicable bonus.
+  bonus_stat_keys: string[]
+  bonus_sources?: Array<{
+    levels: number
+    stat: string
+    source_type: string
+    label: string
+    text: string
+    source_name: string
+  }>
+  above_max_sources?: Array<{
+    levels: number
+    multiplier: number
+    stat: string
+    source_type: string
+    label: string
+    text: string
+    source_name: string
+  }>
+}
+
 export interface SkillSlotSummary {
   slot: number
   skill_id: string
   skill_name: string
   level: number
   effective_level: number
+  level_summary?: LevelSummary
   supported: boolean
+}
+
+export interface SupportSlotSummary {
+  slot: number
+  support_index?: number
+  item_id: string
+  skill_name: string
+  level: number
+  effective_level: number
+  level_summary?: LevelSummary
 }
 
 // One Euphoria buff granted by a minion Empower (base magnitude → effective, after Empower Effect × uptime).
@@ -798,6 +851,7 @@ export interface OffenseResult {
   skill_name: string
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
+  level_summary?: LevelSummary | null
   hit_forms: HitFormResult[]
   crit_chance: number            // effective (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
   crit_chance_uncapped?: number  // true chance from rating (may exceed 1.0) — display-only, surfaces over-cap
@@ -916,6 +970,8 @@ export interface OffenseResult {
   shadow_chance_quantity?: number
   shadow_dmg_additional?: number
   shadow_mult?: number
+  shadow_tracking_area_inc?: number
+  shadow_tracking_distance?: number
   // Demolisher Charge mode (Groundshaker etc.): the skill regains a single charge over time and consumes it on
   // cast to add the secondary explosion. Primary fissure fires at demolisher_cast_rate, secondary at
   // demolisher_charged_rate. The breakpoint fields drive the restoration-vs-cadence helper. "" / 0 when not a
@@ -986,6 +1042,15 @@ export interface DefenseResult {
   max_life: number
   max_mana: number
   max_energy_shield: number
+  local_gear_sources?: Record<string, {
+    amount: number
+    raw_amount: number
+    multiplier: number
+    label: string
+    source_name?: string | null
+    text: string
+    local_increases: { amount: number; label: string; source_name?: string | null; text: string; source_type: string }[]
+  }[]>
   // Mana/Life sealing & reservation (defaults: full pools when nothing seals).
   sealed_mana?: number
   unsealed_mana?: number
@@ -1033,7 +1098,39 @@ export interface DefenseResult {
   spell_block_chance: number
   block_ratio: number                // base 30% + mods, clamped to the upper limit
   block_ratio_upper_limit: number    // base 60%, raisable to 80%
-  dmg_avoid_chance: number
+  dmg_avoid_chance: number           // final, after the 60% cap
+  dmg_avoid_blur: number             // Blur's contribution (0.25%/rating × Blur Effect), pre-cap
+  barrier_shield: number             // absorb pool = 20% of (Max Life + Max ES) × Barrier Shield
+  barrier_absorption_rate: number    // 50% base × Barrier Absorption Rate, capped at 100%
+  barrier_active: boolean            // gates the Barrier panel (only shown when active)
+  nyi: string[]
+}
+
+// Per-type incoming-damage mitigation + Max-Hit / static EHP (defense.calculate_incoming), vs the selected enemy
+// skill. Both figures are STATIC/scenario-based — no repeated-hit simulation, attack-frequency assumption, or
+// boss time-to-death claim (see `IncomingResult.pool` / `hit_capacity` below).
+export interface IncomingTypeResult {
+  incoming_hit: number
+  incoming_dot: number
+  mitigated_hit: number
+  mitigated_dot: number
+  hit_taken_fraction: number   // fraction of a raw hit that lands after the always-on layers (incl. taken-as conversion)
+  dot_taken_fraction: number
+  max_hit: number | null       // largest raw hit survivable (worst case: no evade/avoid/block); null if fully immune
+  ehp: number | null           // static/expected EHP folding in evade/avoid/expected-block — NOT a survival-time prediction
+  dot_effective_pool: number | null   // usable pool ÷ DoT taken fraction; null if fully DoT-immune
+  dot_time_to_death: number | null    // usable pool ÷ mitigated DoT DPS, no recovery; null if 0 incoming/mitigated DPS
+}
+export interface IncomingResult {
+  kind: EnemyDamageKind
+  pool: number                 // usable Life + ES only (Barrier excluded — DoT rows use this)
+  hit_capacity: number         // Barrier-aware max survivable post-mitigation single hit (Hit rows: Max Hit / EHP)
+  evade_chance: number
+  avoid_chance: number
+  block_chance: number
+  block_ratio: number
+  barrier_active: boolean
+  types: Record<string, IncomingTypeResult>   // keyed physical/fire/cold/lightning/erosion
   nyi: string[]
 }
 
@@ -1192,6 +1289,7 @@ export interface StatSheetResponse {
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]
   skill_slots?: SkillSlotSummary[]
+  support_slots?: SupportSlotSummary[]
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
@@ -1200,6 +1298,11 @@ export interface StatSheetResponse {
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
   // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
   minion_offense?: Record<string, OffenseResult> | null
+  // {"seething_spirit": OffenseResult} — Seething Silhouette's Seething Spirit, a second independent
+  // OffenseResult computed off the player's own main-skill stats + its own modifiers (Ritual of
+  // Offering / Fury's Onslaught). Additive — folded into Full DPS. Absent unless a Spirit-granting
+  // pick is active.
+  spirit_offense?: Record<string, OffenseResult> | null
   // Origin of Spirit Magus display summary — PER-SKILL entries feeding the empower-style GRANTS section
   // on each magus's foundation panel. Each grant carries the raw data magnitude (`base`), the emitted
   // magnitude (`value` = base × that magus's origin factor, clamped), and a unit; the frontend renders
@@ -1238,6 +1341,7 @@ export interface StatSheetResponse {
   curse_meta?: Record<string, CurseMeta>
   curse_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
   curse_conflict?: CurseConflict | null
+  warcry_conflict?: WarcryConflict | null
   // General build warnings/diagnostics (e.g. a curse amplifying a damage type the build doesn't deal).
   warnings?: { kind: string; text: string }[]
   // Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
@@ -1297,6 +1401,49 @@ export interface EmpowerSummary {
   enabled?: boolean   // false → shown in the panel but NOT applied to the build
   stack_condition?: string | null
   max_stacks?: number | null
+}
+
+export interface WarcrySummary {
+  skill_id: string
+  name: string
+  level: number
+  slot: number
+  warcry_effect_inc: number
+  warcry_effect_additional: number
+  warcry_effect: number
+  contributions: WarcryContribution[]
+  power_base: number
+  power_minimum: number
+  power_selected: number
+  power_is_manual: boolean
+  power_cap: number
+  power: number
+  base_cooldown: number
+  cooldown: number
+  cdr_inc: number
+  cdr_additional: number
+  base_charges: number
+  extra_charges: number
+  max_charges: number
+  base_duration: number
+  duration: number
+  duration_inc: number
+  duration_additional: number
+  uptime: number
+}
+
+export interface WarcryContribution {
+  label: string
+  base: number
+  level_one: number
+  level_twenty: number | null
+  per_power: boolean
+  per_stack: boolean
+  max_stacks: number | null
+  minimum_amount?: number | null
+  unit: 'pct' | string
+  scales_warcry_effect?: boolean
+  amount: number
 }
 
 export interface ElixirGrant { stat: string; base: number; amount: number; text: string; no_scale?: boolean; is_elixir_effect?: boolean }
@@ -1368,6 +1515,11 @@ export interface CurseMeta {
 export interface CurseConflict {
   limit: number
   active: { name: string; source: string; sel_key: string }[]
+  resolved: boolean
+}
+
+export interface WarcryConflict {
+  groups: { name: string; active: { name: string; source: string; sel_key: string }[]; resolved: boolean }[]
   resolved: boolean
 }
 
@@ -2863,6 +3015,11 @@ export interface EquippedGearItem {
   // Equipped belt blend (Blending Ritual) — the blend's talent_id. Belt slot only; one blend total.
   // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
   beltBlend?: string | null
+  // Selected Tower Sequence affix (crafted weapon/shield bases only) — the raw affix text itself,
+  // since _tower_sequence.json entries carry no stable id. Injected into the affix list at
+  // stats-payload time (statsPayload.ts:_buildItemContributions), same injection point as a
+  // mutation-resolved affix, and resolved backend-side by the generic modifier-text parser.
+  towerSequence?: string | null
 }
 
 // One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
@@ -2873,6 +3030,13 @@ export interface BeltBlend {
   talent_name: string | null
   effect_text: string
   effect_raw: string
+}
+
+// One entry from the Tower Sequence catalog (crafted-only, weapon/shield bases) — see backend
+// tools/singleton_importer.py:import_tower_sequence. No stable id; `affix` text is the identity.
+export interface TowerSequenceEntry {
+  affix: string
+  source: string
 }
 
 export interface GearAffixContribution {
@@ -2920,6 +3084,8 @@ export interface GearEngineItem {
   // Item-level slot for attributing unresolved_texts to a real slot ("Off-Hand"/"Ring 1") in the breakdown
   // Source column, instead of a generic "Item". Per-contribution slot covers typed contributions.
   slot?: string | null
+  // Required by slot-local defense modifiers: distinguishes an off-hand shield from an off-hand weapon.
+  is_shield?: boolean
 }
 
 export interface SeasonDiffNode {
@@ -3063,6 +3229,9 @@ export const api = {
       '/dev/import-crawler-belt-blends', { season_name: seasonName, data }
     ),
   getBeltBlends: () => get<{ season: string | null; blends: BeltBlend[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
+
+  // Tower Sequence (crafted-only, weapon/shield bases) — a single scraper file: { entries }.
+  getTowerSequence: () => get<{ season: string | null; entries: TowerSequenceEntry[] }>('/tower-sequence'),
 
   importDestiny: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),

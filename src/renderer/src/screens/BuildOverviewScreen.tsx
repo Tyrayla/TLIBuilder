@@ -2,15 +2,17 @@ import React, { useEffect, useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { ConditionDef, CurseConflict } from '../api/client'
+import type { ConditionDef, CurseConflict, WarcryConflict } from '../api/client'
 import CustomModsPanel from '../components/CustomModsPanel'
 import LoadingState from '../components/LoadingState'
 import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
 import { TARGET_LEVELS, presetTargetConfig, NONPHYS_ARMOR_FACTOR, type TargetLevel } from '../utils/targetPresets'
+import { ENEMY_REGISTRY, findEnemy, configForSelection } from '../utils/enemyPresets'
+import type { EnemyDamage } from '../api/client'
 
 // Categories whose conditions always show (player-side scenario inputs relevant to any build).
 const ALWAYS_SHOW_CATEGORIES = new Set([
-  'Blessings', 'Enemy', 'Resources', 'Movement', 'Character', 'Recent', 'Fervor', 'Attributes',
+  'Blessings', 'Enemy', 'Debuffs', 'Resources', 'Movement', 'Character', 'Recent', 'Fervor', 'Attributes',
 ])
 // Exceptions inside an always-show category that are instead source-gated (only shown if a mod consumes them).
 const REFERENCE_GATED_KEYS = new Set(['mana_consumed_recently', 'life_consumed_recently'])
@@ -21,7 +23,7 @@ const EQUIPMENT_GATE: Record<string, keyof WornWeaponFlags> = {
 
 // Per-category accent color for the Config panels' left border (falls back to a neutral lavender).
 const CATEGORY_ACCENT: Record<string, string> = {
-  Buffs: '#7fc97f', Enemy: '#e0726a', 'Hero Trait': '#c0a0ff', Skill: '#f0c070', Combat: '#e8923c',
+  Buffs: '#7fc97f', Enemy: '#e0726a', Debuffs: '#d06a9a', 'Hero Trait': '#c0a0ff', Skill: '#f0c070', Combat: '#e8923c',
   Recent: '#9aa0c8', Resources: '#6fc0e0', Blessings: '#9090e0', Movement: '#60c0e8', Fervor: '#c8a050',
   Character: '#e0a050', Equipment: '#8a8aa0', Tangle: '#8888ff', 'Spell Burst': '#c8a0ff', Attributes: '#6fa8e0',
 }
@@ -101,6 +103,73 @@ function EnemyTargetFields() {
   )
 }
 
+// A plain non-negative number field for raw incoming damage (no % suffix — unlike EnemyNum).
+function EnemyDmgNum({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const [raw, setRaw] = useState(String(value))
+  useEffect(() => { setRaw(String(value)) }, [value])
+  const commit = (s: string) => {
+    const n = parseFloat(s)
+    const v = isNaN(n) || n < 0 ? 0 : n
+    onChange(v); setRaw(String(v))
+  }
+  return (
+    <div className="enemy-field">
+      <span className="enemy-field-label">{label}</span>
+      <div className="enemy-field-input">
+        <input className="cond-stack-input" type="text" inputMode="numeric" value={raw}
+          onChange={e => setRaw(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }} />
+      </div>
+    </div>
+  )
+}
+
+// The 5 damage types shared by the incoming Hit/DoT grids (label + EnemyDamage key stem).
+const ENEMY_DMG_TYPES: readonly [string, string][] = [
+  ['Phys', 'phys'], ['Fire', 'fire'], ['Cold', 'cold'], ['Lightning', 'lightning'], ['Erosion', 'erosion'],
+]
+
+// Incoming-hit editor — the enemy skill whose per-type damage the defensive Max-Hit / EHP calc mitigates.
+// Picking an enemy/skill prefills the boxes from the registry; each value is then independently editable so the
+// owner drops in measured magnitudes later. Rendered under EnemyTargetFields in the Enemy panel.
+function EnemyIncomingFields() {
+  const ec = useBuildStore(s => s.enemyConfig)
+  const setEnemyConfig = useBuildStore(s => s.setEnemyConfig)
+  const enemy = findEnemy(ec.enemyId) ?? ENEMY_REGISTRY[0]
+  const setDamage = (k: keyof EnemyDamage, v: number) => setEnemyConfig({ ...ec, damage: { ...ec.damage, [k]: v } })
+  return (
+    <div className="enemy-fields">
+      <select className="enemy-target-select" value={ec.enemyId}
+        onChange={e => setEnemyConfig(configForSelection(e.target.value, ''))}>
+        {ENEMY_REGISTRY.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+      </select>
+      <select className="enemy-target-select" value={ec.skillId}
+        onChange={e => setEnemyConfig(configForSelection(ec.enemyId, e.target.value))}>
+        {enemy.skills.map(sk => (
+          <option key={sk.id} value={sk.id}>{sk.name} ({sk.kind}){sk.measured ? '' : ' — placeholder'}</option>
+        ))}
+      </select>
+      <span className="enemy-box-note">
+        Incoming hit for the Max-Hit / EHP calc. Picking a skill prefills these; edit any value (owner-measured later).
+        {(() => { const sk = enemy.skills.find(s => s.id === ec.skillId); return sk?.notes ? ` ${sk.notes}` : null })()}
+      </span>
+      <div className="enemy-res-grid">
+        {ENEMY_DMG_TYPES.map(([label, k]) => (
+          <EnemyDmgNum key={k} label={`${label} Hit`} value={ec.damage[`${k}_hit` as keyof EnemyDamage]}
+            onChange={v => setDamage(`${k}_hit` as keyof EnemyDamage, v)} />
+        ))}
+      </div>
+      <div className="enemy-res-grid">
+        {ENEMY_DMG_TYPES.map(([label, k]) => (
+          <EnemyDmgNum key={k} label={`${label} DoT`} value={ec.damage[`${k}_dot` as keyof EnemyDamage]}
+            onChange={v => setDamage(`${k}_dot` as keyof EnemyDamage, v)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function BuildOverviewScreen() {
   const conditionsData = useReferenceStore(s => s.conditions)
   const referenceResolved = useReferenceStore(s => s.referenceResolved)
@@ -122,6 +191,8 @@ export default function BuildOverviewScreen() {
   const [showAll, setShowAll] = useState(false)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
+  const warcryConflict = useBuildStore(
+    s => (s.computedStats as { warcry_conflict?: WarcryConflict | null }).warcry_conflict) ?? null
   const warnings = useBuildStore(
     s => (s.computedStats as { warnings?: { kind: string; text: string }[] | null }).warnings) ?? null
 
@@ -140,6 +211,11 @@ export default function BuildOverviewScreen() {
     arr[i] = v
     applyCurseSelection(arr)
   }
+  const chooseWarcry = (group: WarcryConflict['groups'][number], key: string) => {
+    const next = { ...conditionState }
+    for (const item of group.active) next[item.sel_key] = item.sel_key === key
+    setConditionState(next)
+  }
 
   // General CONFLICTS (red) — these block correct calculation until the player resolves them. Curse over-limit
   // is the only one today; future blocking conflicts append here so the banner stays one general surface.
@@ -149,6 +225,10 @@ export default function BuildOverviewScreen() {
     title: 'Curse conflict',
     detail: `${curseConflict.active.length} curses are active but your curse limit is ${curseConflict.limit} — `
       + 'resolve it in the Curse Conflict panel below (curse damage-taken isn\'t applied until you do).',
+  })
+  if (warcryConflict && !warcryConflict.resolved) conflicts.push({
+    title: 'Warcry conflict',
+    detail: `Duplicate Warcry skills are equipped — select the most recently cast copy before that Warcry's effect is applied.`,
   })
 
   const worn = wornWeaponFlags(gear)
@@ -217,13 +297,20 @@ export default function BuildOverviewScreen() {
   }
 
   // Enemy first — the Enemy/Target editor is merged into the top of the Enemy panel, so it stays pinned at the top.
-  const condCategories = conditionsData ? Object.entries(conditionsData) : []
+  // Split the data's "Enemy" category for display: the enemy-STATUS conditions (Enemy is Ignited / Numbed /
+  // Frostbitten, ailment stacks, enemy proximity/life, …) move to a "Debuffs" group; the "Enemy" group is kept
+  // for the injected offense/defense config (target dummy + incoming skill), which renders even with zero
+  // conditions via isEnemy. Display-only remap — condition keys are unchanged, so engine gating is unaffected.
+  const condCategories: [string, ConditionDef[]][] = (conditionsData ? Object.entries(conditionsData) : [])
+    .map(([cat, items]) => (cat === 'Enemy' ? ['Debuffs', items] : [cat, items]) as [string, ConditionDef[]])
+  if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 
   // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
   const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
     <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
       {isEnemy && <EnemyTargetFields />}
+      {isEnemy && <EnemyIncomingFields />}
       {visibleItems.map(cond => {
         const isComputed = cond.source === 'computed_stat'
         // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).
@@ -342,6 +429,26 @@ export default function BuildOverviewScreen() {
       </ConfigPanel>
     ) }, 0)
   }
+  if (warcryConflict) {
+    place({ order: -1, weight: warcryConflict.groups.length + 2, node: (
+      <ConfigPanel key="warcry" title="⚠ Warcry Conflict" accent="#c0392b" headerColor="#e07a6e">
+        <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
+          Only one copy of each duplicated Warcry can apply. Select the most recently cast copy:
+        </div>
+        {warcryConflict.groups.map(group => (
+          <div key={group.name} style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 10, color: '#cfcfe6', marginBottom: 3 }}>{group.name}</div>
+            <select className="cond-stack-input" style={{ width: '100%' }}
+              value={group.active.find(a => conditionState[a.sel_key] === true)?.sel_key ?? ''}
+              onChange={e => chooseWarcry(group, e.target.value)}>
+              <option value="">— Select most recent copy —</option>
+              {group.active.map(a => <option key={a.sel_key} value={a.sel_key}>{a.source}</option>)}
+            </select>
+          </div>
+        ))}
+      </ConfigPanel>
+    ) }, 0)
+  }
 
   // Per-category keys pinned to the top of their panel (the rest keep their natural order).
   const PIN_FIRST: Record<string, string[]> = { Resources: ['current_life_pct'] }
@@ -356,12 +463,23 @@ export default function BuildOverviewScreen() {
     }
     const isEnemy = cat === 'Enemy'
     if (cat === 'Character') {
+      // Top of the MIDDLE column.
       place({ order: -1, weight: visibleItems.length + 1, node: renderCategoryPanel(cat, visibleItems, false) }, 1)
       return
     }
-    if (visibleItems.length === 0 && !isEnemy) return
-    restPanels.push({ order: idx, weight: visibleItems.length + 1 + (isEnemy ? 5 : 0),
-      node: renderCategoryPanel(cat, visibleItems, isEnemy) })
+    if (cat === 'Resources') {
+      // MIDDLE column, directly under Character (order 0 sorts after Character's -1).
+      place({ order: 0, weight: visibleItems.length + 1, node: renderCategoryPanel(cat, visibleItems, false) }, 1)
+      return
+    }
+    if (isEnemy) {
+      // Top of the RIGHT column — the enemy offense/defense config (target dummy + incoming skill).
+      place({ order: -1, weight: visibleItems.length + 6, node: renderCategoryPanel(cat, visibleItems, isEnemy) }, 2)
+      return
+    }
+    if (visibleItems.length === 0) return
+    restPanels.push({ order: idx, weight: visibleItems.length + 1,
+      node: renderCategoryPanel(cat, visibleItems, false) })
   })
   restPanels.sort((a, b) => b.weight - a.weight)
   for (const p of restPanels) place(p, colH.indexOf(Math.min(...colH)))

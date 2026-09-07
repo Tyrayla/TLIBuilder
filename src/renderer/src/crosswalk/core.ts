@@ -636,6 +636,9 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
   // becomes a loadout in our system, sharing one build code).
   const converted = populated.map((lo: any) => ({ lo, f: loadoutFields(lo) }))
   const defaultTarget = { level: 85, armor: 50, fireRes: 30, coldRes: 30, lightningRes: 30, erosionRes: 30 }
+  // Incoming-hit default (Test Enemy → Test Attack, 1000 per hit type). Inline to match defaultTarget's style
+  // and keep the crosswalk decoupled from renderer utils; mirrors utils/enemyPresets.ts DEFAULT_ENEMY_CONFIG.
+  const defaultEnemy = { enemyId: 'test_enemy', skillId: 'test_attack', kind: 'attack', damage: { phys_hit: 1000, fire_hit: 1000, cold_hit: 1000, lightning_hit: 1000, erosion_hit: 1000, phys_dot: 0, fire_dot: 0, cold_dot: 0, lightning_dot: 0, erosion_dot: 0 } }
   // Warnings ride in the notes so they're visible in Builder after import (nothing dropped silently);
   // until Builder has a dedicated warnings/issues panel, this is the surface the user sees.
   const warnSuffix = warnings.length
@@ -644,8 +647,8 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
   const buildNotes = `Converted from TLI Compendium build "${src.name}" (patch ${src.patch}). Loadouts: ${populated.map((l: any) => l.name).join(', ')}.${warnSuffix}`
   // Group a loadout's fields into the per-area snapshots Builder's loadout system expects
   // (keys/shape must match utils/loadoutAreas.ts AREA_FIELDS exactly).
-  // Emit ALL 13 areas (loadoutAreas.AREA_FIELDS) so a non-active loadout carries a complete snapshot,
-  // exactly like native snapshotAllAreas — not just the 10 that have imported content.
+  // Emit ALL 14 areas (loadoutAreas.AREA_FIELDS) so a non-active loadout carries a complete snapshot,
+  // exactly like native snapshotAllAreas — not just the ones that have imported content.
   const areaData = (f: ReturnType<typeof loadoutFields>) => ({
     talents: { slots: f.slots, activeSlot: 0 },
     slates: { slates: f.slates, slateInventory: [] },   // slateInventory is now a per-loadout area field
@@ -660,6 +663,7 @@ export function convertBuild(src: any, ctx: ConvertContext, loadoutFilter?: stri
     customMods: { customMods: [] },
     notes: { notes: buildNotes },   // same notes on every loadout (propagates across the build)
     target: { targetConfig: defaultTarget },
+    enemy: { enemyConfig: defaultEnemy },
   })
   type Conv = { lo: any; f: ReturnType<typeof loadoutFields> }
   const loadouts = converted.map(({ lo, f }: Conv) => ({ id: lo.id, name: lo.name, inherit: {}, data: areaData(f) }))

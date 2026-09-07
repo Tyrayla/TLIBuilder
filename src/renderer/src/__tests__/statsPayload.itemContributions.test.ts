@@ -153,8 +153,8 @@ describe('_buildItemContributions — weapon-implicit regexes', () => {
   })
 })
 
-describe('foldLocalGearDefense', () => {
-  it('folds flat × (1 + Σinc/100), replacing the raw flat + inc rows with one scaled row', () => {
+describe('local gear defense payload', () => {
+  it('preserves raw flat and gear-% rows with their item slot for backend local folding', () => {
     const impl = affix('+300 gear Energy Shield', 'implicit')
     const incAffix = affix('+50% Energy Shield (gear)', 'numeric', {
       stat_key: 'energy_shield_gear_inc',
@@ -164,12 +164,15 @@ describe('foldLocalGearDefense', () => {
     const gear = item({ slot: 'chest', implicit_count: 1, affixes: [impl, incAffix] })
     const payload = buildGearPayload([gear])
     const flatRows = contribs(payload, 'energy_shield_gear_flat')
-    expect(flatRows.length).toBe(1)
-    expect(flatRows[0].display_value).toBe(450)   // 300 * (1 + 50/100)
-    expect(contribs(payload, 'energy_shield_gear_inc').length).toBe(0)   // raw inc row folded away
+    expect(flatRows).toHaveLength(1)
+    expect(flatRows[0].display_value).toBe(300)
+    expect(flatRows[0].slot).toBe('chest')
+    expect(contribs(payload, 'energy_shield_gear_inc')[0].display_value).toBe(50)
+    expect(payload[0].slot).toBe('chest')
+    expect(payload[0].is_shield).toBe(false)
   })
 
-  it('flatSum > 0 guard: a pure %-gear affix with NO flat base drops entirely (no flat, no inc row)', () => {
+  it('keeps a pure %-gear affix so the backend can combine it with other local modifiers', () => {
     const incOnly = affix('+50% Energy Shield (gear)', 'numeric', {
       stat_key: 'energy_shield_gear_inc',
       unit: '%',
@@ -178,6 +181,6 @@ describe('foldLocalGearDefense', () => {
     const gear = item({ slot: 'chest', affixes: [incOnly] })
     const payload = buildGearPayload([gear])
     expect(contribs(payload, 'energy_shield_gear_flat').length).toBe(0)
-    expect(contribs(payload, 'energy_shield_gear_inc').length).toBe(0)
+    expect(contribs(payload, 'energy_shield_gear_inc')[0].display_value).toBe(50)
   })
 })

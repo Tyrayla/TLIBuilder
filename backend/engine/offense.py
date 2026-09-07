@@ -1012,6 +1012,7 @@ class OffenseResult:
     skill_name: str
     supported: bool             # False = NYI; when False no numeric fields are meaningful
     effective_level: int = 0
+    level_summary: dict | None = None  # base + applicable level sources; display-only
     hit_forms: list[HitFormResult] = field(default_factory=list)
     crit_chance: float = 0.0            # EFFECTIVE crit chance (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
     crit_chance_uncapped: float = 0.0   # TRUE chance from rating (may exceed 1.0) — display-only, surfaces over-cap
@@ -1097,6 +1098,8 @@ class OffenseResult:
     shadow_chance_quantity: float = 0.0
     shadow_dmg_additional: float = 0.0
     shadow_mult: float = 1.0
+    shadow_tracking_area_inc: float = 0.0
+    shadow_tracking_distance: float = 0.0
     # Phase 1 primitive (2026-07-15, docs/BACKLOG.md §0f): expected Shadow-hit RATE — E[shadow_count] × cast
     # rate, where E[shadow_count] = shadow_count + shadow_chance_pct·shadow_chance_quantity is the LINEAR
     # expectation of the Despised-Shadow chance-mix. Distinct from shadow_mult's damage EV mix (which is
@@ -1448,15 +1451,82 @@ def skill_effective_level(
     is_main_skill: bool = False,
 ) -> int:
     """Compute effective skill level from base_level + all applicable +Skill Level bonuses."""
+    return skill_level_summary(source, skill_tags, base_level, is_main_skill)["effective_level"]
+
+
+def skill_level_summary(
+    source: BuildSource,
+    skill_tags: list[str],
+    base_level: int,
+    is_main_skill: bool = False,
+    max_level: int | None = None,
+) -> dict:
+    """Explain the same effective-level calculation used by offense for display consumers."""
     tags_lower = {t.lower() for t in skill_tags}
-    bonus = sum(
-        int(source.total(key))
+    contributions = [
+        (key, int(source.total(key)))
         for key, tags in _SKILL_LEVEL_STATS
-        if not tags or tags & tags_lower
-    )
+        if (not tags or tags & tags_lower) and int(source.total(key))
+    ]
     if is_main_skill:
-        bonus += int(source.total("main_skill_level"))
-    return max(1, base_level + bonus)
+        main_bonus = int(source.total("main_skill_level"))
+        if main_bonus:
+            contributions.append(("main_skill_level", main_bonus))
+    bonus = sum(amount for _, amount in contributions)
+    # Preserve the materialized source entries that supplied each applicable level bonus. Unlike a
+    # stat-map lookup, this list has already excluded nonmatching scoped and slot-local contributors.
+    bonus_sources: list[dict] = []
+    for key, amount in contributions:
+        attributed = 0
+        for entry in (e for e in source.source_log if e.stat == key):
+            levels = int(entry.amount * max(1, entry.points))
+            if not levels:
+                continue
+            bonus_sources.append({"levels": levels, "stat": key, "source_type": entry.source_type,
+                                  "label": entry.label, "text": entry.text,
+                                  "source_name": entry.source_name or entry.text})
+            attributed += levels
+        residual = amount - attributed
+        if residual:
+            bonus_sources.append({"levels": residual, "stat": key, "source_type": "custom",
+                                  "label": "Skill Level", "text": key, "source_name": key})
+    # Attribute the above-max multiplier in deterministic stat/source order so the UI can explain which
+    # level grants crossed the cap. The product is identical to _above_max_mult(final_level, max_level).
+    above_max_sources: list[dict] = []
+    if max_level is not None:
+        def _segment_mult(start: int, levels: int) -> float:
+            result = 1.0
+            for level in range(start + 1, start + max(0, levels) + 1):
+                if level <= max_level:
+                    continue
+                result *= 1.10 if level - max_level <= 10 else 1.08
+            return result
+
+        current_level = 0
+        base_mult = _segment_mult(current_level, int(base_level))
+        if base_mult != 1.0:
+            above_max_sources.append({"levels": int(base_level), "multiplier": base_mult,
+                                      "stat": "Skill Level", "source_type": "skill", "label": "Skill",
+                                      "text": "Base skill level", "source_name": "Base skill level"})
+        current_level += int(base_level)
+        for entry in bonus_sources:
+            levels = entry["levels"]
+            # A negative source removes the last-added levels. Attribute its inverse factor so all
+            # displayed rows still multiply exactly to the final above-max multiplier.
+            mult = (_segment_mult(current_level, levels) if levels > 0
+                    else 1.0 / _segment_mult(current_level + levels, -levels) if levels < 0 else 1.0)
+            if mult != 1.0:
+                above_max_sources.append({**entry, "multiplier": mult})
+            current_level += levels
+
+    return {
+        "base_level": int(base_level),
+        "bonus_level": bonus,
+        "effective_level": max(1, int(base_level) + bonus),
+        "bonus_stat_keys": [key for key, _ in contributions],
+        "bonus_sources": bonus_sources,
+        "above_max_sources": above_max_sources,
+    }
 
 
 def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags_lower=None) -> dict:
@@ -1790,11 +1860,17 @@ def calculate_offense(
     #     attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
     # Folded into BOTH type_add and generic_add below so the per-type breakdown ratio cancels it cleanly
     # (it's a uniform multiplier, not a type-specific one) and "Total Additional" still reflects it.
-    main_stat_bonus = sum(source.total(a) for a in skill.main_stat) * _MAIN_STAT_DAMAGE_PER_POINT
-    # Lightchaser (Chromatic Shot) raises the main-attribute damage ratio by a % (0.5%/pt → 0.625%/pt). Presence-
-    # gated so builds without it consume nothing and stay golden-identical.
-    _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
-    main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
+    # "The base main stat no longer additionally increases damage" (Ralph's Journey/Burial, Magnus'
+    # Jealousy/Scar) disables ONLY this generic bonus — the item's own explicit per-attribute lines are a
+    # separate condition-driven contribution and are unaffected.
+    if source.total("main_stat_damage_bonus_disabled_flag"):
+        main_stat_bonus = 0.0
+    else:
+        main_stat_bonus = sum(source.total(a) for a in skill.main_stat) * _MAIN_STAT_DAMAGE_PER_POINT
+        # Lightchaser (Chromatic Shot) raises the main-attribute damage ratio by a % (0.5%/pt → 0.625%/pt).
+        # Presence-gated so builds without it consume nothing and stay golden-identical.
+        _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
+        main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
     main_stat_factor = 1.0 + main_stat_bonus
     intrinsic_add = (1.0 + extra_additional) * main_stat_factor
 
@@ -2248,7 +2324,12 @@ def calculate_offense(
     shadow_chance_quantity = 0.0
     shadow_dmg_additional_total = 0.0
     shadow_mult = 1.0
+    shadow_tracking_area_inc = 0.0
+    shadow_tracking_distance = 0.0
     shadow_hits_per_sec = 0.0
+    if "shadow strike" in skill_tags_lower:
+        shadow_tracking_area_inc = source.total("shadow_strike_tracking_area_inc")
+        shadow_tracking_distance = 9.5 * (1.0 + shadow_tracking_area_inc)
     if shadow:
         shadow_dmg_additional_total = source.total("shadow_dmg_additional")
         shadow_count = int(shadow.get("count", 0) or 0)
@@ -2767,7 +2848,12 @@ def calculate_offense(
         # each contributed an element tag (first multi-tag case; single-tag sets never showed it).
         skill_tags=(skill.tags + sorted(t for t in (add_mod_tags or set())
                                         if t.lower() not in {x.lower() for x in skill.tags})),
-        skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
+        skill_area_inc=(
+            (1.0 + source.total("skill_area_inc")
+             + (source.total("warcry_skill_area_inc") if "warcry" in skill_tags_lower else 0.0)
+             + spell_burst_area_display)
+            * additional_total_product(source, "skill_area_additional") - 1.0
+        ) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
         # Only jump skills consume extra_jumps_flat (reading source.total marks it consumed) — guard on jumps_base
@@ -2790,6 +2876,8 @@ def calculate_offense(
         shadow_chance_quantity=shadow_chance_quantity,
         shadow_dmg_additional=shadow_dmg_additional_total,
         shadow_mult=shadow_mult,
+        shadow_tracking_area_inc=shadow_tracking_area_inc,
+        shadow_tracking_distance=shadow_tracking_distance,
         shadow_hits_per_sec=shadow_hits_per_sec,
         channel_attack_ticks=channel_attack_ticks,
         channel_attack_smooth_sps=channel_attack_smooth_sps,

@@ -39,3 +39,20 @@ The registry in `__init__.py` dispatches by `trait_id` (no per-trait hardcoding 
 Modules honor `uptime_mode` (`"max"` default | `"real"`). In `max` mode a mechanic returns its assume-max
 value (e.g. Numbed = user/cap) — identical to legacy behavior. Only `real` mode runs the ramp math
 (`engine.uptime`). A mechanic with no `real` implementation must keep its `max` value regardless of mode.
+
+## Spirit grant (optional fifth hook)
+A trait may optionally expose `spirit_grant(*, slot_levels, advanced_picks, berserk_active) -> dict | None`
+when it grants an autonomous copy that casts the player's own main skill using the player's own stats (not
+a separate minion stat pool) — e.g. Seething Silhouette's Seething Spirit. Unlike the four hooks above,
+this is dispatched from `compute.py`'s POST-OFFENSE pass (the same architectural exception `minion_offense`
+already is), not the pre-offense fixed-point loop — it needs the main slot's resolved skill/materialized
+stat source, which `apply()` cannot see. `hero_traits.spirit_grant(trait_id, **kw)` dispatches through the
+same `_MODULES`-derived registry as every other hook (no per-trait `==` check in `compute.py`).
+
+Returns `None` when nothing is granted this pass. Otherwise: `{"source": <pick name>,
+"spirit_dmg_additional": float, "spirit_attack_speed_additional": float,
+"player_only_dmg_to_exclude": float, "player_disarmed": bool}` — see
+`seething_silhouette.py::spirit_grant`'s docstring for what each field means and why
+`player_only_dmg_to_exclude` exists (some of the trait's own player-only damage lines are already baked
+into the cloned source and must be subtracted back out). The module itself never touches offense — it
+only describes the grant; `compute.py` owns the clone/`calculate_offense`/Disarm-zero-out mechanics.
