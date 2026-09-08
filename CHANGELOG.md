@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-09-08
+
+### Engine & DPS
+- **Fixed: stacking several distinct damage-taken-reduction sources (gear, talents, Blessings, Warcry) could wrongly fail to compute at all.** The engine summed every reduction into one flat total; enough legitimate sources stacked together could cross -100% and imply nonsensical immunity, which the engine correctly refused to trust — but that meant the whole calculation just stopped, with no explanation. Distinct sources now multiply toward zero instead (confirmed in-game), the same pattern already used for Max Life/Mana/Energy Shield/Armor/Evasion. A single source alone still reaching -100% is unaffected — that's still flagged, since true single-source immunity isn't a thing this engine models.
+
+### Bug fixes
+- **A failed calculation no longer looks like a stuck or blank screen.** When a build genuinely can't be computed (see above, or any other engine error), the Calcs screen and damage-preview tooltips now show the real reason instead of silently going stale with no indication anything failed.
+- **Hardened the web build's compute worker against crashes and hangs.** Requests to the in-browser engine now have bounded timeouts, recover cleanly if the worker crashes mid-request, and are serialized so two calculations can never race into the same worker at once — closing off a class of "permanently frozen tab" bug.
+
 ## [0.6.5] - 2026-09-07
 
 ### Hero Traits
