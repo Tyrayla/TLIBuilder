@@ -287,8 +287,10 @@ export function useDamageDelta(req: DeltaRequest | null, enabled = false): Damag
       try {
         const result = await computeDelta(req, s, buildVersion)
         if (!cancelled) setDelta(result)
-      } catch {
-        if (!cancelled) setDelta({ state: 'error', message: 'Failed to compute damage delta' })
+      } catch (e) {
+        if (!cancelled) {
+          setDelta({ state: 'error', message: e instanceof Error && e.message ? e.message : 'Failed to compute damage delta' })
+        }
       }
     }, 120)
 
@@ -327,8 +329,11 @@ export function useDamageDeltaList(reqs: DeltaRequest[] | null, enabled = false)
       try {
         const results = await computeDeltaListBatched(reqs, s, buildVersion)
         if (!cancelled) setDeltas(results)
-      } catch {
-        if (!cancelled) setDeltas(reqs.map(() => ({ state: 'error', message: 'Failed to compute damage delta' })))
+      } catch (e) {
+        if (!cancelled) {
+          const message = e instanceof Error && e.message ? e.message : 'Failed to compute damage delta'
+          setDeltas(reqs.map(() => ({ state: 'error', message })))
+        }
       }
     }, 120)
 

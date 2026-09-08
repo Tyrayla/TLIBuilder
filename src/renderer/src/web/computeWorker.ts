@@ -128,6 +128,28 @@ async def _api(method, path, body_text=''):
   post({ type: 'ready' })
 }
 
+// Pyodide has no threads — two 'request' messages handled concurrently would both be mid-await into the same
+// interpreter at once, which is unsafe re-entrancy (shared FastAPI app / engine module state). The main thread
+// already serializes webApiRequest calls (pyodideCompute.ts), but queue here too so this worker is correct on
+// its own even if a future caller ever posts 'request' messages directly.
+let requestQueue: Promise<void> = Promise.resolve()
+
+async function handleRequest(msg: RequestMsg): Promise<void> {
+  try {
+    if (initPromise) await initPromise
+    if (!apiFn) throw new Error('worker not initialized')
+    const resStr = await apiFn(msg.method, msg.path, msg.bodyJson)
+    const { status, body } = JSON.parse(resStr)
+    post({ type: 'result', id: msg.id, status, body })
+    // After a successful build/save mutation, hand the updated /persist snapshot to the main thread to store.
+    if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
+      try { post({ type: 'persist', snapshot: snapshotPersist() }) } catch { /* best-effort persist */ }
+    }
+  } catch (err) {
+    post({ type: 'error', id: msg.id, msg: String(err) })
+  }
+}
+
 self.onmessage = async (e: MessageEvent<InMsg>) => {
   const msg = e.data
   if (msg.type === 'init') {
@@ -136,18 +158,8 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
     return
   }
   if (msg.type === 'request') {
-    try {
-      if (initPromise) await initPromise
-      if (!apiFn) throw new Error('worker not initialized')
-      const resStr = await apiFn(msg.method, msg.path, msg.bodyJson)
-      const { status, body } = JSON.parse(resStr)
-      post({ type: 'result', id: msg.id, status, body })
-      // After a successful build/save mutation, hand the updated /persist snapshot to the main thread to store.
-      if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
-        try { post({ type: 'persist', snapshot: snapshotPersist() }) } catch { /* best-effort persist */ }
-      }
-    } catch (err) {
-      post({ type: 'error', id: msg.id, msg: String(err) })
-    }
+    // Chain onto the previous request regardless of outcome, so one failed/errored request doesn't stall
+    // everything queued after it.
+    requestQueue = requestQueue.then(() => handleRequest(msg), () => handleRequest(msg))
   }
 }

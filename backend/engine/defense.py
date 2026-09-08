@@ -276,17 +276,37 @@ _INCOMING_TYPES = ("physical", "fire", "cold", "lightning", "erosion")
 _INCOMING_SHORT = {"physical": "phys", "fire": "fire", "cold": "cold", "lightning": "lightning", "erosion": "erosion"}
 
 
-def _dmg_taken_factor(source: BuildSource, dtype: str, is_dot: bool) -> float:
-    """(1 + net damage-taken-additional) for this type + delivery. Sums the universal pool + the type-scoped pool
-    (physical / elemental — fire/cold/lightning; Erosion has no typed pool) + the hit-or-DoT pool. Reductions
-    (e.g. Tenacity) are negative and lower incoming; increases raise it. Clamped so the factor never goes below 0."""
-    net = source.total("dmg_taken_additional")
+def _dmg_taken_keys(dtype: str, is_dot: bool) -> list[str]:
+    """The distinct damage-taken-reduction stat keys that combine for this type + delivery: the universal
+    pool + the type-scoped pool (physical / elemental — fire/cold/lightning; Erosion has no typed pool) +
+    the hit-or-DoT pool. Shared with guards.check_damage_taken_immunity so the guard checks EXACTLY the
+    same source group this factor actually combines — checking each key separately would miss a combined
+    total crossing immunity across keys that each stay under it alone."""
+    keys = ["dmg_taken_additional"]
     if dtype == "physical":
-        net += source.total("physical_dmg_taken_additional")
+        keys.append("physical_dmg_taken_additional")
     elif dtype in ("fire", "cold", "lightning"):
-        net += source.total("elemental_dmg_taken_additional")
-    net += source.total("dot_dmg_taken_additional") if is_dot else source.total("hit_dmg_taken_additional")
-    return max(0.0, 1.0 + net)
+        keys.append("elemental_dmg_taken_additional")
+    keys.append("dot_dmg_taken_additional" if is_dot else "hit_dmg_taken_additional")
+    return keys
+
+
+def _dmg_taken_factor(source: BuildSource, dtype: str, is_dot: bool) -> float:
+    """Net damage-taken multiplier for this type + delivery. Distinct sources MULTIPLY, like every other
+    "additional" pool (see derive._additional_pool_factor) — e.g. a -16% belt affix and a -47% Warcry line
+    combine as ×0.84×0.53, not as a summed -63%. Reductions (e.g. Tenacity) are negative and lower
+    incoming; increases raise it. guards.check_damage_taken_immunity runs earlier in compute() and raises
+    before this is ever reached if a single source alone would drive the factor to/past zero."""
+    keys = _dmg_taken_keys(dtype, is_dot)
+    factor = _additional_pool_factor(source, keys)
+    # _additional_pool_factor reads source_log directly when per-source entries exist, bypassing
+    # source.total() — which is also the sole place consumption gets traced (the "inert modifier" badge).
+    # Mark these keys read regardless of which path supplied the value, matching the old implementation
+    # (which always called source.total() directly) so a real, applied damage-taken mod never false-badges
+    # as unused.
+    for k in keys:
+        source.total(k)
+    return factor
 
 
 def _incoming_taken_fraction(source: BuildSource, defense: DefenseResult, dtype: str, is_dot: bool) -> float:

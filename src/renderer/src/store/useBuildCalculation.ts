@@ -46,10 +46,13 @@ export function useBuildCalculation() {
             useBuildStore.getState().cacheActiveLoadoutStats(result)
           }
         }
-      } catch {
-        useBuildStore.getState().setStatsError(
-          'Failed to load stats. Check that a season is active and the node type filter has been built.'
-        )
+      } catch (e) {
+        // Prefer the real failure (e.g. the engine's own guardrail message) over the generic fallback, so a
+        // build that genuinely can't be computed says why instead of looking like a stuck/blank calculation.
+        const message = e instanceof Error && e.message
+          ? e.message
+          : 'Failed to load stats. Check that a season is active and the node type filter has been built.'
+        useBuildStore.getState().setStatsError(message)
       }
     }, 150)
 

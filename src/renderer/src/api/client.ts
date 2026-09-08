@@ -129,6 +129,17 @@ export async function initApi(): Promise<void> {
   rerr(`initApi — no server found on 8765-8774, defaulting BASE to: ${BASE}`)
 }
 
+// A failed request's message, preferring the backend's own explanation (FastAPI's HTTPException
+// body is {"detail": "..."}) over the bare "METHOD /path → status" fallback, so a guardrail like
+// ImmunityThresholdError reaches the user as the real reason instead of an opaque status code.
+function errorMessage(method: string, path: string, status: number, body: unknown): string {
+  if (body && typeof body === 'object' && 'detail' in body) {
+    const detail = (body as { detail: unknown }).detail
+    if (typeof detail === 'string' && detail) return detail
+  }
+  return `${method} ${path} → ${status}`
+}
+
 async function get<T>(path: string, retries = 4): Promise<T> {
   // Web build: serve reference catalogs from the static CDN (gzipped JSON) instead of the backend.
   const staticUrl = staticCatalogUrl(path)
@@ -142,7 +153,7 @@ async function get<T>(path: string, retries = 4): Promise<T> {
   if (ipcMode) {
     rlog(`GET (IPC) ${path}`)
     const result = await window.api!.apiRequest('GET', path) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(`GET ${path} → ${result.status}`)
+    if (!result.ok) throw new Error(errorMessage('GET', path, result.status, result.data))
     return result.data
   }
   const url = `${BASE}${path}`
@@ -151,7 +162,7 @@ async function get<T>(path: string, retries = 4): Promise<T> {
     try {
       const res = await fetch(url)
       rlog(`GET ${url} — status ${res.status}`)
-      if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
+      if (!res.ok) throw new Error(errorMessage('GET', path, res.status, await res.json().catch(() => null)))
       return await res.json()
     } catch (e) {
       const isNetwork = e instanceof TypeError
@@ -170,7 +181,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`POST (IPC) ${path}`)
     const result = await window.api!.apiRequest('POST', path, body) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(`POST ${path} → ${result.status}`)
+    if (!result.ok) throw new Error(errorMessage('POST', path, result.status, result.data))
     return result.data
   }
   const url = `${BASE}${path}`
@@ -182,7 +193,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     signal: AbortSignal.timeout(15000),
   })
   rlog(`POST ${url} — status ${res.status}`)
-  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`)
+  if (!res.ok) throw new Error(errorMessage('POST', path, res.status, await res.json().catch(() => null)))
   return res.json()
 }
 
@@ -191,7 +202,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`PUT (IPC) ${path}`)
     const result = await window.api!.apiRequest('PUT', path, body) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(`PUT ${path} → ${result.status}`)
+    if (!result.ok) throw new Error(errorMessage('PUT', path, result.status, result.data))
     return result.data
   }
   const url = `${BASE}${path}`
@@ -203,7 +214,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
     signal: AbortSignal.timeout(15000),
   })
   rlog(`PUT ${url} — status ${res.status}`)
-  if (!res.ok) throw new Error(`PUT ${path} → ${res.status}`)
+  if (!res.ok) throw new Error(errorMessage('PUT', path, res.status, await res.json().catch(() => null)))
   return res.json()
 }
 
@@ -212,7 +223,7 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`DELETE (IPC) ${path}`)
     const result = await window.api!.apiRequest('DELETE', path, body) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(`DELETE ${path} → ${result.status}`)
+    if (!result.ok) throw new Error(errorMessage('DELETE', path, result.status, result.data))
     return result.data
   }
   const url = `${BASE}${path}`
@@ -223,7 +234,7 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
     body: body ? JSON.stringify(body) : undefined,
   })
   rlog(`DELETE ${url} — status ${res.status}`)
-  if (!res.ok) throw new Error(`DELETE ${path} → ${res.status}`)
+  if (!res.ok) throw new Error(errorMessage('DELETE', path, res.status, await res.json().catch(() => null)))
   return res.json()
 }
 

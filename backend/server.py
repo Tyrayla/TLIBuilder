@@ -1058,13 +1058,23 @@ def engine_stats(req: EngineStatsRequest):
         inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()),
     )
     from engine.identity_index import get_identity_index
-    result = compute(
-        build, season_trees, filter_data,
-        skill_data=skill_data,
-        skills_input=skills_input or None,
-        skills_by_id=skills_by_id or None,
-        identity_index=get_identity_index(active_season) if active_season else None,
-    )
+    from engine.guards import ImmunityThresholdError
+    try:
+        result = compute(
+            build, season_trees, filter_data,
+            skill_data=skill_data,
+            skills_input=skills_input or None,
+            skills_by_id=skills_by_id or None,
+            identity_index=get_identity_index(active_season) if active_season else None,
+        )
+    except ImmunityThresholdError as exc:
+        # A deliberate engine guardrail for a build state the damage model can't yet represent
+        # correctly (see guards.py). Relay the real message instead of a bare 500 so the renderer can
+        # show the user why the calculation failed. Scoped to this specific exception type, NOT bare
+        # ValueError — an unrelated internal ValueError (a real bug, not a build-state guardrail) must
+        # keep falling through as a 500 with a server-side traceback, not get silently relabeled as
+        # if the user's build were the cause.
+        raise HTTPException(status_code=422, detail=str(exc))
     return {
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,

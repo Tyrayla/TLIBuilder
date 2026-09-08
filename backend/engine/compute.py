@@ -1480,9 +1480,9 @@ def compute(
     derive_condition_minimums(source)
     source._recording = False
 
-    # Tripwire: a single damage-taken stat reaching >=100% reduction implies immunity, which
-    # the current additive pooling can't represent (distinct sources should multiply). Raise
-    # so it's revisited rather than silently zeroing damage.
+    # Tripwire: distinct damage-taken-reduction sources multiply toward zero (see engine.guards), so this
+    # can only still fire if a SINGLE source alone reaches >=100% reduction — which isn't modelled as real
+    # immunity. Raise so it's revisited rather than silently zeroing damage.
     from engine.guards import check_damage_taken_immunity
     check_damage_taken_immunity(source)
 
