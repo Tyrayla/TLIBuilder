@@ -12,6 +12,7 @@ import { SpiritTooltipBody } from '../components/tooltip/bodies/SpiritTooltipBod
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
 import { StructuredSkillTooltipBody } from '../components/tooltip/bodies/StructuredSkillTooltipBody'
 import { MiniTree } from '../components/MiniTree'
+import { StatsErrorBanner } from '../components/StatsErrorBanner'
 import { gearQualityColor } from '../utils/gearItem'
 import { sourceKindLabel, sourceKindColor } from '../utils/sourceKind'
 import { dec } from '../utils/num'
@@ -3614,6 +3615,7 @@ function IncomingPanel({ incoming, defense }: { incoming: IncomingResult | null;
 
 export default function PlayerStatsScreen() {
   const computedStats = useBuildStore(s => s.computedStats)
+  const statsError = useBuildStore(s => s.statsError)
   const skills = useBuildStore(s => s.skills)
   const gear = useBuildStore(s => s.gear)
   const pactSpirits = useBuildStore(s => s.pactSpirits)
@@ -3804,6 +3806,7 @@ export default function PlayerStatsScreen() {
   return (
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot, selectedSkillTags: new Set((selectedSkill?.skill_tags ?? []).map(tag => tag.toLowerCase())) }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
+        {statsError && <StatsErrorBanner message={statsError} />}
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '55', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelectionBar
