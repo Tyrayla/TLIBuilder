@@ -15,6 +15,8 @@
     "build:web": "python backend/tools/export_backend_bundle.py && vite build --config vite.web.config.mts --mode web && node -e \"require('fs').renameSync('dist-web/index.web.html','dist-web/index.html')\"",
     "build:web:data": "python backend/tools/export_web_data.py && python backend/tools/export_engine_bundle.py",
     "fetch:data": "node scripts/fetch-data.mjs",
+    "deploy:web": "npm run fetch:data && npm run build:web && wrangler pages deploy dist-web --project-name=tlibuilder && node scripts/verify-web-deploy.mjs",
+    "deploy:web:data": "npm run fetch:data && npm run build:web:data && wrangler pages deploy web-data --project-name=tlibuilder-data && node scripts/verify-web-deploy.mjs --url=https://tlibuilder-data.pages.dev --dist=web-data --check=manifest.json",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
     "test:e2e": "npm run build && npm run build:web && playwright test -c e2e",
@@ -41,6 +43,7 @@
     "typescript": "^5.5.2",
     "vite": "^5.3.1",
     "vitest": "^2.1.9",
+    "wrangler": "^4.130.0",
     "zustand": "^5.0.13"
   },
   "build": {
