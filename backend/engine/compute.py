@@ -1182,6 +1182,40 @@ def compute(
                                 source_type=_orig.source_type, label=_orig.label, points=1,
                                 text=_orig.text, source_name=_orig.source_name))
 
+        # Scoped sibling of the fold above (Tower Sequence: "Adds A-B <Type> Damage to Attacks per N
+        # <Attribute>" — a local weapon mod, unlike Ralph's Burial/Magnus' Jealousy's unscoped armor lines,
+        # so it must credit ONLY the scoped class, not both). Same per-unit + explicit-divisor shape, keyed
+        # per (attribute, damage type, class) instead of per (attribute, damage type).
+        for _attr, _at in (("strength", _str_t), ("dexterity", _dex_t), ("intelligence", _int_t)):
+            for _dtype in ("physical", "fire", "cold", "lightning", "erosion"):
+                for _cls in ("attack", "spell"):
+                    _min_key = f"{_dtype}_{_cls}_dmg_flat_min_per_{_attr}"
+                    _max_key = f"{_dtype}_{_cls}_dmg_flat_max_per_{_attr}"
+                    _unit_key = f"{_dtype}_{_cls}_dmg_flat_per_{_attr}_unit"
+                    _entries = [e for e in source.source_log if e.stat in (_min_key, _max_key, _unit_key)]
+                    if not _entries:
+                        continue
+                    source.consumed_stats.update({_min_key, _max_key, _unit_key})
+                    _groups2: dict[str, dict] = {}
+                    for e in _entries:
+                        grp = _groups2.setdefault(e.text, {"_entry": e})
+                        grp[e.stat] = grp.get(e.stat, 0.0) + e.amount
+                    for _grp in _groups2.values():
+                        _pu_min, _pu_max = _grp.get(_min_key, 0.0), _grp.get(_max_key, 0.0)
+                        _unit = _grp.get(_unit_key, 0.0)
+                        if not (_pu_min or _pu_max) or _unit <= 0:
+                            continue
+                        _cr = _floored_attr(_at, _unit)
+                        _orig = _grp["_entry"]
+                        for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
+                            _amt = _cr * _pu
+                            if not _amt:
+                                continue
+                            source.add_with_source(f"{_dtype}_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
+                                stat=f"{_dtype}_{_cls}_dmg_flat_{_mm}", amount=_amt,
+                                source_type=_orig.source_type, label=_orig.label, points=1,
+                                text=_orig.text, source_name=_orig.source_name))
+
         # "Enemy is Nearby" (boolean) implies at least one nearby enemy → keep the numeric enemies_nearby
         # count at >= 1 so "when only/at least N enemies nearby" gates resolve (doesn't drop a higher count).
         if condition_state.get("enemy_nearby"):
@@ -1856,8 +1890,16 @@ def compute(
                     _spirit_source.add("attack_speed_additional", _spirit_grant["spirit_attack_speed_additional"])
                 _spirit_uptime = max(0.0, min(100.0, float(
                     condition_state.get("seething_spirit_uptime", 100.0) or 0.0))) / 100.0
+                # is_main_skill=True (bug-279, 2026-09-10) — Spirit casts the player's OWN main skill, so its
+                # effective level must include the same "+N Main Skill Level" bonus (main_skill_level stat,
+                # only added when is_main_skill) the player's own hit gets; is_main_skill=False silently
+                # dropped it here, so a Main-Skill-Level source raised the player's damage but left Spirit's
+                # frozen. Passing the main slot's granted tags too (_granted_tags_by_slot, populated by the
+                # player's own _offense_for_slot call just above) for the same reason: a tag-scoped "+<Tag>
+                # Skill Level" bonus reached via a granted tag has the identical gap otherwise.
                 _spirit_result = asdict(calculate_offense(
-                    _spirit_source, _resolved_main, build_input.main_skill.level, is_main_skill=False))
+                    _spirit_source, _resolved_main, build_input.main_skill.level, is_main_skill=True,
+                    add_mod_tags=_granted_tags_by_slot.get(main_slot) or None))
                 _spirit_result["total_dps"] = _spirit_result.get("total_dps", 0.0) * _spirit_uptime
                 _spirit_result["total_dps_vs_target"] = _spirit_result.get("total_dps_vs_target", 0.0) * _spirit_uptime
                 _spirit_result["skill_name"] = f"Seething Spirit ({result_offense.get('skill_name', '')})"
