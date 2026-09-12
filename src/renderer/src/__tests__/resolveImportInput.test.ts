@@ -43,7 +43,7 @@ describe('resolveImportInput', () => {
     expect(mockFetchShared).not.toHaveBeenCalled()
   })
 
-  it('wraps a non-Error rejection via String(e)', async () => {
+  it('sanitizes a non-Error rejection into the share error contract', async () => {
     mockFetchShared.mockRejectedValue('boom')
     await expect(resolveImportInput('https://tlibuilder.com/b/xyz789')).rejects.toThrow(ShareFetchError)
     try {
@@ -51,15 +51,15 @@ describe('resolveImportInput', () => {
       throw new Error('should have thrown')
     } catch (e) {
       expect(e).toBeInstanceOf(ShareFetchError)
-      expect((e as Error).message).toBe('boom')
+      expect((e as ShareFetchError).code).toBe('TLI-SHARE-001')
     }
   })
 
   it('share body not starting with tli1_ throws ShareFetchError', async () => {
     mockFetchShared.mockResolvedValue('<html>not a code</html>')
     await expect(resolveImportInput('https://tlibuilder.com/b/xyz789')).rejects.toThrow(ShareFetchError)
-    await expect(resolveImportInput('https://tlibuilder.com/b/xyz789')).rejects.toThrow(
-      'Share service returned an invalid build code.',
+    await expect(resolveImportInput('https://tlibuilder.com/b/xyz789')).rejects.toMatchObject(
+      { code: 'TLI-SHARE-001' },
     )
   })
 })

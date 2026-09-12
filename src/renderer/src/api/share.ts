@@ -1,54 +1,86 @@
-// ── Build-code share service ─────────────────────────────────────────────────
-// The build-code share service is a PUBLIC host, separate from the local Python
-// backend. Share calls never go through the local backend or Electron IPC — they
-// are plain fetches to SHARE_BASE. This is the ONE exception to the "renderer
-// talks to the backend only via api.*" rule, and it lives here, apart from
-// client.ts, so the boundary is visible in the file layout.
-//
-// The base URL is configurable at build time via the Vite env var
-// VITE_SHARE_BASE_URL; it falls back to production.
+// Build-code share service. This public host is intentionally separate from the local backend.
+import { errorFromResponse, normalizeError } from '../errors/tliError'
 
 const _shareEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
 const SHARE_BASE = (_shareEnv?.VITE_SHARE_BASE_URL ?? 'https://api.tlibuilder.com').replace(/\/+$/, '')
+const MAX_SHARE_CODE_BYTES = 512 * 1024
+const MAX_SHARE_ERROR_BYTES = 16 * 1024
 
 export function getShareBase(): string {
   return SHARE_BASE
 }
 
-const MAX_SHARE_CODE_BYTES = 512 * 1024 // 512 KB — more than enough for any build code
+async function readErrorBody(res: Response): Promise<unknown> {
+  const declaredLength = Number(res.headers.get('content-length') ?? 0)
+  if (declaredLength > MAX_SHARE_ERROR_BYTES || !res.body) return null
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (true) {
+    const next = await reader.read()
+    if (next.done) break
+    size += next.value.byteLength
+    if (size > MAX_SHARE_ERROR_BYTES) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(next.value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+  try { return JSON.parse(new TextDecoder().decode(bytes)) } catch { return null }
+}
 
 async function postToShareService<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${SHARE_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  })
-  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`)
-  return res.json() as Promise<T>
+  const operation = `share.post.${path.replace(/^\//, '')}`
+  try {
+    const res = await fetch(`${SHARE_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) {
+      throw errorFromResponse(
+        await readErrorBody(res),
+        'TLI-SHARE-001',
+        operation,
+        `Share service request failed (${res.status}).`,
+      )
+    }
+    return res.json() as Promise<T>
+  } catch (error) {
+    throw normalizeError(error, 'TLI-SHARE-001', operation)
+  }
 }
 
 async function getFromShareService(path: string): Promise<string> {
-  // The share service returns the raw tli1_ code as text/plain.
-  const res = await fetch(`${SHARE_BASE}${path}`, {
-    signal: AbortSignal.timeout(15000),
-  })
-  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
-  const len = Number(res.headers.get('content-length') ?? 0)
-  if (len > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
-  // No Content-Length fallback: buffers entire response before rejecting — acceptable
-  // given threat model; a streaming reader would be needed to truly bound a hostile server.
-  const text = await res.text()
-  if (text.length > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
-  return text
+  const operation = `share.get.${path.replace(/^\//, '')}`
+  try {
+    const res = await fetch(`${SHARE_BASE}${path}`, { signal: AbortSignal.timeout(15000) })
+    if (!res.ok) {
+      throw errorFromResponse(
+        await readErrorBody(res),
+        'TLI-SHARE-001',
+        operation,
+        `Shared build could not be loaded (${res.status}).`,
+      )
+    }
+    const len = Number(res.headers.get('content-length') ?? 0)
+    if (len > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
+    const text = await res.text()
+    if (text.length > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
+    return text
+  } catch (error) {
+    throw normalizeError(error, 'TLI-SHARE-001', operation)
+  }
 }
 
-/** Publish a build code to the share service; returns its id and shareable url. */
 export function shareBuildCode(code: string): Promise<{ id: string; url: string }> {
   return postToShareService<{ id: string; url: string }>('/b', { code })
 }
 
-/** Fetch a previously-shared build code by id. Returns the raw tli1_ string. */
 export function fetchSharedBuildCode(id: string): Promise<string> {
   return getFromShareService(`/b/${id}`)
 }

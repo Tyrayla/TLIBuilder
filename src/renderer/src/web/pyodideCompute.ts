@@ -1,6 +1,7 @@
 // Main-thread wrapper around the Pyodide backend worker (web build only). Spawns one worker, drives init, and
 // exposes webApiRequest(method, path, body) -> Promise<data>, dispatching through the in-browser FastAPI app so
 // responses match the desktop backend exactly.
+import { errorFromResponse, normalizeError } from '../errors/tliError'
 
 let worker: Worker | null = null
 let readyPromise: Promise<void> | null = null
@@ -70,14 +71,12 @@ export function onComputeProgress(cb: (msg: string) => void): () => void {
 // A failed request's message, preferring the backend's own explanation (FastAPI's HTTPException body is
 // {"detail": "..."}) over a bare status code — mirrors api/client.ts's errorMessage for the desktop path, kept
 // separate so this module has no static dependency on client.ts (which dynamically imports this one).
-function resultErrorMessage(status: number, body?: string): string {
+function resultError(status: number, body?: string) {
+  let parsed: unknown = null
   if (body) {
-    try {
-      const parsed = JSON.parse(body)
-      if (parsed && typeof parsed === 'object' && typeof parsed.detail === 'string' && parsed.detail) return parsed.detail
-    } catch { /* not JSON */ }
+    try { parsed = JSON.parse(body) } catch { /* not JSON */ }
   }
-  return `HTTP ${status}`
+  return errorFromResponse(parsed, 'TLI-UNEXPECTED-001', 'web.pyodide.request', `HTTP ${status}`, true)
 }
 
 // Reject every in-flight request and clear the queue — called when the worker can no longer be trusted to
@@ -126,7 +125,7 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
   worker = new Worker(new URL('./computeWorker.ts', import.meta.url), { type: 'module' })
   readyPromise = new Promise<void>((resolve, reject) => {
     const initTimeout = setTimeout(() => {
-      const err = new Error(`engine startup timed out after ${INIT_TIMEOUT_MS / 1000}s`)
+      const err = normalizeError(new Error(`Engine startup timed out after ${INIT_TIMEOUT_MS / 1000}s`), 'TLI-BOOT-001', 'web.pyodide.init')
       failWorker(err)
       reject(err)
     }, INIT_TIMEOUT_MS)
@@ -148,13 +147,13 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
         const p = pending.get(m.id); pending.delete(m.id)
         if (!p) return
         clearTimeout(p.timeout)
-        if ((m.status ?? 500) >= 400) p.reject(new Error(resultErrorMessage(m.status ?? 500, m.body)))
+        if ((m.status ?? 500) >= 400) p.reject(resultError(m.status ?? 500, m.body))
         else { try { p.resolve(m.body ? JSON.parse(m.body) : null) } catch (e) { p.reject(e as Error) } }
         return
       }
       if (m.type === 'persist') { void idbPutSnapshot(m.snapshot || {}); return }
       if (m.type === 'error') {
-        const err = new Error(m.msg || 'compute worker error')
+        const err = normalizeError(new Error(m.msg || 'compute worker error'), 'TLI-BOOT-001', 'web.pyodide.worker')
         if (m.id != null) {
           const p = pending.get(m.id); pending.delete(m.id)
           if (p) { clearTimeout(p.timeout); p.reject(err) }
@@ -168,7 +167,7 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
       }
     }
     worker!.onerror = (e) => {
-      const err = new Error(`worker crashed: ${e.message}`)
+      const err = normalizeError(new Error(`worker crashed: ${e.message}`), 'TLI-BOOT-001', 'web.pyodide.worker')
       clearTimeout(initTimeout)
       failWorker(err)
       reject(err)
@@ -176,7 +175,7 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
     // Fires when a posted message can't be structured-cloned/deserialized on the other side — rare, but same
     // "worker is no longer trustworthy" bucket as a crash.
     worker!.onmessageerror = () => {
-      const err = new Error('worker sent an unreadable response')
+      const err = normalizeError(new Error('worker sent an unreadable response'), 'TLI-BOOT-001', 'web.pyodide.worker')
       clearTimeout(initTimeout)
       failWorker(err)
       reject(err)
@@ -199,13 +198,13 @@ export async function webApiRequest<T>(method: string, path: string, body?: unkn
     // A prior timeout/crash cleared worker+readyPromise. Recreate from the original web init parameters so
     // an ordinary build edit after a failure is a real retry, not a permanent "not initialized" error.
     if ((!worker || !readyPromise) && lastInit) initPyodideCompute(lastInit.dataBase, lastInit.season)
-    if (!worker || !readyPromise) throw new Error('pyodide backend not initialized')
+    if (!worker || !readyPromise) throw normalizeError(new Error('Pyodide backend is not initialized'), 'TLI-BOOT-001', 'web.pyodide.init')
     await readyPromise
     const id = nextId++
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!pending.delete(id)) return   // already settled by a real response racing the timeout
-        const err = new Error(`engine request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
+        const err = normalizeError(new Error(`Engine request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`), 'TLI-BOOT-001', 'web.pyodide.request')
         reject(err)
         failWorker(err)   // a request that never replied means the worker is stuck; don't trust it further
       }, REQUEST_TIMEOUT_MS)

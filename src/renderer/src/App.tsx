@@ -32,6 +32,7 @@ import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
 import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
+import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
 
@@ -113,7 +114,7 @@ const KEEPALIVE_SCREENS: Screen[] = [
 
 function App() {
   const [appReady, setAppReady] = useState(false)
-  const [appError, setAppError] = useState('')
+  const [appError, setAppError] = useState<TliErrorPayload | null>(null)
   const [screen, setScreen] = useState<Screen>('build-select')
   // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
   const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
@@ -214,7 +215,7 @@ function App() {
           })
         useReferenceStore.getState().loadReferenceData()
       })
-      .catch(e => setAppError(String(e)))
+      .catch(e => setAppError(normalizeError(e, 'TLI-BOOT-001', 'app.startup').payload))
   }, [])
 
   useEffect(() => {
@@ -292,8 +293,16 @@ function App() {
         height: '100%', background: '#1a1a2e',
         color: appError ? '#ff6b6b' : '#888', flexDirection: 'column', gap: 8,
       }}>
-        <span>{appError || 'Starting backend…'}</span>
-        {appError && <pre style={{ fontSize: 11, color: '#555' }}>{appError}</pre>}
+        <span>{appError ? `${appError.title} (${appError.code})` : 'Starting backend…'}</span>
+        {appError && <>
+          <span>{appError.message}</span>
+          {appError.remediation && <span>{appError.remediation}</span>}
+          <div>
+            <button className="btn" onClick={() => void navigator.clipboard?.writeText(copyableErrorDetails(appError))}>Copy details</button>
+            {appError.retryable && <button className="btn" style={{ marginLeft: 8 }} onClick={() => window.location.reload()}>Retry</button>}
+            <button className="btn" style={{ marginLeft: 8 }} onClick={() => prepareReport(appError)}>Report this problem</button>
+          </div>
+        </>}
       </div>
     )
   }

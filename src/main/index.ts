@@ -433,7 +433,22 @@ app.whenReady().then(async () => {
       const data = await res.json().catch(() => null)
       return { ok: res.ok, status: res.status, data }
     } catch (e) {
-      return { ok: false, status: 0, data: null, error: String(e) }
+      // Preserve a typed, player-safe transport failure. Previously this returned only status 0
+      // and discarded the useful failure category before it reached the renderer.
+      return {
+        ok: false,
+        status: 0,
+        data: {
+          error: {
+            code: 'TLI-NET-001',
+            title: 'A required service cannot be reached',
+            message: 'TLI Builder could not contact its local backend.',
+            remediation: 'Restart TLI Builder and try again.',
+            operation: 'electron.ipc.api-request',
+            retryable: true,
+          },
+        },
+      }
     }
   })
 

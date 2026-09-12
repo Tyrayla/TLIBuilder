@@ -51,7 +51,8 @@ describe('ErrorBoundary', () => {
     consoleError.mockRestore()
 
     expect(renderer.root.findAllByProps({ className: 'fine' })).toHaveLength(0)
-    expect(renderer.root.findByType('h1').children.join('')).toBe('Something went wrong')
+    expect(renderer.root.findByType('h1').children.join('')).toBe('The app encountered an unexpected screen error')
+    expect(JSON.stringify(renderer.toJSON())).toContain('TLI-UI-001')
   })
 
   it('the recovery-code button reads the in-memory build via getBuildPayload/api.encodeBuildCode (data survives the crash)', async () => {

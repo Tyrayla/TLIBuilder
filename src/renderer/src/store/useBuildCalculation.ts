@@ -4,6 +4,7 @@ import { useBuildStore } from './buildStore'
 import { api } from '../api/client'
 import { buildEngineStatsPayload } from '../utils/statsPayload'
 import { loadoutKeyFromState } from '../utils/loadoutAreas'
+import { normalizeError } from '../errors/tliError'
 
 export function useBuildCalculation() {
   const buildVersion = useBuildStore((s) => s.buildVersion)
@@ -49,10 +50,9 @@ export function useBuildCalculation() {
       } catch (e) {
         // Prefer the real failure (e.g. the engine's own guardrail message) over the generic fallback, so a
         // build that genuinely can't be computed says why instead of looking like a stuck/blank calculation.
-        const message = e instanceof Error && e.message
-          ? e.message
-          : 'Failed to load stats. Check that a season is active and the node type filter has been built.'
-        useBuildStore.getState().setStatsError(message)
+        useBuildStore.getState().setStatsError(
+          normalizeError(e, 'TLI-CALC-001', 'engine.stats').payload,
+        )
       }
     }, 150)
 

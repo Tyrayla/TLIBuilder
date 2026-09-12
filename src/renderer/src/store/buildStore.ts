@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { TliErrorPayload } from '../errors/tliError'
 import { deepEqual as isEqual } from '../utils/fn'
 import type {
   TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
@@ -184,10 +185,10 @@ interface BuildStore {
   // Computed output — writing these MUST NOT bump buildVersion (infinite loop)
   computedStats: StatSheetResponse
   statsLoading: boolean
-  statsError: string
+  statsError: TliErrorPayload | null
   setComputedStats: (stats: StatSheetResponse, version: number) => void
   setStatsLoading: (v: boolean) => void
-  setStatsError: (e: string) => void
+  setStatsError: (e: TliErrorPayload | null) => void
 
   // Versioning — the single trigger for recalc
   buildVersion: number
@@ -250,7 +251,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   mainSkill: null,
   computedStats: EMPTY_STAT_SHEET,
   statsLoading: false,
-  statsError: '',
+  statsError: null,
   buildVersion: 0,
   computedVersion: -1,
   loadoutStatsCache: {},
@@ -496,14 +497,14 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
         mainSkill: deriveMainSkill((patch.skills as EquippedSkill[] | undefined) ?? s.skills),
         buildVersion: nextVersion,
         ...(hit
-          ? { computedStats: cached!.stats, computedVersion: nextVersion, statsLoading: false, statsError: '' }
+          ? { computedStats: cached!.stats, computedVersion: nextVersion, statsLoading: false, statsError: null }
           : {}),
       }
     }),
 
   // ── Computed output (MUST NOT bump buildVersion) ────────────────────────────
   setComputedStats: (computedStats, computedVersion) =>
-    set({ computedStats, computedVersion, statsLoading: false, statsError: '' }),
+    set({ computedStats, computedVersion, statsLoading: false, statsError: null }),
 
   setStatsLoading: (statsLoading) => set({ statsLoading }),
   setStatsError: (statsError) => set({ statsError, statsLoading: false }),

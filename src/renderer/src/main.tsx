@@ -4,7 +4,10 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoadProgressBar from './components/LoadProgressBar'
 import logoSrc from './assets/logo.png'
+import { installGlobalErrorCapture } from './errors/tliError'
 import './index.css'
+
+installGlobalErrorCapture()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -22,8 +22,11 @@ def test_immunity_threshold_error_surfaces_as_422_with_the_real_message(monkeypa
     r = client.post("/api/engine/stats", json=_MINIMAL_BODY)
 
     assert r.status_code == 422
-    assert "dmg_taken_additional" in r.json()["detail"]
-    assert "immunity" in r.json()["detail"].lower()
+    error = r.json()["error"]
+    assert error["code"] == "TLI-CALC-001"
+    assert error["operation"] == "engine.stats"
+    assert "dmg_taken_additional" in error["message"]
+    assert "immunity" in error["message"].lower()
 
 
 def test_an_unrelated_value_error_is_not_relabeled_as_a_guardrail(monkeypatch):

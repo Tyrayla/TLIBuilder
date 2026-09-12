@@ -5,6 +5,7 @@ import { checkBuildCompatibility } from '../utils/buildCompat'
 import { useReferenceStore } from '../store/referenceStore'
 import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/context'
 import compendiumExportImg from '../assets/compendium-export.png'
+import { copyableErrorDetails, normalizeError, type TliErrorPayload } from '../errors/tliError'
 
 /**
  * Shared import UI used by BOTH the main-menu import modal (BuildSelectScreen) and the in-build Import/Export
@@ -21,6 +22,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const [mode, setMode] = useState<'builder' | 'compendium'>('builder')
   const [importCode, setImportCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [structuredError, setStructuredError] = useState<TliErrorPayload | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [pendingBuild, setPendingBuild] = useState<Build | null>(null)   // decoded/converted, awaiting "Import Anyway"
   const [importing, setImporting] = useState(false)
@@ -32,7 +34,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const refGrafts = useReferenceStore(s => s.grafts)
   const refHeroMemoryScaling = useReferenceStore(s => s.heroMemories?.base_stat_scaling)
 
-  const reset = () => { setError(null); setWarnings([]); setPendingBuild(null) }
+  const reset = () => { setError(null); setStructuredError(null); setWarnings([]); setPendingBuild(null) }
 
   // A build is ready: if the source produced warnings, show them and wait for an explicit "Import Anyway";
   // otherwise hand it straight to the host.
@@ -50,6 +52,11 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       const { build } = await api.decodeBuildCode(resolved)
       ready({ ...(build as unknown as Build), name: 'New Build' }, checkBuildCompatibility(build))
     } catch (e: unknown) {
+      setStructuredError(normalizeError(
+        e,
+        e instanceof ShareFetchError ? 'TLI-SHARE-001' : 'TLI-BUILD-001',
+        'build.import',
+      ).payload)
       if (e instanceof ShareFetchError) {
         setError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
       } else {
@@ -134,7 +141,14 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
         </>
       )}
 
-      {error && <p className="share-import-error">{error}</p>}
+      {structuredError && (
+        <div className="share-import-error" role="alert">
+          <strong>{structuredError.title} ({structuredError.code}) — </strong>{structuredError.message}
+          {structuredError.remediation && <div>{structuredError.remediation}</div>}
+          <button className="btn" style={{ marginTop: 8 }} onClick={() => void navigator.clipboard?.writeText(copyableErrorDetails(structuredError))}>Copy details</button>
+        </div>
+      )}
+      {error && !structuredError && <p className="share-import-error">{error}</p>}
       {warnings.length > 0 && (
         <div className="share-import-warning">
           <p>{pendingBuild && mode === 'compendium'

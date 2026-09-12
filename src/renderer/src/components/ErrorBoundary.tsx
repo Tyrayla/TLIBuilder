@@ -1,6 +1,7 @@
 import React from 'react'
 import { api } from '../api/client'
 import { getBuildPayload } from '../utils/buildPayload'
+import { copyableErrorDetails, normalizeError, prepareReport, recordReportableDiagnostic, type TliError } from '../errors/tliError'
 
 interface Props {
   children: React.ReactNode
@@ -11,7 +12,7 @@ interface Props {
 
 interface State {
   hasError: boolean
-  error: Error | null
+  error: TliError | null
   code: string | null
   codeError: string | null
   codeLoading: boolean
@@ -30,11 +31,12 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error, code: null, codeError: null, codeLoading: false, copied: false }
+    return { hasError: true, error: normalizeError(error, 'TLI-UI-001', 'ui.error-boundary'), code: null, codeError: null, codeLoading: false, copied: false }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary] uncaught error, build recovery UI shown', error, info.componentStack)
+    recordReportableDiagnostic(normalizeError(error, 'TLI-UI-001', 'ui.error-boundary').payload)
     this.props.onError?.(error)
   }
 
@@ -80,6 +82,14 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   private reload = () => window.location.reload()
 
+  private copyDetails = () => {
+    if (this.state.error) void navigator.clipboard?.writeText(copyableErrorDetails(this.state.error.payload))
+  }
+
+  private prepareReport = () => {
+    if (this.state.error) prepareReport(this.state.error.payload)
+  }
+
   render() {
     if (!this.state.hasError) return this.props.children
     const { code, codeError, codeLoading, copied, error } = this.state
@@ -92,7 +102,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
         padding: '40px 24px', overflow: 'auto', fontFamily: 'inherit',
       }}>
         <div style={{ maxWidth: 640, width: '100%' }}>
-          <h1 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h1>
+          <h1 style={{ fontSize: 20, marginBottom: 8 }}>{error?.payload.title ?? 'Something went wrong'}</h1>
           <p style={{ color: 'var(--fg-muted, #9aa)', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
             TLI Builder hit an unexpected error and had to stop. Your in-progress build is still in
             memory — generate a recovery code below before doing anything else, then reload and
@@ -108,6 +118,8 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 {copied ? 'Copied!' : 'Copy code'}
               </button>
             )}
+            <button className="btn" onClick={this.copyDetails}>Copy error details</button>
+            <button className="btn" onClick={this.prepareReport}>Report this problem</button>
           </div>
           {code && (
             <textarea
@@ -136,8 +148,8 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
           {error && (
             <details style={{ color: 'var(--fg-muted, #9aa)', fontSize: 11 }}>
-              <summary style={{ cursor: 'pointer' }}>Error details</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{String(error.stack ?? error.message)}</pre>
+              <summary style={{ cursor: 'pointer' }}>Error details ({error.code})</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{copyableErrorDetails(error.payload)}</pre>
             </details>
           )}
         </div>
