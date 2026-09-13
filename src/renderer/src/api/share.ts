@@ -35,6 +35,13 @@ async function readErrorBody(res: Response): Promise<unknown> {
 async function postToShareService<T>(path: string, body: unknown): Promise<T> {
   const operation = `share.post.${path.replace(/^\//, '')}`
   try {
+    if (path === '/v1/reports' && window.api?.reportRequest) {
+      const result = await window.api.reportRequest(body)
+      if (!result.ok) {
+        throw errorFromResponse(result.data, 'TLI-NET-001', 'report.submit')
+      }
+      return result.data as T
+    }
     const res = await fetch(`${SHARE_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

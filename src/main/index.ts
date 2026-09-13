@@ -14,6 +14,9 @@ app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
 
 const isDev = process.env.NODE_ENV === 'development'
 const isVerbose = process.env.VERBOSE === 'true'
+// Report delivery is a fixed public destination. The renderer only supplies
+// bounded report JSON; it never controls a URL or gets arbitrary network IPC.
+const REPORT_SERVICE_URL = (process.env.TLI_REPORT_BASE_URL ?? 'https://api.tlibuilder.com').replace(/\/+$/, '')
 
 // E2E harness overrides (set only by e2e/fixtures/electron.ts): an isolated userData dir and a
 // dedicated backend port, so a test run never touches real settings and never port-kills a live
@@ -448,6 +451,22 @@ app.whenReady().then(async () => {
             retryable: true,
           },
         },
+      }
+    }
+  })
+
+  ipcMain.handle('report-request', async (_event, body: unknown) => {
+    try {
+      const res = await fetch(`${REPORT_SERVICE_URL}/v1/reports`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
+      })
+      const data = await res.json().catch(() => null)
+      return { ok: res.ok, status: res.status, data }
+    } catch {
+      return {
+        ok: false, status: 0,
+        data: { error: { code: 'TLI-NET-001', title: 'A required service cannot be reached', message: 'TLI Builder could not submit the report.', remediation: 'Check your connection and try again.', operation: 'electron.ipc.report-request', retryable: true } },
       }
     }
   })
