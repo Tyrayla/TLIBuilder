@@ -3,6 +3,7 @@
 // `api` object can expose them, and getShareBase is re-exported below so existing
 // `import { getShareBase } from './client'` callers keep working.
 import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
+import type { SharePreview } from './share'
 import { dec } from '../utils/num'
 import { errorFromResponse, normalizeError, TliError, type TliErrorCode } from '../errors/tliError'
 
@@ -10,6 +11,7 @@ let BASE = ''
 let ipcMode = false
 export function getApiBase(): string { return BASE }
 export { getShareBase }
+export type { SharePreview }
 
 // True in the hosted web build (no Electron preload bridge). Desktop-only UI (auto-update, release channel) hides
 // when this is set — the web app updates by redeploy + refresh, not electron-updater.

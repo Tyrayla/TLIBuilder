@@ -27,6 +27,11 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('get-settings'),
   setSetting: (key: keyof AppSettings, value: unknown): Promise<AppSettings> =>
     ipcRenderer.invoke('set-setting', key, value),
+  // tlibuilder://import/<id> deep link — see src/main/index.ts's second-instance/open-url
+  // handling. Fires once per launch/activation carrying a share id; App.tsx imports it through
+  // the same resolveImportInput/decodeBuildCode/openBuild path the ?share= web query param uses.
+  onDeepLinkShare: (cb: (shareId: string) => void) =>
+    ipcRenderer.on('deep-link-share', (_e, shareId: string) => cb(shareId)),
 })
 
 interface AppSettings {

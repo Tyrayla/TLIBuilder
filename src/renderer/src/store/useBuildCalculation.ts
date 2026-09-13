@@ -8,13 +8,14 @@ import { normalizeError } from '../errors/tliError'
 
 export function useBuildCalculation() {
   const buildVersion = useBuildStore((s) => s.buildVersion)
+  const spiritsResolved = useBuildStore((s) => s.spiritsResolved)
 
   useEffect(() => {
     const run = debounce(async () => {
       const s = useBuildStore.getState()
-      // Gate: wait for spirits fetch to settle (success or failure).
-      // setAllSpirits / setSpiritsFailure both flip spiritsResolved and bump
-      // buildVersion, so the hook re-runs with spiritsResolved: true.
+      // Gate: wait for spirits fetch to settle (success or failure). setAllSpirits / setSpiritsFailure
+      // don't bump buildVersion (that would make a just-opened build read as dirty the moment this
+      // app-boot fetch lands) — so this hook depends on spiritsResolved directly to re-run once it flips.
       if (!s.spiritsResolved) return
 
       // Already up to date — e.g. a loadout swap served stats from the per-loadout cache and set
@@ -58,5 +59,5 @@ export function useBuildCalculation() {
 
     run()
     return () => run.cancel()
-  }, [buildVersion])
+  }, [buildVersion, spiritsResolved])
 }

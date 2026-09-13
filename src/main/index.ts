@@ -30,6 +30,80 @@ let PYTHON_PORT = 8765
 let pythonProcess: ChildProcess | null = null
 let isDirtyMain = false
 
+// ── tlibuilder:// deep-link protocol (share-link "Open in Desktop App" button) ──────────────────
+// Packaged only: `npm run dev`/`dev2` and the E2E harness (e2e/fixtures/electron.ts) routinely run
+// several unpackaged Electron instances side by side, each isolated by its own userData dir and
+// Python port. Grabbing the single-instance lock unconditionally would make a second concurrent
+// dev/test instance treat itself as a "second instance" of the first and forward to (or fight
+// with) the wrong window. A custom protocol scheme has no business pointing at a transient dev
+// build anyway — registering it is a packaged-install concern.
+let pendingDeepLinkShareId: string | null = null
+let mainWindowRef: typeof BrowserWindow.prototype | null = null
+
+function extractShareId(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol !== 'tlibuilder:') return null
+    // tlibuilder://import/<id> — for a custom (non-special) scheme, Node's URL parser reads the
+    // first path segment after "://" as the host, not as part of the pathname.
+    if (parsed.hostname !== 'import') return null
+    const id = parsed.pathname.replace(/^\/+/, '')
+    return /^[A-Za-z0-9_-]+$/.test(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
+function deliverDeepLink(shareId: string): void {
+  const win = mainWindowRef
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    win.webContents.send('deep-link-share', shareId)
+  } else {
+    // Cold start: no window yet — createWindow()'s did-finish-load handler flushes this once ready.
+    pendingDeepLinkShareId = shareId
+  }
+}
+
+if (app.isPackaged) {
+  app.setAsDefaultProtocolClient('tlibuilder')
+
+  const gotSingleInstanceLock = app.requestSingleInstanceLock()
+  if (!gotSingleInstanceLock) {
+    app.quit()
+  } else {
+    // Windows/Linux: a second launch (e.g. clicking a tlibuilder:// link while already running)
+    // re-execs the app; Electron forwards that instance's argv here instead and this instance
+    // just handles it and focuses.
+    app.on('second-instance', (_event, argv) => {
+      const url = argv.find(arg => arg.startsWith('tlibuilder://'))
+      const shareId = url ? extractShareId(url) : null
+      if (shareId) {
+        deliverDeepLink(shareId)
+      } else if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+        if (mainWindowRef.isMinimized()) mainWindowRef.restore()
+        mainWindowRef.focus()
+      }
+    })
+  }
+
+  // macOS delivers the link via this event (both cold-start and while already running) instead of argv.
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    const shareId = extractShareId(url)
+    if (shareId) deliverDeepLink(shareId)
+  })
+
+  // Windows/Linux cold start: the link arrives as a plain argv entry on this FIRST instance itself
+  // (there's no earlier instance yet to fire 'second-instance').
+  const coldStartUrl = process.argv.find(arg => arg.startsWith('tlibuilder://'))
+  if (coldStartUrl) {
+    const shareId = extractShareId(coldStartUrl)
+    if (shareId) pendingDeepLinkShareId = shareId
+  }
+}
+
 ipcMain.on('dirty-change', (_event, dirty: boolean) => { isDirtyMain = dirty })
 
 const log = (...args: unknown[]) => { if (isVerbose) console.log('[main]', ...args) }
@@ -341,6 +415,9 @@ function createWindow(): void {
     },
   })
 
+  mainWindowRef = mainWindow
+  mainWindow.on('closed', () => { if (mainWindowRef === mainWindow) mainWindowRef = null })
+
   mainWindow.removeMenu()
 
   mainWindow.on('close', async (e) => {
@@ -379,7 +456,13 @@ function createWindow(): void {
     if (isDev && isVerbose) mainWindow.webContents.openDevTools({ mode: 'detach' })
   }
   mainWindow.once('ready-to-show', showWindow)
-  mainWindow.webContents.once('did-finish-load', showWindow)
+  mainWindow.webContents.once('did-finish-load', () => {
+    showWindow()
+    if (pendingDeepLinkShareId) {
+      mainWindow.webContents.send('deep-link-share', pendingDeepLinkShareId)
+      pendingDeepLinkShareId = null
+    }
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     safeOpenExternal(details.url)
