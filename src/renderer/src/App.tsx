@@ -792,16 +792,19 @@ function App() {
 
   if (screen === 'build-select') {
     return (
-      <div className="app-shell">
-        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
-        <BuildSelectScreen
-          onNewBuild={startNewBuild}
-          onOpenBuild={openBuild}
-          devMode={devMode}
-          onDevTools={() => setScreen('dev-tools')}
-          onOpenVerification={() => setScreen('verification')}
-        />
-      </div>
+      <>
+        <div className="app-shell">
+          {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
+          <BuildSelectScreen
+            onNewBuild={startNewBuild}
+            onOpenBuild={openBuild}
+            devMode={devMode}
+            onDevTools={() => setScreen('dev-tools')}
+            onOpenVerification={() => setScreen('verification')}
+          />
+        </div>
+        {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
+      </>
     )
   }
 

@@ -659,8 +659,14 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               : 'Check for Update'}
           </button>
         </div>}
-        {/* Row 2: Settings + About. */}
+        {/* Row 2: Help and app settings. */}
         <div className="build-select-footer-actions">
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => window.dispatchEvent(new CustomEvent('tli-report-prepared'))}
+          >
+            ⚑ Report a bug
+          </button>
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => setSettingsOpen(true)}
