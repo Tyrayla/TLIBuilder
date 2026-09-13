@@ -84,3 +84,29 @@ export function shareBuildCode(code: string): Promise<{ id: string; url: string 
 export function fetchSharedBuildCode(id: string): Promise<string> {
   return getFromShareService(`/b/${id}`)
 }
+
+export interface BugReportRequest {
+  category: string
+  runtime: string
+  form_factor: string
+  transport: string
+  app_version: string
+  season?: string
+  error_code?: string
+  operation?: string
+  fingerprint?: string
+  description: string
+  reproduction_steps?: string
+  discord_username?: string
+  diagnostics: Record<string, unknown>
+  build_snapshot?: Record<string, unknown>
+}
+
+export async function submitBugReport(report: BugReportRequest): Promise<{ reportId: string }> {
+  const result = await postToShareService<{ reportId?: string, report_id?: string }>('/v1/reports', report)
+  const reportId = result.reportId ?? result.report_id
+  if (!reportId || !/^TLI-RPT-[A-Z0-9]{8}$/.test(reportId)) {
+    throw new Error('Report service returned an invalid receipt.')
+  }
+  return { reportId }
+}

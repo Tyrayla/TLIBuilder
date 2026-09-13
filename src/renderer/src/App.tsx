@@ -18,6 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import PerfProfiler, { PERF_ENABLED } from './components/PerfProfiler'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
+import ReportModal from './components/ReportModal'
 import HeroTraitScreen from './screens/HeroTraitScreen'
 import PactSpiritScreen from './screens/PactSpiritScreen'
 import NotesScreen from './screens/NotesScreen'
@@ -115,6 +116,8 @@ const KEEPALIVE_SCREENS: Screen[] = [
 function App() {
   const [appReady, setAppReady] = useState(false)
   const [appError, setAppError] = useState<TliErrorPayload | null>(null)
+  const [reportError, setReportError] = useState<TliErrorPayload | undefined>(undefined)
+  const [reportOpen, setReportOpen] = useState(false)
   const [screen, setScreen] = useState<Screen>('build-select')
   // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
   const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
@@ -126,6 +129,14 @@ function App() {
       setVisitedKeepAlive(prev => (prev.has(screen) ? prev : new Set(prev).add(screen)))
     }
   }, [screen])
+  useEffect(() => {
+    const openPreparedReport = (event: Event) => {
+      setReportError((event as CustomEvent<TliErrorPayload>).detail)
+      setReportOpen(true)
+    }
+    window.addEventListener('tli-report-prepared', openPreparedReport)
+    return () => window.removeEventListener('tli-report-prepared', openPreparedReport)
+  }, [])
   // Perf-spec drivers (gated on PERF_ENABLED) — let the E2E perf harness drive navigation + recompute
   // edits deterministically, without fragile UI selectors. Absent entirely in a normal (unflagged) run.
   useEffect(() => {
@@ -953,6 +964,7 @@ function App() {
         </div>
       </div>
       {cascadeOverlay}
+      {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
       {unsavedPromptOpen && (
         <div className="modal-backdrop">
           <div className="modal-card" onClick={e => e.stopPropagation()}>

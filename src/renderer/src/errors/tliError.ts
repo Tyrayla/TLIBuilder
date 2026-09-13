@@ -122,7 +122,6 @@ export function recordReportableDiagnostic(error: TliErrorPayload): void {
 export function prepareReport(error: TliErrorPayload): void {
   recordReportableDiagnostic(error)
   window.dispatchEvent(new CustomEvent('tli-report-prepared', { detail: error }))
-  window.alert('Problem details are prepared. Report submission will be available when the reporting service is enabled.')
 }
 
 export function getReportableDiagnostics(): readonly TliErrorPayload[] {
