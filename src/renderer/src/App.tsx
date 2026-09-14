@@ -18,6 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import PerfProfiler, { PERF_ENABLED } from './components/PerfProfiler'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
+import ReportModal from './components/ReportModal'
 import HeroTraitScreen from './screens/HeroTraitScreen'
 import PactSpiritScreen from './screens/PactSpiritScreen'
 import NotesScreen from './screens/NotesScreen'
@@ -32,6 +33,7 @@ import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
 import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
+import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
 
@@ -113,7 +115,9 @@ const KEEPALIVE_SCREENS: Screen[] = [
 
 function App() {
   const [appReady, setAppReady] = useState(false)
-  const [appError, setAppError] = useState('')
+  const [appError, setAppError] = useState<TliErrorPayload | null>(null)
+  const [reportError, setReportError] = useState<TliErrorPayload | undefined>(undefined)
+  const [reportOpen, setReportOpen] = useState(false)
   const [screen, setScreen] = useState<Screen>('build-select')
   // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
   const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
@@ -125,6 +129,14 @@ function App() {
       setVisitedKeepAlive(prev => (prev.has(screen) ? prev : new Set(prev).add(screen)))
     }
   }, [screen])
+  useEffect(() => {
+    const openPreparedReport = (event: Event) => {
+      setReportError((event as CustomEvent<TliErrorPayload>).detail)
+      setReportOpen(true)
+    }
+    window.addEventListener('tli-report-prepared', openPreparedReport)
+    return () => window.removeEventListener('tli-report-prepared', openPreparedReport)
+  }, [])
   // Perf-spec drivers (gated on PERF_ENABLED) — let the E2E perf harness drive navigation + recompute
   // edits deterministically, without fragile UI selectors. Absent entirely in a normal (unflagged) run.
   useEffect(() => {
@@ -214,7 +226,7 @@ function App() {
           })
         useReferenceStore.getState().loadReferenceData()
       })
-      .catch(e => setAppError(String(e)))
+      .catch(e => setAppError(normalizeError(e, 'TLI-BOOT-001', 'app.startup').payload))
   }, [])
 
   useEffect(() => {
@@ -287,14 +299,25 @@ function App() {
 
   if (!appReady) {
     return (
+      <>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: '100%', background: '#1a1a2e',
         color: appError ? '#ff6b6b' : '#888', flexDirection: 'column', gap: 8,
       }}>
-        <span>{appError || 'Starting backend…'}</span>
-        {appError && <pre style={{ fontSize: 11, color: '#555' }}>{appError}</pre>}
+        <span>{appError ? `${appError.title} (${appError.code})` : 'Starting backend…'}</span>
+        {appError && <>
+          <span>{appError.message}</span>
+          {appError.remediation && <span>{appError.remediation}</span>}
+          <div>
+            <button className="btn" onClick={() => void navigator.clipboard?.writeText(copyableErrorDetails(appError))}>Copy details</button>
+            {appError.retryable && <button className="btn" style={{ marginLeft: 8 }} onClick={() => window.location.reload()}>Retry</button>}
+            <button className="btn" style={{ marginLeft: 8 }} onClick={() => prepareReport(appError)}>Report this problem</button>
+          </div>
+        </>}
       </div>
+      {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
+      </>
     )
   }
 
@@ -772,16 +795,19 @@ function App() {
 
   if (screen === 'build-select') {
     return (
-      <div className="app-shell">
-        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
-        <BuildSelectScreen
-          onNewBuild={startNewBuild}
-          onOpenBuild={openBuild}
-          devMode={devMode}
-          onDevTools={() => setScreen('dev-tools')}
-          onOpenVerification={() => setScreen('verification')}
-        />
-      </div>
+      <>
+        <div className="app-shell">
+          {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
+          <BuildSelectScreen
+            onNewBuild={startNewBuild}
+            onOpenBuild={openBuild}
+            devMode={devMode}
+            onDevTools={() => setScreen('dev-tools')}
+            onOpenVerification={() => setScreen('verification')}
+          />
+        </div>
+        {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
+      </>
     )
   }
 
@@ -944,6 +970,7 @@ function App() {
         </div>
       </div>
       {cascadeOverlay}
+      {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
       {unsavedPromptOpen && (
         <div className="modal-backdrop">
           <div className="modal-card" onClick={e => e.stopPropagation()}>

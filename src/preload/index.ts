@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('api', {
   getPythonPort: (): Promise<number> => ipcRenderer.invoke('get-python-port'),
   apiRequest: (method: string, path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: unknown }> =>
     ipcRenderer.invoke('api-request', { method, path, body }),
+  reportRequest: (body: unknown): Promise<{ ok: boolean; status: number; data: unknown }> =>
+    ipcRenderer.invoke('report-request', body),
   getIsDev: (): Promise<boolean> => ipcRenderer.invoke('get-is-dev'),
   isVerbose: process.env.VERBOSE === 'true',
   notifyDirty: (dirty: boolean) => ipcRenderer.send('dirty-change', dirty),

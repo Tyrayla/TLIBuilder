@@ -226,6 +226,17 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {f"{dtype}_dmg_flat_per_{attr}_unit"
                  for dtype in ("physical", "fire", "cold", "lightning", "erosion")
                  for attr in ("strength", "dexterity", "intelligence")}
+    # Scoped sibling (Tower Sequence: "Adds A-B <Type> Damage to Attacks per N <Attribute>" — a local
+    # weapon mod, credited to only the scoped class instead of both; see engine.compute's per-class fold).
+    consumed |= {f"{dtype}_{cls}_dmg_flat_{mm}_per_{attr}"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")
+                 for cls in ("attack", "spell")
+                 for mm in ("min", "max")}
+    consumed |= {f"{dtype}_{cls}_dmg_flat_per_{attr}_unit"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")
+                 for cls in ("attack", "spell")}
     # Compensatory Life: increased Spell Damage + Mana Regeneration Speed per Mana consumed — folded in-loop into the
     # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
     consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",

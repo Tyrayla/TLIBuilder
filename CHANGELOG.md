@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-09-13
+
+### Bug fixes
+- **Fixed: Tower Sequence's "Adds Damage to Attacks/Spells per N Strength/Dexterity/Intelligence" weapon nodes resolved to a flat, non-scaling amount instead of scaling with the attribute.** A parser regex swallowed the "...to Attacks" portion of the text before the attribute-scaling logic ever saw it. The scaling now applies correctly and is credited only to the specific Attacks/Spells the text names — unlike Ralph's Burial/Magnus' Jealousy's similar-looking but unscoped mod, which owner-confirmed applies to both. Recorded as unverified pending in-game confirmation. **Known remaining gap:** Tower Sequence also has an "Adds Physical Damage to Attacks per 2260 Armor" variant that hits the same underlying truncation bug and is NOT fixed by this change — tracked separately, since Armor's total isn't available at the same point in the calculation the Strength/Dexterity/Intelligence totals are.
+- **Fixed: Seething Silhouette's Seething Spirit summon didn't scale with +Main Skill Level bonuses (gear/support/talent).** The base skill level itself always scaled Spirit's damage correctly, in lockstep with the player — only a bonus stat that raises the level further was being dropped for Spirit specifically. Spirit now inherits the same effective-level treatment as the player's own hit.
+
+### Support
+- **Report a bug directly from the app.** The build sidebar and start screen now open a structured report form for calculation, data, and app-behavior issues. Reports include the selected category, expected and actual behavior, optional reproduction steps and Discord username, plus a deliberately bounded diagnostic/build snapshot only when you opt in. They are sent through the desktop IPC path to the private operator inbox, never exposed through a public read API.
+
 ## [0.6.6] - 2026-09-08
 
 ### Engine & DPS

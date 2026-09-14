@@ -49,7 +49,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | "The base main stat no longer additionally increases damage" companion line | — | condition, damage-pool | ⚠️ Unverified | — | [main-stat-damage-bonus-override.md](main-stat-damage-bonus-override.md) |
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
 | Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
-| Attribute-Scaled Added Elemental Damage ("Adds A-B Damage per N Strength/Dexterity") | — | breakpoint, step-function, damage-pool | ⚠️ Unverified | — | [attribute-scaled-added-damage.md](attribute-scaled-added-damage.md) |
+| Attribute-Scaled Added Elemental Damage ("Adds A-B Damage [to Attacks/Spells] per N Strength/Dexterity") | — | breakpoint, step-function, damage-pool | ⚠️ Unverified | — | [attribute-scaled-added-damage.md](attribute-scaled-added-damage.md) |
 | Barrier (Six Gods' Blessing) | — | defense, barrier, absorb | ⚠️ Unverified | — | [barrier.md](barrier.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
 | Chance to Avoid Damage (incl. Blur) | — | defense, avoidance, blur | ⚠️ Unverified | — | [chance-to-avoid-damage.md](chance-to-avoid-damage.md) |

@@ -245,6 +245,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       <div className="sidebar-divider" />
 
       <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => nav('import-export')} />
+      <NavBtn label="⚑ Report a bug" active={false} onClick={() => window.dispatchEvent(new CustomEvent('tli-report-prepared'))} />
       {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 

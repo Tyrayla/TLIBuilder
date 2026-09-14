@@ -1,10 +1,14 @@
 import argparse
+import hashlib
+import logging
 import json
 import os
 import re
 import socket
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -121,6 +125,83 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+_LOG = logging.getLogger(__name__)
+
+_ERROR_REGISTRY: dict[str, dict[str, object]] = {
+    "TLI-BOOT-001": {"title": "The local backend did not start", "remediation": "Restart TLI Builder and try again.", "retryable": True},
+    "TLI-NET-001": {"title": "A required service cannot be reached", "remediation": "Check your connection, then retry.", "retryable": True},
+    "TLI-DATA-001": {"title": "Required game data is unavailable", "remediation": "Select or import a season, then try again.", "retryable": False},
+    "TLI-BUILD-001": {"title": "This build code cannot be imported", "remediation": "Check the code and make sure it was copied completely.", "retryable": False},
+    "TLI-CALC-001": {"title": "Calculation cannot model this build", "remediation": "Adjust the affected setting, or use a different configuration.", "retryable": False},
+    "TLI-SHARE-001": {"title": "The shared build could not be loaded", "remediation": "Check the link and your connection, then try again.", "retryable": True},
+    "TLI-UI-001": {"title": "The app encountered an unexpected screen error", "remediation": "Save a recovery code, then reload the app.", "retryable": True},
+    "TLI-UNEXPECTED-001": {"title": "Something unexpected went wrong", "remediation": "Try again. If this continues, copy the details for a bug report.", "retryable": True},
+}
+
+
+def _error_detail(code: str, operation: str, message: str | None = None, *, retryable: bool | None = None) -> dict[str, object]:
+    entry = _ERROR_REGISTRY[code]
+    safe_message = message or str(entry["title"])
+    # Group equivalent failures without retaining a traceback or volatile values (ids, numbers, paths).
+    fingerprint_source = re.sub(r"\b[0-9a-f]{8,}\b|\d+", "#", f"{code}|{operation}|{safe_message}".lower())
+    return {
+        "code": code,
+        "title": entry["title"],
+        "message": safe_message,
+        "remediation": entry["remediation"],
+        "operation": operation,
+        "retryable": entry["retryable"] if retryable is None else retryable,
+        "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()[:16],
+    }
+
+
+def _error_code_for_request(request: Request) -> str:
+    path = request.url.path
+    if "/build-code/" in path:
+        return "TLI-BUILD-001"
+    if "season" in path or path in {"/api/trees", "/api/skills"}:
+        return "TLI-DATA-001"
+    return "TLI-UNEXPECTED-001"
+
+
+@app.middleware("http")
+async def _attach_request_id(request: Request, call_next):
+    request.state.request_id = uuid.uuid4().hex
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
+
+@app.exception_handler(HTTPException)
+async def _structured_http_exception(request: Request, exc: HTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict) and isinstance(detail.get("code"), str):
+        payload = dict(detail)
+    else:
+        code = _error_code_for_request(request)
+        # Existing endpoints may interpolate request values into HTTPException.detail. Do not copy
+        # those values into player-visible diagnostics; deliberately typed errors above are the only
+        # messages that cross this boundary.
+        payload = _error_detail(code, f"http.{request.method.lower()}.{request.url.path.removeprefix('/api/').replace('/', '.')}")
+    payload["requestId"] = request.state.request_id
+    return JSONResponse({"error": payload}, status_code=exc.status_code, headers={"X-Request-ID": request.state.request_id})
+
+
+@app.exception_handler(RequestValidationError)
+async def _structured_validation_exception(request: Request, _exc: RequestValidationError):
+    code = _error_code_for_request(request)
+    payload = _error_detail(code, f"http.{request.method.lower()}.{request.url.path.removeprefix('/api/').replace('/', '.')}", "The request has an invalid format.", retryable=False)
+    payload["requestId"] = request.state.request_id
+    return JSONResponse({"error": payload}, status_code=422, headers={"X-Request-ID": request.state.request_id})
+
+
+@app.exception_handler(Exception)
+async def _structured_unexpected_exception(request: Request, exc: Exception):
+    _LOG.exception("Unhandled backend error (request_id=%s)", request.state.request_id, exc_info=exc)
+    payload = _error_detail("TLI-UNEXPECTED-001", f"http.{request.method.lower()}.{request.url.path.removeprefix('/api/').replace('/', '.')}")
+    payload["requestId"] = request.state.request_id
+    return JSONResponse({"error": payload}, status_code=500, headers={"X-Request-ID": request.state.request_id})
 
 app.add_middleware(
     CORSMiddleware,
@@ -577,7 +658,9 @@ def encode_build_code(req: BuildCodeEncodeRequest):
         code = _build_code.encode_build(req.build)
         return {"code": code}
     except Exception:
-        raise HTTPException(status_code=400, detail="Failed to encode build.")
+        raise HTTPException(status_code=400, detail=_error_detail(
+            "TLI-BUILD-001", "build-code.encode", "This build could not be encoded."
+        ))
 
 
 @app.post("/api/build-code/decode")
@@ -589,7 +672,9 @@ def decode_build_code(req: BuildCodeDecodeRequest):
         build = _build_code.decode_build(req.code, gear_items)
         return {"build": build}
     except _build_code.BuildCodeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=_error_detail(
+            "TLI-BUILD-001", "build-code.decode", str(exc)
+        ))
 
 
 # ── Engine ─────────────────────────────────────────────────────────────────────
@@ -1074,7 +1159,9 @@ def engine_stats(req: EngineStatsRequest):
         # ValueError — an unrelated internal ValueError (a real bug, not a build-state guardrail) must
         # keep falling through as a 500 with a server-side traceback, not get silently relabeled as
         # if the user's build were the cause.
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=_error_detail(
+            "TLI-CALC-001", "engine.stats", str(exc), retryable=False
+        ))
     return {
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,

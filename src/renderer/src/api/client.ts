@@ -4,6 +4,7 @@
 // `import { getShareBase } from './client'` callers keep working.
 import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
 import { dec } from '../utils/num'
+import { errorFromResponse, normalizeError, TliError, type TliErrorCode } from '../errors/tliError'
 
 let BASE = ''
 let ipcMode = false
@@ -132,12 +133,10 @@ export async function initApi(): Promise<void> {
 // A failed request's message, preferring the backend's own explanation (FastAPI's HTTPException
 // body is {"detail": "..."}) over the bare "METHOD /path → status" fallback, so a guardrail like
 // ImmunityThresholdError reaches the user as the real reason instead of an opaque status code.
-function errorMessage(method: string, path: string, status: number, body: unknown): string {
-  if (body && typeof body === 'object' && 'detail' in body) {
-    const detail = (body as { detail: unknown }).detail
-    if (typeof detail === 'string' && detail) return detail
-  }
-  return `${method} ${path} → ${status}`
+function responseError(method: string, path: string, status: number, body: unknown): TliError {
+  const operation = `api.${method.toLowerCase()}.${path.replace(/^\//, '').replaceAll('/', '.')}`
+  const code: TliErrorCode = status === 0 ? 'TLI-NET-001' : 'TLI-UNEXPECTED-001'
+  return errorFromResponse(body, code, operation, `${method} ${path} failed (${status})`, true)
 }
 
 async function get<T>(path: string, retries = 4): Promise<T> {
@@ -145,15 +144,23 @@ async function get<T>(path: string, retries = 4): Promise<T> {
   const staticUrl = staticCatalogUrl(path)
   if (staticUrl) {
     rlog(`GET (static) ${staticUrl}`)
+    try {
     const res = await fetch(staticUrl)
     if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
     return res.json()
+    } catch (error) {
+      const code: TliErrorCode = error instanceof TypeError
+        || (error instanceof DOMException && error.name === 'AbortError')
+        ? 'TLI-NET-001'
+        : 'TLI-DATA-001'
+      throw normalizeError(error, code, `static.get.${path.replace(/^\//, '').replaceAll('/', '.')}`)
+    }
   }
   if (webCompute && webApi) return webApi.webApiRequest<T>('GET', `/api${path}`)
   if (ipcMode) {
     rlog(`GET (IPC) ${path}`)
     const result = await window.api!.apiRequest('GET', path) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(errorMessage('GET', path, result.status, result.data))
+    if (!result.ok) throw responseError('GET', path, result.status, result.data)
     return result.data
   }
   const url = `${BASE}${path}`
@@ -162,12 +169,12 @@ async function get<T>(path: string, retries = 4): Promise<T> {
     try {
       const res = await fetch(url)
       rlog(`GET ${url} — status ${res.status}`)
-      if (!res.ok) throw new Error(errorMessage('GET', path, res.status, await res.json().catch(() => null)))
+      if (!res.ok) throw responseError('GET', path, res.status, await res.json().catch(() => null))
       return await res.json()
     } catch (e) {
       const isNetwork = e instanceof TypeError
       rerr(`GET ${url} — error (isNetwork=${isNetwork}): ${e}`)
-      if (!isNetwork || attempt === retries) throw e
+      if (!isNetwork || attempt === retries) throw normalizeError(e, 'TLI-NET-001', `api.get.${path.replace(/^\//, '').replaceAll('/', '.')}`)
       const delay = 400 * (attempt + 1)
       rlog(`GET ${url} — retrying in ${delay}ms`)
       await new Promise(r => setTimeout(r, delay))
@@ -181,11 +188,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`POST (IPC) ${path}`)
     const result = await window.api!.apiRequest('POST', path, body) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(errorMessage('POST', path, result.status, result.data))
+    if (!result.ok) throw responseError('POST', path, result.status, result.data)
     return result.data
   }
   const url = `${BASE}${path}`
   rlog(`POST ${url}`)
+  try {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -193,8 +201,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     signal: AbortSignal.timeout(15000),
   })
   rlog(`POST ${url} — status ${res.status}`)
-  if (!res.ok) throw new Error(errorMessage('POST', path, res.status, await res.json().catch(() => null)))
+  if (!res.ok) throw responseError('POST', path, res.status, await res.json().catch(() => null))
   return res.json()
+  } catch (error) {
+    throw normalizeError(error, 'TLI-NET-001', `api.post.${path.replace(/^\//, '').replaceAll('/', '.')}`)
+  }
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
@@ -202,11 +213,12 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`PUT (IPC) ${path}`)
     const result = await window.api!.apiRequest('PUT', path, body) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(errorMessage('PUT', path, result.status, result.data))
+    if (!result.ok) throw responseError('PUT', path, result.status, result.data)
     return result.data
   }
   const url = `${BASE}${path}`
   rlog(`PUT ${url}`)
+  try {
   const res = await fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -214,8 +226,11 @@ async function put<T>(path: string, body: unknown): Promise<T> {
     signal: AbortSignal.timeout(15000),
   })
   rlog(`PUT ${url} — status ${res.status}`)
-  if (!res.ok) throw new Error(errorMessage('PUT', path, res.status, await res.json().catch(() => null)))
+  if (!res.ok) throw responseError('PUT', path, res.status, await res.json().catch(() => null))
   return res.json()
+  } catch (error) {
+    throw normalizeError(error, 'TLI-NET-001', `api.put.${path.replace(/^\//, '').replaceAll('/', '.')}`)
+  }
 }
 
 async function del<T>(path: string, body?: unknown): Promise<T> {
@@ -223,19 +238,23 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`DELETE (IPC) ${path}`)
     const result = await window.api!.apiRequest('DELETE', path, body) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw new Error(errorMessage('DELETE', path, result.status, result.data))
+    if (!result.ok) throw responseError('DELETE', path, result.status, result.data)
     return result.data
   }
   const url = `${BASE}${path}`
   rlog(`DELETE ${url}`)
+  try {
   const res = await fetch(url, {
     method: 'DELETE',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
   rlog(`DELETE ${url} — status ${res.status}`)
-  if (!res.ok) throw new Error(errorMessage('DELETE', path, res.status, await res.json().catch(() => null)))
+  if (!res.ok) throw responseError('DELETE', path, res.status, await res.json().catch(() => null))
   return res.json()
+  } catch (error) {
+    throw normalizeError(error, 'TLI-NET-001', `api.delete.${path.replace(/^\//, '').replaceAll('/', '.')}`)
+  }
 }
 
 // ── Share service ────────────────────────────────────────────────────────────

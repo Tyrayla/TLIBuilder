@@ -7,7 +7,7 @@ Ritual of Offering player-Disarm zero-out. Unit-tests `apply()`/`spirit_grant()`
 import pytest
 from engine.hero_traits import seething_silhouette as ss
 from server import engine_stats, EngineStatsRequest
-from tests.mock_build import make_request, weapon
+from tests.mock_build import make_request, weapon, DUAL_WEAPONS
 
 SKILL = "chain_lightning"   # a SPELL — cast_speed, not attack_speed; isolates the dmg_additional pool math
 ATTACK_SKILL = "focused_slash"   # a real melee attack skill — needed to exercise attack_speed_additional
@@ -311,3 +311,21 @@ def test_status_lines_warns_channeled_mobility_only_with_spirit_pick():
 def test_status_lines_no_main_skill_warning_when_tags_not_provided():
     s = ss.status_lines(slot_levels=[1, 1, 1, 1], advanced_picks=[])
     assert not any(x["status"] == "warning" for x in s)
+
+
+def test_spirit_offense_inherits_main_skill_level_bonus():
+    """Regression for bug-279: Seething Spirit "casts your own main skill", so a +N Main Skill
+    Level source (gear/support/talent) must raise Spirit's damage too, same as it raises the
+    player's — before the fix, compute.py hardcoded is_main_skill=False for Spirit's independent
+    calculate_offense call, so the main_skill_level stat was never added to Spirit's effective
+    level and its damage stayed frozen while the player's rose."""
+    main_skill_level_gear = [{
+        "item_name": "Test Main Skill Level Source",
+        "contributions": [{"stat": "main_skill_level", "display_value": 3, "unit": "",
+                            "slot": "amulet", "item_name": "Test Main Skill Level Source",
+                            "text": "+3 to Main Skill Level"}],
+    }]
+    baseline = _run(picks=["Fury's Onslaught"])
+    boosted = _run(picks=["Fury's Onslaught"], gear=DUAL_WEAPONS + main_skill_level_gear)
+    assert boosted["offense"]["total_dps_vs_target"] > baseline["offense"]["total_dps_vs_target"]
+    assert _spirit_dps(boosted) > _spirit_dps(baseline)

@@ -1,10 +1,10 @@
 import React from 'react'
+import { copyableErrorDetails, prepareReport, type TliErrorPayload } from '../errors/tliError'
 
-// Surfaces a failed stats calculation on the Calcs/Player Stats screen. Before this, `buildStore.statsError`
-// was set but never read anywhere in the renderer — a failed compute (e.g. the engine's ImmunityThresholdError
-// guard) left the screen looking permanently blank/stale with zero indication anything had gone wrong.
-export function StatsErrorBanner({ message }: { message: string }) {
-  if (!message) return null
+// Keeps a failed calculation visible and actionable instead of leaving stale stats without context.
+export function StatsErrorBanner({ error }: { error: TliErrorPayload | null }) {
+  if (!error) return null
+  const copyDetails = () => void navigator.clipboard?.writeText(copyableErrorDetails(error))
   return (
     <div
       role="alert"
@@ -20,8 +20,12 @@ export function StatsErrorBanner({ message }: { message: string }) {
         flex: '1 0 100%',
       }}
     >
-      <strong>Calculation failed — </strong>
-      <span>the stats below are not up to date. {message}</span>
+      <strong>{error.title} ({error.code}) — </strong>
+      <span>the stats below are not up to date. {error.message}</span>
+      {error.remediation && <div style={{ marginTop: 4, color: 'var(--fg-muted, #9aa)' }}>{error.remediation}</div>}
+      <button className="btn" style={{ marginTop: 8 }} onClick={copyDetails}>Copy details</button>
+      {error.retryable && <button className="btn" style={{ margin: '8px 0 0 8px' }} onClick={() => window.location.reload()}>Retry</button>}
+      <button className="btn" style={{ margin: '8px 0 0 8px' }} onClick={() => prepareReport(error)}>Report this problem</button>
     </div>
   )
 }

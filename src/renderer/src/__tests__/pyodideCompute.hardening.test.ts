@@ -92,15 +92,19 @@ describe('pyodideCompute — worker hardening', () => {
     await expect(promise).resolves.toEqual({ ok: true })
   })
 
-  it('rejects with the backend detail message on a non-2xx response instead of a bare status', async () => {
+  it('preserves the structured backend error on a non-2xx response', async () => {
     const { initPyodideCompute, webApiRequest } = await import('../web/pyodideCompute')
     initPyodideCompute('https://data', 'SS13')
     sendReady(lastWorker())
     const promise = webApiRequest('POST', '/api/engine/stats', {})
     await flush()
     const sent = requestMsgs(lastWorker())[0]
-    sendResult(lastWorker(), sent.id, 422, JSON.stringify({ detail: 'Damage-taken reduction reached immunity (>=100%)...' }))
-    await expect(promise).rejects.toThrow(/immunity/)
+    sendResult(lastWorker(), sent.id, 422, JSON.stringify({ error: {
+      code: 'TLI-CALC-001', title: 'Calculation cannot model this build',
+      message: 'Damage-taken reduction reached immunity (>=100%)...',
+      operation: 'engine.stats', retryable: false,
+    } }))
+    await expect(promise).rejects.toMatchObject({ code: 'TLI-CALC-001' })
   })
 
   it('a request that never gets a reply times out, rejects, and terminates the worker', async () => {
@@ -109,7 +113,7 @@ describe('pyodideCompute — worker hardening', () => {
     initPyodideCompute('https://data', 'SS13')
     sendReady(lastWorker())
     const promise = webApiRequest('POST', '/api/engine/stats', {})
-    const assertion = expect(promise).rejects.toThrow(/timed out/)
+    const assertion = expect(promise).rejects.toMatchObject({ code: 'TLI-BOOT-001' })
     await vi.advanceTimersByTimeAsync(90_000)
     await assertion
     expect(lastWorker().terminated).toBe(true)
@@ -124,7 +128,7 @@ describe('pyodideCompute — worker hardening', () => {
     // p2 is queued behind p1 (requests are serialized) — it hasn't reached any worker yet.
     const p2 = webApiRequest('POST', '/api/engine/stats', { a: 2 })
     lastWorker().onerror?.({ message: 'segfault' })
-    await expect(p1).rejects.toThrow(/crashed/)
+    await expect(p1).rejects.toMatchObject({ code: 'TLI-BOOT-001' })
 
     // p2 doesn't inherit p1's crash silently — it gets its turn against a freshly spun-up worker.
     await flush()
@@ -146,7 +150,7 @@ describe('pyodideCompute — worker hardening', () => {
     lastWorker().onerror?.({ message: 'segfault' })
     // Issued in the same tick as the crash, before p2 has had its turn — must still land BEHIND p2.
     const p3 = webApiRequest('POST', '/api/engine/stats', { tag: 'p3' })
-    await expect(p1).rejects.toThrow(/crashed/)
+    await expect(p1).rejects.toMatchObject({ code: 'TLI-BOOT-001' })
 
     await flush()
     expect(workerInstances.length).toBe(2)   // p2's turn respawned the worker
@@ -175,7 +179,7 @@ describe('pyodideCompute — worker hardening', () => {
     const promise = webApiRequest('POST', '/api/engine/stats', {})
     await flush()
     lastWorker().onmessageerror?.()
-    await expect(promise).rejects.toThrow(/unreadable/)
+    await expect(promise).rejects.toMatchObject({ code: 'TLI-BOOT-001' })
   })
 
   it('recovers on the next call after a crash — a fresh worker is created and the retry can succeed', async () => {

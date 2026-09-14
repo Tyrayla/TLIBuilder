@@ -3806,7 +3806,7 @@ export default function PlayerStatsScreen() {
   return (
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot, selectedSkillTags: new Set((selectedSkill?.skill_tags ?? []).map(tag => tag.toLowerCase())) }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
-        {statsError && <StatsErrorBanner message={statsError} />}
+        {statsError && <StatsErrorBanner error={statsError} />}
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '55', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelectionBar

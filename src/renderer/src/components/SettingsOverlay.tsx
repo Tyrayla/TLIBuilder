@@ -164,6 +164,16 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           </section>
+          <section className="settings-section">
+            <h4 className="settings-section-title">Help</h4>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span>Found a problem?</span>
+                <span className="settings-row-hint">Send a structured bug report without including screenshots or unrelated local data.</span>
+              </div>
+              <button className="settings-seg-btn" onClick={() => window.dispatchEvent(new CustomEvent('tli-report-prepared'))}>Report a bug</button>
+            </div>
+          </section>
         </div>
 
         <div className="modal-actions">

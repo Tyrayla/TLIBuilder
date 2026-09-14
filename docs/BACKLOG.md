@@ -816,9 +816,13 @@ accuracy review surfaced two follow-ups:
    explicit somewhere.
 
 ## 7. Infra / hosting
-- **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently
-  manual `wrangler`/drag-drop of `dist-web/` + `web-data/`); revisit the optional pure-compute extraction below if
-  web init time/payload ever becomes a problem.
+- **Web-hosted version — SHIPPED** (see the top of this doc). **Redeploy automation — SHIPPED
+  (2026-09-08):** the app (`tlibuilder` Pages project) deploys automatically on push to `main` via
+  `.github/workflows/deploy-web.yml`; the data CDN (`tlibuilder-data`) stays a separate manual
+  trigger (`deploy-web-data.yml`, `workflow_dispatch`-only) since a season data refresh and an
+  app-code release are different events with no shared signal in this repo. `deploy-web` skill /
+  `npm run deploy:web[:data]` cover the manual/fallback path. Open follow-up: revisit the optional
+  pure-compute extraction below if web init time/payload ever becomes a problem.
 - **Package size** (deferred): ~280–310 MB; levers filed (gzip data −16 MB, trim PyInstaller −20 MB).
 - **Refactor the `server.py` monolith** (~3300 lines): split into focused modules (affix/line parsing, line→stat
   matcher tables, endpoints, request models) with a **single source of truth for line→stat mapping** so duplicate

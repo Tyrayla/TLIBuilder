@@ -1186,6 +1186,41 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         if stat_key and stat_key.endswith('_flat'):
             return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t, "confident": _conf}]
 
+    # "Adds A-B <Type> Damage [to Attacks/Spells/Attacks and Spells] {per|for every} N <Attribute>" — checked
+    # BEFORE _CUSTOM_ADDS_RE below (which has no end-anchor and would otherwise swallow the "Adds A-B <Type>
+    # Damage to Attacks" prefix of e.g. Tower Sequence's "Adds 2 - 2 Fire Damage to Attacks per 10 Strength"
+    # and silently drop the "per 10 Strength" tail — bug found 2026-09-10, reported as "flat +2, no Strength
+    # scaling"). Two shapes:
+    #   - NO scope word (Ralph's Burial / Magnus' Jealousy — armor pieces; owner-confirmed 2026-09-02: applies
+    #     to BOTH Attacks and Spells, never Minions) → unscoped per-attribute keys, unchanged from before.
+    #   - WITH a "to Attacks/Spells/Attacks and Spells" scope word (Tower Sequence weapon nodes — local
+    #     weapon mods, scoped the same way _CUSTOM_ADDS_RE already scopes its non-attribute-scaling sibling)
+    #     → per-class keys so a "to Attacks"-only line doesn't also credit Spells.
+    # Normalized to per-1-attribute-point + an explicit divisor stat (compute.py folds them back with
+    # floor(attribute_total/divisor), mirroring the per-consumed added-damage folds above). Range-collapsed
+    # copy so the doubly-ranged min/max ("(2-3) - (4-5)") and a possibly-ranged corroded divisor ("per (7-8)
+    # Strength") are all caught.
+    m = re.search(r'adds\s+([\d.]+)\s*-\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+'
+                  r'(?:to\s+(attacks and spells|attacks|spells)\s+)?'
+                  r'(?:per|for\s+every)\s+([\d.]+)\s+(strength|dexterity|intelligence)\b', _tc, re.I)
+    if m:
+        _mn, _mx, _dtype, _dest, _n, _attr = m.groups()
+        _n = float(_n)
+        _dtype, _attr = _dtype.lower(), _attr.lower()
+        if _n > 0:
+            if _dest:
+                _classes = ["attack", "spell"] if _dest.lower() == "attacks and spells" else (
+                    ["attack"] if _dest.lower() == "attacks" else ["spell"])
+                out: list[dict] = []
+                for _cls in _classes:
+                    out.append({"stat_key": f"{_dtype}_{_cls}_dmg_flat_min_per_{_attr}", "amount": float(_mn) / _n, "text": t})
+                    out.append({"stat_key": f"{_dtype}_{_cls}_dmg_flat_max_per_{_attr}", "amount": float(_mx) / _n, "text": t})
+                    out.append({"stat_key": f"{_dtype}_{_cls}_dmg_flat_per_{_attr}_unit", "amount": _n, "text": t})
+                return out
+            return [{"stat_key": f"{_dtype}_dmg_flat_min_per_{_attr}", "amount": float(_mn) / _n, "text": t},
+                    {"stat_key": f"{_dtype}_dmg_flat_max_per_{_attr}", "amount": float(_mx) / _n, "text": t},
+                    {"stat_key": f"{_dtype}_dmg_flat_per_{_attr}_unit", "amount": _n, "text": t}]
+
     # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells/Minions" → flat added damage min+max.
     m = _CUSTOM_ADDS_RE.match(t)
     if m:
@@ -1199,23 +1234,6 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
             out.append({"stat_key": f"{dtype}_{d}_dmg_flat_min", "amount": lo, "text": t})
             out.append({"stat_key": f"{dtype}_{d}_dmg_flat_max", "amount": hi, "text": t})
         return out
-
-    # "Adds A-B <Type> Damage {per|for every} N <Attribute>" (Ralph's Burial / Magnus' Jealousy — armor
-    # pieces with NO "to Attacks/Spells" scope word in the raw text; owner-confirmed 2026-09-02: applies to
-    # BOTH Attacks and Spells, never Minions). Normalized to per-1-attribute-point + an explicit divisor
-    # stat (compute.py folds them back with floor(attribute_total/divisor), mirroring the per-consumed
-    # added-damage folds above). Range-collapsed copy so the doubly-ranged min/max ("(2-3) - (4-5)") and a
-    # possibly-ranged corroded divisor ("per (7-8) Strength") are all caught.
-    m = re.search(r'adds\s+([\d.]+)\s*-\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+'
-                  r'(?:per|for\s+every)\s+([\d.]+)\s+(strength|dexterity|intelligence)\b', _tc, re.I)
-    if m:
-        _mn, _mx, _dtype, _n, _attr = m.groups()
-        _n = float(_n)
-        _dtype, _attr = _dtype.lower(), _attr.lower()
-        if _n > 0:
-            return [{"stat_key": f"{_dtype}_dmg_flat_min_per_{_attr}", "amount": float(_mn) / _n, "text": t},
-                    {"stat_key": f"{_dtype}_dmg_flat_max_per_{_attr}", "amount": float(_mx) / _n, "text": t},
-                    {"stat_key": f"{_dtype}_dmg_flat_per_{_attr}_unit", "amount": _n, "text": t}]
 
     # "The base main stat/attribute no longer additionally increases damage[. -N% additional <A> and
     # <B>][ +(X-Y) <C>]" (Ralph's Journey/Burial, Magnus' Jealousy/Scar companion line — owner-confirmed
