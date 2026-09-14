@@ -467,6 +467,7 @@
         "name": "Sweep Slash",
         "nyi": [],
         "proc_chance": 0.8,
+        "proc_stat_key": "_complement_steep_strike_chance",
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       },
@@ -499,6 +500,7 @@
         "name": "Steep Strike",
         "nyi": [],
         "proc_chance": 0.2,
+        "proc_stat_key": "steep_strike_chance",
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
@@ -590,6 +592,7 @@
     "spirit_magi_max": 0,
     "spirit_magi_physique_inc": 0.0,
     "spirit_magi_stage": 0,
+    "steep_strike_additional_dmg": 0.34840000000000004,
     "steep_strike_chance": 0.2,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -815,6 +818,7 @@
           "name": "Sweep Slash",
           "nyi": [],
           "proc_chance": 0.8,
+          "proc_stat_key": "_complement_steep_strike_chance",
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         },
@@ -847,6 +851,7 @@
           "name": "Steep Strike",
           "nyi": [],
           "proc_chance": 0.2,
+          "proc_stat_key": "steep_strike_chance",
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         }
@@ -938,6 +943,7 @@
       "spirit_magi_max": 0,
       "spirit_magi_physique_inc": 0.0,
       "spirit_magi_stage": 0,
+      "steep_strike_additional_dmg": 0.34840000000000004,
       "steep_strike_chance": 0.2,
       "supported": true,
       "tangle_attach_range": 0.0,
@@ -1493,7 +1499,7 @@
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": null,
+          "source_name": "Berserking Blade: Sweep (Magnificent)",
           "source_type": "support",
           "text": "+0.43% additional Skill Area per buff \u00d740 |bb|sweep"
         }
@@ -1512,7 +1518,7 @@
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": null,
+          "source_name": "Berserking Blade",
           "source_type": "skill",
           "text": "+2.5% Skill Area per buff stack \u00d740 |bb|buff"
         }
@@ -1531,7 +1537,7 @@
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": null,
+          "source_name": "Berserking Blade: Rampage (Noble)",
           "source_type": "support",
           "text": "Skill Area bonus \u2192 +34.8% additional Steep Strike Damage |bb|rampage"
         }

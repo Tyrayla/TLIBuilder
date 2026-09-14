@@ -1058,6 +1058,23 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                     </td>
                   })}
                 </tr>
+                {/* Steep Strike's own additional-damage multiplier (e.g. Berserking Blade Rampage's skill-
+                    area share) is FORM-SCOPED — it applies only to this one form, never the skill's other
+                    forms, so it's excluded from the generic/per-type Total Additional panels above and
+                    shown here instead, next to the one form it actually affects. */}
+                {form?.proc_stat_key === 'steep_strike_chance' && Math.abs(offense.steep_strike_additional_dmg ?? 0) >= 0.005 && (
+                  <tr>
+                    <td style={tdLbl}>Additional Damage</td>
+                    <td style={td}>
+                      <Breakdown title="Additional Steep Strike Damage" keys={['steep_strike_additional_dmg']}
+                        total={offense.steep_strike_additional_dmg} totalUnit="%"
+                        formula="Σ Additional Steep Strike Damage — applies ONLY to this form">
+                        {fmtSignedPct(offense.steep_strike_additional_dmg ?? 0)}
+                      </Breakdown>
+                    </td>
+                    {ALL_DTYPES.map(d => <td key={d} style={tdDim}>—</td>)}
+                  </tr>
+                )}
                 <tr>
                   <td style={tdLbl}>DPS</td>
                   <td style={{ ...td, color: '#f0c070' }}>{fmtNum(row.dps_vs_target_final)}</td>

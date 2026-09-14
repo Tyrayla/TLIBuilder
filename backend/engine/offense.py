@@ -923,6 +923,11 @@ class HitFormResult:
     # Used to surface a minion's non-damage abilities (Empower buffs, locked Ultimates) as visible, selectable
     # forms in the form dropdown rather than hiding them (never-silently-drop).
     nyi: list[str] = field(default_factory=list)
+    # The SkillHitForm's own proc_stat_key (e.g. "steep_strike_chance") — a stable identifier for "which form
+    # is this" beyond its display name (parsed from in-game text, not guaranteed unique/stable across skills).
+    # Lets the frontend match a form-scoped multiplier (e.g. OffenseResult.steep_strike_additional_dmg) to the
+    # ONE form it actually applies to, without string-matching on `name`. None for a form with no proc key.
+    proc_stat_key: str | None = None
 
 
 @dataclass
@@ -1025,6 +1030,12 @@ class OffenseResult:
     quad_dmg_chance: float = 0.0
     double_dmg_factor: float = 1.0
     steep_strike_chance: float = 0.0
+    # Additional Steep Strike Damage (Berserking Blade Rampage's skill-area share, or a direct node/gear
+    # source) — a FORM-SCOPED multiplier (see _FORM_SCOPED_ADDITIONAL), so it's surfaced here explicitly
+    # rather than folded into generic_add/type_add (it does NOT apply to the skill's other forms, e.g.
+    # Sweep Slash). The fraction (0.15 = +15%), 0.0 when the skill has no steep-strike form at all. Displayed
+    # by matching a HitFormResult whose proc_stat_key == "steep_strike_chance".
+    steep_strike_additional_dmg: float = 0.0
     skills_per_second: float = 0.0
     base_cast_time: float = 0.0        # spell base cast time (seconds); 0 for attacks (weapon-APS driven)
     total_dps: float = 0.0
@@ -2259,6 +2270,7 @@ def calculate_offense(
             shotgun_mult=form_shotgun,
             base_min_by_type={t: mn for t, (mn, _) in form_base.items()},
             base_max_by_type={t: mx for t, (_, mx) in form_base.items()},
+            proc_stat_key=form.proc_stat_key,
         ))
 
         # Chilling Spike (Icebound canvas support): its extra penetrating blades — split off Icy Blade into their
@@ -2823,6 +2835,7 @@ def calculate_offense(
         crit_multiplier=crit_mult,
         double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,
         steep_strike_chance=steep_chance,
+        steep_strike_additional_dmg=(steep_add_mult - 1.0) if _has_steep_form else 0.0,
         skills_per_second=sps,
         base_cast_time=base_cast_time,
         total_dps=total_dps,

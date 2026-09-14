@@ -855,6 +855,10 @@ export interface HitFormResult {
   // Non-empty → this form is NOT-YET-IMPLEMENTED (0 DPS, excluded from % of Total); the strings are the reasons.
   // Surfaces a minion's non-damage abilities (Empower buffs / locked Ultimates) as visible, selectable forms.
   nyi?: string[]
+  // Stable identifier for "which form is this" (e.g. "steep_strike_chance") — matches a form-scoped
+  // multiplier on OffenseResult (e.g. steep_strike_additional_dmg) to the ONE form it applies to, without
+  // string-matching on `name` (parsed from in-game text, not a stable key). null/undefined = no proc key.
+  proc_stat_key?: string | null
 }
 
 // One row of the engine-owned breakdown table (backend/engine/offense.py DamageRow) - the reconciliation
@@ -899,6 +903,11 @@ export interface OffenseResult {
   quad_dmg_chance?: number
   double_dmg_factor?: number       // expected-value damage multiplier folded into DPS (1.0 = none)
   steep_strike_chance: number
+  // Additional Steep Strike Damage (e.g. Berserking Blade Rampage's skill-area share) — a FORM-SCOPED
+  // multiplier, NOT folded into generic_add/type_add (it applies only to the form whose proc_stat_key is
+  // "steep_strike_chance", never the skill's other forms). Fraction (0.15 = +15%); 0 when the skill has no
+  // steep-strike form.
+  steep_strike_additional_dmg?: number
   skills_per_second: number
   base_cast_time: number
   total_dps: number

@@ -449,6 +449,7 @@
         "name": "Split Shot",
         "nyi": [],
         "proc_chance": 1.0,
+        "proc_stat_key": null,
         "shotgun_falloff": 0.77,
         "shotgun_mult": 3.07
       }
@@ -539,6 +540,7 @@
     "spirit_magi_max": 0,
     "spirit_magi_physique_inc": 0.0,
     "spirit_magi_stage": 0,
+    "steep_strike_additional_dmg": 0.0,
     "steep_strike_chance": 0.0,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -740,6 +742,7 @@
           "name": "Split Shot",
           "nyi": [],
           "proc_chance": 1.0,
+          "proc_stat_key": null,
           "shotgun_falloff": 0.77,
           "shotgun_mult": 3.07
         }
@@ -830,6 +833,7 @@
       "spirit_magi_max": 0,
       "spirit_magi_physique_inc": 0.0,
       "spirit_magi_stage": 0,
+      "steep_strike_additional_dmg": 0.0,
       "steep_strike_chance": 0.0,
       "supported": true,
       "tangle_attach_range": 0.0,

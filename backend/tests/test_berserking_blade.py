@@ -147,6 +147,66 @@ class TestSteepStrikeFormScoped:
         assert rd["Sweep Slash"]["avg_hit_pre_crit"] == pytest.approx(bd["Sweep Slash"]["avg_hit_pre_crit"])
 
 
+class TestRampageBreakdownDisplay:
+    """Regression: Rampage's steep_strike_additional_dmg contribution was completely invisible in the UI —
+    it's deliberately excluded from the generic dmg_additional pool (a FORM-SCOPED multiplier, applying
+    only to the Steep Strike form, not Sweep Slash), so it never showed in the "Total Additional" panel,
+    and OffenseResult carried no field at all for a caller to read its value. Now surfaced via a dedicated
+    `offense.steep_strike_additional_dmg` field plus a `steep_strike_additional_dmg` stat_map entry (tracked
+    via add_slotted, same mechanism as every other slot-local skill self-buff)."""
+
+    def test_steep_strike_additional_dmg_field_populated(self):
+        no_rampage = _run()["offense"]
+        assert no_rampage.get("steep_strike_additional_dmg", 0.0) == pytest.approx(0.0)
+        r = _run(supports=[_RAMP])["offense"]
+        assert r["steep_strike_additional_dmg"] > 0.0
+
+    def test_steep_strike_additional_dmg_surfaced_in_stat_map(self):
+        resp = _run(supports=[_RAMP])
+        stat_map = resp["stats"]["steep_strike_additional_dmg"]
+        rows = stat_map.get("slot_sources") or []
+        rampage_rows = [s for s in rows if s["label"] == "Berserking Blade: Rampage"]
+        assert len(rampage_rows) == 1
+        assert rampage_rows[0]["amount"] == pytest.approx(resp["offense"]["steep_strike_additional_dmg"])
+        # source_name matches Rampage's own catalog name (support_resolver.py's generic-path convention —
+        # label=name, source_name=name) so the breakdown's Source Name column shows a clean identity
+        # instead of falling back to the full descriptive `text`, and the rich support-tooltip hover
+        # (ctx.skillsByName[source_name] on the frontend) actually finds this support.
+        assert rampage_rows[0]["source_name"] == "Berserking Blade: Rampage (Noble)"
+
+    def test_hit_forms_carry_proc_stat_key_for_matching(self):
+        forms = _run()["offense"]["hit_forms"]
+        by_name = {f["name"]: f for f in forms}
+        assert by_name["Steep Strike"]["proc_stat_key"] == "steep_strike_chance"
+        assert by_name["Sweep Slash"]["proc_stat_key"] == "_complement_steep_strike_chance"
+
+
+class TestSourceNamePopulated:
+    """Regression: every SourceEntry this module emits (self-buff, Sweep, Rampage, Desperation) left
+    `source_name` as None, leaning on `label` for the display name instead — inconsistent with
+    support_resolver.py's own generic-path convention (label=name, source_name=name, e.g.
+    engine/aggregator.py:473-479), which every OTHER support in the game already follows. Left the
+    breakdown's Source Name column falling back to the full descriptive `text` (verbose) and skipped the
+    rich support-tooltip hover (`ctx.skillsByName[source_name]` on the frontend) entirely. Fixed for all
+    four emission points, not just Rampage's (which TestRampageBreakdownDisplay already covers above)."""
+
+    def _slot_sources(self, resp, stat):
+        return {s["label"]: s["source_name"] for s in (resp["stats"].get(stat, {}).get("slot_sources") or [])}
+
+    def test_self_buff_source_name_is_skill_name(self):
+        rows = self._slot_sources(_run(), "skill_area_inc")
+        assert rows["Berserking Blade Buff"] == "Berserking Blade"
+
+    def test_sweep_source_name_is_catalog_name(self):
+        rows = self._slot_sources(_run(supports=[_SWEEP]), "skill_area_additional")
+        assert rows["Berserking Blade: Sweep"] == "Berserking Blade: Sweep (Magnificent)"
+
+    def test_desperation_source_name_is_catalog_name(self):
+        resp = _run(supports=[_DESP], cond={"current_life_pct": 50})
+        rows = self._slot_sources(resp, "dmg_additional")
+        assert rows["Berserking Blade: Desperation (Magnificent)"] == "Berserking Blade: Desperation (Magnificent)"
+
+
 class TestGenericPathGuard:
     @pytest.mark.parametrize("item_id", [
         "berserking_blade_sweep_magnificent",

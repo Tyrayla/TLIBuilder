@@ -466,6 +466,7 @@
         "name": "Sweep Slash",
         "nyi": [],
         "proc_chance": 0.0,
+        "proc_stat_key": "_complement_steep_strike_chance",
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       },
@@ -498,6 +499,7 @@
         "name": "Steep Strike",
         "nyi": [],
         "proc_chance": 1.0,
+        "proc_stat_key": "steep_strike_chance",
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
@@ -588,6 +590,7 @@
     "spirit_magi_max": 0,
     "spirit_magi_physique_inc": 0.0,
     "spirit_magi_stage": 0,
+    "steep_strike_additional_dmg": 0.635,
     "steep_strike_chance": 1.0,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -813,6 +816,7 @@
           "name": "Sweep Slash",
           "nyi": [],
           "proc_chance": 0.0,
+          "proc_stat_key": "_complement_steep_strike_chance",
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         },
@@ -845,6 +849,7 @@
           "name": "Steep Strike",
           "nyi": [],
           "proc_chance": 1.0,
+          "proc_stat_key": "steep_strike_chance",
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         }
@@ -935,6 +940,7 @@
       "spirit_magi_max": 0,
       "spirit_magi_physique_inc": 0.0,
       "spirit_magi_stage": 0,
+      "steep_strike_additional_dmg": 0.635,
       "steep_strike_chance": 1.0,
       "supported": true,
       "tangle_attach_range": 0.0,
