@@ -1160,9 +1160,12 @@ def compute(
                 if not _entries:
                     continue
                 source.consumed_stats.update({_min_key, _max_key, _unit_key})
-                _groups: dict[str, dict] = {}
+                _groups: dict[tuple[str | None, str | None, str], dict] = {}
                 for e in _entries:
-                    gkey = e.text
+                    # Each equipped item rounds its own attribute chunks. Identical affix text
+                    # in two slots must not merge before flooring (55 Strength is 5 + 5 chunks,
+                    # not floor(55 / (10 + 10))).
+                    gkey = (e.gear_slot, e.source_name, e.text)
                     grp = _groups.setdefault(gkey, {"_entry": e})
                     grp[e.stat] = grp.get(e.stat, 0.0) + e.amount
                 for _grp in _groups.values():
@@ -1196,9 +1199,12 @@ def compute(
                     if not _entries:
                         continue
                     source.consumed_stats.update({_min_key, _max_key, _unit_key})
-                    _groups2: dict[str, dict] = {}
+                    _groups2: dict[tuple[str | None, str | None, str], dict] = {}
                     for e in _entries:
-                        grp = _groups2.setdefault(e.text, {"_entry": e})
+                        # Keep identical scoped lines from separate equipped sources distinct so
+                        # their per-attribute breakpoints round independently.
+                        gkey = (e.gear_slot, e.source_name, e.text)
+                        grp = _groups2.setdefault(gkey, {"_entry": e})
                         grp[e.stat] = grp.get(e.stat, 0.0) + e.amount
                     for _grp in _groups2.values():
                         _pu_min, _pu_max = _grp.get(_min_key, 0.0), _grp.get(_max_key, 0.0)

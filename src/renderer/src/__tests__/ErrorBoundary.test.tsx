@@ -78,4 +78,18 @@ describe('ErrorBoundary', () => {
     const textarea = renderer.root.findByType('textarea')
     expect(textarea.props.value).toBe('tli1_recoverycode')
   })
+
+  it('opens the report form from the root-crash recovery screen', () => {
+    let renderer!: TestRenderer.ReactTestRenderer
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    act(() => {
+      renderer = TestRenderer.create(<ErrorBoundary><Bomb /></ErrorBoundary>)
+    })
+    consoleError.mockRestore()
+
+    const reportButton = renderer.root.findAllByType('button').find(b => b.children.join('').includes('Report this problem'))!
+    act(() => { reportButton.props.onClick() })
+
+    expect(renderer.root.findByType('h3').children.join('')).toBe('Report a bug')
+  })
 })

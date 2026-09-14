@@ -299,6 +299,7 @@ function App() {
 
   if (!appReady) {
     return (
+      <>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: '100%', background: '#1a1a2e',
@@ -315,6 +316,8 @@ function App() {
           </div>
         </>}
       </div>
+      {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
+      </>
     )
   }
 

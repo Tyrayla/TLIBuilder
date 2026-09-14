@@ -1,7 +1,8 @@
 import React from 'react'
 import { api } from '../api/client'
 import { getBuildPayload } from '../utils/buildPayload'
-import { copyableErrorDetails, normalizeError, prepareReport, recordReportableDiagnostic, type TliError } from '../errors/tliError'
+import ReportModal from './ReportModal'
+import { copyableErrorDetails, normalizeError, recordReportableDiagnostic, type TliError } from '../errors/tliError'
 
 interface Props {
   children: React.ReactNode
@@ -17,6 +18,7 @@ interface State {
   codeError: string | null
   codeLoading: boolean
   copied: boolean
+  reportOpen: boolean
 }
 
 // Root-level safety net. React 18 unmounts the ENTIRE tree on any uncaught render/effect throw —
@@ -27,11 +29,11 @@ interface State {
 export default class ErrorBoundary extends React.Component<Props, State> {
   state: State = {
     hasError: false, error: null,
-    code: null, codeError: null, codeLoading: false, copied: false,
+    code: null, codeError: null, codeLoading: false, copied: false, reportOpen: false,
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error: normalizeError(error, 'TLI-UI-001', 'ui.error-boundary'), code: null, codeError: null, codeLoading: false, copied: false }
+    return { hasError: true, error: normalizeError(error, 'TLI-UI-001', 'ui.error-boundary'), code: null, codeError: null, codeLoading: false, copied: false, reportOpen: false }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
@@ -87,14 +89,15 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   private prepareReport = () => {
-    if (this.state.error) prepareReport(this.state.error.payload)
+    if (this.state.error) this.setState({ reportOpen: true })
   }
 
   render() {
     if (!this.state.hasError) return this.props.children
-    const { code, codeError, codeLoading, copied, error } = this.state
+    const { code, codeError, codeLoading, copied, error, reportOpen } = this.state
 
     return (
+      <>
       <div style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'var(--bg-deep, #0a0e18)', color: 'var(--fg, #e8e8f0)',
@@ -154,6 +157,8 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           )}
         </div>
       </div>
+      {reportOpen && error && <ReportModal error={error.payload} onClose={() => this.setState({ reportOpen: false })} />}
+      </>
     )
   }
 }

@@ -92,8 +92,10 @@ def test_scoped_text_with_ranged_divisor():
     }
 
 
-def _calc(strength, text):
-    gear = _gear(text)
+def _calc(strength, text, *additional_texts):
+    gear = []
+    for index, candidate in enumerate((text, *additional_texts)):
+        gear.extend(_gear(candidate, slot="weapon1" if index == 0 else "weapon2"))
     return compute(
         BuildInput(slots=[], slates=[], season="test", gear=gear,
                    character=[{"stat": "strength", "amount": strength, "label": "test"}]),
@@ -115,6 +117,15 @@ def test_tower_sequence_scoped_text_zero_below_first_breakpoint():
     assert "fire_attack_dmg_flat_min" not in result.stat_map
 
 
+def test_identical_scoped_attribute_lines_round_per_equipped_source():
+    text = "Adds 2 - 2 Fire Damage to Attacks per 10 Strength"
+    result = _calc(55, text, text)
+    # Each weapon has floor(55 / 10) = 5 chunks, so the two sources contribute
+    # 10 + 10. Pooling before rounding would incorrectly use floor(55 / 20) = 2.
+    assert result.stat_map["fire_attack_dmg_flat_min"]["total"] == pytest.approx(20.0)
+    assert result.stat_map["fire_attack_dmg_flat_max"]["total"] == pytest.approx(20.0)
+
+
 def test_unscoped_text_still_credits_both_attacks_and_spells():
     """Regression guard: the reordering must not change Ralph's Burial / Magnus' Jealousy's
     owner-confirmed both-Attacks-and-Spells behavior."""
@@ -123,6 +134,17 @@ def test_unscoped_text_still_credits_both_attacks_and_spells():
     assert result.stat_map["fire_attack_dmg_flat_max"]["total"] == pytest.approx(25.0)
     assert result.stat_map["fire_spell_dmg_flat_min"]["total"] == pytest.approx(10.0)
     assert result.stat_map["fire_spell_dmg_flat_max"]["total"] == pytest.approx(25.0)
+
+
+def test_identical_unscoped_attribute_lines_round_per_equipped_source():
+    text = "Adds 2-5 Fire Damage per 10 Strength"
+    result = _calc(55, text, text)
+    # The unscoped sibling keeps the same independent-breakpoint rule and then
+    # contributes each source once to both attack and spell pools.
+    assert result.stat_map["fire_attack_dmg_flat_min"]["total"] == pytest.approx(20.0)
+    assert result.stat_map["fire_attack_dmg_flat_max"]["total"] == pytest.approx(50.0)
+    assert result.stat_map["fire_spell_dmg_flat_min"]["total"] == pytest.approx(20.0)
+    assert result.stat_map["fire_spell_dmg_flat_max"]["total"] == pytest.approx(50.0)
 
 
 def test_scoped_text_to_attacks_and_spells_credits_each_class_once_not_doubled():
