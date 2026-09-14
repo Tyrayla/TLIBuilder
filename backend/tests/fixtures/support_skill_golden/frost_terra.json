@@ -332,12 +332,6 @@
     "generic_add": 4.234257650810879,
     "generic_inc": 0,
     "hit_forms": [],
-    "intrinsic_additional_sources": [
-      {
-        "amount": 0.26,
-        "label": "Terra Charge consumed (\u00d71)"
-      }
-    ],
     "jumps": 0,
     "jumps_base": 0,
     "level_summary": {
@@ -548,12 +542,6 @@
       "generic_add": 4.234257650810879,
       "generic_inc": 0,
       "hit_forms": [],
-      "intrinsic_additional_sources": [
-        {
-          "amount": 0.26,
-          "label": "Terra Charge consumed (\u00d71)"
-        }
-      ],
       "jumps": 0,
       "jumps_base": 0,
       "level_summary": {
@@ -833,6 +821,16 @@
           "source_name": "Jump",
           "source_type": "support",
           "text": "+4 % additional damage for the supported skill |jump|+#% additional damage fo"
+        },
+        {
+          "amount": 0.26,
+          "label": "Skill Intrinsic",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Frost Terra",
+          "source_type": "skill",
+          "text": "Terra Charge consumed (\u00d71)"
         }
       ],
       "sources": [

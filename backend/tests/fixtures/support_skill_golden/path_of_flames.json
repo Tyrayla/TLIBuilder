@@ -330,7 +330,6 @@
     "generic_add": 2.8004349542399996,
     "generic_inc": 0,
     "hit_forms": [],
-    "intrinsic_additional_sources": [],
     "jumps": 0,
     "jumps_base": 0,
     "level_summary": {
@@ -535,7 +534,6 @@
       "generic_add": 2.8004349542399996,
       "generic_inc": 0,
       "hit_forms": [],
-      "intrinsic_additional_sources": [],
       "jumps": 0,
       "jumps_base": 0,
       "level_summary": {

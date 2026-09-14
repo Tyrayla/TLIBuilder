@@ -312,9 +312,14 @@ class TestPoolingUuidKey:
         assert "attack_dmg_additional" in s.consumed_stats
         assert "fire_dmg_additional" not in s.consumed_stats  # fire never applies to a physical-only attack
 
-    def test_generic_add_with_extra_additional(self):
-        s = _add_src((_ATK, 0.08, _ATK_1H), (_ATK, 0.08, _ATK_WARCRY))
-        r = calculate_offense(s, _skill(tags=("attack",)), 1, extra_additional=0.25)
+    def test_generic_add_with_tracked_intrinsic_entry(self):
+        # The old extra_additional parameter is gone — a skill's intrinsic additional damage (Fervor, Mana,
+        # …) is now tracked as a plain untagged dmg_additional SourceEntry, composing as its own distinct
+        # factor in the SAME per-affix product as every other additional-damage source, rather than a
+        # separate uniform stage. Same expected total as before — this is a byte-identical result for the
+        # single-entry case, just reached via the normal pooling path instead of a side channel.
+        s = _add_src((_ATK, 0.08, _ATK_1H), (_ATK, 0.08, _ATK_WARCRY), ("dmg_additional", 0.25, "Test Intrinsic"))
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
         assert r.generic_add == pytest.approx(1.08 * 1.08 * 1.25)
 
 

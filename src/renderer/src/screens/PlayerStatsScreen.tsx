@@ -954,10 +954,11 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               extra={(() => {
                 const rows: Array<{ value: string; stat: string; source: string; sourceName: string }> = []
                 if (offense.main_stat_damage_bonus > 0) rows.push({ value: `×${dec(1 + offense.main_stat_damage_bonus)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec(offense.main_stat_damage_bonus * 100)}%)` })
-                // Intrinsic 'additional damage' pool (Rapid Advance per-stack, Fervor …): sums into ONE (1+Σ) factor
-                // within generic_add — show a single ×(1+Σ) row labelled with its source(s).
-                const iaSum = (offense.intrinsic_additional_sources ?? []).reduce((s, e) => s + e.amount, 0)
-                if (iaSum > 0) rows.push({ value: `×${dec(1 + iaSum)}`, stat: 'Additional Damage', source: 'Skill', sourceName: (offense.intrinsic_additional_sources ?? []).map(e => e.label).join(' + ') })
+                // A skill's own intrinsic additional-damage mechanic (Rapid Advance per-stack, Fervor …) is a
+                // real dmg_additional source now — it shows up on its own via `keys={genericAddKeys(...)}`
+                // above (source_type "skill", label "Skill Intrinsic"), same as any other additional-damage
+                // source. No separate extra row needed for it here (only Main Stat, which deliberately stays
+                // its own standalone pool outside dmg_additional).
                 return rows.length ? rows : undefined
               })()} displaySources={aboveMaxDisplaySources}>×{dec(totalGenericAdd)}</Breakdown></td>
             {ALL_DTYPES.map(d => {

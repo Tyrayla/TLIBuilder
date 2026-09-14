@@ -403,3 +403,34 @@ def test_spirit_stat_map_includes_furys_onslaught_spirit_attack_speed_line():
     assert len(fo_rows) == 1
     assert fo_rows[0]["amount"] == pytest.approx(-0.30)
     assert "-30%" in fo_rows[0]["text"] and "Seething Spirit Attack Speed" in fo_rows[0]["text"]
+
+
+def test_main_skills_intrinsic_additional_not_doubled_on_spirit():
+    """Regression: `_track_skill_intrinsic_additional` originally wrote via `eff.add_with_source(...)`.
+    `eff` can alias `source` itself (BuildSource.materialize_for_skill's identity fast path, hit whenever
+    the build has no scoped/slot entries — true for this build), so that mutated the SHARED `source`
+    directly: invisible in the player's own top-level stat_map (snapshotted earlier in compute(), before
+    _offense_for_slot ever runs) AND, worse, Seething Spirit's own LATER materialize_for_skill call
+    inherited the leaked entry via that same aliasing, then Spirit's own intrinsic-tracking call added the
+    SAME entry a SECOND time on top — a real in-app screenshot caught this as Focused Slash's Fervor line
+    showing "×2 +40%" on Spirit's panel only, never the player's (whose own entry wasn't visible AT ALL).
+    Now tracked via `source.add_slotted(...)` — the SAME mechanism every other slot-local skill self-buff
+    (e.g. Berserking Blade's intrinsic buff) already uses, correctly surfaced via stat_map's existing
+    slot_sources merge (player) and inherited by Spirit with NO Spirit-side tracking call at all (its own
+    materialize_for_skill(..., main_slot) folds the same slot's entries, exactly like it already does for
+    Berserking Blade's buff). ATTACK_SKILL is focused_slash (see module header)."""
+    resp = _run(picks=["Fury's Onslaught"], skill=ATTACK_SKILL, gear=ATTACK_WEAPON, dual_wield=False,
+                extra_conditions={"fervor_rating": 100})
+    # Player: a slot-local skill self-buff — surfaced via slot_sources (the SAME field/mechanism every
+    # other slot-local buff like Berserking Blade's uses), not the main sources list.
+    player_slot_sources = resp["stats"]["dmg_additional"].get("slot_sources") or []
+    player_fervor_rows = [s for s in player_slot_sources if s["source_type"] == "skill"]
+    assert len(player_fervor_rows) == 1
+    assert player_fervor_rows[0]["amount"] == pytest.approx(0.40)
+    assert player_fervor_rows[0]["slot"] == 1
+
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    spirit_sources = spirit["stat_map"]["dmg_additional"]["sources"]
+    spirit_fervor_rows = [s for s in spirit_sources if s["source_type"] == "skill"]
+    assert len(spirit_fervor_rows) == 1
+    assert spirit_fervor_rows[0]["amount"] == pytest.approx(0.40)

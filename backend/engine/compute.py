@@ -206,11 +206,23 @@ def _state_snapshot(condition_state: dict[str, float | bool]) -> frozenset:
 
 
 def _intrinsic_additional_entries(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> list[dict]:
-    """Per-entry breakdown of a skill's intrinsic 'additional damage' bonuses — [{label, amount fraction}].
+    """Per-entry breakdown of a skill's intrinsic 'additional damage' bonuses — [{label, text, amount fraction}].
     Each bonus is min(per * (rating / per_n) * (1 + effect_value), cap); rating comes from a condition
     (Focused Slash's Fervor Rating) or an aggregated stat (Moon Strike's Max Mana; Split Shot: Rapid Advance's
-    Max Channeled Stacks). These are applied as ONE extra multiplicative pool in offense (intrinsic_add) but
-    were previously invisible in the breakdown — the caller surfaces these entries on the OffenseResult."""
+    Max Channeled Stacks). The caller (`_track_skill_intrinsic_additional`, called by `_offense_for_slot` —
+    Seething Spirit inherits it via the SAME slot-folding it uses for any other slot-local skill self-buff,
+    with no separate call of its own) tracks each entry as a real, untagged `dmg_additional` SourceEntry
+    (`BuildSource.add_slotted`) — so it composes with every OTHER additional-damage source via the engine's
+    standard per-affix pooling rule (distinct sources multiply, same-identity sources sum) instead of the
+    old separate-uniform-stage `intrinsic_add` special case, and shows up natively in the stat_map/breakdown
+    with no side-channel field needed.
+
+    `text` is the SourceEntry's pooling-identity key — GUARANTEED UNIQUE per distinct mechanic even when
+    `IntrinsicAdditional.label` is left blank (every current skill leaves it blank), by folding in
+    `rating_key`. This matters ONLY if a single skill were ever given two simultaneous intrinsic entries
+    (none has one today): two entries sharing the exact same generic text would incorrectly get pooled as
+    ONE source (summed) instead of two distinct ones (multiplied) — see
+    test_two_simultaneous_intrinsic_entries_multiply_not_sum."""
     out: list[dict] = []
     for ia in getattr(skill, "intrinsic_additional", []):
         if getattr(ia, "rating_source", "condition") == "stat":
@@ -228,13 +240,77 @@ def _intrinsic_additional_entries(skill, source: BuildSource, condition_state: d
         cap = getattr(ia, "cap", None)
         if cap is not None:
             amount = min(amount, cap)
-        out.append({"label": getattr(ia, "label", "") or "Skill Intrinsic", "amount": amount})
+        label = getattr(ia, "label", "") or "Skill Intrinsic"
+        text = label if getattr(ia, "label", "") else f"{label} ({ia.rating_key})"
+        out.append({"label": label, "text": text, "amount": amount})
     return out
 
 
 def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> float:
     """Sum of a skill's intrinsic 'additional damage' bonuses (see _intrinsic_additional_entries). 0.0 if none."""
     return sum(e["amount"] for e in _intrinsic_additional_entries(skill, source, condition_state))
+
+
+def _track_skill_intrinsic_additional(source: BuildSource, eff: BuildSource, resolved, slot: int,
+                                       condition_state: dict[str, float | bool],
+                                       manual_cond_keys: set[str]) -> dict | None:
+    """Compute + track ALL of a skill's intrinsic 'additional damage' entries — the Fervor/Mana/Channeled-
+    Stack mechanic (`_intrinsic_additional_entries`) PLUS the Terra Charge consumed bonus. Reads rating/
+    effect values off `eff` (the already-materialized, slot-EFFECTIVE source, so a slot-local amplifier like
+    Tranquility's fervor_effect_additional scopes correctly), but WRITES via `source.add_slotted(...)`, not
+    `eff.add_with_source(...)`:
+
+    `eff` can be `source` ITSELF (BuildSource.materialize_for_skill's identity fast path, hit whenever there
+    are no scoped/slot entries to fold — the common case). Mutating it directly therefore silently mutated
+    the SHARED `source`: invisible in the player's own top-level `stat_map` (snapshotted earlier in
+    compute(), before this ever ran) and, worse, DOUBLED on Seething Spirit's panel — its own later
+    `source.materialize_for_skill(...)` call inherited the leaked entry via that same identity aliasing,
+    then this function added the SAME one again on Spirit's own call. Caught via a real in-app screenshot:
+    Focused Slash's Fervor line showed "×2 +40%" on Spirit's panel only, never the player's.
+
+    `add_slotted` is the fix AND the better architectural fit — it's the SAME mechanism every other slot-
+    local skill self-buff already uses (Berserking Blade's intrinsic buff, etc.), which (a) already has a
+    dedicated merge into `stat_map` wired up in `compute()` (the slot_log merge — see the comment where
+    `stat_map` is first built) and (b) Seething Spirit ALREADY correctly inherits with NO Spirit-side code
+    at all, via its own later `materialize_for_skill(..., main_slot)` call picking up the same slot's
+    entries — exactly like it already does for Berserking Blade's buff. The caller MUST re-materialize its
+    own `eff` after calling this (slot_entries changed) — this function does not do that for the caller,
+    since a fresh `eff` is only needed by whoever's about to run `calculate_offense`.
+
+    Returns the Terra Charge display dict (`terra_charge` on `OffenseResult`) or None — see the ── Terra
+    Charge ── comment below for the mechanic itself."""
+    from engine.models import SourceEntry
+    for _e in _intrinsic_additional_entries(resolved, eff, condition_state):
+        source.add_slotted("dmg_additional", _e["amount"], slot, None, SourceEntry(
+            stat="dmg_additional", amount=_e["amount"], source_type="skill", label="Skill Intrinsic",
+            text=_e["text"], source_name=resolved.name))
+    # ── Terra Charge (SS13 Terra system) ── consumed charges buff the ENTIRE Terra lifetime (owner-ruled
+    # 2026-08-10), so a steady-state MORE factor `1 + per_charge × charges` is exact. Charges default to the
+    # effective max (1 base + max_terra_charge_stacks_flat — base owner-verified; with the 0.5s/stack base
+    # restore, max is reached between any realistic recasts) and are user-overridable via the
+    # `terra_charges_consumed` condition (clamped to [0, max]). ADDITIVE per charge — the community
+    # per-charge-multiplicative claim is needs-verification, NOT implemented (see
+    # data/verification/terra-charge-system.json). Restore duration = 0.5s / (1 + recovery speed), the Help
+    # DB formula — surfaced for display; it does not gate the default (fast-cadence auto-cast scenarios like
+    # Wind Rhythm are a deferred follow-up, owner-approved).
+    terra_charge = None
+    if getattr(resolved, "terra_per_charge_additional", 0.0) > 0.0:
+        _tc_max = 1 + int(eff.total("max_terra_charge_stacks_flat"))
+        if "terra_charges_consumed" in manual_cond_keys:
+            _tc_charges = max(0.0, min(float(condition_state.get("terra_charges_consumed", _tc_max) or 0.0),
+                                       float(_tc_max)))
+        else:
+            _tc_charges = float(_tc_max)
+        _tc_amt = resolved.terra_per_charge_additional * _tc_charges
+        if _tc_amt > 0.0:
+            source.add_slotted("dmg_additional", _tc_amt, slot, None, SourceEntry(
+                stat="dmg_additional", amount=_tc_amt, source_type="skill", label="Skill Intrinsic",
+                text=f"Terra Charge consumed (×{_tc_charges:g})", source_name=resolved.name))
+        _tc_speed = eff.total("terra_charge_recovery_speed_inc")
+        terra_charge = {"max_stacks": _tc_max, "charges_consumed": _tc_charges,
+                        "per_charge_additional": resolved.terra_per_charge_additional,
+                        "restore_seconds_per_stack": 0.5 / (1.0 + _tc_speed) if _tc_speed > -1.0 else 0.5}
+    return terra_charge
 
 
 def _main_skill_use_rate(source, skills_by_id, build_input, condition_state, main_slot, resolved) -> float:
@@ -1684,35 +1760,23 @@ def compute(
             condition_state=condition_state, mod_tags=_mt,
             attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
         eff = source.materialize_for_skill(_mt, slot)
-        # Intrinsic additionals read the slot-EFFECTIVE source so a slot-local amplifier (e.g. Tranquility's
-        # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
-        _extra_entries = _intrinsic_additional_entries(resolved, eff, new_state)
-        extra = sum(e["amount"] for e in _extra_entries)
-        # ── Terra Charge (SS13 Terra system) ── consumed charges buff the ENTIRE Terra lifetime (owner-
-        # ruled 2026-08-10), so a steady-state MORE factor `1 + per_charge × charges` is exact. Charges
-        # default to the effective max (1 base + max_terra_charge_stacks_flat — base owner-verified; with
-        # the 0.5s/stack base restore, max is reached between any realistic recasts) and are user-
-        # overridable via the `terra_charges_consumed` condition (clamped to [0, max]). ADDITIVE per charge
-        # — the community per-charge-multiplicative claim is needs-verification, NOT implemented (see
-        # data/verification/terra-charge-system.json). Restore duration = 0.5s / (1 + recovery speed), the
-        # Help DB formula — surfaced for display; it does not gate the default (fast-cadence auto-cast
-        # scenarios like Wind Rhythm are a deferred follow-up, owner-approved).
-        terra_charge = None
-        if getattr(resolved, "terra_per_charge_additional", 0.0) > 0.0:
-            _tc_max = 1 + int(eff.total("max_terra_charge_stacks_flat"))
-            if "terra_charges_consumed" in manual_cond_keys:
-                _tc_charges = max(0.0, min(float(new_state.get("terra_charges_consumed", _tc_max) or 0.0),
-                                           float(_tc_max)))
-            else:
-                _tc_charges = float(_tc_max)
-            _tc_amt = resolved.terra_per_charge_additional * _tc_charges
-            if _tc_amt > 0.0:
-                _extra_entries.append({"label": f"Terra Charge consumed (×{_tc_charges:g})", "amount": _tc_amt})
-                extra += _tc_amt
-            _tc_speed = eff.total("terra_charge_recovery_speed_inc")
-            terra_charge = {"max_stacks": _tc_max, "charges_consumed": _tc_charges,
-                            "per_charge_additional": resolved.terra_per_charge_additional,
-                            "restore_seconds_per_stack": 0.5 / (1.0 + _tc_speed) if _tc_speed > -1.0 else 0.5}
+        # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
+        # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
+        # without touching the global Fervor→crit. Tracked via `source.add_slotted` (NOT `eff.add_with_
+        # source`) — see `_track_skill_intrinsic_additional`'s docstring for why: add_with_source landed on
+        # `eff`, which can alias `source` itself (BuildSource's identity fast path when there's nothing else
+        # to fold), so it silently mutated the SHARED source — invisible in the player's own top-level
+        # stat_map (snapshotted earlier in compute(), before this line ever runs) AND, worse, doubled on
+        # Seething Spirit's panel (its own later materialize_for_skill call inherited the leaked entry, then
+        # added the SAME one again itself). add_slotted avoids both: it's the SAME mechanism every other
+        # slot-local skill self-buff already uses (Berserking Blade's intrinsic buff, etc.), which (a) has
+        # its own dedicated merge into stat_map already wired up (see the comment above `stat_map`'s
+        # construction), and (b) Spirit already correctly inherits with NO Spirit-side code, via its own
+        # later materialize_for_skill(..., main_slot) call picking up the same slot's entries — exactly like
+        # it already does for Berserking Blade's buff. Re-materialize after tracking so THIS call's own
+        # `eff` — not just Spirit's later one — sees what it just added.
+        terra_charge = _track_skill_intrinsic_additional(source, eff, resolved, slot, new_state, manual_cond_keys)
+        eff = source.materialize_for_skill(_mt, slot)
         # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
         # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
         tangle = None
@@ -1825,16 +1889,12 @@ def compute(
             if _shadow_n > 0 or _shadow_chance > 0:
                 shadow = {"count": _shadow_n, "chance_pct": _shadow_chance, "chance_quantity": _shadow_chance_qty}
         _res = asdict(calculate_offense(
-            eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
+            eff, resolved, level, is_main_skill=is_main,
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
             demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
         _res["level_summary"] = skill_level_summary(
             eff, list(resolved.tags) + sorted(add_mod_tags or ()), level, is_main, resolved.max_level)
-        # Surface the intrinsic 'additional damage' pool (applied via offense.intrinsic_add, previously invisible
-        # in the breakdown — e.g. Split Shot: Rapid Advance's +% per additional Max Channeled Stack, Focused
-        # Slash's Fervor bonus) as labelled breakdown entries for the "Total Additional" panel.
-        _res["intrinsic_additional_sources"] = _extra_entries
         if terra_charge is not None:
             _res["terra_charge"] = terra_charge
         return _res
@@ -1929,6 +1989,17 @@ def compute(
                 # player's own _offense_for_slot call just above) for the same reason: a tag-scoped "+<Tag>
                 # Skill Level" bonus reached via a granted tag has the identical gap otherwise.
                 _spirit_add_mod_tags = _granted_tags_by_slot.get(main_slot) or None
+                # Spirit "casts your own main skill", so it inherits the skill's own intrinsic additional-
+                # damage mechanic (Focused Slash's Fervor bonus, Moon Strike's Mana bonus, Terra Charge, …)
+                # exactly like the player's own hit does — with NO Spirit-side tracking call needed at all:
+                # `_offense_for_slot` above already tracked it onto `source.slot_entries` for `main_slot` via
+                # `_track_skill_intrinsic_additional`'s `add_slotted`, and `_spirit_eff = source.
+                # materialize_for_skill(_spirit_mt, main_slot)` (just above, building `_spirit_source`)
+                # already folds in that SAME slot's entries — the identical mechanism Spirit already relies
+                # on to inherit any other slot-local skill self-buff (e.g. Berserking Blade's intrinsic
+                # buff), never re-derived here. (Terra Charge's own `terra_charge` DISPLAY dict is a player-
+                # side-only summary — not surfaced on Spirit's result; its damage contribution IS still
+                # inherited via the same slot-folding, only the informational stacks/cooldown box is player-only.)
                 _spirit_result = asdict(calculate_offense(
                     _spirit_source, _resolved_main, build_input.main_skill.level, is_main_skill=True,
                     add_mod_tags=_spirit_add_mod_tags))

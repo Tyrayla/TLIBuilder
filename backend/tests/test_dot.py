@@ -14,7 +14,7 @@ the engine's default target_config (None) reproduces exactly this dummy.
 """
 import pytest
 
-from engine.models import BuildSource
+from engine.models import BuildSource, SourceEntry
 from engine.offense import (
     calculate_offense, compute_dot, _target_mitigation_dot,
     _dot_type_increased_keys, _dot_type_additional_keys,
@@ -409,7 +409,8 @@ class TestIntrinsicAdditionalChanneledStackEngages:
     Channeled Stack" (beyond the base 5-stack cap) -- `skill_resolver._resolve_dot_skill` wires this as
     `IntrinsicAdditional(per=_DOT_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
     rating_source="stat", per_n=1.0)`. dot-model.json / the golden fixtures only assert it's STRUCTURALLY
-    dormant at base 5 stacks (empty `intrinsic_additional_sources`); this test exercises it actually engaging
+    dormant at base 5 stacks (no tracked dmg_additional entry from this mechanic in stat_map); this test
+    exercises it actually engaging
     when `max_channeled_stacks_flat` is pushed above 0, using the REAL resolved Mind Control skill (not a
     hand-authored double) so the multiplier under test is the one production code actually ships.
     """
@@ -440,13 +441,18 @@ class TestIntrinsicAdditionalChanneledStackEngages:
         resolved = _real_resolved_skill("mind_control")
         src = _source(max_channeled_stacks_flat=2.0)
         # Evaluated the SAME way the real build pipeline evaluates it (engine/compute.py's
-        # _eval_intrinsic_additional, threaded into calculate_offense's extra_additional param by
-        # engine/compute.py::_offense_for_slot) -- not reimplemented here.
+        # _eval_intrinsic_additional) -- not reimplemented here. The real pipeline
+        # (engine/compute.py::_track_skill_intrinsic_additional) tracks this as a real, untagged
+        # dmg_additional SourceEntry rather than threading it through calculate_offense as a parameter
+        # (that parameter no longer exists) -- mirrored here directly on `src`.
         extra = _eval_intrinsic_additional(resolved, src, {})
         # Hand: 0.215 per stack x 2 additional stacks x (1 + 0 effect) = 0.43.
         assert extra == pytest.approx(0.43)
+        src.add_with_source("dmg_additional", extra, SourceEntry(
+            stat="dmg_additional", amount=extra, source_type="skill", label="Skill Intrinsic",
+            text="Test Intrinsic (max_channeled_stacks_flat)", source_name=resolved.name))
 
-        r = calculate_offense(src, resolved, _LEVEL, extra_additional=extra)
+        r = calculate_offense(src, resolved, _LEVEL)
         dot_row = next(row for row in r.damage_rows if row.kind == "dot")
         # Hand: 222 (L16 base) x (1 + 0 increased) x (1 + 0 dmg/dot_dmg additional) x (1 + 0.43 intrinsic)
         #     x 0.70 (dummy erosion resist) = 222 x 1.43 x 0.70 = 222.222.

@@ -607,7 +607,6 @@
         "shotgun_mult": 0.69
       }
     ],
-    "intrinsic_additional_sources": [],
     "jumps": 0,
     "jumps_base": 0,
     "level_summary": {
@@ -1067,7 +1066,6 @@
           "shotgun_mult": 0.69
         }
       ],
-      "intrinsic_additional_sources": [],
       "jumps": 0,
       "jumps_base": 0,
       "level_summary": {

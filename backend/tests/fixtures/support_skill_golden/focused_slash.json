@@ -502,12 +502,6 @@
         "shotgun_mult": 1.0
       }
     ],
-    "intrinsic_additional_sources": [
-      {
-        "amount": 0.9,
-        "label": "Skill Intrinsic"
-      }
-    ],
     "jumps": 0,
     "jumps_base": 0,
     "level_summary": {
@@ -855,12 +849,6 @@
           "shotgun_mult": 1.0
         }
       ],
-      "intrinsic_additional_sources": [
-        {
-          "amount": 0.9,
-          "label": "Skill Intrinsic"
-        }
-      ],
       "jumps": 0,
       "jumps_base": 0,
       "level_summary": {
@@ -1171,6 +1159,16 @@
           "source_name": "Attack Focus",
           "source_type": "support",
           "text": "The supported skill 1.65 % additional damage for every 10 Fervor Rating |attack_focus|the supported skill#% ad"
+        },
+        {
+          "amount": 0.9,
+          "label": "Skill Intrinsic",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Focused Slash",
+          "source_type": "skill",
+          "text": "Skill Intrinsic (fervor_rating)"
         }
       ],
       "sources": [

@@ -1058,10 +1058,6 @@ class OffenseResult:
     # main_stat_damage_bonus is the fraction (0.255 = +25.5%); main_stats lists the attributes summed.
     main_stat_damage_bonus: float = 0.0
     main_stats: list[str] = field(default_factory=list)
-    # Skill-intrinsic 'additional damage' pool entries ([{label, amount}]) — the extra_additional folded into
-    # intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus, Focused Slash's Fervor). Populated by
-    # compute (which has the source + condition state); surfaced in the "Total Additional" breakdown panel.
-    intrinsic_additional_sources: list = field(default_factory=list)
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)
@@ -1303,7 +1299,6 @@ def compute_dot(
     skill: ResolvedSkill,
     lookup_level: int,
     is_spell: bool,
-    extra_additional: float,
     above_mult: float = 1.0,
 ) -> tuple[list[DamageRow], float, float]:
     """The Damage over Time damage stage (Mind Control, Path of Flames — dot-model.json,
@@ -1312,8 +1307,7 @@ def compute_dot(
     `total_dps`).
 
     Per form (one per `DotForm` at this level):
-        dot_dps            = base_per_second × (1 + Σ increased) × Π(1 + additional) × (1 + extra_additional)
-                              × above_mult
+        dot_dps            = base_per_second × (1 + Σ increased) × Π(1 + additional) × above_mult
         dot_dps_vs_target   = dot_dps × _target_mitigation_dot(source, dtype)   — RESISTANCE ONLY, no armor.
     No crit_factor / double_dmg_factor (a DoT never crits — dot-no-crit.json) and no `_delivery` (cast/tangle/
     spell-burst/multistrike multiplier — a DoT is a standing effect, not delivered per cast; see the
@@ -1338,11 +1332,12 @@ def compute_dot(
     `_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]` so it hits `_build_additional_factors`'s identity fast path via
     `_DOT_TYPE_ADDITIONAL_POOL_CACHE`). `spell_dmg_additional` is EXCLUDED from both pools — unmeasured, see
     the comment above `_DOT_TYPE_INCREASED_KEYS`; only the independently-MEASURED `spell_dmg_inc` is
-    whitelisted, on the increased side only. `extra_additional` is the SAME skill-intrinsic pool
-    `calculate_offense` already threads through the hit pipeline (evaluated by the caller from
-    `skill.intrinsic_additional` + condition state, e.g. Mind Control / Path of Flames' "+21.5% additional
-    damage per +1 ADDITIONAL Max Channeled Stack") — dormant (0.0) at the base channeled-stack count,
-    confirmed in-game.
+    whitelisted, on the increased side only. A skill's own intrinsic additional-damage mechanic (e.g.
+    Mind Control / Path of Flames' "+21.5% additional damage per +1 ADDITIONAL Max Channeled Stack" —
+    dormant at the base channeled-stack count, confirmed in-game) is NOT a separate parameter here: the
+    caller tracks it as a real `dmg_additional` SourceEntry on `source` (see `calculate_offense`'s own
+    docstring), and `dmg_additional` is already a member of `_DOT_ADDITIONAL_STATS` below, so it reaches
+    this pool automatically — the SAME entry the hit pipeline picks up, with no separate DoT-side wiring.
 
     `above_mult` — the SAME compounding above-max-level multiplier the hit stage applies
     (`_above_max_mult(effective_level, skill.max_level)`, computed once by the caller and passed in): per
@@ -1361,7 +1356,7 @@ def compute_dot(
     dot_add_factors = _build_additional_factors(source, _DOT_ADDITIONAL_STATS)
     base_additional_product = _additional_product(
         source, dot_add_factors, lambda tags: True, _DOT_ADDITIONAL_STATS,
-    ) * (1.0 + extra_additional)
+    )
 
     # Terra-tag-scoped pools (see _DOT_TERRA_ADDITIONAL_KEYED_TAGS above). Non-Terra skills: the flag is
     # False and both products stay exactly as before — byte-identical for every existing DoT skill.
@@ -1613,7 +1608,6 @@ def calculate_offense(
     skill: ResolvedSkill,
     base_level: int,
     is_main_skill: bool = True,
-    extra_additional: float = 0.0,
     support_behavior: dict | None = None,
     remove_mod_tags: set[str] | None = None,
     tangle: dict | None = None,
@@ -1626,9 +1620,10 @@ def calculate_offense(
     # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
     # (so Tangle Damage / additional / crit pools apply via existing tag filtering) and folds two final
     # multipliers into the DPS totals: the count, and ×(1 + Σ Tangle Damage Enhancement).
-    # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
-    # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
-    # Fervor bonus). Applied as one extra multiplicative pool on every hit.
+    # A skill's own intrinsic "additional damage" pool (Focused Slash's Fervor bonus, Moon Strike's Mana
+    # bonus, …) is NOT a parameter here — the caller tracks it as a real, untagged `dmg_additional`
+    # SourceEntry on `source` before calling (see compute.py's `_intrinsic_additional_entries`), so it
+    # naturally flows through `add_factors` below like any other additional-damage source.
     # shadow: when set (the skill carries the Shadow Strike tag AND has a nonzero shadow count/chance —
     # see engine.compute._offense_for_slot), {"count": N_base, "chance_pct": p, "chance_quantity": k} feeds
     # the _shadow_multiplier EV mix folded into the DPS totals (see the "Shadow Strike mode" block below).
@@ -1854,10 +1849,18 @@ def calculate_offense(
         if _lc_amt:
             add_factors = add_factors + [(_lc_amt, frozenset(), "dmg_additional_per_life_consumed")]
 
-    # Generic intrinsic additional multiplier — applies uniformly to EVERY damage type (not per-affix):
-    #   • extra_additional: skill-intrinsic pool (e.g. Fervor / Moon Strike's mana bonus), evaluated by caller.
-    #   • main_stat_factor: 1 + (Σ the skill's main-stat attribute totals) × 0.5% — the "Damage Bonus" the
-    #     attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
+    # Main-stat Damage Bonus multiplier — applies uniformly to EVERY damage type (not per-affix), its OWN
+    # standalone pool: 1 + (Σ the skill's main-stat attribute totals) × 0.5% — the "Damage Bonus" the
+    # attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
+    # (A skill's own INTRINSIC additional-damage mechanic — Focused Slash's Fervor bonus, Moon Strike's Mana
+    # bonus, etc. — used to be bundled into this SAME multiplier as `extra_additional`, a raw parameter
+    # threaded in by the caller. It's now instead tracked as a real, untagged `dmg_additional` SourceEntry
+    # (see `compute.py`'s `_intrinsic_additional_entries`), so it's just another factor in `add_factors`
+    # below — composing via the standard per-affix pooling rule instead of a separate uniform stage. Each
+    # caller still computes+tracks it against its OWN materialized source (the player's `eff`, Seething
+    # Spirit's own clone, …) — a tracked entry doesn't retroactively appear in an already-materialized
+    # clone, so this isn't free automatic inheritance, just a uniform mechanism every caller now uses the
+    # same way instead of each needing its own `extra_additional`-style plumbing.)
     # Folded into BOTH type_add and generic_add below so the per-type breakdown ratio cancels it cleanly
     # (it's a uniform multiplier, not a type-specific one) and "Total Additional" still reflects it.
     # "The base main stat no longer additionally increases damage" (Ralph's Journey/Burial, Magnus'
@@ -1871,8 +1874,7 @@ def calculate_offense(
         # Presence-gated so builds without it consume nothing and stay golden-identical.
         _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
         main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
-    main_stat_factor = 1.0 + main_stat_bonus
-    intrinsic_add = (1.0 + extra_additional) * main_stat_factor
+    main_stat_mult = 1.0 + main_stat_bonus
 
     # Damage-type conversion: read fractions once. When any conversion is present, compute the per-type
     # inc/add for ALL types (a converted slice can land in a type that had no native flat); otherwise only
@@ -1914,7 +1916,7 @@ def calculate_offense(
         type_add[dtype] = _additional_product(
             source, add_factors,
             lambda tags, dt=dtype_tag: _applies_to_dtype(tags, dt, pool_tags),
-        ) * intrinsic_add
+        ) * main_stat_mult
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
     # These are the "All" column values in the stats screen breakdown table.
@@ -1926,7 +1928,7 @@ def calculate_offense(
     generic_add = _additional_product(
         source, add_factors,
         lambda tags: not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags),
-    ) * intrinsic_add
+    ) * main_stat_mult
 
     # Type-specific bonuses for the conversion cascade, computed over the UNION of a packet's path types
     # (the set of dtype-tags of every type it has been). Each type-specific modifier is counted ONCE: an
@@ -2786,7 +2788,7 @@ def calculate_offense(
     # totals untouched) — every existing non-DoT skill's total_dps is byte-identical. See dot-model.json /
     # dot-armor-exclusion.json / dot-no-crit.json and compute_dot's docstring.
     dot_rows, dot_dps, dot_dps_vs_target = compute_dot(
-        source, skill, lookup_level, is_spell, extra_additional, above_mult,
+        source, skill, lookup_level, is_spell, above_mult,
     )
     if dot_rows:
         total_dps += dot_dps
