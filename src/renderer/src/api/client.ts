@@ -20,7 +20,9 @@ export const IS_WEB = typeof window !== 'undefined' && !window.api?.apiRequest
 // backend/tools/export_web_data.py) instead of hitting the Python backend. Set VITE_STATIC_DATA_BASE to that
 // base URL (e.g. https://data.tlibuilder.com). When unset (desktop), everything goes through IPC/HTTP as before.
 // Layout: <BASE>/manifest.json -> {season}; <BASE>/<season>/<name>.json per catalog.
-const STATIC_DATA_BASE: string = (import.meta.env?.VITE_STATIC_DATA_BASE as string | undefined) || ''
+// Vite only replaces direct `import.meta.env.VITE_*` access at build time. Optional
+// chaining leaves the value as an empty runtime object in the shipped web bundle.
+const STATIC_DATA_BASE: string = (import.meta.env.VITE_STATIC_DATA_BASE as string | undefined) || ''
 let staticSeason = ''
 let webCompute = false   // web build: dispatch backend calls through the Pyodide worker instead of HTTP/IPC
 type WebApi = typeof import('../web/pyodideCompute')
