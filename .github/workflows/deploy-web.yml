@@ -44,6 +44,11 @@ jobs:
         run: node scripts/fetch-data.mjs
 
       - name: Build web app
+        # `.env.web` is intentionally local-only, so CI must provide this public
+        # compile-time value explicitly. The renderer uses it to fetch catalog
+        # data from the separate Cloudflare Pages CDN.
+        env:
+          VITE_STATIC_DATA_BASE: https://tlibuilder-data.pages.dev
         run: npm run build:web
 
       - name: Deploy to Cloudflare Pages
