@@ -192,8 +192,9 @@ def test_spirit_grant_none_without_pick_or_berserk():
 def test_spirit_grant_ritual_of_offering():
     g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Ritual of Offering"], berserk_active=True)
     assert g == {"source": "Ritual of Offering", "spirit_dmg_additional": 0.20,
-                 "spirit_attack_speed_additional": 0.0, "player_only_dmg_to_exclude": 0.0,
-                 "player_disarmed": True}
+                 "spirit_dmg_additional_text": "Ritual of Offering: +20% additional Seething Spirit Damage",
+                 "spirit_attack_speed_additional": 0.0, "spirit_attack_speed_additional_text": "",
+                 "player_only_dmg_to_exclude": 0.0, "player_disarmed": True}
     g5 = ss.spirit_grant(slot_levels=[1, 5, 1, 1], advanced_picks=["Ritual of Offering"], berserk_active=True)
     assert g5["spirit_dmg_additional"] == pytest.approx(0.40)
 
@@ -211,8 +212,11 @@ def test_spirit_grant_ritual_of_offering_undisarmed_by_rage_infusion():
 def test_spirit_grant_furys_onslaught():
     g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Fury's Onslaught"], berserk_active=True)
     assert g == {"source": "Fury's Onslaught", "spirit_dmg_additional": 0.0,
-                 "spirit_attack_speed_additional": -0.30, "player_only_dmg_to_exclude": 0.50,
-                 "player_disarmed": False}
+                 "spirit_dmg_additional_text": "",
+                 "spirit_attack_speed_additional": -0.30,
+                 "spirit_attack_speed_additional_text":
+                     "Fury's Onslaught: -30% additional Seething Spirit Attack Speed",
+                 "player_only_dmg_to_exclude": 0.50, "player_disarmed": False}
     g5 = ss.spirit_grant(slot_levels=[1, 5, 1, 1], advanced_picks=["Fury's Onslaught"], berserk_active=True)
     assert g5["player_only_dmg_to_exclude"] == pytest.approx(0.78)
 
@@ -350,3 +354,52 @@ def test_spirit_offense_level_summary_populated_and_attributes_main_skill_level(
     assert summary["effective_level"] == summary["base_level"] + 3
     sources = summary.get("bonus_sources") or []
     assert any(s["stat"] == "main_skill_level" and s["levels"] == 3 for s in sources)
+
+
+def test_spirit_stat_map_excludes_furys_onslaught_player_only_line():
+    """Regression: the frontend's "Total Additional" breakdown panel read the PLAYER's global stat
+    map even in Spirit mode, so it showed Fury's Onslaught's own +57% (tier2) "dealt by the player"
+    line as one of Spirit's sources — even though that exact line is surgically excluded from
+    Spirit's own dmg_additional total (compute.py's player_only_dmg_to_exclude removal) and the
+    displayed ×total never included it. compute.py now attaches Spirit's OWN stat_map (built off
+    Spirit's own, already-excluded source_log), so the row list can never disagree with the total
+    again — this asserts the excluded line is simply absent from Spirit's own map."""
+    resp = _run(picks=["Fury's Onslaught"], slot_levels=(5, 2, 1, 1))
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    stat_map = spirit.get("stat_map")
+    assert stat_map is not None
+    dmg_sources = stat_map.get("dmg_additional", {}).get("sources", [])
+    assert not any(s["source_name"] == "Fury's Onslaught" for s in dmg_sources)
+    # The base trait's own +26% (tier2 Berserk dmg) line is NOT excluded — still present.
+    assert any(s["source_name"] == "Seething Silhouette" for s in dmg_sources)
+
+
+def test_spirit_stat_map_includes_ritual_of_offerings_own_spirit_damage_line():
+    """Regression: Ritual of Offering's own "+X% additional Seething Spirit Damage" bonus was added
+    to Spirit's clone via the untracked BuildSource.add() (no SourceEntry), so it correctly fed the
+    numeric total but never appeared as a labelled row in any breakdown — indistinguishable from not
+    applying at all. Now added via add_with_source with real source metadata and surfaced through
+    Spirit's own stat_map."""
+    resp = _run(picks=["Ritual of Offering"], slot_levels=(1, 3, 1, 1))
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    stat_map = spirit["stat_map"]
+    dmg_sources = stat_map["dmg_additional"]["sources"]
+    ritual_rows = [s for s in dmg_sources if s["source_name"] == "Ritual of Offering"]
+    assert len(ritual_rows) == 1
+    assert ritual_rows[0]["amount"] == pytest.approx(0.30)   # tier3 of [.20,.25,.30,.35,.40]
+    assert "30%" in ritual_rows[0]["text"] and "Seething Spirit Damage" in ritual_rows[0]["text"]
+
+
+def test_spirit_stat_map_includes_furys_onslaught_spirit_attack_speed_line():
+    """Regression: Fury's Onslaught's -30% additional Seething Spirit Attack Speed was also an
+    untracked BuildSource.add() — it silently reduced Spirit's rate (verified by the ratio tests
+    above) but had no visible row anywhere, which reads identically to "not applying" from the UI.
+    Now tracked and surfaced through Spirit's own stat_map."""
+    resp = _run(picks=["Fury's Onslaught"])
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    stat_map = spirit["stat_map"]
+    as_sources = stat_map["attack_speed_additional"]["sources"]
+    fo_rows = [s for s in as_sources if s["source_name"] == "Fury's Onslaught"]
+    assert len(fo_rows) == 1
+    assert fo_rows[0]["amount"] == pytest.approx(-0.30)
+    assert "-30%" in fo_rows[0]["text"] and "Seething Spirit Attack Speed" in fo_rows[0]["text"]

@@ -364,6 +364,39 @@ def _active_skill_costs(skills_input, skills_by_id, attached_supports, source, c
     return per_skill, tot_mana, tot_life
 
 
+def _source_log_stat_map(source: BuildSource) -> dict:
+    """Per-stat breakdown built directly off `source.source_log` — the SAME rows `calculate_offense`
+    itself summed to produce its totals, so a caller displaying this can never show a source the
+    engine didn't actually use, or omit one it did. Used for the main player `source` (the original
+    call site, byte-identical) AND — added alongside the Spirit level_summary fix — for a cloned/
+    modified `BuildSource` like Seething Spirit's (`compute()`'s `_spirit_source`), whose `dmg_additional`
+    pool diverges from the player's own (an excluded Fury's Onslaught line, an added Ritual of Offering
+    line) in a way the player's global stat map has no way to reflect. Does not include slot_log/
+    scoped_log (the two follow-up merges below, in `compute()` itself) — Spirit's clone carries neither."""
+    from models.stat_meta import STAT_META
+    stat_map: dict = {}
+    for entry in source.source_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat]["total"] = round(stat_map[entry.stat]["total"] + entry.amount, 6)
+        stat_map[entry.stat]["sources"].append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+        })
+    return stat_map
+
+
 def compute(
     build_input: BuildInput,
     season_trees: dict[str, dict],
@@ -1521,26 +1554,7 @@ def compute(
     check_damage_taken_immunity(source)
 
     # Build stat_map from final source
-    stat_map: dict = {}
-    for entry in source.source_log:
-        if entry.stat not in stat_map:
-            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
-            stat_map[entry.stat] = {
-                "display_name": meta.display_name if meta else entry.stat,
-                "category": meta.category if meta else "Other",
-                "unit": meta.unit if meta else "",
-                "total": 0.0,
-                "sources": [],
-            }
-        stat_map[entry.stat]["total"] = round(stat_map[entry.stat]["total"] + entry.amount, 6)
-        stat_map[entry.stat]["sources"].append({
-            "source_type": entry.source_type,
-            "label": entry.label,
-            "text": entry.text,
-            "source_name": entry.source_name,
-            "amount": entry.amount,
-            "points": entry.points,
-        })
+    stat_map: dict = _source_log_stat_map(source)
 
     # (Slot-local contributions are merged into stat_map AFTER the offense pass below — apply_slot_effects emits
     # some of them during offense, so they aren't all in source.slot_log yet here. See the slot_log merge near
@@ -1884,10 +1898,27 @@ def compute(
                 _spirit_source = BuildSource(
                     _entries=_spirit_entries, source_log=_spirit_log,
                     consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording)
+                # Tracked via add_with_source (not the untracked .add() this used before) so these show up
+                # as real, labelled rows in Spirit's OWN breakdown (see `_spirit_result["stat_map"]` below) —
+                # untracked contributions still apply correctly to the pool MATH (offense.py's per-pool
+                # "reconcile add()-only contributions" fallback already summed them into the total), but
+                # they rendered as no row at all: Ritual of Offering's own +Spirit Damage line was invisible,
+                # and Fury's Onslaught's -30% Spirit Attack Speed looked like it "wasn't applying" even
+                # though it silently was.
                 if _spirit_grant["spirit_dmg_additional"]:
-                    _spirit_source.add("dmg_additional", _spirit_grant["spirit_dmg_additional"])
+                    _spirit_source.add_with_source("dmg_additional", _spirit_grant["spirit_dmg_additional"],
+                        SourceEntry(stat="dmg_additional", amount=_spirit_grant["spirit_dmg_additional"],
+                                    source_type="hero_trait", label="Hero Trait",
+                                    text=_spirit_grant["spirit_dmg_additional_text"],
+                                    source_name=_spirit_grant["source"]))
                 if _spirit_grant["spirit_attack_speed_additional"]:
-                    _spirit_source.add("attack_speed_additional", _spirit_grant["spirit_attack_speed_additional"])
+                    _spirit_source.add_with_source(
+                        "attack_speed_additional", _spirit_grant["spirit_attack_speed_additional"],
+                        SourceEntry(stat="attack_speed_additional",
+                                    amount=_spirit_grant["spirit_attack_speed_additional"],
+                                    source_type="hero_trait", label="Hero Trait",
+                                    text=_spirit_grant["spirit_attack_speed_additional_text"],
+                                    source_name=_spirit_grant["source"]))
                 _spirit_uptime = max(0.0, min(100.0, float(
                     condition_state.get("seething_spirit_uptime", 100.0) or 0.0))) / 100.0
                 # is_main_skill=True (bug-279, 2026-09-10) — Spirit casts the player's OWN main skill, so its
@@ -1908,6 +1939,16 @@ def compute(
                 _spirit_result["level_summary"] = skill_level_summary(
                     _spirit_source, list(_resolved_main.tags) + sorted(_spirit_add_mod_tags or ()),
                     build_input.main_skill.level, True, _resolved_main.max_level)
+                # Spirit's OWN per-stat breakdown, built the identical way the player's global `stat_map`
+                # is (see `_source_log_stat_map`) — off Spirit's OWN `_spirit_source.source_log`, which by
+                # this point has Fury's Onslaught's player-only line surgically removed and its own
+                # Ritual-of-Offering/Fury's-Onslaught lines tracked. The player's global `stat_map` (built
+                # from the untouched `source`) can't stand in for this: it still carries Fury's Onslaught's
+                # excluded line and has no idea Spirit's own lines exist at all — exactly the "Total
+                # Additional" mismatch (shows Fury's Onslaught's +57% as a source row even though Spirit's
+                # own total excludes it, and never shows Ritual of Offering's own +Spirit-Damage line)
+                # reported against the frontend's Breakdown panels, which read a single shared stat map.
+                _spirit_result["stat_map"] = _source_log_stat_map(_spirit_source)
                 _spirit_result["total_dps"] = _spirit_result.get("total_dps", 0.0) * _spirit_uptime
                 _spirit_result["total_dps_vs_target"] = _spirit_result.get("total_dps_vs_target", 0.0) * _spirit_uptime
                 _spirit_result["skill_name"] = f"Seething Spirit ({result_offense.get('skill_name', '')})"

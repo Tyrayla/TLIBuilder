@@ -1738,7 +1738,16 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
-  const statMap = bdCtx?.statMap ?? {}
+  // `offense.stat_map` is a per-result breakdown source, set ONLY for a computed source that DIVERGES
+  // from the player's own global stats (currently: Seething Spirit — see compute.py's
+  // `_source_log_stat_map(_spirit_source)`). Preferring it here — over the player's global `bdCtx.statMap`
+  // every OTHER offense mode falls back to — is what keeps every breakdown panel in this component
+  // (Total Additional, Attack Speed, crit, …) reading the SAME pool the engine actually computed `offense`
+  // from, so the row list and the total can never disagree (the bug this fixes: Spirit's "Total Additional"
+  // showed Fury's Onslaught's excluded +57% line and never showed Ritual of Offering's own Spirit-Damage
+  // line, because both read the player's map instead of Spirit's).
+  const statMap = offense?.stat_map ?? bdCtx?.statMap ?? {}
+  const breakdownCtx = bdCtx ? { ...bdCtx, statMap } : bdCtx
   // "Show all boxes" reveals every mechanic/ailment/CC box regardless of skill-gating.
   const showAll = useUiPrefs(s => s.statsShowAllBoxes)
 
@@ -2001,6 +2010,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   const DOT_DISCLAIMER = 'Damage over Time is modelled and may be off by up to ~10% vs in-game (measured −6% / +4%). Residual under investigation.'
 
   return (
+    <BreakdownCtx.Provider value={breakdownCtx}>
     <>
       <StatPanel title={<>
         {slotLabel(slot)} — {offense.skill_name} (
@@ -2961,6 +2971,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       )}
       </MasonryGrid>
     </>
+    </BreakdownCtx.Provider>
   )
 }
 

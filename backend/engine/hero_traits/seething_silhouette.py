@@ -96,8 +96,13 @@ def spirit_grant(*, slot_levels, advanced_picks, berserk_active):
     Returns None when no Spirit-granting pick (Ritual of Offering / Fury's Onslaught) is selected
     and enabled, or `berserk_active` is False (both picks' Spirit only exists "while Berserk is
     active"). Otherwise: {"source": "Ritual of Offering"|"Fury's Onslaught",
-    "spirit_dmg_additional": float, "spirit_attack_speed_additional": float,
+    "spirit_dmg_additional": float, "spirit_dmg_additional_text": str,
+    "spirit_attack_speed_additional": float, "spirit_attack_speed_additional_text": str,
     "player_only_dmg_to_exclude": float, "player_disarmed": bool}.
+
+    The `_text` fields are this module's own display text for `compute.py`'s dedicated Spirit
+    `add_with_source` calls (so the trait keeps owning all of ITS display text, same as every
+    contribution `apply()` emits) — `compute.py` doesn't format trait text itself.
 
     `player_disarmed` is True only for Ritual of Offering, and only when Rage Infusion is NOT also
     selected+enabled — Rage Infusion's "no longer Disarmed after Berserk has been active for 5s"
@@ -119,12 +124,19 @@ def spirit_grant(*, slot_levels, advanced_picks, berserk_active):
     t = _tier(slot_levels, _SLOT_45)
     if "Ritual of Offering" in picks:
         un_disarmed = "Rage Infusion" in picks and _enabled(slot_levels, _SLOT_75)
-        return {"source": "Ritual of Offering", "spirit_dmg_additional": _RITUAL_OF_OFFERING_SPIRIT_DMG[t],
-                "spirit_attack_speed_additional": 0.0, "player_only_dmg_to_exclude": 0.0,
-                "player_disarmed": not un_disarmed}
+        dmg = _RITUAL_OF_OFFERING_SPIRIT_DMG[t]
+        return {"source": "Ritual of Offering", "spirit_dmg_additional": dmg,
+                "spirit_dmg_additional_text": f"Ritual of Offering: +{dmg * 100:.0f}% additional "
+                                              f"Seething Spirit Damage",
+                "spirit_attack_speed_additional": 0.0, "spirit_attack_speed_additional_text": "",
+                "player_only_dmg_to_exclude": 0.0, "player_disarmed": not un_disarmed}
     if "Fury's Onslaught" in picks:
         return {"source": "Fury's Onslaught", "spirit_dmg_additional": 0.0,
+                "spirit_dmg_additional_text": "",
                 "spirit_attack_speed_additional": _FURYS_ONSLAUGHT_SPIRIT_AS,
+                "spirit_attack_speed_additional_text": f"Fury's Onslaught: "
+                                                        f"{_FURYS_ONSLAUGHT_SPIRIT_AS * 100:.0f}% additional "
+                                                        f"Seething Spirit Attack Speed",
                 "player_only_dmg_to_exclude": _FURYS_ONSLAUGHT_PLAYER_DMG[t], "player_disarmed": False}
     return None
 

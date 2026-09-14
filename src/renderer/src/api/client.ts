@@ -884,6 +884,11 @@ export interface OffenseResult {
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
   level_summary?: LevelSummary | null
+  // Per-stat breakdown built off THIS result's own materialized source, set only when it diverges from
+  // the player's global stat map (currently: Seething Spirit's clone — see compute.py's
+  // `_source_log_stat_map`). Breakdown panels prefer this over the shared BreakdownCtx statMap when
+  // present, so a divergent pool (e.g. Spirit's dmg_additional) never shows the wrong source rows.
+  stat_map?: Record<string, StatEntry> | null
   hit_forms: HitFormResult[]
   crit_chance: number            // effective (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
   crit_chance_uncapped?: number  // true chance from rating (may exceed 1.0) — display-only, surfaces over-cap
