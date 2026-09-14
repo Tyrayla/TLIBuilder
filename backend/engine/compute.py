@@ -1897,9 +1897,17 @@ def compute(
                 # frozen. Passing the main slot's granted tags too (_granted_tags_by_slot, populated by the
                 # player's own _offense_for_slot call just above) for the same reason: a tag-scoped "+<Tag>
                 # Skill Level" bonus reached via a granted tag has the identical gap otherwise.
+                _spirit_add_mod_tags = _granted_tags_by_slot.get(main_slot) or None
                 _spirit_result = asdict(calculate_offense(
                     _spirit_source, _resolved_main, build_input.main_skill.level, is_main_skill=True,
-                    add_mod_tags=_granted_tags_by_slot.get(main_slot) or None))
+                    add_mod_tags=_spirit_add_mod_tags))
+                # Mirror _offense_for_slot's level_summary attachment (line ~1824) — calculate_offense
+                # itself never sets it, and skipping this left Spirit's panel with no source-attributed
+                # "Effective Skill Level" breakdown (silent fallback to a bare `Level N` label in
+                # PlayerStatsScreen.tsx), even after bug-279 fixed the underlying number.
+                _spirit_result["level_summary"] = skill_level_summary(
+                    _spirit_source, list(_resolved_main.tags) + sorted(_spirit_add_mod_tags or ()),
+                    build_input.main_skill.level, True, _resolved_main.max_level)
                 _spirit_result["total_dps"] = _spirit_result.get("total_dps", 0.0) * _spirit_uptime
                 _spirit_result["total_dps_vs_target"] = _spirit_result.get("total_dps_vs_target", 0.0) * _spirit_uptime
                 _spirit_result["skill_name"] = f"Seething Spirit ({result_offense.get('skill_name', '')})"

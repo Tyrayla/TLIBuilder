@@ -329,3 +329,24 @@ def test_spirit_offense_inherits_main_skill_level_bonus():
     boosted = _run(picks=["Fury's Onslaught"], gear=DUAL_WEAPONS + main_skill_level_gear)
     assert boosted["offense"]["total_dps_vs_target"] > baseline["offense"]["total_dps_vs_target"]
     assert _spirit_dps(boosted) > _spirit_dps(baseline)
+
+
+def test_spirit_offense_level_summary_populated_and_attributes_main_skill_level():
+    """Regression: compute.py's Spirit `calculate_offense` call never attached `level_summary`
+    (unlike `_offense_for_slot`'s player-skill path, which always does) — the source-attributed
+    "Effective Skill Level" breakdown silently fell back to a bare `Level N` label for Spirit's
+    panel in PlayerStatsScreen.tsx, even after bug-279 fixed the underlying scaled damage number."""
+    main_skill_level_gear = [{
+        "item_name": "Test Main Skill Level Source",
+        "contributions": [{"stat": "main_skill_level", "display_value": 3, "unit": "",
+                            "slot": "amulet", "item_name": "Test Main Skill Level Source",
+                            "text": "+3 to Main Skill Level"}],
+    }]
+    resp = _run(picks=["Fury's Onslaught"], gear=DUAL_WEAPONS + main_skill_level_gear)
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    summary = spirit.get("level_summary")
+    assert summary is not None
+    assert summary["bonus_level"] == 3
+    assert summary["effective_level"] == summary["base_level"] + 3
+    sources = summary.get("bonus_sources") or []
+    assert any(s["stat"] == "main_skill_level" and s["levels"] == 3 for s in sources)
