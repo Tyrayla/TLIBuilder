@@ -1601,10 +1601,6 @@ export interface TargetStats {
   // Raw penetration totals (fractions; reduction deltas).
   pen?: { armor: number; all_resistance_reduction: number; elemental: number;
           fire: number; cold: number; lightning: number; erosion: number }
-  // Per-stat penetration source breakdown (incl. skill-scoped pens absent from the global stat_map), keyed by
-  // the pen stat (e.g. "armor_pen"). amount is a fraction (0.225 = 22.5% pen from that source).
-  pen_sources?: Record<string, { source_type: string; label: string; text?: string;
-                                  source_name?: string; amount: number }[]>
 }
 
 export interface NumbedInfo {

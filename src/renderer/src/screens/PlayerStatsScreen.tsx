@@ -3483,18 +3483,16 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
         const amplified = r.effective < 0
         const extra: ExtraRow[] = [{ value: pct2(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
         if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct2(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
-        // Penetration sources for this row — pulled from target.pen_sources (which carries skill-SCOPED pens that
-        // never reach the global stat_map, so the stat_map `keys` lookup misses them). Shown as a deduction.
-        for (const key of r.penKeys) {
-          for (const s of (target.pen_sources?.[key] ?? [])) {
-            if (Math.abs(s.amount) < 1e-9) continue
-            extra.push({ value: `−${dec(s.amount * 100)}%`, stat: `${r.baseStat} Penetration`,
-              source: s.label || s.source_type, sourceName: s.source_name || s.text || '' })
-          }
-        }
+        // Penetration sources now come through the STANDARD stat_map keys lookup (main `sources` for
+        // unscoped + `slot_sources`/scopedRows for skill-scoped pens, e.g. Awakening Skull's attack-only
+        // Armor Pen) — the same path every other panel uses. Used to be a bespoke target.pen_sources
+        // lookup because scoped contributions "never reached the global stat_map"; they do now (the
+        // scoped_log merge into slot_sources), which made that whole mechanism byte-for-byte redundant
+        // (verified directly before removing it) — deleted rather than kept as a second way to ask for
+        // the same data.
         return (
           <Row key={r.label} label={r.label} labelColor={r.color}
-            breakdown={{ title: r.label, keys: [], total: r.effective, totalUnit: '%', extra,
+            breakdown={{ title: r.label, keys: r.penKeys, total: r.effective, totalUnit: '%', extra,
               formula: 'Base − Penetration (penetration is ignored at the hit, it is not a resistance reduction)' }}>
             <span style={{ color: amplified ? '#ff8c6b' : undefined }}>{pct(r.effective)}</span>
           </Row>
