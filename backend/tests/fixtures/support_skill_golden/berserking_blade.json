@@ -311,6 +311,12 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.396,
     "crit_chance_uncapped": 0.396,
+    "crit_dmg_keys": [
+      "crit_dmg_additional",
+      "crit_dmg_inc",
+      "attack_crit_dmg_inc",
+      "physical_crit_dmg_inc"
+    ],
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "damage_rows": [
@@ -436,7 +442,24 @@
       "physical": 578.0
     },
     "generic_add": 3.6502221127679992,
+    "generic_add_keys": [
+      "hit_dmg_additional",
+      "dmg_additional",
+      "dmg_max_additional",
+      "dmg_min_additional",
+      "attack_dmg_additional",
+      "melee_dmg_additional",
+      "area_dmg_additional",
+      "at_center_dmg_additional"
+    ],
     "generic_inc": 0,
+    "generic_inc_keys": [
+      "dmg_inc",
+      "attack_dmg_inc",
+      "shield_dmg_inc",
+      "melee_dmg_inc",
+      "area_dmg_inc"
+    ],
     "hit_forms": [
       {
         "avg_hit_pre_crit": 8350.069244284548,
@@ -619,10 +642,77 @@
       "lightning": 4.827418744135679,
       "physical": 3.6502221127679992
     },
+    "type_add_keys": {
+      "fire": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "fire_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "lightning": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "lightning_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "physical": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "physical_dmg_additional",
+        "physical_dmg_min_additional",
+        "physical_dmg_max_additional",
+        "at_center_dmg_additional"
+      ]
+    },
     "type_inc": {
       "fire": 0,
       "lightning": 0,
       "physical": 0
+    },
+    "type_inc_keys": {
+      "fire": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "fire_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "lightning": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "lightning_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "physical": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "physical_dmg_inc"
+      ]
     },
     "weapon_aps_gear": 0,
     "weapon_aps_mh": 0,
@@ -662,6 +752,12 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.396,
       "crit_chance_uncapped": 0.396,
+      "crit_dmg_keys": [
+        "crit_dmg_additional",
+        "crit_dmg_inc",
+        "attack_crit_dmg_inc",
+        "physical_crit_dmg_inc"
+      ],
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
       "damage_rows": [
@@ -787,7 +883,24 @@
         "physical": 578.0
       },
       "generic_add": 3.6502221127679992,
+      "generic_add_keys": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "at_center_dmg_additional"
+      ],
       "generic_inc": 0,
+      "generic_inc_keys": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc"
+      ],
       "hit_forms": [
         {
           "avg_hit_pre_crit": 8350.069244284548,
@@ -970,10 +1083,77 @@
         "lightning": 4.827418744135679,
         "physical": 3.6502221127679992
       },
+      "type_add_keys": {
+        "fire": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "fire_dmg_additional",
+          "elemental_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "lightning": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "lightning_dmg_additional",
+          "elemental_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "physical": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "physical_dmg_additional",
+          "physical_dmg_min_additional",
+          "physical_dmg_max_additional",
+          "at_center_dmg_additional"
+        ]
+      },
       "type_inc": {
         "fire": 0,
         "lightning": 0,
         "physical": 0
+      },
+      "type_inc_keys": {
+        "fire": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "fire_dmg_inc",
+          "elemental_dmg_inc"
+        ],
+        "lightning": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "lightning_dmg_inc",
+          "elemental_dmg_inc"
+        ],
+        "physical": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "physical_dmg_inc"
+        ]
       },
       "weapon_aps_gear": 0,
       "weapon_aps_mh": 0,

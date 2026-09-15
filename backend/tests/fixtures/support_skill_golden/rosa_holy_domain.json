@@ -264,6 +264,11 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.15,
     "crit_chance_uncapped": 0.15,
+    "crit_dmg_keys": [
+      "crit_dmg_additional",
+      "crit_dmg_inc",
+      "spell_crit_dmg_inc"
+    ],
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "damage_rows": [],
@@ -301,7 +306,23 @@
       "physical": 78.0
     },
     "generic_add": 1.6206220800000002,
+    "generic_add_keys": [
+      "hit_dmg_additional",
+      "dmg_additional",
+      "dmg_max_additional",
+      "dmg_min_additional",
+      "spell_dmg_additional",
+      "area_dmg_additional",
+      "channeled_dmg_additional",
+      "at_center_dmg_additional"
+    ],
     "generic_inc": 0,
+    "generic_inc_keys": [
+      "dmg_inc",
+      "spell_dmg_inc",
+      "area_dmg_inc",
+      "channeled_dmg_inc"
+    ],
     "hit_forms": [],
     "jumps": 0,
     "jumps_base": 0,
@@ -417,10 +438,74 @@
       "lightning": 2.1432727007999994,
       "physical": 1.6206220800000002
     },
+    "type_add_keys": {
+      "fire": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "area_dmg_additional",
+        "fire_dmg_additional",
+        "elemental_dmg_additional",
+        "channeled_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "lightning": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "area_dmg_additional",
+        "lightning_dmg_additional",
+        "elemental_dmg_additional",
+        "channeled_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "physical": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "area_dmg_additional",
+        "physical_dmg_additional",
+        "physical_dmg_min_additional",
+        "physical_dmg_max_additional",
+        "channeled_dmg_additional",
+        "at_center_dmg_additional"
+      ]
+    },
     "type_inc": {
       "fire": 0,
       "lightning": 0,
       "physical": 0
+    },
+    "type_inc_keys": {
+      "fire": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "area_dmg_inc",
+        "fire_dmg_inc",
+        "elemental_dmg_inc",
+        "channeled_dmg_inc"
+      ],
+      "lightning": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "area_dmg_inc",
+        "lightning_dmg_inc",
+        "elemental_dmg_inc",
+        "channeled_dmg_inc"
+      ],
+      "physical": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "area_dmg_inc",
+        "physical_dmg_inc",
+        "channeled_dmg_inc"
+      ]
     },
     "weapon_aps_gear": 0,
     "weapon_aps_mh": 0,
@@ -460,6 +545,11 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.15,
       "crit_chance_uncapped": 0.15,
+      "crit_dmg_keys": [
+        "crit_dmg_additional",
+        "crit_dmg_inc",
+        "spell_crit_dmg_inc"
+      ],
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
       "damage_rows": [],
@@ -497,7 +587,23 @@
         "physical": 78.0
       },
       "generic_add": 1.6206220800000002,
+      "generic_add_keys": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "area_dmg_additional",
+        "channeled_dmg_additional",
+        "at_center_dmg_additional"
+      ],
       "generic_inc": 0,
+      "generic_inc_keys": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "area_dmg_inc",
+        "channeled_dmg_inc"
+      ],
       "hit_forms": [],
       "jumps": 0,
       "jumps_base": 0,
@@ -613,10 +719,74 @@
         "lightning": 2.1432727007999994,
         "physical": 1.6206220800000002
       },
+      "type_add_keys": {
+        "fire": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "spell_dmg_additional",
+          "area_dmg_additional",
+          "fire_dmg_additional",
+          "elemental_dmg_additional",
+          "channeled_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "lightning": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "spell_dmg_additional",
+          "area_dmg_additional",
+          "lightning_dmg_additional",
+          "elemental_dmg_additional",
+          "channeled_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "physical": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "spell_dmg_additional",
+          "area_dmg_additional",
+          "physical_dmg_additional",
+          "physical_dmg_min_additional",
+          "physical_dmg_max_additional",
+          "channeled_dmg_additional",
+          "at_center_dmg_additional"
+        ]
+      },
       "type_inc": {
         "fire": 0,
         "lightning": 0,
         "physical": 0
+      },
+      "type_inc_keys": {
+        "fire": [
+          "dmg_inc",
+          "spell_dmg_inc",
+          "area_dmg_inc",
+          "fire_dmg_inc",
+          "elemental_dmg_inc",
+          "channeled_dmg_inc"
+        ],
+        "lightning": [
+          "dmg_inc",
+          "spell_dmg_inc",
+          "area_dmg_inc",
+          "lightning_dmg_inc",
+          "elemental_dmg_inc",
+          "channeled_dmg_inc"
+        ],
+        "physical": [
+          "dmg_inc",
+          "spell_dmg_inc",
+          "area_dmg_inc",
+          "physical_dmg_inc",
+          "channeled_dmg_inc"
+        ]
       },
       "weapon_aps_gear": 0,
       "weapon_aps_mh": 0,

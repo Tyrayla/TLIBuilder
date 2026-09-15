@@ -1077,6 +1077,15 @@ export interface OffenseResult {
   generic_add: number          // INCLUDES the main-stat Damage Bonus below
   main_stat_damage_bonus: number  // fraction (0.255 = +25.5%) from the skill's main-stat attributes
   main_stats: string[]            // attributes summed (e.g. ['dexterity','intelligence'])
+  // The EXACT stat keys eligible for generic_inc/generic_add/type_inc/type_add/crit_dmg on THIS
+  // skill/build — filtered engine-side by the SAME tag-gate predicates that computed those values, so a
+  // breakdown panel built from these can never show/omit a source the engine didn't actually use. Prefer
+  // these over any hand-written key list (mirrors the enemy_vuln_sources_by_type precedent).
+  generic_inc_keys?: string[]
+  generic_add_keys?: string[]
+  type_inc_keys?: Record<string, string[]>
+  type_add_keys?: Record<string, string[]>
+  crit_dmg_keys?: string[]
   // A skill's own intrinsic 'additional damage' mechanic (Focused Slash's Fervor bonus, Rapid Advance's
   // per-Max-Channeled-Stack bonus, …) is no longer a separate side-channel field — the engine now tracks
   // it as a real dmg_additional SourceEntry, so it shows up natively via stat_map/the Total Additional

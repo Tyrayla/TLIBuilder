@@ -1069,6 +1069,22 @@ class OffenseResult:
     # main_stat_damage_bonus is the fraction (0.255 = +25.5%); main_stats lists the attributes summed.
     main_stat_damage_bonus: float = 0.0
     main_stats: list[str] = field(default_factory=list)
+    # ── Engine-emitted breakdown key lists ──────────────────────────────────────────────────────────
+    # The EXACT stat keys that were eligible for each pool ABOVE on this skill/build — filtered by the
+    # SAME tag-gate predicates (_skill_gate / _applies_to_dtype) that computed generic_inc/generic_add/
+    # type_inc/type_add/crit_dmg themselves, not a second, independently-maintained approximation. The
+    # frontend used to hand-derive these via its own hasTag() checks (genericAddKeys/typeAddKeys/
+    # critDmgKeys/etc. in PlayerStatsScreen.tsx) — a parallel copy of pool membership that silently drifted
+    # out of sync with new STAT_META entries (confirmed missing keys: channeled_dmg_additional,
+    # sentry_dmg_additional, ailment_dmg_inc, ranged_dmg_inc, and others — none of which ever showed in the
+    # breakdown despite correctly affecting DPS). Passing these lists instead means a new tag-scoped stat
+    # is correct in the breakdown the moment it's correct in the math — by construction, not by remembering
+    # to update a second list. Mirrors the existing `enemy_vuln_sources_by_type` precedent.
+    generic_inc_keys: list[str] = field(default_factory=list)
+    generic_add_keys: list[str] = field(default_factory=list)
+    type_inc_keys: dict[str, list[str]] = field(default_factory=dict)
+    type_add_keys: dict[str, list[str]] = field(default_factory=dict)
+    crit_dmg_keys: list[str] = field(default_factory=list)
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)
@@ -1728,6 +1744,7 @@ def calculate_offense(
     # shows a labeled source in the crit-multiplier breakdown — no separate post-loop fold needed. (The crit-RATING
     # sibling at crit_rating_inc is still folded below; it has the same display gap, tracked for a follow-up spec.)
     crit_damage = sum(source.total(key) for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags)
+    crit_dmg_keys = [key for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags]
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
 
@@ -1915,6 +1932,8 @@ def calculate_offense(
 
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
+    type_inc_keys: dict[str, list[str]] = {}
+    type_add_keys: dict[str, list[str]] = {}
     for dtype in calc_types:
         # Elemental types also carry the "elemental" pseudo-tag so "increased/additional Elemental Damage"
         # (tagged 'elemental') applies to Fire/Cold/Lightning but not Erosion/Physical.
@@ -1928,6 +1947,12 @@ def calculate_offense(
             source, add_factors,
             lambda tags, dt=dtype_tag: _applies_to_dtype(tags, dt, pool_tags),
         ) * main_stat_mult
+        # The SAME filter predicates as the sums/products just above, exported as key lists — see
+        # OffenseResult.type_inc_keys/type_add_keys's own comment for why this replaces a hand-maintained
+        # frontend approximation instead of the frontend re-deriving it via its own tag checks.
+        type_inc_keys[dtype] = [key for key, tags in _HIT_INC_STATS if _applies_to_dtype(tags, dtype_tag, pool_tags)]
+        type_add_keys[dtype] = [key for key, tags in _HIT_ADDITIONAL_STATS
+                                if _applies_to_dtype(tags, dtype_tag, pool_tags)]
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
     # These are the "All" column values in the stats screen breakdown table.
@@ -1940,6 +1965,10 @@ def calculate_offense(
         source, add_factors,
         lambda tags: not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags),
     ) * main_stat_mult
+    generic_inc_keys = [key for key, tags in _HIT_INC_STATS
+                        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)]
+    generic_add_keys = [key for key, tags in _HIT_ADDITIONAL_STATS
+                        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)]
 
     # Type-specific bonuses for the conversion cascade, computed over the UNION of a packet's path types
     # (the set of dtype-tags of every type it has been). Each type-specific modifier is counted ONCE: an
@@ -2856,6 +2885,11 @@ def calculate_offense(
         above_max_mult=above_mult,
         generic_inc=generic_inc,
         generic_add=generic_add,
+        generic_inc_keys=generic_inc_keys,
+        generic_add_keys=generic_add_keys,
+        type_inc_keys=type_inc_keys,
+        type_add_keys=type_add_keys,
+        crit_dmg_keys=crit_dmg_keys,
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
         # sorted(): add_mod_tags is a SET — unsorted iteration made the appended extras' order vary per

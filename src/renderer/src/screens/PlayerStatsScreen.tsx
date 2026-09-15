@@ -766,66 +766,37 @@ function flatMaxKeys(dtype: string, offense: OffenseResult, minion = false): str
   return keys
 }
 
+// Engine-emitted key lists (OffenseResult.generic_inc_keys/generic_add_keys/type_inc_keys/type_add_keys/
+// crit_dmg_keys) — the EXACT stat keys `calculate_offense` filtered into each pool for THIS skill/build,
+// via the same tag-gate predicates that computed the pool's own value. These functions used to hand-derive
+// an approximation via hasTag() checks; that copy silently drifted from the engine's real pool membership
+// more than once (confirmed missing: channeled_dmg_additional, sentry_dmg_additional, ailment_dmg_inc,
+// ranged_dmg_inc, dmg_max_additional, dmg_min_additional, at_center_dmg_additional, and others — each
+// correctly affecting DPS with no breakdown source to show for it). `?? []` only matters for an
+// old/cached payload from before these fields existed; any current backend always populates them.
+// Minion mode is unrelated (a single fixed `minion_*` key, no tag-gating) and stays hand-written.
 function genericIncKeys(offense: OffenseResult, minion = false): string[] {
   if (minion) return ['minion_dmg_inc']
-  const keys = ['dmg_inc']
-  if (hasTag(offense,'attack'))     keys.push('attack_dmg_inc')
-  if (hasTag(offense,'spell'))      keys.push('spell_dmg_inc')
-  if (hasTag(offense,'melee'))      keys.push('melee_dmg_inc')
-  if (hasTag(offense,'area'))       keys.push('area_dmg_inc')
-  if (hasTag(offense,'projectile')) keys.push('projectile_dmg_inc')
-  // Tangle mode adds the "tangle" tag inside offense (not on the skill's tags), so key off tangle_count.
-  if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_inc')
-  return keys
+  return offense.generic_inc_keys ?? []
 }
 
-function typeIncKeys(dtype: string, minion = false): string[] {
+function typeIncKeys(offense: OffenseResult, dtype: string, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_inc`]
-  const keys = [`${dtype}_dmg_inc`]
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_inc')
-  return keys
+  return offense.type_inc_keys?.[dtype] ?? []
 }
 
 function genericAddKeys(offense: OffenseResult, minion = false): string[] {
   if (minion) return ['minion_dmg_additional']
-  // 'hit_dmg_additional' is generic (untagged) hit-only additional — e.g. Splendor's "+additional Hit Damage".
-  // It folds into generic_add in offense, so it belongs in the All-Types breakdown alongside dmg_additional.
-  const keys = ['dmg_additional', 'hit_dmg_additional']
-  if (hasTag(offense,'attack'))     keys.push('attack_dmg_additional')
-  if (hasTag(offense,'spell'))      keys.push('spell_dmg_additional')
-  if (hasTag(offense,'melee'))      keys.push('melee_dmg_additional')
-  if (hasTag(offense,'area'))       keys.push('area_dmg_additional')
-  if (hasTag(offense,'projectile')) keys.push('projectile_dmg_additional')
-  // Tangle mode: additional + the enhancement pool (both ride the "tangle" tag, added inside offense).
-  if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_additional', 'tangle_dmg_enhancement_additional')
-  // Spell Burst mode adds the "spell_burst" tag inside offense → the burst-cast hit-damage pool applies.
-  if ((offense.spell_burst_count ?? 0) > 0) keys.push('spell_burst_hit_dmg_additional')
-  return keys
+  return offense.generic_add_keys ?? []
 }
 
-function typeAddKeys(dtype: string, minion = false): string[] {
+function typeAddKeys(offense: OffenseResult, dtype: string, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_additional`]
-  const keys = [`${dtype}_dmg_additional`]
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_additional')
-  return keys
+  return offense.type_add_keys?.[dtype] ?? []
 }
 
-// Crit Multiplier's additive Critical Strike Damage pool (player-only; minions use the single
-// 'minion_crit_dmg_inc' key). Mirrors backend/engine/offense.py's _CRIT_DMG_STATS EXACTLY — every
-// STAT_META entry with pipeline_stage=="crit_damage" and "hit" in affects, minus the minion one:
-// crit_dmg_inc + crit_dmg_additional are untagged (always apply); attack/spell/projectile/sentry/combo
-// and the skill's own damage type each gate their own pool. 'crit_damage' (the old key here) was never a
-// real stat_map entry — the breakdown showed no sources at all until this matched the actual per-key
-// pools the engine sums.
 function critDmgKeys(offense: OffenseResult): string[] {
-  const keys = ['crit_dmg_inc', 'crit_dmg_additional']
-  if (hasTag(offense, 'attack')) keys.push('attack_crit_dmg_inc')
-  if (hasTag(offense, 'spell')) keys.push('spell_crit_dmg_inc')
-  if (hasTag(offense, 'projectile')) keys.push('projectile_crit_dmg_inc')
-  if (hasTag(offense, 'sentry')) keys.push('sentry_crit_dmg_inc')
-  if (hasTag(offense, 'combo')) keys.push('combo_finisher_crit_dmg_inc')
-  for (const dtype of ALL_DTYPES) if (hasTag(offense, dtype)) keys.push(`${dtype}_crit_dmg_inc`)
-  return keys
+  return offense.crit_dmg_keys ?? []
 }
 
 // Small kind tag next to a row's name — "hit" rows (the common case) get no tag; "true" (Mercury Baptism /
@@ -944,7 +915,7 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               const show = specific >= 0.005
               const txt = `${(specific * 100).toFixed(0)}%`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d, minion)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(offense, d, minion)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
@@ -970,7 +941,7 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               const show = Math.abs(specificAdd - 1) >= 0.005
               const txt = `×${dec(specificAdd)}`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d, minion)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(offense, d, minion)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
