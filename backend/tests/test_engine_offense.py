@@ -383,6 +383,27 @@ class TestEngineEmittedBreakdownKeys:
         assert set(r.generic_add_keys) == expected_add
         assert set(r.generic_inc_keys) == expected_inc
 
+    def test_flat_min_keys_excludes_weapon_gear_on_a_true_spell(self):
+        # Regression: the old hand-written flatMinKeys ALWAYS included {dtype}_dmg_gear_flat_min (+
+        # elemental_dmg_gear_flat_min), even for a true spell (skill.is_spell) — but _spell_flat never
+        # reads those keys; weapon base doesn't apply to spells. That meant a spellcaster's weapon flat
+        # damage could show as an "Added Min/Max" SOURCE on a spell it never actually contributed to —
+        # a source displayed as applying when it wasn't, found while converting this key list to be
+        # engine-emitted. Uses _spell() (defined below) — a real is_spell=True ResolvedSkill.
+        spell = _spell(dtype="lightning")
+        r = calculate_offense(_add_src(types=("lightning",)), spell, 16)
+        assert r.flat_min_keys["lightning"] == ["lightning_spell_dmg_flat_min"]
+        assert r.flat_max_keys["lightning"] == ["lightning_spell_dmg_flat_max"]
+        assert "lightning_dmg_gear_flat_min" not in r.flat_min_keys["lightning"]
+        assert "elemental_dmg_gear_flat_min" not in r.flat_min_keys["lightning"]
+
+    def test_flat_min_keys_includes_weapon_gear_on_an_attack(self):
+        r = calculate_offense(_add_src(types=("fire",)), _skill(tags=("attack",)), 1)
+        assert "fire_dmg_gear_flat_min" in r.flat_min_keys["fire"]
+        assert "fire_attack_dmg_flat_min" in r.flat_min_keys["fire"]
+        assert "elemental_dmg_gear_flat_min" in r.flat_min_keys["fire"]
+        assert "fire_spell_dmg_flat_min" not in r.flat_min_keys["fire"]
+
 
 def _spell(base=(25.0, 482.0), eff=1.36, cast=0.65, max_level=20, level=16, dtype="lightning", jumps=0):
     """A resolved spell skill (Chain Lightning shape): per-level intrinsic base damage, cast-driven

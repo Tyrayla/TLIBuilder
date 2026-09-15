@@ -745,25 +745,19 @@ const DTYPE_LABEL: Record<string, string> = {
 // case-insensitively so spell/attack detection and key selection actually match.
 const hasTag = (offense: OffenseResult, tag: string) => offense.skill_tags.some(t => t.toLowerCase() === tag)
 
-// The `minion` flag switches these to the minion-scoped stat pools (`minion_*`), skipping the player-only
-// mechanic pushes (attack/spell/melee/tangle/spell-burst) that have no minion analogue. Enemy-vulnerability
-// keys are NOT namespaced — enemy debuffs apply to minion hits the same as player hits.
+// Engine-emitted (offense.flat_min_keys/flat_max_keys, per dtype) — a true spell reads ONLY
+// {dtype}_spell_dmg_flat_*; weapon base never applies to it. The old hand-written version here always
+// included the weapon-gear keys regardless, which could show a weapon's flat damage as an "Added Min/Max"
+// source on a spell it never actually contributes to. Minion mode (a single fixed `minion_*` key, no
+// attack/spell branch to get wrong) stays hand-written.
 function flatMinKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_flat_min`]
-  const keys = [`${dtype}_dmg_gear_flat_min`]
-  if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_min`)
-  if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_min`)
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_gear_flat_min')
-  return keys
+  return offense.flat_min_keys?.[dtype] ?? []
 }
 
 function flatMaxKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_flat_max`]
-  const keys = [`${dtype}_dmg_gear_flat_max`]
-  if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_max`)
-  if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_max`)
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_gear_flat_max')
-  return keys
+  return offense.flat_max_keys?.[dtype] ?? []
 }
 
 // Engine-emitted key lists (OffenseResult.generic_inc_keys/generic_add_keys/type_inc_keys/type_add_keys/

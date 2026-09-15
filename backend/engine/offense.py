@@ -1056,6 +1056,14 @@ class OffenseResult:
     # Per-type damage breakdown for the stats screen breakdown table
     flat_dmg_min: dict[str, float] = field(default_factory=dict)  # flat before inc/add (skill base + added)
     flat_dmg_max: dict[str, float] = field(default_factory=dict)
+    # Which stat keys actually feed flat_dmg_min/max for THIS skill, per dtype — a true spell (skill.is_spell)
+    # reads ONLY {dtype}_spell_dmg_flat_* (weapon base never applies to spells — see _spell_flat); an attack
+    # reads {dtype}_dmg_gear_flat_* (+ _attack_dmg_flat_* / _spell_dmg_flat_* if the respective tag is present
+    # / elemental_dmg_gear_flat_* for fire/cold/lightning — see the branch below). The frontend used to build
+    # this list unconditionally (always including the weapon-gear keys, even for a true spell), which could
+    # show a weapon's flat damage as an "Added Min/Max" source on a spell it never actually applies to.
+    flat_min_keys: dict[str, list[str]] = field(default_factory=dict)
+    flat_max_keys: dict[str, list[str]] = field(default_factory=dict)
     # The skill's INTRINSIC per-level base damage per type (spells only; attacks derive base from the
     # weapon, which is already a keyed gear source). Surfaced so the breakdown can show it as a baseline.
     base_dmg_min: dict[str, float] = field(default_factory=dict)
@@ -1829,6 +1837,32 @@ def calculate_offense(
             for dtype in ("fire", "cold", "lightning"):
                 existing = flat_dmg.get(dtype, (0.0, 0.0))
                 flat_dmg[dtype] = (existing[0] + scaled_elem_min, existing[1] + scaled_elem_max)
+
+    # Key lists mirroring the branch above EXACTLY (see OffenseResult.flat_min_keys/flat_max_keys's own
+    # comment) — computed per-dtype for every DAMAGE_TYPES entry regardless of whether flat_dmg ended up
+    # populated for it (a key with no current source just returns an empty breakdown, same as every other
+    # engine-emitted key list in this file).
+    flat_min_keys: dict[str, list[str]] = {}
+    flat_max_keys: dict[str, list[str]] = {}
+    if skill.is_spell:
+        for dtype in DAMAGE_TYPES:
+            flat_min_keys[dtype] = [f"{dtype}_spell_dmg_flat_min"]
+            flat_max_keys[dtype] = [f"{dtype}_spell_dmg_flat_max"]
+    else:
+        for dtype in DAMAGE_TYPES:
+            kmin = [f"{dtype}_dmg_gear_flat_min"]
+            kmax = [f"{dtype}_dmg_gear_flat_max"]
+            if is_attack:
+                kmin.append(f"{dtype}_attack_dmg_flat_min")
+                kmax.append(f"{dtype}_attack_dmg_flat_max")
+            if is_spell:
+                kmin.append(f"{dtype}_spell_dmg_flat_min")
+                kmax.append(f"{dtype}_spell_dmg_flat_max")
+            if dtype in ("fire", "cold", "lightning"):
+                kmin.append("elemental_dmg_gear_flat_min")
+                kmax.append("elemental_dmg_gear_flat_max")
+            flat_min_keys[dtype] = kmin
+            flat_max_keys[dtype] = kmax
 
     # (Flat PHYSICAL damage per N consumed — Blade-dancer/Glacier — is folded into the REAL physical_{attack,spell}_
     # dmg_flat source stats IN the compute loop, so it flows through the full flat→inc→additional pipeline incl.
@@ -2878,6 +2912,8 @@ def calculate_offense(
         base_csr=base_csr,
         flat_dmg_min={dtype: mn for dtype, (mn, _) in flat_dmg.items()},
         flat_dmg_max={dtype: mx for dtype, (_, mx) in flat_dmg.items()},
+        flat_min_keys=flat_min_keys,
+        flat_max_keys=flat_max_keys,
         base_dmg_min={dtype: mn for dtype, (mn, _) in skill_base_dmg.items()},
         base_dmg_max={dtype: mx for dtype, (_, mx) in skill_base_dmg.items()},
         type_inc=type_inc,

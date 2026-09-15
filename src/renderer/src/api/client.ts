@@ -1068,6 +1068,11 @@ export interface OffenseResult {
   base_csr: number
   flat_dmg_min: Record<string, number>
   flat_dmg_max: Record<string, number>
+  // Which stat keys actually feed flat_dmg_min/max for THIS skill, per dtype — a true spell reads only
+  // {dtype}_spell_dmg_flat_*; an attack reads {dtype}_dmg_gear_flat_* (+ attack/spell/elemental additions).
+  // Weapon base never applies to a true spell — see offense.py's OffenseResult.flat_min_keys comment.
+  flat_min_keys?: Record<string, string[]>
+  flat_max_keys?: Record<string, string[]>
   base_dmg_min: Record<string, number>
   base_dmg_max: Record<string, number>
   type_inc: Record<string, number>

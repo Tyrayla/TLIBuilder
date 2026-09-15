@@ -441,6 +441,56 @@
       "lightning": 10.0,
       "physical": 578.0
     },
+    "flat_max_keys": {
+      "cold": [
+        "cold_dmg_gear_flat_max",
+        "cold_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "erosion": [
+        "erosion_dmg_gear_flat_max",
+        "erosion_attack_dmg_flat_max"
+      ],
+      "fire": [
+        "fire_dmg_gear_flat_max",
+        "fire_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "lightning": [
+        "lightning_dmg_gear_flat_max",
+        "lightning_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "physical": [
+        "physical_dmg_gear_flat_max",
+        "physical_attack_dmg_flat_max"
+      ]
+    },
+    "flat_min_keys": {
+      "cold": [
+        "cold_dmg_gear_flat_min",
+        "cold_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "erosion": [
+        "erosion_dmg_gear_flat_min",
+        "erosion_attack_dmg_flat_min"
+      ],
+      "fire": [
+        "fire_dmg_gear_flat_min",
+        "fire_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "lightning": [
+        "lightning_dmg_gear_flat_min",
+        "lightning_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "physical": [
+        "physical_dmg_gear_flat_min",
+        "physical_attack_dmg_flat_min"
+      ]
+    },
     "generic_add": 3.6502221127679992,
     "generic_add_keys": [
       "hit_dmg_additional",
@@ -881,6 +931,56 @@
         "fire": 73.0,
         "lightning": 10.0,
         "physical": 578.0
+      },
+      "flat_max_keys": {
+        "cold": [
+          "cold_dmg_gear_flat_max",
+          "cold_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "erosion": [
+          "erosion_dmg_gear_flat_max",
+          "erosion_attack_dmg_flat_max"
+        ],
+        "fire": [
+          "fire_dmg_gear_flat_max",
+          "fire_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "lightning": [
+          "lightning_dmg_gear_flat_max",
+          "lightning_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "physical": [
+          "physical_dmg_gear_flat_max",
+          "physical_attack_dmg_flat_max"
+        ]
+      },
+      "flat_min_keys": {
+        "cold": [
+          "cold_dmg_gear_flat_min",
+          "cold_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "erosion": [
+          "erosion_dmg_gear_flat_min",
+          "erosion_attack_dmg_flat_min"
+        ],
+        "fire": [
+          "fire_dmg_gear_flat_min",
+          "fire_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "lightning": [
+          "lightning_dmg_gear_flat_min",
+          "lightning_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "physical": [
+          "physical_dmg_gear_flat_min",
+          "physical_attack_dmg_flat_min"
+        ]
       },
       "generic_add": 3.6502221127679992,
       "generic_add_keys": [

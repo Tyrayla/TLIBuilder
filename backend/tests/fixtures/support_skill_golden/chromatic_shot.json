@@ -455,6 +455,40 @@
       "lightning": 13.100000000000001,
       "physical": 631.1800000000001
     },
+    "flat_max_keys": {
+      "cold": [
+        "cold_spell_dmg_flat_max"
+      ],
+      "erosion": [
+        "erosion_spell_dmg_flat_max"
+      ],
+      "fire": [
+        "fire_spell_dmg_flat_max"
+      ],
+      "lightning": [
+        "lightning_spell_dmg_flat_max"
+      ],
+      "physical": [
+        "physical_spell_dmg_flat_max"
+      ]
+    },
+    "flat_min_keys": {
+      "cold": [
+        "cold_spell_dmg_flat_min"
+      ],
+      "erosion": [
+        "erosion_spell_dmg_flat_min"
+      ],
+      "fire": [
+        "fire_spell_dmg_flat_min"
+      ],
+      "lightning": [
+        "lightning_spell_dmg_flat_min"
+      ],
+      "physical": [
+        "physical_spell_dmg_flat_min"
+      ]
+    },
     "generic_add": 8.246901927846652,
     "generic_add_keys": [
       "hit_dmg_additional",
@@ -917,6 +951,40 @@
         "fire": 95.63000000000001,
         "lightning": 13.100000000000001,
         "physical": 631.1800000000001
+      },
+      "flat_max_keys": {
+        "cold": [
+          "cold_spell_dmg_flat_max"
+        ],
+        "erosion": [
+          "erosion_spell_dmg_flat_max"
+        ],
+        "fire": [
+          "fire_spell_dmg_flat_max"
+        ],
+        "lightning": [
+          "lightning_spell_dmg_flat_max"
+        ],
+        "physical": [
+          "physical_spell_dmg_flat_max"
+        ]
+      },
+      "flat_min_keys": {
+        "cold": [
+          "cold_spell_dmg_flat_min"
+        ],
+        "erosion": [
+          "erosion_spell_dmg_flat_min"
+        ],
+        "fire": [
+          "fire_spell_dmg_flat_min"
+        ],
+        "lightning": [
+          "lightning_spell_dmg_flat_min"
+        ],
+        "physical": [
+          "physical_spell_dmg_flat_min"
+        ]
       },
       "generic_add": 8.246901927846652,
       "generic_add_keys": [
