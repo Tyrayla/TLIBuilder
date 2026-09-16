@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { api, Build } from '../api/client'
+import { buildSharePreview } from '../utils/buildSharePreview'
 import ImportPanel from './ImportPanel'
 
 interface Props {
@@ -25,6 +26,13 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
   const [shareLoading, setShareLoading] = useState(false)
   const [shareError, setShareError] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
+  // Set when the link was created successfully but WITHOUT a stats-preview/Discord-embed snapshot
+  // — see buildSharePreview(). Shown in the UI so this is diagnosable without opening DevTools.
+  const [sharePreviewSkipReason, setSharePreviewSkipReason] = useState<string | null>(null)
+  // Set alongside shareError when a preview WAS sent but the share service rejected the request —
+  // its own error message doesn't say which field failed, so this dumps the actual values that
+  // were sent (rendered in a <pre>, see JSX below) so a bad one is spottable without DevTools.
+  const [shareErrorPreviewDump, setShareErrorPreviewDump] = useState<string | null>(null)
 
   const [dirtyPrompt, setDirtyPrompt] = useState(false)
   const [dirtySaveName, setDirtySaveName] = useState(buildName)
@@ -40,6 +48,7 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
       setCopied(false)
       setShareUrl(null)
       setShareError(null)
+      setSharePreviewSkipReason(null)
     } catch { /* silent */ }
     finally { setExportLoading(false) }
   }
@@ -56,14 +65,27 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
     if (!exportCode) return
     setShareLoading(true)
     setShareError(null)
+    setSharePreviewSkipReason(null)
+    setShareErrorPreviewDump(null)
+    const { preview, skipReason } = buildSharePreview()
     try {
-      const { url } = await api.shareBuildCode(exportCode)
+      const { url } = await api.shareBuildCode(exportCode, preview)
       setShareUrl(url)
       setShareCopied(false)
-    } catch {
+      setSharePreviewSkipReason(skipReason ?? null)
+    } catch (e) {
       // Link sharing is additive — never a hard dependency. The raw code above
-      // stays fully copyable when the share service is unreachable.
-      setShareError("Couldn't create a share link — the service may be unavailable. You can still copy the code above.")
+      // stays fully copyable when the share service is unreachable. But a generic message here
+      // previously hid real causes (e.g. a 400 validation rejection) behind "may be unavailable" —
+      // show the actual detail so a real bug is diagnosable instead of looking like an outage.
+      const detail = e instanceof Error ? e.message : String(e)
+      console.error('shareBuildCode failed:', e, preview)
+      setShareError(`Couldn't create a share link: ${detail}. You can still copy the code above.`)
+      // The share service's own validation-rejection message doesn't say WHICH field failed (by
+      // design — it's a public endpoint that doesn't echo detailed schema errors). Since checking
+      // DevTools isn't always practical, dump the computed values that were actually sent — a bad
+      // one (NaN, a huge/negative number, an unexpected string) should be spottable by eye.
+      if (preview) setShareErrorPreviewDump(JSON.stringify(preview, null, 2))
     } finally {
       setShareLoading(false)
     }
@@ -155,6 +177,7 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
                 {!asScreen && <button className="btn btn-secondary" onClick={onClose}>Close</button>}
               </div>
               {shareError && <p className="share-import-error">{shareError}</p>}
+              {shareErrorPreviewDump && <pre className="share-error-preview-dump">{shareErrorPreviewDump}</pre>}
               {shareUrl && (
                 <>
                   <textarea
@@ -171,6 +194,11 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
                       {shareCopied ? 'Copied!' : 'Copy Link'}
                     </button>
                   </div>
+                  {sharePreviewSkipReason && (
+                    <div className="share-import-warning">
+                      <p>Link created, but the overview page won't show stats or a Discord preview for it: {sharePreviewSkipReason}</p>
+                    </div>
+                  )}
                 </>
               )}
             </>

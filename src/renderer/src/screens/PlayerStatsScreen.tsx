@@ -745,87 +745,52 @@ const DTYPE_LABEL: Record<string, string> = {
 // case-insensitively so spell/attack detection and key selection actually match.
 const hasTag = (offense: OffenseResult, tag: string) => offense.skill_tags.some(t => t.toLowerCase() === tag)
 
-// The `minion` flag switches these to the minion-scoped stat pools (`minion_*`), skipping the player-only
-// mechanic pushes (attack/spell/melee/tangle/spell-burst) that have no minion analogue. Enemy-vulnerability
-// keys are NOT namespaced — enemy debuffs apply to minion hits the same as player hits.
+// Engine-emitted (offense.flat_min_keys/flat_max_keys, per dtype) — a true spell reads ONLY
+// {dtype}_spell_dmg_flat_*; weapon base never applies to it. The old hand-written version here always
+// included the weapon-gear keys regardless, which could show a weapon's flat damage as an "Added Min/Max"
+// source on a spell it never actually contributes to. Minion mode (a single fixed `minion_*` key, no
+// attack/spell branch to get wrong) stays hand-written.
 function flatMinKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_flat_min`]
-  const keys = [`${dtype}_dmg_gear_flat_min`]
-  if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_min`)
-  if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_min`)
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_gear_flat_min')
-  return keys
+  return offense.flat_min_keys?.[dtype] ?? []
 }
 
 function flatMaxKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_flat_max`]
-  const keys = [`${dtype}_dmg_gear_flat_max`]
-  if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_max`)
-  if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_max`)
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_gear_flat_max')
-  return keys
+  return offense.flat_max_keys?.[dtype] ?? []
 }
 
+// Engine-emitted key lists (OffenseResult.generic_inc_keys/generic_add_keys/type_inc_keys/type_add_keys/
+// crit_dmg_keys) — the EXACT stat keys `calculate_offense` filtered into each pool for THIS skill/build,
+// via the same tag-gate predicates that computed the pool's own value. These functions used to hand-derive
+// an approximation via hasTag() checks; that copy silently drifted from the engine's real pool membership
+// more than once (confirmed missing: channeled_dmg_additional, sentry_dmg_additional, ailment_dmg_inc,
+// ranged_dmg_inc, dmg_max_additional, dmg_min_additional, at_center_dmg_additional, and others — each
+// correctly affecting DPS with no breakdown source to show for it). `?? []` only matters for an
+// old/cached payload from before these fields existed; any current backend always populates them.
+// Minion mode is unrelated (a single fixed `minion_*` key, no tag-gating) and stays hand-written.
 function genericIncKeys(offense: OffenseResult, minion = false): string[] {
   if (minion) return ['minion_dmg_inc']
-  const keys = ['dmg_inc']
-  if (hasTag(offense,'attack'))     keys.push('attack_dmg_inc')
-  if (hasTag(offense,'spell'))      keys.push('spell_dmg_inc')
-  if (hasTag(offense,'melee'))      keys.push('melee_dmg_inc')
-  if (hasTag(offense,'area'))       keys.push('area_dmg_inc')
-  if (hasTag(offense,'projectile')) keys.push('projectile_dmg_inc')
-  // Tangle mode adds the "tangle" tag inside offense (not on the skill's tags), so key off tangle_count.
-  if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_inc')
-  return keys
+  return offense.generic_inc_keys ?? []
 }
 
-function typeIncKeys(dtype: string, minion = false): string[] {
+function typeIncKeys(offense: OffenseResult, dtype: string, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_inc`]
-  const keys = [`${dtype}_dmg_inc`]
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_inc')
-  return keys
+  return offense.type_inc_keys?.[dtype] ?? []
 }
 
 function genericAddKeys(offense: OffenseResult, minion = false): string[] {
   if (minion) return ['minion_dmg_additional']
-  // 'hit_dmg_additional' is generic (untagged) hit-only additional — e.g. Splendor's "+additional Hit Damage".
-  // It folds into generic_add in offense, so it belongs in the All-Types breakdown alongside dmg_additional.
-  const keys = ['dmg_additional', 'hit_dmg_additional']
-  if (hasTag(offense,'attack'))     keys.push('attack_dmg_additional')
-  if (hasTag(offense,'spell'))      keys.push('spell_dmg_additional')
-  if (hasTag(offense,'melee'))      keys.push('melee_dmg_additional')
-  if (hasTag(offense,'area'))       keys.push('area_dmg_additional')
-  if (hasTag(offense,'projectile')) keys.push('projectile_dmg_additional')
-  // Tangle mode: additional + the enhancement pool (both ride the "tangle" tag, added inside offense).
-  if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_additional', 'tangle_dmg_enhancement_additional')
-  // Spell Burst mode adds the "spell_burst" tag inside offense → the burst-cast hit-damage pool applies.
-  if ((offense.spell_burst_count ?? 0) > 0) keys.push('spell_burst_hit_dmg_additional')
-  return keys
+  return offense.generic_add_keys ?? []
 }
 
-function typeAddKeys(dtype: string, minion = false): string[] {
+function typeAddKeys(offense: OffenseResult, dtype: string, minion = false): string[] {
   if (minion) return [`minion_${dtype}_dmg_additional`]
-  const keys = [`${dtype}_dmg_additional`]
-  if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_additional')
-  return keys
+  return offense.type_add_keys?.[dtype] ?? []
 }
 
-// Crit Multiplier's additive Critical Strike Damage pool (player-only; minions use the single
-// 'minion_crit_dmg_inc' key). Mirrors backend/engine/offense.py's _CRIT_DMG_STATS EXACTLY — every
-// STAT_META entry with pipeline_stage=="crit_damage" and "hit" in affects, minus the minion one:
-// crit_dmg_inc + crit_dmg_additional are untagged (always apply); attack/spell/projectile/sentry/combo
-// and the skill's own damage type each gate their own pool. 'crit_damage' (the old key here) was never a
-// real stat_map entry — the breakdown showed no sources at all until this matched the actual per-key
-// pools the engine sums.
 function critDmgKeys(offense: OffenseResult): string[] {
-  const keys = ['crit_dmg_inc', 'crit_dmg_additional']
-  if (hasTag(offense, 'attack')) keys.push('attack_crit_dmg_inc')
-  if (hasTag(offense, 'spell')) keys.push('spell_crit_dmg_inc')
-  if (hasTag(offense, 'projectile')) keys.push('projectile_crit_dmg_inc')
-  if (hasTag(offense, 'sentry')) keys.push('sentry_crit_dmg_inc')
-  if (hasTag(offense, 'combo')) keys.push('combo_finisher_crit_dmg_inc')
-  for (const dtype of ALL_DTYPES) if (hasTag(offense, dtype)) keys.push(`${dtype}_crit_dmg_inc`)
-  return keys
+  return offense.crit_dmg_keys ?? []
 }
 
 // Small kind tag next to a row's name — "hit" rows (the common case) get no tag; "true" (Mercury Baptism /
@@ -944,7 +909,7 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               const show = specific >= 0.005
               const txt = `${(specific * 100).toFixed(0)}%`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d, minion)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(offense, d, minion)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
@@ -954,10 +919,11 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               extra={(() => {
                 const rows: Array<{ value: string; stat: string; source: string; sourceName: string }> = []
                 if (offense.main_stat_damage_bonus > 0) rows.push({ value: `×${dec(1 + offense.main_stat_damage_bonus)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec(offense.main_stat_damage_bonus * 100)}%)` })
-                // Intrinsic 'additional damage' pool (Rapid Advance per-stack, Fervor …): sums into ONE (1+Σ) factor
-                // within generic_add — show a single ×(1+Σ) row labelled with its source(s).
-                const iaSum = (offense.intrinsic_additional_sources ?? []).reduce((s, e) => s + e.amount, 0)
-                if (iaSum > 0) rows.push({ value: `×${dec(1 + iaSum)}`, stat: 'Additional Damage', source: 'Skill', sourceName: (offense.intrinsic_additional_sources ?? []).map(e => e.label).join(' + ') })
+                // A skill's own intrinsic additional-damage mechanic (Rapid Advance per-stack, Fervor …) is a
+                // real dmg_additional source now — it shows up on its own via `keys={genericAddKeys(...)}`
+                // above (source_type "skill", label "Skill Intrinsic"), same as any other additional-damage
+                // source. No separate extra row needed for it here (only Main Stat, which deliberately stays
+                // its own standalone pool outside dmg_additional).
                 return rows.length ? rows : undefined
               })()} displaySources={aboveMaxDisplaySources}>×{dec(totalGenericAdd)}</Breakdown></td>
             {ALL_DTYPES.map(d => {
@@ -969,7 +935,7 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               const show = Math.abs(specificAdd - 1) >= 0.005
               const txt = `×${dec(specificAdd)}`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d, minion)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(offense, d, minion)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
@@ -1057,6 +1023,23 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                     </td>
                   })}
                 </tr>
+                {/* Steep Strike's own additional-damage multiplier (e.g. Berserking Blade Rampage's skill-
+                    area share) is FORM-SCOPED — it applies only to this one form, never the skill's other
+                    forms, so it's excluded from the generic/per-type Total Additional panels above and
+                    shown here instead, next to the one form it actually affects. */}
+                {form?.proc_stat_key === 'steep_strike_chance' && Math.abs(offense.steep_strike_additional_dmg ?? 0) >= 0.005 && (
+                  <tr>
+                    <td style={tdLbl}>Additional Damage</td>
+                    <td style={td}>
+                      <Breakdown title="Additional Steep Strike Damage" keys={['steep_strike_additional_dmg']}
+                        total={offense.steep_strike_additional_dmg} totalUnit="%"
+                        formula="Σ Additional Steep Strike Damage — applies ONLY to this form">
+                        {fmtSignedPct(offense.steep_strike_additional_dmg ?? 0)}
+                      </Breakdown>
+                    </td>
+                    {ALL_DTYPES.map(d => <td key={d} style={tdDim}>—</td>)}
+                  </tr>
+                )}
                 <tr>
                   <td style={tdLbl}>DPS</td>
                   <td style={{ ...td, color: '#f0c070' }}>{fmtNum(row.dps_vs_target_final)}</td>
@@ -1738,7 +1721,16 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
-  const statMap = bdCtx?.statMap ?? {}
+  // `offense.stat_map` is a per-result breakdown source, set ONLY for a computed source that DIVERGES
+  // from the player's own global stats (currently: Seething Spirit — see compute.py's
+  // `_source_log_stat_map(_spirit_source)`). Preferring it here — over the player's global `bdCtx.statMap`
+  // every OTHER offense mode falls back to — is what keeps every breakdown panel in this component
+  // (Total Additional, Attack Speed, crit, …) reading the SAME pool the engine actually computed `offense`
+  // from, so the row list and the total can never disagree (the bug this fixes: Spirit's "Total Additional"
+  // showed Fury's Onslaught's excluded +57% line and never showed Ritual of Offering's own Spirit-Damage
+  // line, because both read the player's map instead of Spirit's).
+  const statMap = offense?.stat_map ?? bdCtx?.statMap ?? {}
+  const breakdownCtx = bdCtx ? { ...bdCtx, statMap } : bdCtx
   // "Show all boxes" reveals every mechanic/ailment/CC box regardless of skill-gating.
   const showAll = useUiPrefs(s => s.statsShowAllBoxes)
 
@@ -2001,6 +1993,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   const DOT_DISCLAIMER = 'Damage over Time is modelled and may be off by up to ~10% vs in-game (measured −6% / +4%). Residual under investigation.'
 
   return (
+    <BreakdownCtx.Provider value={breakdownCtx}>
     <>
       <StatPanel title={<>
         {slotLabel(slot)} — {offense.skill_name} (
@@ -2961,6 +2954,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       )}
       </MasonryGrid>
     </>
+    </BreakdownCtx.Provider>
   )
 }
 
@@ -3489,18 +3483,16 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
         const amplified = r.effective < 0
         const extra: ExtraRow[] = [{ value: pct2(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
         if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct2(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
-        // Penetration sources for this row — pulled from target.pen_sources (which carries skill-SCOPED pens that
-        // never reach the global stat_map, so the stat_map `keys` lookup misses them). Shown as a deduction.
-        for (const key of r.penKeys) {
-          for (const s of (target.pen_sources?.[key] ?? [])) {
-            if (Math.abs(s.amount) < 1e-9) continue
-            extra.push({ value: `−${dec(s.amount * 100)}%`, stat: `${r.baseStat} Penetration`,
-              source: s.label || s.source_type, sourceName: s.source_name || s.text || '' })
-          }
-        }
+        // Penetration sources now come through the STANDARD stat_map keys lookup (main `sources` for
+        // unscoped + `slot_sources`/scopedRows for skill-scoped pens, e.g. Awakening Skull's attack-only
+        // Armor Pen) — the same path every other panel uses. Used to be a bespoke target.pen_sources
+        // lookup because scoped contributions "never reached the global stat_map"; they do now (the
+        // scoped_log merge into slot_sources), which made that whole mechanism byte-for-byte redundant
+        // (verified directly before removing it) — deleted rather than kept as a second way to ask for
+        // the same data.
         return (
           <Row key={r.label} label={r.label} labelColor={r.color}
-            breakdown={{ title: r.label, keys: [], total: r.effective, totalUnit: '%', extra,
+            breakdown={{ title: r.label, keys: r.penKeys, total: r.effective, totalUnit: '%', extra,
               formula: 'Base − Penetration (penetration is ignored at the hit, it is not a resistance reduction)' }}>
             <span style={{ color: amplified ? '#ff8c6b' : undefined }}>{pct(r.effective)}</span>
           </Row>

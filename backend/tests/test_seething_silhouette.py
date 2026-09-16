@@ -192,8 +192,9 @@ def test_spirit_grant_none_without_pick_or_berserk():
 def test_spirit_grant_ritual_of_offering():
     g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Ritual of Offering"], berserk_active=True)
     assert g == {"source": "Ritual of Offering", "spirit_dmg_additional": 0.20,
-                 "spirit_attack_speed_additional": 0.0, "player_only_dmg_to_exclude": 0.0,
-                 "player_disarmed": True}
+                 "spirit_dmg_additional_text": "Ritual of Offering: +20% additional Seething Spirit Damage",
+                 "spirit_attack_speed_additional": 0.0, "spirit_attack_speed_additional_text": "",
+                 "player_only_dmg_to_exclude": 0.0, "player_disarmed": True}
     g5 = ss.spirit_grant(slot_levels=[1, 5, 1, 1], advanced_picks=["Ritual of Offering"], berserk_active=True)
     assert g5["spirit_dmg_additional"] == pytest.approx(0.40)
 
@@ -211,8 +212,11 @@ def test_spirit_grant_ritual_of_offering_undisarmed_by_rage_infusion():
 def test_spirit_grant_furys_onslaught():
     g = ss.spirit_grant(slot_levels=[1, 1, 1, 1], advanced_picks=["Fury's Onslaught"], berserk_active=True)
     assert g == {"source": "Fury's Onslaught", "spirit_dmg_additional": 0.0,
-                 "spirit_attack_speed_additional": -0.30, "player_only_dmg_to_exclude": 0.50,
-                 "player_disarmed": False}
+                 "spirit_dmg_additional_text": "",
+                 "spirit_attack_speed_additional": -0.30,
+                 "spirit_attack_speed_additional_text":
+                     "Fury's Onslaught: -30% additional Seething Spirit Attack Speed",
+                 "player_only_dmg_to_exclude": 0.50, "player_disarmed": False}
     g5 = ss.spirit_grant(slot_levels=[1, 5, 1, 1], advanced_picks=["Fury's Onslaught"], berserk_active=True)
     assert g5["player_only_dmg_to_exclude"] == pytest.approx(0.78)
 
@@ -329,3 +333,104 @@ def test_spirit_offense_inherits_main_skill_level_bonus():
     boosted = _run(picks=["Fury's Onslaught"], gear=DUAL_WEAPONS + main_skill_level_gear)
     assert boosted["offense"]["total_dps_vs_target"] > baseline["offense"]["total_dps_vs_target"]
     assert _spirit_dps(boosted) > _spirit_dps(baseline)
+
+
+def test_spirit_offense_level_summary_populated_and_attributes_main_skill_level():
+    """Regression: compute.py's Spirit `calculate_offense` call never attached `level_summary`
+    (unlike `_offense_for_slot`'s player-skill path, which always does) — the source-attributed
+    "Effective Skill Level" breakdown silently fell back to a bare `Level N` label for Spirit's
+    panel in PlayerStatsScreen.tsx, even after bug-279 fixed the underlying scaled damage number."""
+    main_skill_level_gear = [{
+        "item_name": "Test Main Skill Level Source",
+        "contributions": [{"stat": "main_skill_level", "display_value": 3, "unit": "",
+                            "slot": "amulet", "item_name": "Test Main Skill Level Source",
+                            "text": "+3 to Main Skill Level"}],
+    }]
+    resp = _run(picks=["Fury's Onslaught"], gear=DUAL_WEAPONS + main_skill_level_gear)
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    summary = spirit.get("level_summary")
+    assert summary is not None
+    assert summary["bonus_level"] == 3
+    assert summary["effective_level"] == summary["base_level"] + 3
+    sources = summary.get("bonus_sources") or []
+    assert any(s["stat"] == "main_skill_level" and s["levels"] == 3 for s in sources)
+
+
+def test_spirit_stat_map_excludes_furys_onslaught_player_only_line():
+    """Regression: the frontend's "Total Additional" breakdown panel read the PLAYER's global stat
+    map even in Spirit mode, so it showed Fury's Onslaught's own +57% (tier2) "dealt by the player"
+    line as one of Spirit's sources — even though that exact line is surgically excluded from
+    Spirit's own dmg_additional total (compute.py's player_only_dmg_to_exclude removal) and the
+    displayed ×total never included it. compute.py now attaches Spirit's OWN stat_map (built off
+    Spirit's own, already-excluded source_log), so the row list can never disagree with the total
+    again — this asserts the excluded line is simply absent from Spirit's own map."""
+    resp = _run(picks=["Fury's Onslaught"], slot_levels=(5, 2, 1, 1))
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    stat_map = spirit.get("stat_map")
+    assert stat_map is not None
+    dmg_sources = stat_map.get("dmg_additional", {}).get("sources", [])
+    assert not any(s["source_name"] == "Fury's Onslaught" for s in dmg_sources)
+    # The base trait's own +26% (tier2 Berserk dmg) line is NOT excluded — still present.
+    assert any(s["source_name"] == "Seething Silhouette" for s in dmg_sources)
+
+
+def test_spirit_stat_map_includes_ritual_of_offerings_own_spirit_damage_line():
+    """Regression: Ritual of Offering's own "+X% additional Seething Spirit Damage" bonus was added
+    to Spirit's clone via the untracked BuildSource.add() (no SourceEntry), so it correctly fed the
+    numeric total but never appeared as a labelled row in any breakdown — indistinguishable from not
+    applying at all. Now added via add_with_source with real source metadata and surfaced through
+    Spirit's own stat_map."""
+    resp = _run(picks=["Ritual of Offering"], slot_levels=(1, 3, 1, 1))
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    stat_map = spirit["stat_map"]
+    dmg_sources = stat_map["dmg_additional"]["sources"]
+    ritual_rows = [s for s in dmg_sources if s["source_name"] == "Ritual of Offering"]
+    assert len(ritual_rows) == 1
+    assert ritual_rows[0]["amount"] == pytest.approx(0.30)   # tier3 of [.20,.25,.30,.35,.40]
+    assert "30%" in ritual_rows[0]["text"] and "Seething Spirit Damage" in ritual_rows[0]["text"]
+
+
+def test_spirit_stat_map_includes_furys_onslaught_spirit_attack_speed_line():
+    """Regression: Fury's Onslaught's -30% additional Seething Spirit Attack Speed was also an
+    untracked BuildSource.add() — it silently reduced Spirit's rate (verified by the ratio tests
+    above) but had no visible row anywhere, which reads identically to "not applying" from the UI.
+    Now tracked and surfaced through Spirit's own stat_map."""
+    resp = _run(picks=["Fury's Onslaught"])
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    stat_map = spirit["stat_map"]
+    as_sources = stat_map["attack_speed_additional"]["sources"]
+    fo_rows = [s for s in as_sources if s["source_name"] == "Fury's Onslaught"]
+    assert len(fo_rows) == 1
+    assert fo_rows[0]["amount"] == pytest.approx(-0.30)
+    assert "-30%" in fo_rows[0]["text"] and "Seething Spirit Attack Speed" in fo_rows[0]["text"]
+
+
+def test_main_skills_intrinsic_additional_not_doubled_on_spirit():
+    """Regression: `_track_skill_intrinsic_additional` originally wrote via `eff.add_with_source(...)`.
+    `eff` can alias `source` itself (BuildSource.materialize_for_skill's identity fast path, hit whenever
+    the build has no scoped/slot entries — true for this build), so that mutated the SHARED `source`
+    directly: invisible in the player's own top-level stat_map (snapshotted earlier in compute(), before
+    _offense_for_slot ever runs) AND, worse, Seething Spirit's own LATER materialize_for_skill call
+    inherited the leaked entry via that same aliasing, then Spirit's own intrinsic-tracking call added the
+    SAME entry a SECOND time on top — a real in-app screenshot caught this as Focused Slash's Fervor line
+    showing "×2 +40%" on Spirit's panel only, never the player's (whose own entry wasn't visible AT ALL).
+    Now tracked via `source.add_slotted(...)` — the SAME mechanism every other slot-local skill self-buff
+    (e.g. Berserking Blade's intrinsic buff) already uses, correctly surfaced via stat_map's existing
+    slot_sources merge (player) and inherited by Spirit with NO Spirit-side tracking call at all (its own
+    materialize_for_skill(..., main_slot) folds the same slot's entries, exactly like it already does for
+    Berserking Blade's buff). ATTACK_SKILL is focused_slash (see module header)."""
+    resp = _run(picks=["Fury's Onslaught"], skill=ATTACK_SKILL, gear=ATTACK_WEAPON, dual_wield=False,
+                extra_conditions={"fervor_rating": 100})
+    # Player: a slot-local skill self-buff — surfaced via slot_sources (the SAME field/mechanism every
+    # other slot-local buff like Berserking Blade's uses), not the main sources list.
+    player_slot_sources = resp["stats"]["dmg_additional"].get("slot_sources") or []
+    player_fervor_rows = [s for s in player_slot_sources if s["source_type"] == "skill"]
+    assert len(player_fervor_rows) == 1
+    assert player_fervor_rows[0]["amount"] == pytest.approx(0.40)
+    assert player_fervor_rows[0]["slot"] == 1
+
+    spirit = resp["spirit_offense"]["seething_spirit"]
+    spirit_sources = spirit["stat_map"]["dmg_additional"]["sources"]
+    spirit_fervor_rows = [s for s in spirit_sources if s["source_type"] == "skill"]
+    assert len(spirit_fervor_rows) == 1
+    assert spirit_fervor_rows[0]["amount"] == pytest.approx(0.40)

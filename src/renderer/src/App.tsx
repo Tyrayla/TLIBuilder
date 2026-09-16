@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId } from './api/client'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId, getShareBase } from './api/client'
+import { resolveImportInput } from './utils/resolveImportInput'
 import { MAX_LEVEL_BY_RARITY } from './components/HeroTraitShared'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { snapshotAllAreas } from './utils/loadoutAreas'
@@ -121,6 +122,61 @@ function App() {
   const [screen, setScreen] = useState<Screen>('build-select')
   // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
   const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
+  // Deep-link import (web): the share-link overview page's "Open in Web App" button links here
+  // with ?share=<id>. Read + strip the param synchronously in the lazy initializer (runs exactly
+  // once, on mount) so a later refresh lands on a normal param-free URL. The actual import runs in
+  // an effect further down, alongside `openBuild`'s definition — `openBuild` isn't initialized yet
+  // at this point in a render where `appReady` is still false (this component returns early before
+  // reaching it), so a hook up here can't safely call it directly.
+  const [pendingShareId, setPendingShareId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const shareId = params.get('share')
+    if (shareId) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('share')
+      window.history.replaceState(null, '', url.toString())
+    }
+    return shareId
+  })
+  // `openBuild`/`requireSavePrompt` are defined later in this function, past the `if (!appReady)`
+  // gate below — a real fix cannot place the effect that CALLS them down there (any hook after that
+  // gate reliably crashes with "Rendered more hooks than during the previous render" the moment
+  // appReady flips true, since that render suddenly calls hooks the previous one never reached — an
+  // earlier version of this file made exactly that mistake). Instead, this effect stays up here
+  // (hook-count-safe) and reaches them through refs kept fresh by plain, non-hook assignments placed
+  // right after each function's own definition further down — see `openBuildRef.current = openBuild`.
+  const openBuildRef = useRef<((build: Build) => Promise<void>) | null>(null)
+  const requireSavePromptRef = useRef<((action: () => void) => void) | null>(null)
+  useEffect(() => {
+    if (!appReady || !pendingShareId) return
+    const shareId = pendingShareId
+    setPendingShareId(null) // one-shot — never re-trigger on a later re-render
+    void (async () => {
+      try {
+        const resolved = await resolveImportInput(`${getShareBase()}/b/${shareId}`)
+        const { build } = await api.decodeBuildCode(resolved)
+        // Gated the same way the manual paste-import flow gates ImportPanel's decoded build
+        // (ImportExportOverlay.tsx's proceedWithBuild) — a deep link must never silently overwrite
+        // unsaved edits just because it arrived automatically rather than via a deliberate paste.
+        requireSavePromptRef.current?.(() => {
+          openBuildRef.current?.(build as unknown as Build)
+            .catch((err: unknown) => console.error('Deep-link openBuild failed:', err))
+        })
+      } catch (e) {
+        // Additive — a bad/expired id must never block the app from loading normally. The
+        // overview page itself is the primary way to view a shared build; this is a shortcut
+        // into the full editor, not a hard dependency.
+        console.error('Deep-link import failed:', e)
+      }
+    })()
+  }, [pendingShareId, appReady])
+  // Desktop only: tlibuilder://import/<id> links (see src/main/index.ts's second-instance/
+  // open-url handling) arrive as an IPC event rather than a URL query param, since the renderer
+  // may already be running when the OS delivers the link. Feeds the same pendingShareId state the
+  // web ?share= param uses, so both paths share the one import effect above.
+  useEffect(() => {
+    window.api?.onDeepLinkShare?.(shareId => setPendingShareId(shareId))
+  }, [])
   // NOTE: these effects MUST stay above the `if (!appReady)` early return below — a hook placed after it
   // is conditional and crashes with React #310 ("more hooks than previous render") once appReady flips.
   // Track visited keep-alive screens so each mounts once on first visit and then persists (hidden).
@@ -176,6 +232,11 @@ function App() {
   // folder) should be assigned into on its first successful save. Cleared once consumed (or on opening an
   // existing build, which cancels any pending new-build folder intent).
   const pendingNewBuildFolderRef = useRef<string | null>(null)
+  // Generalizes the unsaved-changes prompt below (originally hardcoded to "navigate to build-select")
+  // to any action that must wait for the user to Save/Discard first. Set by requireSavePrompt,
+  // consumed by handleUnsavedSave/handleUnsavedDiscard once the user picks. goToBuildSelect's own
+  // behavior is unchanged — it's just the first of now two actions that can populate this.
+  const pendingUnsavedActionRef = useRef<(() => void) | null>(null)
   const refConditions = useReferenceStore(s => s.conditions)
 
   // Store reads — replaces session useState
@@ -323,14 +384,28 @@ function App() {
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
-  const goToBuildSelect = () => {
-    if (isDirty) {
+  // Gate any action behind the unsaved-changes prompt (Save / Discard / Cancel) when the current
+  // build has unsaved edits; run it immediately otherwise. `action` runs on Save (after the save
+  // completes) or Discard, never on Cancel (dialog just closes, action is dropped).
+  const requireSavePrompt = (action: () => void) => {
+    // No build is open on this screen at all — there's nothing to lose, so never gate here.
+    if (isDirty && screen !== 'build-select') {
+      // The dialog is already open for an earlier gated action (e.g. two deep-links arriving before
+      // either is resolved) — don't silently clobber that pending action with this one. Drop the new
+      // request; the user is already looking at a prompt that will let them retry once it resolves.
+      if (unsavedPromptOpen) return
+      pendingUnsavedActionRef.current = action
       setUnsavedSaveName(useBuildStore.getState().buildName)
       setUnsavedPromptOpen(true)
     } else {
-      setScreen('build-select')
+      action()
     }
   }
+
+  // Plain assignment, NOT a hook — see openBuildRef's identical comment above.
+  requireSavePromptRef.current = requireSavePrompt
+
+  const goToBuildSelect = () => requireSavePrompt(() => setScreen('build-select'))
 
   const handleUnsavedSave = async () => {
     const s = useBuildStore.getState()
@@ -339,7 +414,9 @@ function App() {
     try {
       await saveBuild(name)
       setUnsavedPromptOpen(false)
-      setScreen('build-select')
+      const action = pendingUnsavedActionRef.current
+      pendingUnsavedActionRef.current = null
+      action?.()
     } catch { /* save failed — leave prompt open */ }
     finally { setUnsavedSaving(false) }
   }
@@ -347,7 +424,9 @@ function App() {
   const handleUnsavedDiscard = () => {
     setIsDirty(false)
     setUnsavedPromptOpen(false)
-    setScreen('build-select')
+    const action = pendingUnsavedActionRef.current
+    pendingUnsavedActionRef.current = null
+    action?.()
   }
 
   const startNewBuild = (folderId?: string) => {
@@ -569,6 +648,10 @@ function App() {
     setIsDirty(false)
     setScreen(BUILD_LANDING_SCREEN)
   }
+  // Plain assignment, NOT a hook — safe to run conditionally (only reached once appReady is true).
+  // Keeps the deep-link effect (declared earlier, before the early-return gate) able to call the
+  // current `openBuild` without itself needing to be declared down here.
+  openBuildRef.current = openBuild
 
   const goToTreeSelector = () => {
     useBuildStore.getState().setActiveSlot(firstEmptySlot(useBuildStore.getState().slots))
@@ -997,7 +1080,7 @@ function App() {
                 {unsavedSaving ? 'Saving…' : 'Save'}
               </button>
               <button className="btn btn-danger" onClick={handleUnsavedDiscard}>Discard</button>
-              <button className="btn btn-secondary" onClick={() => setUnsavedPromptOpen(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => { setUnsavedPromptOpen(false); pendingUnsavedActionRef.current = null }}>Cancel</button>
             </div>
           </div>
         </div>

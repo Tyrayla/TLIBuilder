@@ -509,8 +509,6 @@ def calculate_minion_offense(
     *,
     shotgun_hits: int = 1,
     shotgun_falloff: float = 0.0,
-    extra_additional: float = 0.0,
-    extra_additional_label: str = "",
     penetrates: bool = False,
 ) -> OffenseResult:
     """Compute ONE minion ability's DPS as a full `OffenseResult` (so the frontend reuses the player panels).
@@ -524,10 +522,14 @@ def calculate_minion_offense(
     Ability-specific (Enhanced-only) knobs, applied to THIS call only (never the shared Base):
       `shotgun_hits` / `shotgun_falloff` — same-target Shotgun: N projectiles hit one enemy, each extra hit at
         (1 − falloff) → multiplier `1 + (hits−1)×(1−falloff)`, folded into DPS + surfaced on the hit form.
-      `extra_additional` (+ `_label`) — a skill-intrinsic additional-damage fraction (e.g. Thunderlight Arrow's
-        +5% per Projectile Quantity), folded into the additional pool + labelled in the Total-Additional breakdown.
       `penetrates` — the projectiles always Penetrate/track (multi-target / QoL; no single-target DPS effect,
-        surfaced as a note so it's never silently dropped)."""
+        surfaced as a note so it's never silently dropped).
+
+    A skill-intrinsic additional-damage bonus scoped to just THIS call (e.g. Thunderlight Arrow's +5% per
+    Projectile Quantity, Enhanced-only) is NOT a parameter here — the caller tracks it as a real, untagged
+    `minion_dmg_additional` SourceEntry on its OWN cloned `source` before calling (never the shared Base
+    source — see thunder_magus.py), so it naturally flows through `_minion_additional` below like any other
+    additional-damage source and shows up natively in the breakdown."""
     tags_list = list(minion_skill.get("skill_tags") or [])
     tags_lower = {str(t).lower() for t in tags_list}
     is_spell = "spell" in tags_lower
@@ -580,10 +582,12 @@ def calculate_minion_offense(
 
     # Generic (all-types) increased/additional + per-type totals (generic + type-specific). Skill-type-tagged pools
     # (e.g. minion_spell_dmg_additional) apply ONLY to a matching ability — a Spell pool NEVER touches an Attack.
-    # An Enhanced-only skill-intrinsic additional (Thunderlight Arrow's +5%/Projectile Quantity) folds in here too.
+    # An Enhanced-only skill-intrinsic additional (Thunderlight Arrow's +5%/Projectile Quantity) is a real, tracked
+    # `minion_dmg_additional` SourceEntry on the caller's own cloned `source` (see this function's docstring), so
+    # it's already folded into `_minion_additional`'s product below — no separate factor needed for it here.
     # Focused Strike's at-center additional applies full-uptime to AREA abilities only (mirrors the player Epicenter).
     area_center_add = source.total("minion_at_center_dmg_additional") if "area" in tags_lower else 0.0
-    extra_add_factor = (1.0 + max(0.0, extra_additional)) * (1.0 + max(0.0, area_center_add))
+    extra_add_factor = 1.0 + max(0.0, area_center_add)
     generic_inc = sum(source.total(k) for k, tags in _MINION_INC_STATS
                       if not _has_dtype_tags(tags) and _skill_type_ok(tags, is_spell))
     generic_add = _minion_additional(source, frozenset(), generic_only=True, is_spell=is_spell) * extra_add_factor
@@ -701,8 +705,6 @@ def calculate_minion_offense(
     if penetrates:
         nyi.append(f"{name}: Projectiles always Penetrate and track the enemy — multi-target / clear utility, "
                    "no single-target DPS effect (surfaced, not dropped).")
-    intrinsic_sources = ([{"label": extra_additional_label or "Projectile Quantity", "amount": extra_additional}]
-                         if extra_additional > 0 else [])
     # Purpose-built breakdown row (see engine.offense.DamageRow) — delivery = count (mirrors cast_multiplier
     # above: count is the minion's own "how many casters deliver this hit" multiplier, folded in the same
     # place a player's cast_multiplier/tangle_mult would be). Neither mitigation nor vuln is pre-folded into
@@ -726,7 +728,6 @@ def calculate_minion_offense(
         flat_dmg_min=dict(flat_min), flat_dmg_max=dict(flat_max),
         base_dmg_min=dict(base_min), base_dmg_max=dict(base_max),
         type_inc=type_inc, type_add=type_add, generic_inc=generic_inc, generic_add=generic_add,
-        intrinsic_additional_sources=intrinsic_sources,
         enemy_mult_by_type=enemy_mult, base_csr=base_csr, skill_tags=tags_list,
         damage_rows=damage_rows,
         target_mitigation_by_type=target_mitigation_by_type, enemy_vuln_by_type=enemy_vuln_by_type,

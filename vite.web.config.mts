@@ -36,7 +36,13 @@ export default defineConfig({
     outDir: resolve(__dirname, 'dist-web'),
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'src/renderer/index.web.html'),
+      // Two entries: the full editor (index.web.html, renamed to index.html post-build — see
+      // package.json's build:web) and the lightweight share-link overview page (view.html), which
+      // deliberately does NOT import the editor's Pyodide/compute bundle — see src/renderer/src/view/ViewApp.tsx.
+      input: {
+        main: resolve(__dirname, 'src/renderer/index.web.html'),
+        view: resolve(__dirname, 'src/renderer/view.html'),
+      },
     },
   },
 })

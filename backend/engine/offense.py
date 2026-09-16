@@ -714,20 +714,6 @@ def target_profile(source: BuildSource) -> dict:
         resist = base + all_red          # enemy's actual resistance (after reductions; multipliers go here)
         return {"base": base, "reduction": all_red, "pen": pen, "resist": resist, "effective": resist - pen}
 
-    # Per-stat penetration SOURCES for the panel breakdown. Penetration is often skill-SCOPED (e.g. Awakening
-    # Skull's attack-only Armor Pen), and scoped contributions never enter the global stat_map — so the breakdown's
-    # stat_map lookup finds nothing. We read them straight off this (already skill-materialized) source's
-    # source_log, which carries base PLUS the matching scoped entries, so every source that produced the displayed
-    # pen shows up. Keyed by the stat the panel rows ask for via penKeys.
-    _PEN_KEYS = ("armor_pen", "elemental_pen", "fire_pen", "cold_pen", "lightning_pen", "erosion_pen")
-    pen_sources: dict[str, list] = {}
-    for e in source.source_log:
-        if e.stat in _PEN_KEYS:
-            pen_sources.setdefault(e.stat, []).append({
-                "source_type": e.source_type, "label": e.label, "text": e.text,
-                "source_name": e.source_name, "amount": e.amount,
-            })
-
     return {
         "source": f"Lvl {level} Dummy",
         "armor": {
@@ -748,8 +734,6 @@ def target_profile(source: BuildSource) -> dict:
             "lightning": source.total("lightning_pen"),
             "erosion": source.total("erosion_pen"),
         },
-        # Per-stat source breakdown for the pen rows (incl. skill-scoped pens absent from the global stat_map).
-        "pen_sources": pen_sources,
     }
 
 
@@ -923,6 +907,11 @@ class HitFormResult:
     # Used to surface a minion's non-damage abilities (Empower buffs, locked Ultimates) as visible, selectable
     # forms in the form dropdown rather than hiding them (never-silently-drop).
     nyi: list[str] = field(default_factory=list)
+    # The SkillHitForm's own proc_stat_key (e.g. "steep_strike_chance") — a stable identifier for "which form
+    # is this" beyond its display name (parsed from in-game text, not guaranteed unique/stable across skills).
+    # Lets the frontend match a form-scoped multiplier (e.g. OffenseResult.steep_strike_additional_dmg) to the
+    # ONE form it actually applies to, without string-matching on `name`. None for a form with no proc key.
+    proc_stat_key: str | None = None
 
 
 @dataclass
@@ -1025,6 +1014,12 @@ class OffenseResult:
     quad_dmg_chance: float = 0.0
     double_dmg_factor: float = 1.0
     steep_strike_chance: float = 0.0
+    # Additional Steep Strike Damage (Berserking Blade Rampage's skill-area share, or a direct node/gear
+    # source) — a FORM-SCOPED multiplier (see _FORM_SCOPED_ADDITIONAL), so it's surfaced here explicitly
+    # rather than folded into generic_add/type_add (it does NOT apply to the skill's other forms, e.g.
+    # Sweep Slash). The fraction (0.15 = +15%), 0.0 when the skill has no steep-strike form at all. Displayed
+    # by matching a HitFormResult whose proc_stat_key == "steep_strike_chance".
+    steep_strike_additional_dmg: float = 0.0
     skills_per_second: float = 0.0
     base_cast_time: float = 0.0        # spell base cast time (seconds); 0 for attacks (weapon-APS driven)
     total_dps: float = 0.0
@@ -1045,6 +1040,14 @@ class OffenseResult:
     # Per-type damage breakdown for the stats screen breakdown table
     flat_dmg_min: dict[str, float] = field(default_factory=dict)  # flat before inc/add (skill base + added)
     flat_dmg_max: dict[str, float] = field(default_factory=dict)
+    # Which stat keys actually feed flat_dmg_min/max for THIS skill, per dtype — a true spell (skill.is_spell)
+    # reads ONLY {dtype}_spell_dmg_flat_* (weapon base never applies to spells — see _spell_flat); an attack
+    # reads {dtype}_dmg_gear_flat_* (+ _attack_dmg_flat_* / _spell_dmg_flat_* if the respective tag is present
+    # / elemental_dmg_gear_flat_* for fire/cold/lightning — see the branch below). The frontend used to build
+    # this list unconditionally (always including the weapon-gear keys, even for a true spell), which could
+    # show a weapon's flat damage as an "Added Min/Max" source on a spell it never actually applies to.
+    flat_min_keys: dict[str, list[str]] = field(default_factory=dict)
+    flat_max_keys: dict[str, list[str]] = field(default_factory=dict)
     # The skill's INTRINSIC per-level base damage per type (spells only; attacks derive base from the
     # weapon, which is already a keyed gear source). Surfaced so the breakdown can show it as a baseline.
     base_dmg_min: dict[str, float] = field(default_factory=dict)
@@ -1058,10 +1061,22 @@ class OffenseResult:
     # main_stat_damage_bonus is the fraction (0.255 = +25.5%); main_stats lists the attributes summed.
     main_stat_damage_bonus: float = 0.0
     main_stats: list[str] = field(default_factory=list)
-    # Skill-intrinsic 'additional damage' pool entries ([{label, amount}]) — the extra_additional folded into
-    # intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus, Focused Slash's Fervor). Populated by
-    # compute (which has the source + condition state); surfaced in the "Total Additional" breakdown panel.
-    intrinsic_additional_sources: list = field(default_factory=list)
+    # ── Engine-emitted breakdown key lists ──────────────────────────────────────────────────────────
+    # The EXACT stat keys that were eligible for each pool ABOVE on this skill/build — filtered by the
+    # SAME tag-gate predicates (_skill_gate / _applies_to_dtype) that computed generic_inc/generic_add/
+    # type_inc/type_add/crit_dmg themselves, not a second, independently-maintained approximation. The
+    # frontend used to hand-derive these via its own hasTag() checks (genericAddKeys/typeAddKeys/
+    # critDmgKeys/etc. in PlayerStatsScreen.tsx) — a parallel copy of pool membership that silently drifted
+    # out of sync with new STAT_META entries (confirmed missing keys: channeled_dmg_additional,
+    # sentry_dmg_additional, ailment_dmg_inc, ranged_dmg_inc, and others — none of which ever showed in the
+    # breakdown despite correctly affecting DPS). Passing these lists instead means a new tag-scoped stat
+    # is correct in the breakdown the moment it's correct in the math — by construction, not by remembering
+    # to update a second list. Mirrors the existing `enemy_vuln_sources_by_type` precedent.
+    generic_inc_keys: list[str] = field(default_factory=list)
+    generic_add_keys: list[str] = field(default_factory=list)
+    type_inc_keys: dict[str, list[str]] = field(default_factory=dict)
+    type_add_keys: dict[str, list[str]] = field(default_factory=dict)
+    crit_dmg_keys: list[str] = field(default_factory=list)
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)
@@ -1303,7 +1318,6 @@ def compute_dot(
     skill: ResolvedSkill,
     lookup_level: int,
     is_spell: bool,
-    extra_additional: float,
     above_mult: float = 1.0,
 ) -> tuple[list[DamageRow], float, float]:
     """The Damage over Time damage stage (Mind Control, Path of Flames — dot-model.json,
@@ -1312,8 +1326,7 @@ def compute_dot(
     `total_dps`).
 
     Per form (one per `DotForm` at this level):
-        dot_dps            = base_per_second × (1 + Σ increased) × Π(1 + additional) × (1 + extra_additional)
-                              × above_mult
+        dot_dps            = base_per_second × (1 + Σ increased) × Π(1 + additional) × above_mult
         dot_dps_vs_target   = dot_dps × _target_mitigation_dot(source, dtype)   — RESISTANCE ONLY, no armor.
     No crit_factor / double_dmg_factor (a DoT never crits — dot-no-crit.json) and no `_delivery` (cast/tangle/
     spell-burst/multistrike multiplier — a DoT is a standing effect, not delivered per cast; see the
@@ -1338,11 +1351,12 @@ def compute_dot(
     `_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]` so it hits `_build_additional_factors`'s identity fast path via
     `_DOT_TYPE_ADDITIONAL_POOL_CACHE`). `spell_dmg_additional` is EXCLUDED from both pools — unmeasured, see
     the comment above `_DOT_TYPE_INCREASED_KEYS`; only the independently-MEASURED `spell_dmg_inc` is
-    whitelisted, on the increased side only. `extra_additional` is the SAME skill-intrinsic pool
-    `calculate_offense` already threads through the hit pipeline (evaluated by the caller from
-    `skill.intrinsic_additional` + condition state, e.g. Mind Control / Path of Flames' "+21.5% additional
-    damage per +1 ADDITIONAL Max Channeled Stack") — dormant (0.0) at the base channeled-stack count,
-    confirmed in-game.
+    whitelisted, on the increased side only. A skill's own intrinsic additional-damage mechanic (e.g.
+    Mind Control / Path of Flames' "+21.5% additional damage per +1 ADDITIONAL Max Channeled Stack" —
+    dormant at the base channeled-stack count, confirmed in-game) is NOT a separate parameter here: the
+    caller tracks it as a real `dmg_additional` SourceEntry on `source` (see `calculate_offense`'s own
+    docstring), and `dmg_additional` is already a member of `_DOT_ADDITIONAL_STATS` below, so it reaches
+    this pool automatically — the SAME entry the hit pipeline picks up, with no separate DoT-side wiring.
 
     `above_mult` — the SAME compounding above-max-level multiplier the hit stage applies
     (`_above_max_mult(effective_level, skill.max_level)`, computed once by the caller and passed in): per
@@ -1361,7 +1375,7 @@ def compute_dot(
     dot_add_factors = _build_additional_factors(source, _DOT_ADDITIONAL_STATS)
     base_additional_product = _additional_product(
         source, dot_add_factors, lambda tags: True, _DOT_ADDITIONAL_STATS,
-    ) * (1.0 + extra_additional)
+    )
 
     # Terra-tag-scoped pools (see _DOT_TERRA_ADDITIONAL_KEYED_TAGS above). Non-Terra skills: the flag is
     # False and both products stay exactly as before — byte-identical for every existing DoT skill.
@@ -1613,7 +1627,6 @@ def calculate_offense(
     skill: ResolvedSkill,
     base_level: int,
     is_main_skill: bool = True,
-    extra_additional: float = 0.0,
     support_behavior: dict | None = None,
     remove_mod_tags: set[str] | None = None,
     tangle: dict | None = None,
@@ -1626,9 +1639,10 @@ def calculate_offense(
     # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
     # (so Tangle Damage / additional / crit pools apply via existing tag filtering) and folds two final
     # multipliers into the DPS totals: the count, and ×(1 + Σ Tangle Damage Enhancement).
-    # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
-    # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
-    # Fervor bonus). Applied as one extra multiplicative pool on every hit.
+    # A skill's own intrinsic "additional damage" pool (Focused Slash's Fervor bonus, Moon Strike's Mana
+    # bonus, …) is NOT a parameter here — the caller tracks it as a real, untagged `dmg_additional`
+    # SourceEntry on `source` before calling (see compute.py's `_intrinsic_additional_entries`), so it
+    # naturally flows through `add_factors` below like any other additional-damage source.
     # shadow: when set (the skill carries the Shadow Strike tag AND has a nonzero shadow count/chance —
     # see engine.compute._offense_for_slot), {"count": N_base, "chance_pct": p, "chance_quantity": k} feeds
     # the _shadow_multiplier EV mix folded into the DPS totals (see the "Shadow Strike mode" block below).
@@ -1722,6 +1736,7 @@ def calculate_offense(
     # shows a labeled source in the crit-multiplier breakdown — no separate post-loop fold needed. (The crit-RATING
     # sibling at crit_rating_inc is still folded below; it has the same display gap, tracked for a follow-up spec.)
     crit_damage = sum(source.total(key) for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags)
+    crit_dmg_keys = [key for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags]
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
 
@@ -1807,6 +1822,32 @@ def calculate_offense(
                 existing = flat_dmg.get(dtype, (0.0, 0.0))
                 flat_dmg[dtype] = (existing[0] + scaled_elem_min, existing[1] + scaled_elem_max)
 
+    # Key lists mirroring the branch above EXACTLY (see OffenseResult.flat_min_keys/flat_max_keys's own
+    # comment) — computed per-dtype for every DAMAGE_TYPES entry regardless of whether flat_dmg ended up
+    # populated for it (a key with no current source just returns an empty breakdown, same as every other
+    # engine-emitted key list in this file).
+    flat_min_keys: dict[str, list[str]] = {}
+    flat_max_keys: dict[str, list[str]] = {}
+    if skill.is_spell:
+        for dtype in DAMAGE_TYPES:
+            flat_min_keys[dtype] = [f"{dtype}_spell_dmg_flat_min"]
+            flat_max_keys[dtype] = [f"{dtype}_spell_dmg_flat_max"]
+    else:
+        for dtype in DAMAGE_TYPES:
+            kmin = [f"{dtype}_dmg_gear_flat_min"]
+            kmax = [f"{dtype}_dmg_gear_flat_max"]
+            if is_attack:
+                kmin.append(f"{dtype}_attack_dmg_flat_min")
+                kmax.append(f"{dtype}_attack_dmg_flat_max")
+            if is_spell:
+                kmin.append(f"{dtype}_spell_dmg_flat_min")
+                kmax.append(f"{dtype}_spell_dmg_flat_max")
+            if dtype in ("fire", "cold", "lightning"):
+                kmin.append("elemental_dmg_gear_flat_min")
+                kmax.append("elemental_dmg_gear_flat_max")
+            flat_min_keys[dtype] = kmin
+            flat_max_keys[dtype] = kmax
+
     # (Flat PHYSICAL damage per N consumed — Blade-dancer/Glacier — is folded into the REAL physical_{attack,spell}_
     # dmg_flat source stats IN the compute loop, so it flows through the full flat→inc→additional pipeline incl.
     # multi-form spells and shows a source in the breakdown. See engine/compute.py consume block.)
@@ -1854,10 +1895,18 @@ def calculate_offense(
         if _lc_amt:
             add_factors = add_factors + [(_lc_amt, frozenset(), "dmg_additional_per_life_consumed")]
 
-    # Generic intrinsic additional multiplier — applies uniformly to EVERY damage type (not per-affix):
-    #   • extra_additional: skill-intrinsic pool (e.g. Fervor / Moon Strike's mana bonus), evaluated by caller.
-    #   • main_stat_factor: 1 + (Σ the skill's main-stat attribute totals) × 0.5% — the "Damage Bonus" the
-    #     attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
+    # Main-stat Damage Bonus multiplier — applies uniformly to EVERY damage type (not per-affix), its OWN
+    # standalone pool: 1 + (Σ the skill's main-stat attribute totals) × 0.5% — the "Damage Bonus" the
+    # attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
+    # (A skill's own INTRINSIC additional-damage mechanic — Focused Slash's Fervor bonus, Moon Strike's Mana
+    # bonus, etc. — used to be bundled into this SAME multiplier as `extra_additional`, a raw parameter
+    # threaded in by the caller. It's now instead tracked as a real, untagged `dmg_additional` SourceEntry
+    # (see `compute.py`'s `_intrinsic_additional_entries`), so it's just another factor in `add_factors`
+    # below — composing via the standard per-affix pooling rule instead of a separate uniform stage. Each
+    # caller still computes+tracks it against its OWN materialized source (the player's `eff`, Seething
+    # Spirit's own clone, …) — a tracked entry doesn't retroactively appear in an already-materialized
+    # clone, so this isn't free automatic inheritance, just a uniform mechanism every caller now uses the
+    # same way instead of each needing its own `extra_additional`-style plumbing.)
     # Folded into BOTH type_add and generic_add below so the per-type breakdown ratio cancels it cleanly
     # (it's a uniform multiplier, not a type-specific one) and "Total Additional" still reflects it.
     # "The base main stat no longer additionally increases damage" (Ralph's Journey/Burial, Magnus'
@@ -1871,8 +1920,7 @@ def calculate_offense(
         # Presence-gated so builds without it consume nothing and stay golden-identical.
         _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
         main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
-    main_stat_factor = 1.0 + main_stat_bonus
-    intrinsic_add = (1.0 + extra_additional) * main_stat_factor
+    main_stat_mult = 1.0 + main_stat_bonus
 
     # Damage-type conversion: read fractions once. When any conversion is present, compute the per-type
     # inc/add for ALL types (a converted slice can land in a type that had no native flat); otherwise only
@@ -1902,6 +1950,8 @@ def calculate_offense(
 
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
+    type_inc_keys: dict[str, list[str]] = {}
+    type_add_keys: dict[str, list[str]] = {}
     for dtype in calc_types:
         # Elemental types also carry the "elemental" pseudo-tag so "increased/additional Elemental Damage"
         # (tagged 'elemental') applies to Fire/Cold/Lightning but not Erosion/Physical.
@@ -1914,7 +1964,13 @@ def calculate_offense(
         type_add[dtype] = _additional_product(
             source, add_factors,
             lambda tags, dt=dtype_tag: _applies_to_dtype(tags, dt, pool_tags),
-        ) * intrinsic_add
+        ) * main_stat_mult
+        # The SAME filter predicates as the sums/products just above, exported as key lists — see
+        # OffenseResult.type_inc_keys/type_add_keys's own comment for why this replaces a hand-maintained
+        # frontend approximation instead of the frontend re-deriving it via its own tag checks.
+        type_inc_keys[dtype] = [key for key, tags in _HIT_INC_STATS if _applies_to_dtype(tags, dtype_tag, pool_tags)]
+        type_add_keys[dtype] = [key for key, tags in _HIT_ADDITIONAL_STATS
+                                if _applies_to_dtype(tags, dtype_tag, pool_tags)]
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
     # These are the "All" column values in the stats screen breakdown table.
@@ -1926,7 +1982,11 @@ def calculate_offense(
     generic_add = _additional_product(
         source, add_factors,
         lambda tags: not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags),
-    ) * intrinsic_add
+    ) * main_stat_mult
+    generic_inc_keys = [key for key, tags in _HIT_INC_STATS
+                        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)]
+    generic_add_keys = [key for key, tags in _HIT_ADDITIONAL_STATS
+                        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)]
 
     # Type-specific bonuses for the conversion cascade, computed over the UNION of a packet's path types
     # (the set of dtype-tags of every type it has been). Each type-specific modifier is counted ONCE: an
@@ -2257,6 +2317,7 @@ def calculate_offense(
             shotgun_mult=form_shotgun,
             base_min_by_type={t: mn for t, (mn, _) in form_base.items()},
             base_max_by_type={t: mx for t, (_, mx) in form_base.items()},
+            proc_stat_key=form.proc_stat_key,
         ))
 
         # Chilling Spike (Icebound canvas support): its extra penetrating blades — split off Icy Blade into their
@@ -2786,7 +2847,7 @@ def calculate_offense(
     # totals untouched) — every existing non-DoT skill's total_dps is byte-identical. See dot-model.json /
     # dot-armor-exclusion.json / dot-no-crit.json and compute_dot's docstring.
     dot_rows, dot_dps, dot_dps_vs_target = compute_dot(
-        source, skill, lookup_level, is_spell, extra_additional, above_mult,
+        source, skill, lookup_level, is_spell, above_mult,
     )
     if dot_rows:
         total_dps += dot_dps
@@ -2821,6 +2882,7 @@ def calculate_offense(
         crit_multiplier=crit_mult,
         double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,
         steep_strike_chance=steep_chance,
+        steep_strike_additional_dmg=(steep_add_mult - 1.0) if _has_steep_form else 0.0,
         skills_per_second=sps,
         base_cast_time=base_cast_time,
         total_dps=total_dps,
@@ -2834,6 +2896,8 @@ def calculate_offense(
         base_csr=base_csr,
         flat_dmg_min={dtype: mn for dtype, (mn, _) in flat_dmg.items()},
         flat_dmg_max={dtype: mx for dtype, (_, mx) in flat_dmg.items()},
+        flat_min_keys=flat_min_keys,
+        flat_max_keys=flat_max_keys,
         base_dmg_min={dtype: mn for dtype, (mn, _) in skill_base_dmg.items()},
         base_dmg_max={dtype: mx for dtype, (_, mx) in skill_base_dmg.items()},
         type_inc=type_inc,
@@ -2841,6 +2905,11 @@ def calculate_offense(
         above_max_mult=above_mult,
         generic_inc=generic_inc,
         generic_add=generic_add,
+        generic_inc_keys=generic_inc_keys,
+        generic_add_keys=generic_add_keys,
+        type_inc_keys=type_inc_keys,
+        type_add_keys=type_add_keys,
+        crit_dmg_keys=crit_dmg_keys,
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
         # sorted(): add_mod_tags is a SET — unsorted iteration made the appended extras' order vary per

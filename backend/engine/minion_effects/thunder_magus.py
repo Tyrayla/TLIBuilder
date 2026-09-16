@@ -161,11 +161,19 @@ def handler(source, owner, base_stats, level, count):
         enh_rate_mult = p * (1.0 + _F_INSERT * (1.0 - p)) * cast_slot_factor
         proj_quantity_bonus = (1 if stage >= 3 else 0) + source.total("minion_projectile_quantity_flat")
         enh_additional = 0.05 * proj_quantity_bonus
+        # Enhanced-only bonus — clone `buffed` (never mutate it in place) so this doesn't leak into the
+        # shared Base call above. Tracked as a real `minion_dmg_additional` SourceEntry (not a raw
+        # extra_additional parameter) so it composes normally and shows up natively in the breakdown.
+        enhanced_source = buffed
+        if enh_additional > 0:
+            enhanced_source = replace(buffed, _entries=list(buffed._entries), source_log=list(buffed.source_log))
+            enhanced_source.add_with_source("minion_dmg_additional", enh_additional, SourceEntry(
+                stat="minion_dmg_additional", amount=enh_additional, source_type="skill", label="Skill Intrinsic",
+                text=f"Thunderlight Arrow: +5% additional damage × {proj_quantity_bonus:g} Projectile Quantity",
+                source_name="Thunderlight Arrow"))
         results.append(calculate_minion_offense(
-            buffed, enhanced, base_stats, level, count, rate_multiplier=enh_rate_mult,
-            shotgun_hits=2, shotgun_falloff=0.0,          # through + return = 2 full-damage hits
-            extra_additional=enh_additional,
-            extra_additional_label=f"Thunderlight Arrow: +5% additional damage × {proj_quantity_bonus:g} Projectile Quantity"))
+            enhanced_source, enhanced, base_stats, level, count, rate_multiplier=enh_rate_mult,
+            shotgun_hits=2, shotgun_falloff=0.0))          # through + return = 2 full-damage hits
     if empower:
         r = nyi_offense(empower, level)
         _win = (f"{_dur_eff:g} s buff ÷ {_cd_eff:g} s cooldown" if _cd_eff and abs(_dur_eff - 6.0) + abs(_cd_eff - 10.0) > 1e-9
