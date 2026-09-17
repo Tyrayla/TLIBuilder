@@ -28,6 +28,8 @@ data/
 # …except the shared engine-authoring skills (committed so the team/repo gets them)
 !.claude/skills/
 CLAUDE.md
+AGENTS.md
+agent-governance/
 
 # docs: keep durable references tracked; handoffs / plans / audit snapshots stay local only
 docs/*HANDOFF*.md

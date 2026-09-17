@@ -138,7 +138,8 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
     """Fold `spirit_magi_*` damage/crit pools into the generic `minion_*` pools IN PLACE. Call on a source COPY a
     magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
     otherwise drop on the `spirit_magi` tag) actually apply to the magus. Also folds the per-Growth pools (Talons
-    of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth."""
+    of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth, and
+    Troublemaker's dmg + Attack/Cast Speed per 100 Growth."""
     def _add(dst: str, amt: float, text: str) -> None:
         if amt:
             source.add_with_source(dst, amt, SourceEntry(
@@ -157,6 +158,14 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
         _add("minion_ultimate_cast_speed_additional",
              source.total("minion_ultimate_cast_speed_additional_per_40_growth") * (growth // 40),
              "Talons of Abyss: Ultimate Cast Speed per 40 Growth")
+        _add("minion_dmg_additional", source.total("minion_dmg_additional_per_100_growth") * (growth // 100),
+             "Troublemaker: additional damage per 100 Growth")
+        _add("minion_attack_speed_additional",
+             source.total("minion_attack_speed_additional_per_100_growth") * (growth // 100),
+             "Troublemaker: Attack Speed per 100 Growth")
+        _add("minion_cast_speed_additional",
+             source.total("minion_cast_speed_additional_per_100_growth") * (growth // 100),
+             "Troublemaker: Cast Speed per 100 Growth")
 
 
 def _minion_target_mitigation(source: BuildSource, dtype: str) -> float:
@@ -409,6 +418,87 @@ def nyi_offense(minion_skill: dict, level: int) -> OffenseResult:
     )
 
 
+def _minion_level_summary(source: BuildSource, base_level: int, max_level: int) -> dict:
+    """Return the minion-specific equivalent of the player skill-level explanation.
+
+    Minion abilities have their own two applicable level pools.  Keep this output in the
+    shared shape so the Calcs renderer can explain both their effective level and any
+    above-cap multiplier using the actual, materialized source entries.
+    """
+    keys = ("minion_skill_level", "spirit_magi_skill_level")
+    # Preserve the calculation's established rounding boundary: the two pools are added first,
+    # then rounded once.  Rounding each pool independently would turn +0.5 and +0.5 into zero.
+    bonus = max(0, int(round(sum(source.total(key) for key in keys))))
+    bonus_sources: list[dict] = []
+    if bonus:
+        for key in keys:
+            total = source.total(key)
+            if not total:
+                continue
+            attributed = 0.0
+            for entry in (entry for entry in source.source_log if entry.stat == key):
+                # Keep fractional contributions intact.  The engine rounds their combined
+                # total once, so collapsing each source independently loses real attribution.
+                levels = entry.amount * max(1, entry.points)
+                if not levels:
+                    continue
+                bonus_sources.append({"levels": levels, "stat": key, "source_type": entry.source_type,
+                                      "label": entry.label, "text": entry.text,
+                                      "source_name": entry.source_name or entry.text})
+                attributed += levels
+            residual = total - attributed
+            if abs(residual) > 1e-9:
+                bonus_sources.append({"levels": residual, "stat": key, "source_type": "custom",
+                                      "label": "Minion Skill Level", "text": key, "source_name": key})
+        # The engine applies the integer result after combining both pools.  Put that
+        # rounding delta on the largest real contributor (rather than inventing a new
+        # source) so the source rows and their above-cap factors match the applied level.
+        rounding_delta = bonus - sum(entry["levels"] for entry in bonus_sources)
+        if abs(rounding_delta) > 1e-9 and bonus_sources:
+            target = max(bonus_sources, key=lambda entry: abs(entry["levels"]))
+            target["levels"] += rounding_delta
+
+    def segment_mult(start: float, levels: float) -> float:
+        """Apply a source's (possibly fractional) level share across cap bands.
+
+        Fractional source amounts still resolve to an integer effective level only after
+        combined rounding, but their displayed shares must multiply back to that same result.
+        """
+        result = 1.0
+        current = start
+        remaining = levels
+        while remaining > 1e-9:
+            next_level = int(current + 1e-9) + 1
+            step = min(remaining, next_level - current)
+            if next_level > max_level:
+                result *= (1.10 if next_level - max_level <= 10 else 1.08) ** step
+            current += step
+            remaining -= step
+        return result
+
+    above_max_sources: list[dict] = []
+    current_level = 0
+    base_mult = segment_mult(current_level, int(base_level))
+    if base_mult != 1.0:
+        above_max_sources.append({"levels": int(base_level), "multiplier": base_mult,
+                                  "stat": "Skill Level", "source_type": "skill", "label": "Skill",
+                                  "text": "Base skill level", "source_name": "Base skill level"})
+    current_level += int(base_level)
+    for entry in bonus_sources:
+        levels = entry["levels"]
+        # Removing levels reverses the factor that those levels had supplied.  Keeping that
+        # inverse makes the displayed source-row product reconcile with the final total.
+        mult = (segment_mult(current_level, levels) if levels > 0
+                else 1.0 / segment_mult(current_level + levels, -levels) if levels < 0 else 1.0)
+        if mult != 1.0:
+            above_max_sources.append({**entry, "multiplier": mult})
+        current_level += levels
+
+    return {"base_level": int(base_level), "bonus_level": bonus,
+            "effective_level": int(base_level) + bonus, "bonus_stat_keys": list(keys),
+            "bonus_sources": bonus_sources, "above_max_sources": above_max_sources}
+
+
 def calculate_minion_offense(
     source: BuildSource,
     minion_skill: dict,
@@ -419,8 +509,6 @@ def calculate_minion_offense(
     *,
     shotgun_hits: int = 1,
     shotgun_falloff: float = 0.0,
-    extra_additional: float = 0.0,
-    extra_additional_label: str = "",
     penetrates: bool = False,
 ) -> OffenseResult:
     """Compute ONE minion ability's DPS as a full `OffenseResult` (so the frontend reuses the player panels).
@@ -434,10 +522,14 @@ def calculate_minion_offense(
     Ability-specific (Enhanced-only) knobs, applied to THIS call only (never the shared Base):
       `shotgun_hits` / `shotgun_falloff` — same-target Shotgun: N projectiles hit one enemy, each extra hit at
         (1 − falloff) → multiplier `1 + (hits−1)×(1−falloff)`, folded into DPS + surfaced on the hit form.
-      `extra_additional` (+ `_label`) — a skill-intrinsic additional-damage fraction (e.g. Thunderlight Arrow's
-        +5% per Projectile Quantity), folded into the additional pool + labelled in the Total-Additional breakdown.
       `penetrates` — the projectiles always Penetrate/track (multi-target / QoL; no single-target DPS effect,
-        surfaced as a note so it's never silently dropped)."""
+        surfaced as a note so it's never silently dropped).
+
+    A skill-intrinsic additional-damage bonus scoped to just THIS call (e.g. Thunderlight Arrow's +5% per
+    Projectile Quantity, Enhanced-only) is NOT a parameter here — the caller tracks it as a real, untagged
+    `minion_dmg_additional` SourceEntry on its OWN cloned `source` before calling (never the shared Base
+    source — see thunder_magus.py), so it naturally flows through `_minion_additional` below like any other
+    additional-damage source and shows up natively in the breakdown."""
     tags_list = list(minion_skill.get("skill_tags") or [])
     tags_lower = {str(t).lower() for t in tags_list}
     is_spell = "spell" in tags_lower
@@ -448,8 +540,8 @@ def calculate_minion_offense(
     # level. Coefficient + shared base plateau at the data max (≤ 20); above level 20 the standard compounding
     # multiplier applies (×1.10 per level 21-30, ×1.08 per level 31+). spirit_magi_skill_level stacks for magi.
     _MINION_MAX_LEVEL = 20
-    skill_level_bonus = int(round(source.total("minion_skill_level") + source.total("spirit_magi_skill_level")))
-    effective_level = level + max(0, skill_level_bonus)
+    level_summary = _minion_level_summary(source, level, _MINION_MAX_LEVEL)
+    effective_level = level_summary["effective_level"]
     above_mult = _above_max_mult(effective_level, _MINION_MAX_LEVEL)
     # Thread the SAME season the caller loaded `base_stats` for (stamped on it by `load_minion_base_stats`) into
     # coefficient resolution — never the global active season — so an explicit prior-season load resolves that
@@ -459,10 +551,12 @@ def calculate_minion_offense(
     shared_base = _interp_level_table((base_stats or {}).get("base_damage_by_level") or {}, effective_level)
     if base_stats is None or shared_base <= 0:
         r = nyi_offense(minion_skill, level)
+        r.level_summary = level_summary
         r.nyi = ["Minion Base Damage table not filled (data/seasons/<S>/_minion_base_stats.json)"]
         return r
     if coeff <= 0:
         r = nyi_offense(minion_skill, level)
+        r.level_summary = level_summary
         r.nyi = [f"{name}: no '% of Base Damage' coefficient (pure buff/utility ability — no hit modelled)"]
         return r
 
@@ -488,10 +582,12 @@ def calculate_minion_offense(
 
     # Generic (all-types) increased/additional + per-type totals (generic + type-specific). Skill-type-tagged pools
     # (e.g. minion_spell_dmg_additional) apply ONLY to a matching ability — a Spell pool NEVER touches an Attack.
-    # An Enhanced-only skill-intrinsic additional (Thunderlight Arrow's +5%/Projectile Quantity) folds in here too.
+    # An Enhanced-only skill-intrinsic additional (Thunderlight Arrow's +5%/Projectile Quantity) is a real, tracked
+    # `minion_dmg_additional` SourceEntry on the caller's own cloned `source` (see this function's docstring), so
+    # it's already folded into `_minion_additional`'s product below — no separate factor needed for it here.
     # Focused Strike's at-center additional applies full-uptime to AREA abilities only (mirrors the player Epicenter).
     area_center_add = source.total("minion_at_center_dmg_additional") if "area" in tags_lower else 0.0
-    extra_add_factor = (1.0 + max(0.0, extra_additional)) * (1.0 + max(0.0, area_center_add))
+    extra_add_factor = 1.0 + max(0.0, area_center_add)
     generic_inc = sum(source.total(k) for k, tags in _MINION_INC_STATS
                       if not _has_dtype_tags(tags) and _skill_type_ok(tags, is_spell))
     generic_add = _minion_additional(source, frozenset(), generic_only=True, is_spell=is_spell) * extra_add_factor
@@ -572,7 +668,12 @@ def calculate_minion_offense(
         _s = (1.0 + _as_inc + 0.20) / (1.0 + _as_inc)
         _G = int(_mc); _p = _mc - _G
         def _chain_dmg(L: int) -> float:
-            return L + _inc * (_init * L + L * (L - 1) / 2.0)
+            # Cap increment stacks at the realized chain's Max Multistrike Count = L−1 (mirror of the player
+            # multistrike fix in offense.py; see bug-263). _init (Initial Multistrike Count) pre-stacks the ramp
+            # but cannot push a hit past L−1. Minions have no Cat-Dive proc, so no q term. Without _init the min()
+            # is inert (n−1 ≤ L−1) → identical to the old closed form, keeping non-init minion goldens unchanged.
+            cap = L - 1
+            return sum(1.0 + _inc * min(_init + (n - 1), cap) for n in range(1, L + 1))
         def _chain_time(L: int) -> float:
             return 1.0 if L <= 1 else L / _s
         _e = (1.0 - _p) * _chain_dmg(1 + _G) + _p * _chain_dmg(2 + _G)
@@ -604,8 +705,6 @@ def calculate_minion_offense(
     if penetrates:
         nyi.append(f"{name}: Projectiles always Penetrate and track the enemy — multi-target / clear utility, "
                    "no single-target DPS effect (surfaced, not dropped).")
-    intrinsic_sources = ([{"label": extra_additional_label or "Projectile Quantity", "amount": extra_additional}]
-                         if extra_additional > 0 else [])
     # Purpose-built breakdown row (see engine.offense.DamageRow) — delivery = count (mirrors cast_multiplier
     # above: count is the minion's own "how many casters deliver this hit" multiplier, folded in the same
     # place a player's cast_multiplier/tangle_mult would be). Neither mitigation nor vuln is pre-folded into
@@ -617,7 +716,7 @@ def calculate_minion_offense(
     )
     _finalize_damage_row_pcts(damage_rows, per_minion_vs * count)
     return OffenseResult(
-        skill_name=name, supported=True, effective_level=effective_level, hit_forms=[form],
+        skill_name=name, supported=True, effective_level=effective_level, level_summary=level_summary, hit_forms=[form],
         above_max_mult=above_mult,
         crit_chance=crit_chance, crit_chance_uncapped=crit_chance_uncapped, crit_multiplier=crit_mult,
         double_dmg_chance=double_chance, double_dmg_factor=double_factor,
@@ -629,7 +728,6 @@ def calculate_minion_offense(
         flat_dmg_min=dict(flat_min), flat_dmg_max=dict(flat_max),
         base_dmg_min=dict(base_min), base_dmg_max=dict(base_max),
         type_inc=type_inc, type_add=type_add, generic_inc=generic_inc, generic_add=generic_add,
-        intrinsic_additional_sources=intrinsic_sources,
         enemy_mult_by_type=enemy_mult, base_csr=base_csr, skill_tags=tags_list,
         damage_rows=damage_rows,
         target_mitigation_by_type=target_mitigation_by_type, enemy_vuln_by_type=enemy_vuln_by_type,

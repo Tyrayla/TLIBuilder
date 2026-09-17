@@ -2,6 +2,129 @@
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-09-13
+
+### Bug fixes
+- **Fixed: Tower Sequence's "Adds Damage to Attacks/Spells per N Strength/Dexterity/Intelligence" weapon nodes resolved to a flat, non-scaling amount instead of scaling with the attribute.** A parser regex swallowed the "...to Attacks" portion of the text before the attribute-scaling logic ever saw it. The scaling now applies correctly and is credited only to the specific Attacks/Spells the text names — unlike Ralph's Burial/Magnus' Jealousy's similar-looking but unscoped mod, which owner-confirmed applies to both. Recorded as unverified pending in-game confirmation. **Known remaining gap:** Tower Sequence also has an "Adds Physical Damage to Attacks per 2260 Armor" variant that hits the same underlying truncation bug and is NOT fixed by this change — tracked separately, since Armor's total isn't available at the same point in the calculation the Strength/Dexterity/Intelligence totals are.
+- **Fixed: Seething Silhouette's Seething Spirit summon didn't scale with +Main Skill Level bonuses (gear/support/talent).** The base skill level itself always scaled Spirit's damage correctly, in lockstep with the player — only a bonus stat that raises the level further was being dropped for Spirit specifically. Spirit now inherits the same effective-level treatment as the player's own hit.
+
+### Support
+- **Report a bug directly from the app.** The build sidebar and start screen now open a structured report form for calculation, data, and app-behavior issues. Reports include the selected category, expected and actual behavior, optional reproduction steps and Discord username, plus a deliberately bounded diagnostic/build snapshot only when you opt in. They are sent through the desktop IPC path to the private operator inbox, never exposed through a public read API.
+
+## [0.6.6] - 2026-09-08
+
+### Engine & DPS
+- **Fixed: stacking several distinct damage-taken-reduction sources (gear, talents, Blessings, Warcry) could wrongly fail to compute at all.** The engine summed every reduction into one flat total; enough legitimate sources stacked together could cross -100% and imply nonsensical immunity, which the engine correctly refused to trust — but that meant the whole calculation just stopped, with no explanation. Distinct sources now multiply toward zero instead (confirmed in-game), the same pattern already used for Max Life/Mana/Energy Shield/Armor/Evasion. A single source alone still reaching -100% is unaffected — that's still flagged, since true single-source immunity isn't a thing this engine models.
+
+### Bug fixes
+- **A failed calculation no longer looks like a stuck or blank screen.** When a build genuinely can't be computed (see above, or any other engine error), the Calcs screen and damage-preview tooltips now show the real reason instead of silently going stale with no indication anything failed.
+- **Hardened the web build's compute worker against crashes and hangs.** Requests to the in-browser engine now have bounded timeouts, recover cleanly if the worker crashes mid-request, and are serialized so two calculations can never race into the same worker at once — closing off a class of "permanently frozen tab" bug.
+
+## [0.6.5] - 2026-09-07
+
+### Hero Traits
+- **Seething Silhouette (Rehan) is now modeled.** The base trait, the Artificial Moon revival, and all six advanced picks are implemented. Rage and Berserk are user-set conditions rather than simulated from combat. Seething Spirit — the trait's spirit summon — computes its own independent DPS (cloned from the player's own main-slot stats) and appears as its own row in the build sidebar, with a Player / Seething Spirit toggle on the stats screen. Ritual of Offering correctly zeroes the player's own DPS (Disarm) unless Rage Infusion is also picked. Recorded as unverified pending in-game confirmation.
+
+### Engine & DPS
+- **Attribute-scaling talents and 6 named legendary items now resolve to full coverage.** A new generic per-attribute condition (Strength/Dexterity/Intelligence) covers 8 core-talent lines plus most of Royal Cycle, Last Words of Chaos, Ralph's Journey, and Magnus' Scar; Troublemaker's per-100-Growth damage/Attack-Speed line extends the existing per-Growth fold family; attribute-scaled added elemental damage (Ralph's Burial, Magnus' Jealousy) and the "main stat no longer increases damage" companion line (which disables only the generic Main-Stat Damage Bonus, leaving an item's own per-attribute lines untouched) are both wired in. All recorded as unverified pending in-game confirmation. Along the way, two silent-drop parser bugs were fixed (a ranged-divisor text clause and bare "Mana" talent phrasing weren't resolving).
+- **Effective skill/support level displays and their source breakdowns are corrected.** Above-max-level multipliers in Calcs are now attributed to their source, and the Skills screen shows the same effective level the damage math actually uses.
+- **Local gear-defense breakdowns (Armour/Energy Shield/Evasion) are reworked.** Per-item local "% increased" affixes (chest, shield) were pooling globally with every other local-defense source instead of applying only to their own item's flat value; each item's local increase now applies to that item alone, with a per-item breakdown row showing the raw value, its own local multiplier, and every contributing source. Recorded as unverified pending in-game confirmation.
+
+### Warcry
+- **Warcry skills now have a dedicated Calcs panel and are fully modeled.** All six Warcries (Charging, Commanding, Fearless, Raging, Resurrection, Shockwave) show live Warcry Effect, Power, Cooldown, Duration, Charges, Uptime, and a per-contribution breakdown. Warcry Power auto-derives from target enemy count and any minimum-enemies modifiers (capped at 8, or 16 with Formless), with a manual override available in Config. Charging Warcry's Shadow Strike Tracking Distance is now modeled as its own 9.5m-base pool, separate from general Skill Area. Kragol's Roar's distinct-cast counter and Warcry-only cooldown/duration bonuses are wired in, and duplicate equipped copies of the same Warcry resolve to the most recently cast one.
+- **Fixed: Berserking Blade's Sweep support "additional Skill Area" bonus wasn't applying.** It was being parsed and tracked but silently dropped from the skill's actual Skill Area total; it's now correctly folded in, alongside every other skill's `additional` Skill Area contributions (e.g. Shockwave Warcry's Combo Finisher stacking).
+
+### Build management
+- **Fixed: the Base/Special hero-memory slot no longer vanishes on save/reload.** A memory socketed into the revival-enabled Base slot was silently dropped by the save path (both the on-disk build file writer and the Save button's outgoing payload never carried the field) and came back empty the next time the build was opened. It now round-trips correctly.
+
+### Under the hood
+- Fixed a flaky CI run: floating-ui's `useFocus` is now guarded against the DOM-less Vitest environment.
+
+## [0.6.4] - 2026-08-19
+
+### Hero Memory
+- **Hero memories now have a full inventory, creator, and preview card.** Memories work like slates: each loadout owns its own memory inventory, and a creator lets you build one with an in-game-style preview/tooltip card — rarity-tinted icon on a rarity-filled background, the name/level slot layout, the additive Trait Level line, Wax & Wane and revival display, and a damage-delta divider so you can see a memory's effect before you equip it. Memories (like slates) can be renamed with a custom display label that resolves in the notes system with rarity color. The fixed (non-Selena) hero-trait screen was rebuilt on an aligned grid so the base trait and its three memory slots sit on one row with each level's options split above and below. Clicking `+` on an empty slot opens the inventory to equip an existing memory of that type (and only jumps to Create when you own none), and equipped memories carry an Unequip button.
+- **Socketed memories now drive your build's numbers (Phase B).** Three in-game-verified mechanics are wired into DPS: a memory's *trait level* is derived from its level (1, plus one at 30 and at 50, plus any fixed "+N to Hero Trait Level"), so an empty slot leaves that advanced trait inactive and a socketed one levels it; *Wax & Wane* multiplies a revived memory's base stat by 1.3 (shown as the boosted value with a blue "(+30%)" tag); and the *revival mod* is applied as a normal memory effect. The same level rules now apply uniformly to tree-styled traits (Selena) as to conventional ones — only the allocation differs.
+- **Base-stat values now scale by memory level.** A memory's base stat is computed from its type, stat, rarity, and level via a season-stable scaling table, replacing the old coarse tier-ladder estimate; the creator auto-computes it from rarity and level, and imported memories are recomputed against this ground truth. The table is sourced from MinMaxedARPG and is recorded as needs-verification.
+- **Base / Special slot for revived memories.** A revived memory whose revival mod is a base-slot enabler (e.g. Artificial Moon) opens a single Base slot that accepts one non-revived memory of the named type. Equipping it levels the base trait and applies the mod's stat penalty to the base stat and random-affix values (fixed affixes are untouched), with each penalized line showing its final value and a blue "(-N%)" tag in the tooltip. The slot stays hidden until an enabler is equipped.
+- **Combo affixes now roll their two stats independently.** The Combo Starter/Finisher affix grants two different stats with different ranges on one line that roll separately in-game; the creator previously collapsed both to a single value. It now shows a tier picker and one input per range, and each roll is saved and scaled on its own. Single-range affixes are unchanged.
+
+### Spirit Magus
+- **All five Spirit Magus Origin effects are now data-driven and displayed.** Origin magnitudes (Fire crit rating, Ice Life + Energy Shield regen, Rock/Erosion damage-taken reduction with their -50% caps, and Thunder's formula) are read per-level from the season data instead of being hardcoded, and each magus gets its own Origin box beside the Spirit Magi (Minion) panel showing the Origin Effect, that magus's seal reservation (percent by default, flat total and pool share on hover), per-grant rows with base × factor popovers, and any Magnificent added-origin effects attributed to the support that granted them. Magi whose damage isn't modeled get an honest "damage not modeled" headline plus their abilities and Origin box rather than an empty partial panel. Origin values are recorded as unverified with their assumptions noted; the Wicked origin is deferred to the minion engine. This also adds Energy Shield regen (surfaced on the recovery panel).
+
+### Terra
+- **Terra is now modeled: a Terra Charge system, Frost Terra, and full Terra mod coverage.** Terra Charge is modeled as an owner-verified pool (1 base plus bonus stacks, each charge restoring on a 0.5s cadence); charges default to the maximum consumed and are user-overridable via a new "Terra charges consumed" condition. Each charge contributes an additive per-charge damage bonus — note the *multiplicative* per-charge claim from the community is deliberately **not** modeled pending verification (TERRA-01). Frost Terra is the first Terra skill wired end-to-end as a pure damage-over-time skill (recorded as unverified). A new "Terra" stat category collects every Terra modifier (increased/additional Terra skill damage, Terra damage enhancement, area, duration, and skill level), and the parser now recognizes every Terra mod line.
+
+### Import / Compendium
+- **Import a TLI Compendium build directly into the Builder.** A new "Import from Compendium" path converts a Compendium build JSON export into a Builder build in-app, using the crosswalk bridge tables for the active season. The Import/Export overlay and the main-menu import modal now share one panel with a "Builder Code | Compendium Build" toggle, tailored instructions, and hardened file intake (size cap, safe parse, shape check). It converts against the active season and errors clearly on a season mismatch; any items it can't map are skipped and listed in the build notes. On the web build the crosswalk tables are served from the data CDN, so import works there as well as on desktop.
+
+### Engine & DPS
+- **Multistrike no longer overcounts damage on long chains (bug-263).** The increasing-damage increment that multistrike adds per hit is now capped at the realized Max Multistrike Count, so builds that start with an Initial Multistrike Count (e.g. Wind Stalker's Cat's Punches) no longer let the ramp push later hits past the cap. This is a DPS-accuracy correction: affected builds will read lower and more correct, while builds without an initial count are unchanged. (Verification for multistrike is downgraded from confirmed to partial pending a live cap-split measurement.)
+- **Unregistered skills now get a partial, damage-free display instead of nothing.** A skill the engine doesn't yet model runs through the full pipeline to populate its generic mechanics and stats but never states a damage number — browsable and informative, but honestly not DPS-modeled. Auto-derived conditions (channeling, Terra, chromatic) now derive from any equipped skill rather than only registered ones.
+- **Granted element Tags now feed +<Tag> Skill Level.** When a support grants the supported skill an element Tag (Chromatic Shot's Condensed supports), a matching "+<Element> Skill Level" now applies to the skill's effective level, and the slot summary shows the same level the damage math uses. Damage-only pseudo-tags deliberately do not count.
+
+### Build management
+- **Editing screens keep their in-progress state as you navigate away and back.** Gear, Skills, Hero Traits, Pact Spirits, Slates, Config, Notes, and Import/Export now stay mounted (hidden) instead of being torn down when you switch screens, so a half-finished edit is still there when you return. The Talent Tree also reopens the last tree you were viewing. Calcs and the tree canvas still re-render on demand.
+- **Combined affix lines that are really one roll now move as one control.** In the gear roll editors, same-stat number pairs on a single affix line — the player/minion mirror ("+X% Attack and Cast Speed / +X% Minion Attack and Cast Speed") and same-stat conditional splits — are a single in-game roll, so they're now driven by one input that writes both values in lockstep. Two genuinely distinct stats that merely share a range (e.g. Ignite damage vs. chance to Ignite) stay independent. Saved builds aren't rewritten.
+- **Per-loadout hero-trait allocations and instant tree/slate refresh.** Tree-mode hero-trait allocations are now stored per loadout and swap with the loadout (older builds are migrated so nothing is lost), and switching loadouts now refreshes the viewed talent tree and slate board immediately instead of showing the previous loadout until you navigated away.
+- **Empty slates now appear in the slate inventory.** Placed slates with no modifier chosen (empty base slates, Corner of Divinity, and the node-less Moth/Prairie legendary slates) were being skipped and never showed up in the inventory; every placed slate is now included.
+
+### Mobile
+- **Tap-to-remove toggle for the talent tree.** On phones there's no right-click, so removing a talent point meant a long-press — which also opened the node tooltip and felt awkward. A new mobile-only toolbar toggle flips a node tap between adding and removing points, so deallocating is now a single tap (with the same cascade behavior as a desktop right-click). Desktop is unchanged (left-click adds, right-click removes), and the toggle auto-resets if you widen back to desktop.
+
+### Fixes
+- **Fresh builds are no longer flagged as unsaved the moment you open them.** A new build lands on the Hero Trait screen, which auto-selects a default trait — that default was tripping the dirty tracker even though you'd touched nothing. Applying the default no longer counts as an edit.
+- **Ethereal-prism "do not replace core talent" options now appear in the editor.** These advanced options were keyed by the wrong text internally and never matched any prism, so the "no core talent replacement" choices were hidden for every prism. They're now keyed by the prism's name and show up correctly.
+- **Compendium imports no longer crash on unexpected data shapes.** A non-string gear base name, slate node type, or memory rarity/type in an imported file used to throw and abort the entire import; those values are now coerced safely and degrade gracefully. Gear items missing an affixes array are likewise tolerated in tooltips and note mentions.
+
+### Project
+- **Added a "Support the developer" Ko-fi link** in the main-menu footer and pinned to the bottom of the build sidebar, opening ko-fi.com/tlibuilder in your system browser (desktop) or a new tab (web).
+- **Added a favicon and touch icon for tlibuilder.com** (web only; the desktop app icon is unchanged).
+
+## [0.6.3] - 2026-08-06
+
+### Mobile
+- **The build sidebar becomes an overlay drawer on phones.** At 768px and below the persistent sidebar is replaced by a fixed drawer with a floating toggle, a dimmed backdrop, and auto-close on navigation, backdrop tap, or Escape; opening a build shows the drawer so its navigation is reachable. Settings and Loadout overlays were lifted out of the sidebar shell (a transformed ancestor had been dragging fixed modals along with the drawer), and every modal is now capped to the viewport width so nothing spills off-screen. Desktop is untouched — the responsive rules only apply at phone widths, and the Electron window never gets that small.
+- **Every screen now stacks cleanly on a phone instead of squishing.** Config, Gear, Skills, Hero Traits, the tree screens, Slates, and Pact Spirits lay out at natural height as a long scroll rather than cramming their internal sections side-by-side; the talent and Dance of the Deep trees render full-size with touch pan, slate cells own their drag gesture so placing works by touch, and the pact-spirit picker gains a close button.
+
+### Talent trees
+- **The tree selector now shows each god's icon.** God/goddess selector cards and the slot-rail slots carry full-bleed tree art behind their text (with an accent-tinted scrim for legibility), and the static points display is now a real fill meter — purple as you allocate, amber once you pass the cap.
+- **Shared, consistent screen headers.** The tree selector and tree viewer now use one `ScreenHeader` component, fixing headers that had drifted apart in padding and cards that visibly resized when moving between the two screens; a border seam at the sidebar/header corner and the tree card's Remove/Shift button widths were also corrected.
+- **Selena's Dance of the Deep tree is back to its authored layout.** The trait had regressed to a generic flat node list during an earlier data recrawl; its real tree-allocation topology is restored (and the flat-schema fallback now warns loudly instead of silently degrading), with the Dance Step sub-variants — Crimson Dash, Agonizing Revival, Eternal Sleep — corrected in the glossary. As in 0.6.0, the trait is browsable but still not DPS-modeled.
+- **SS13 post-launch data refresh.** A live re-crawl brings in the real Dance of the Deep tree data and icons (replacing a pre-release placeholder), pact-spirit and ethereal-prism icon/affix corrections, a Memory Revival rebalance, and Sweet Dream / corrosion-base content changes across 38 craft base types — the last of which had never had a working import path.
+
+### Preview Mode
+- **Preview Mode is now a display toggle inside the normal app, not a separate stripped-down shell.** Previously entering preview bypassed the persistent sidebar entirely; now the sidebar always renders (showing empty slots in preview, never touching your real build), the Preview button turns into an active Exit Preview control that returns you to wherever you entered from, and identity comes from a subtle diagonal watermark on the tree canvas. Allocating a node while previewing provably never reaches your saved build.
+
+### Build management
+- **Build cards and the sidebar now show character identity.** A build card reads e.g. "Lv 100 Selena — Dance of the Deep" (hero trait in gold) instead of a list of tree names, and the same identity line sits above Save / Save As — so imported builds, whose share codes carry no name, are finally identifiable at a glance. It degrades gracefully to level-only while the catalog is still loading or for an unknown trait.
+
+### Loading & gear editor
+- **Real loading states everywhere.** A shared spinner replaces the drifted placeholders that used to imply the wrong thing while data loaded — the tree selector's hardcoded card grid, Skills' false "no results", Gear's "0 items" header and inert rows, and the empty pact-spirit board — and every load path now has an explicit failure branch, so there are no stuck spinners and an empty result is never mistaken for a loading one. A new bottom-left load-progress pill fills as each catalog settles and then fades to "Loaded".
+- **Gear editor actions and custom item names.** The gear editor now carries Rename, Duplicate, and Remove actions alongside Save/Cancel, and you can give an item a custom display name (up to 60 characters) that shows in equipment slots, Items in Build, and note mentions while the editor, preview, and tooltips keep the true name. The name survives save, duplicate, and the share-code round trip — carried additively through the frozen build code, so builds without a renamed item still encode byte-for-byte identically. The editor column is now a fixed viewport-derived width, so opening it no longer shifts the layout.
+
+### Engine & DPS
+- **The Crit Multiplier breakdown now attributes every source of Crit Damage.** It previously summed a stat key that doesn't exist, so it only ever showed the 150% base — your gear, tree, support, and base Crit Damage sources are now all itemized. Tyrant's Iron Fist's "Crit Damage per Mana consumed recently" is likewise now folded into the real Crit Damage pool with a labeled "Mana Consumed" source. Computed values are unchanged (byte-identical goldens); this is a reporting fix.
+- **Crit Rating per Mana consumed gets the same treatment** — Tyrant's Iron Fist's Crit Rating bonus now shows a labeled Mana Consumed source in the Crit Rating breakdown instead of being folded in silently, again with no change to the resulting crit chance.
+- **Per-Mana affixes now badge Consumed instead of Inactive.** Compensatory Life (spell-damage-per-mana) and mana-regen-per-mana-consumed affixes were contributing but showing an Inactive badge; they now correctly read Consumed. Badge-only — no DPS changes.
+
+### Fixes
+- **Fixed a crash that could wipe unsaved build progress.** A real user lost all in-memory work when rapid place/remove clicks on a legendary slate briefly desynced the slate's view of a slot, and — with no error boundary anywhere in the app — a single uncaught render error unmounted the whole interface. Fixed in two layers: every persisted-key lookup in the slate screen is now guarded, and a root error boundary catches anything that still slips through, offering recovery that generates a real build code (or raw JSON download) from the untouched in-memory build so your progress is never lost to a render crash.
+
+### Security
+- **Backend hardened against path traversal and DNS-rebinding** (from an owner-reviewed security scan). Season-tree file reads/writes and the untrusted slate slug are now normalized and traversal-guarded (CWE-22), and a Host-header check rejects non-loopback requests on the network path while leaving the in-process web build's worker dispatch exempt (CWE-352). Full backend suite green.
+
+### Project
+- **The app is unchanged for users, but the game dataset now lives outside the public repo.** `data/` is no longer tracked in the source tree; it's pulled from a private source at build time, and the CDN that serves the web build's data now enforces an origin allowlist. The application code stays MIT-licensed, while the game dataset carries its own separate terms (`DATA-LICENSE.md`).
+
+### Under the hood
+- Dead-code cleanup (Phases 1–5): removed the deprecated legacy compute chain, ~18 unused API endpoints and their client wrappers, the orphaned form-upload IPC chain (and the `python-multipart` dependency), and a batch of zero-caller Python symbols, the hand-curated `node_modifier_pool`, and the retired manual tree-editing surface. Live compute path untouched; goldens byte-identical.
+- Added a GitHub Actions CI workflow (typecheck, vitest, pytest, plus a skip-count guard).
+- Added a Playwright E2E harness covering both the web (dist + Pyodide) and Electron targets.
+- Desktop packaging fixed to positive file globs and prod deps trimmed to `electron-updater`, cutting the packaged app from ~123MB to 3.9MB.
+- Trimmed the web bundles (`backend-py.zip` 596→498KB, `engine-data.zip` 1.8→1.1MB) and switched the data zip to content-hashed immutable caching.
+- Fixed a cross-drive relative-path crash in a test fixture index on Windows CI.
+
 ## [0.6.2] - 2026-07-24
 
 ### Theme & readability

@@ -68,8 +68,12 @@ function previewBranch(startMarker: string, endMarker: string): string {
 describe("App.tsx preview call-site wiring (source pin)", () => {
   const previewSelectorBranch = previewBranch(
     "screen === 'preview-selector'", "screen === 'preview-viewer'")
+  // End marker is the next screen branch after preview-viewer in App.tsx. The keep-alive refactor
+  // (d2851e2) moved import-export/gear/skills/etc. out of the else-if chain into KEEPALIVE_SCREENS /
+  // renderKeepAliveScreen, so `screen === 'import-export'` no longer exists there; `screen === 'stats'`
+  // is now the branch immediately following preview-viewer.
   const previewViewerBranch = previewBranch(
-    "screen === 'preview-viewer'", "screen === 'import-export'")
+    "screen === 'preview-viewer'", "screen === 'stats'")
 
   it('case 2: preview-selector passes literal no-op onSlotClick/onSlotReorder to TreeSelectorScreen', () => {
     expect(previewSelectorBranch).toContain('onSlotClick={() => {}}')

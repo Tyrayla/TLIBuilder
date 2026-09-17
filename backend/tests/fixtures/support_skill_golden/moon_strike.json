@@ -12,7 +12,6 @@
     "armor_effective_rate_non_physical_inc",
     "armor_flat",
     "armor_gear_flat",
-    "armor_gear_inc",
     "armor_inc",
     "armor_pen",
     "at_center_dmg_additional",
@@ -31,8 +30,12 @@
     "attack_speed_gear",
     "attack_speed_inc",
     "attack_speed_mh",
+    "barrier_absorption_rate_inc",
+    "barrier_shield_additional",
+    "barrier_shield_inc",
     "block_ratio_inc",
     "block_ratio_upper_limit_flat",
+    "blur_effect_inc",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_attack_dmg_flat_max",
@@ -44,6 +47,10 @@
     "cold_dmg_gear_inc",
     "cold_resistance",
     "cold_resistance_max_inc",
+    "cold_taken_as_erosion_inc",
+    "cold_taken_as_fire_inc",
+    "cold_taken_as_lightning_inc",
+    "cold_taken_as_physical_inc",
     "crit_dmg_additional",
     "crit_dmg_inc",
     "crit_rating_additional",
@@ -61,12 +68,15 @@
     "dmg_inc",
     "dmg_max_additional",
     "dmg_min_additional",
+    "dmg_taken_additional",
+    "dot_dmg_taken_additional",
     "double_dmg_chance",
     "elemental_dmg_additional",
     "elemental_dmg_gear_flat_max",
     "elemental_dmg_gear_flat_min",
     "elemental_dmg_gear_inc",
     "elemental_dmg_inc",
+    "elemental_dmg_taken_additional",
     "elemental_pen",
     "elemental_resistance",
     "enemy_nearby_dmg_taken_additional",
@@ -74,11 +84,11 @@
     "energy_shield_consumed_pct_current_per_sec",
     "energy_shield_consumed_pct_max_per_sec",
     "energy_shield_gear_flat",
-    "energy_shield_gear_inc",
     "energy_shield_per_sealed_life",
     "energy_shield_per_sealed_mana",
     "energy_shield_regain_inc",
     "energy_shield_regain_interval_additional",
+    "energy_shield_regen_pct",
     "energy_shield_restored_pct_lost_per_burst",
     "erosion_attack_dmg_flat_max",
     "erosion_attack_dmg_flat_min",
@@ -87,12 +97,15 @@
     "erosion_dmg_gear_inc",
     "erosion_resistance",
     "erosion_resistance_max_inc",
+    "erosion_taken_as_cold_inc",
+    "erosion_taken_as_fire_inc",
+    "erosion_taken_as_lightning_inc",
+    "erosion_taken_as_physical_inc",
     "es_regain_to_restoration",
     "evasion",
     "evasion_additional",
     "evasion_flat",
     "evasion_gear_flat",
-    "evasion_gear_inc",
     "evasion_inc",
     "excess_restoration_to_es_pct",
     "extra_tangle_applied_flat",
@@ -111,8 +124,13 @@
     "fire_pen",
     "fire_resistance",
     "fire_resistance_max_inc",
+    "fire_taken_as_cold_inc",
+    "fire_taken_as_erosion_inc",
+    "fire_taken_as_lightning_inc",
+    "fire_taken_as_physical_inc",
     "hit_curse_taken",
     "hit_dmg_additional",
+    "hit_dmg_taken_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -152,11 +170,16 @@
     "lightning_pen",
     "lightning_resistance",
     "lightning_resistance_max_inc",
+    "lightning_taken_as_cold_inc",
+    "lightning_taken_as_erosion_inc",
+    "lightning_taken_as_fire_inc",
+    "lightning_taken_as_physical_inc",
     "lucky_crit",
     "lucky_fire",
     "lucky_lightning",
     "lucky_physical",
     "main_skill_level",
+    "main_stat_damage_bonus_disabled_flag",
     "mana_consume_external_blocked",
     "mana_consumed_flat_per_attack_use",
     "mana_consumed_flat_per_cast",
@@ -199,6 +222,7 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
+    "max_terra_charge_stacks_flat",
     "melee_dmg_additional",
     "melee_dmg_inc",
     "melee_skill_level",
@@ -225,7 +249,12 @@
     "physical_dmg_inc",
     "physical_dmg_max_additional",
     "physical_dmg_min_additional",
+    "physical_dmg_taken_additional",
     "physical_skill_level",
+    "physical_taken_as_cold_inc",
+    "physical_taken_as_erosion_inc",
+    "physical_taken_as_fire_inc",
+    "physical_taken_as_lightning_inc",
     "quadruple_dmg_chance",
     "regain_interval_additional",
     "restoration_duration_additional",
@@ -235,6 +264,7 @@
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
     "shield_dmg_inc",
+    "skill_area_additional",
     "skill_area_inc",
     "skill_cost_additional",
     "skill_cost_flat",
@@ -288,6 +318,13 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.396,
     "crit_chance_uncapped": 0.396,
+    "crit_dmg_keys": [
+      "crit_dmg_additional",
+      "crit_dmg_inc",
+      "attack_crit_dmg_inc",
+      "spell_crit_dmg_inc",
+      "physical_crit_dmg_inc"
+    ],
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "damage_rows": [
@@ -412,8 +449,77 @@
       "lightning": 10.0,
       "physical": 578.0
     },
+    "flat_max_keys": {
+      "cold": [
+        "cold_dmg_gear_flat_max",
+        "cold_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "erosion": [
+        "erosion_dmg_gear_flat_max",
+        "erosion_attack_dmg_flat_max"
+      ],
+      "fire": [
+        "fire_dmg_gear_flat_max",
+        "fire_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "lightning": [
+        "lightning_dmg_gear_flat_max",
+        "lightning_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "physical": [
+        "physical_dmg_gear_flat_max",
+        "physical_attack_dmg_flat_max"
+      ]
+    },
+    "flat_min_keys": {
+      "cold": [
+        "cold_dmg_gear_flat_min",
+        "cold_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "erosion": [
+        "erosion_dmg_gear_flat_min",
+        "erosion_attack_dmg_flat_min"
+      ],
+      "fire": [
+        "fire_dmg_gear_flat_min",
+        "fire_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "lightning": [
+        "lightning_dmg_gear_flat_min",
+        "lightning_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "physical": [
+        "physical_dmg_gear_flat_min",
+        "physical_attack_dmg_flat_min"
+      ]
+    },
     "generic_add": 3.827257885237247,
+    "generic_add_keys": [
+      "hit_dmg_additional",
+      "dmg_additional",
+      "dmg_max_additional",
+      "dmg_min_additional",
+      "attack_dmg_additional",
+      "spell_dmg_additional",
+      "melee_dmg_additional",
+      "area_dmg_additional",
+      "at_center_dmg_additional"
+    ],
     "generic_inc": 0,
+    "generic_inc_keys": [
+      "dmg_inc",
+      "attack_dmg_inc",
+      "shield_dmg_inc",
+      "spell_dmg_inc",
+      "melee_dmg_inc",
+      "area_dmg_inc"
+    ],
     "hit_forms": [
       {
         "avg_hit_pre_crit": 7712.780030890403,
@@ -444,6 +550,7 @@
         "name": "Sweep Slash",
         "nyi": [],
         "proc_chance": 0.76,
+        "proc_stat_key": "_complement_steep_strike_chance",
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       },
@@ -476,18 +583,21 @@
         "name": "Steep Strike",
         "nyi": [],
         "proc_chance": 0.24000000000000002,
+        "proc_stat_key": "steep_strike_chance",
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
     ],
-    "intrinsic_additional_sources": [
-      {
-        "amount": 0.048499999999999995,
-        "label": "Skill Intrinsic"
-      }
-    ],
     "jumps": 0,
     "jumps_base": 0,
+    "level_summary": {
+      "above_max_sources": [],
+      "base_level": 20,
+      "bonus_level": 0,
+      "bonus_sources": [],
+      "bonus_stat_keys": [],
+      "effective_level": 20
+    },
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
       "dexterity",
@@ -526,6 +636,8 @@
     "shadow_dmg_additional": 0.0,
     "shadow_hits_per_sec": 0.0,
     "shadow_mult": 1.0,
+    "shadow_tracking_area_inc": 0.0,
+    "shadow_tracking_distance": 0.0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Moon Strike",
@@ -562,6 +674,7 @@
     "spirit_magi_max": 0,
     "spirit_magi_physique_inc": 0.0,
     "spirit_magi_stage": 0,
+    "steep_strike_additional_dmg": 0.0,
     "steep_strike_chance": 0.24000000000000002,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -588,10 +701,83 @@
       "lightning": 5.06154855322626,
       "physical": 3.827257885237247
     },
+    "type_add_keys": {
+      "fire": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "spell_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "fire_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "lightning": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "spell_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "lightning_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "physical": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "spell_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "physical_dmg_additional",
+        "physical_dmg_min_additional",
+        "physical_dmg_max_additional",
+        "at_center_dmg_additional"
+      ]
+    },
     "type_inc": {
       "fire": 0,
       "lightning": 0,
       "physical": 0
+    },
+    "type_inc_keys": {
+      "fire": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "spell_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "fire_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "lightning": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "spell_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "lightning_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "physical": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "spell_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "physical_dmg_inc"
+      ]
     },
     "weapon_aps_gear": 0,
     "weapon_aps_mh": 0,
@@ -631,6 +817,13 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.396,
       "crit_chance_uncapped": 0.396,
+      "crit_dmg_keys": [
+        "crit_dmg_additional",
+        "crit_dmg_inc",
+        "attack_crit_dmg_inc",
+        "spell_crit_dmg_inc",
+        "physical_crit_dmg_inc"
+      ],
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
       "damage_rows": [
@@ -755,8 +948,77 @@
         "lightning": 10.0,
         "physical": 578.0
       },
+      "flat_max_keys": {
+        "cold": [
+          "cold_dmg_gear_flat_max",
+          "cold_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "erosion": [
+          "erosion_dmg_gear_flat_max",
+          "erosion_attack_dmg_flat_max"
+        ],
+        "fire": [
+          "fire_dmg_gear_flat_max",
+          "fire_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "lightning": [
+          "lightning_dmg_gear_flat_max",
+          "lightning_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "physical": [
+          "physical_dmg_gear_flat_max",
+          "physical_attack_dmg_flat_max"
+        ]
+      },
+      "flat_min_keys": {
+        "cold": [
+          "cold_dmg_gear_flat_min",
+          "cold_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "erosion": [
+          "erosion_dmg_gear_flat_min",
+          "erosion_attack_dmg_flat_min"
+        ],
+        "fire": [
+          "fire_dmg_gear_flat_min",
+          "fire_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "lightning": [
+          "lightning_dmg_gear_flat_min",
+          "lightning_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "physical": [
+          "physical_dmg_gear_flat_min",
+          "physical_attack_dmg_flat_min"
+        ]
+      },
       "generic_add": 3.827257885237247,
+      "generic_add_keys": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "spell_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "at_center_dmg_additional"
+      ],
       "generic_inc": 0,
+      "generic_inc_keys": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "spell_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc"
+      ],
       "hit_forms": [
         {
           "avg_hit_pre_crit": 7712.780030890403,
@@ -787,6 +1049,7 @@
           "name": "Sweep Slash",
           "nyi": [],
           "proc_chance": 0.76,
+          "proc_stat_key": "_complement_steep_strike_chance",
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         },
@@ -819,18 +1082,21 @@
           "name": "Steep Strike",
           "nyi": [],
           "proc_chance": 0.24000000000000002,
+          "proc_stat_key": "steep_strike_chance",
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         }
       ],
-      "intrinsic_additional_sources": [
-        {
-          "amount": 0.048499999999999995,
-          "label": "Skill Intrinsic"
-        }
-      ],
       "jumps": 0,
       "jumps_base": 0,
+      "level_summary": {
+        "above_max_sources": [],
+        "base_level": 20,
+        "bonus_level": 0,
+        "bonus_sources": [],
+        "bonus_stat_keys": [],
+        "effective_level": 20
+      },
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
         "dexterity",
@@ -869,6 +1135,8 @@
       "shadow_dmg_additional": 0.0,
       "shadow_hits_per_sec": 0.0,
       "shadow_mult": 1.0,
+      "shadow_tracking_area_inc": 0.0,
+      "shadow_tracking_distance": 0.0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
       "skill_name": "Moon Strike",
@@ -905,6 +1173,7 @@
       "spirit_magi_max": 0,
       "spirit_magi_physique_inc": 0.0,
       "spirit_magi_stage": 0,
+      "steep_strike_additional_dmg": 0.0,
       "steep_strike_chance": 0.24000000000000002,
       "supported": true,
       "tangle_attach_range": 0.0,
@@ -931,10 +1200,83 @@
         "lightning": 5.06154855322626,
         "physical": 3.827257885237247
       },
+      "type_add_keys": {
+        "fire": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "spell_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "fire_dmg_additional",
+          "elemental_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "lightning": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "spell_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "lightning_dmg_additional",
+          "elemental_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "physical": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "spell_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "physical_dmg_additional",
+          "physical_dmg_min_additional",
+          "physical_dmg_max_additional",
+          "at_center_dmg_additional"
+        ]
+      },
       "type_inc": {
         "fire": 0,
         "lightning": 0,
         "physical": 0
+      },
+      "type_inc_keys": {
+        "fire": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "spell_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "fire_dmg_inc",
+          "elemental_dmg_inc"
+        ],
+        "lightning": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "spell_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "lightning_dmg_inc",
+          "elemental_dmg_inc"
+        ],
+        "physical": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "spell_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "physical_dmg_inc"
+        ]
       },
       "weapon_aps_gear": 0,
       "weapon_aps_mh": 0,
@@ -1109,6 +1451,16 @@
           "source_name": "Attack Focus",
           "source_type": "support",
           "text": "The supported skill 1.65 % additional damage for every 10 Fervor Rating |attack_focus|the supported skill#% ad"
+        },
+        {
+          "amount": 0.048499999999999995,
+          "label": "Skill Intrinsic",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Moon Strike",
+          "source_type": "skill",
+          "text": "Skill Intrinsic (max_mana)"
         }
       ],
       "sources": [

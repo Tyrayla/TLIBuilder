@@ -61,20 +61,29 @@ def desperation_contribution(sup: dict, data: dict) -> dict | None:
     cond = {"key": "life_lost_pct", "op": "per", "divisor": 5.0}
     if cap is not None:
         cond["cap"] = cap
+    name = data.get("name") or sup.get("item_id")
     return {
         "stat_key": "dmg_additional",
         "amount": per,
         "text": f"For every 5% Life lost, +{per * 100:.2f}% additional damage |{sup.get('item_id')}|desperation",
-        "label": f"{data.get('name') or sup.get('item_id')}",
+        "label": name,
+        # source_name matches `label` here (support_resolver.py's own generic-path convention — see e.g.
+        # its line building {"label": name, "source_name": name, ...}) so the breakdown's Source Name column
+        # shows the clean support name (not a text/label fallback) and the rich support-tooltip hover (which
+        # matches `ctx.skillsByName[source_name]` on the frontend) actually finds this support.
+        "source_name": name,
         "condition": cond,
         "slot": sup.get("slot", 1),
     }
 
 
 def extract_config(attached_supports, skills_by_id) -> dict[int, dict]:
-    """{slot: {sweep_per_stack, decimate_threshold, rampage_coeff}} for the Sweep/Decimate/Rampage supports
-    (keyed by the host slot). `decimate_threshold` is a percent (0-100); the others are fractions. Honors a
-    per-line explicit user roll, else the tier midpoint."""
+    """{slot: {sweep_per_stack, sweep_name, decimate_threshold, rampage_coeff, rampage_name}} for the
+    Sweep/Decimate/Rampage supports (keyed by the host slot). `decimate_threshold` is a percent (0-100);
+    the others are fractions. Honors a per-line explicit user roll, else the tier midpoint. `*_name` is the
+    support's own catalog display name — threaded through to `emit_self_buff`/`emit_rampage` so their
+    SourceEntry.source_name matches the support_resolver.py generic-path convention (see
+    desperation_contribution's comment) instead of leaving it None."""
     out: dict[int, dict] = {}
     if not attached_supports or not skills_by_id:
         return out
@@ -89,9 +98,11 @@ def extract_config(attached_supports, skills_by_id) -> dict[int, dict]:
         cfg = out.setdefault(slot, {})
         line = _tier_line(data, sup)
         roll = _explicit_roll(sup, line)
+        name = data.get("name") or iid
         if iid == SWEEP:
             m = _SWEEP_RE.search(line)
             cfg["sweep_per_stack"] = roll if roll is not None else (_mid(m) / 100.0 if m else 0.0)
+            cfg["sweep_name"] = name
         elif iid == DECIMATE:
             m = _DECIMATE_RE.search(line)
             if roll is not None:
@@ -102,6 +113,7 @@ def extract_config(attached_supports, skills_by_id) -> dict[int, dict]:
         elif iid == RAMPAGE:
             m = _RAMPAGE_RE.search(line)
             cfg["rampage_coeff"] = roll if roll is not None else (_mid(m) / 100.0 if m else 0.0)
+            cfg["rampage_name"] = name
     return out
 
 
@@ -114,28 +126,34 @@ def stacks(condition_state: dict, has_sweep: bool) -> float:
     return min(max(raw, 0.0), cap)
 
 
-def emit_self_buff(source, slot: int, n_stacks: float, sweep_per_stack: float) -> None:
-    """Emit the intrinsic buff's Skill Area (and Sweep's additional Skill Area) into the slot overlay."""
+def emit_self_buff(source, slot: int, n_stacks: float, sweep_per_stack: float,
+                   skill_name: str, sweep_name: str | None = None) -> None:
+    """Emit the intrinsic buff's Skill Area (and Sweep's additional Skill Area) into the slot overlay.
+    `skill_name` (the skill's own name, e.g. "Berserking Blade") and `sweep_name` (Sweep's own catalog name)
+    become each entry's `source_name` — matching support_resolver.py's generic-path convention instead of
+    leaving it None, which left the breakdown's Source Name column showing the full descriptive `text` as a
+    fallback and skipped the rich support-tooltip hover match on `ctx.skillsByName[source_name]`."""
     inc = _AREA_PER_STACK * n_stacks
     if inc:
         source.add_slotted("skill_area_inc", inc, slot, None, SourceEntry(
             stat="skill_area_inc", amount=inc, source_type="skill",
-            label="Berserking Blade Buff",
+            label="Berserking Blade Buff", source_name=skill_name,
             text=f"+{_AREA_PER_STACK * 100:.1f}% Skill Area per buff stack ×{n_stacks:.0f} |bb|buff",
             points=1))
     if sweep_per_stack:
         add = sweep_per_stack * n_stacks
         source.add_slotted("skill_area_additional", add, slot, None, SourceEntry(
             stat="skill_area_additional", amount=add, source_type="support",
-            label="Berserking Blade: Sweep",
+            label="Berserking Blade: Sweep", source_name=sweep_name,
             text=f"+{sweep_per_stack * 100:.2f}% additional Skill Area per buff ×{n_stacks:.0f} |bb|sweep",
             points=1))
 
 
-def emit_rampage(source, slot: int, eff, coeff: float) -> None:
+def emit_rampage(source, slot: int, eff, coeff: float, rampage_name: str | None = None) -> None:
     """Rampage: share `coeff` of the slot's skill-area bonus into additional Steep Strike Damage. Increased
     pool sums additively, additional pools multiply: bonus = (1+Σinc)·Π(1+add) − 1. Reads the materialized
-    slot source (so the self-buff + Sweep are included); emits into the slot overlay for offense to consume."""
+    slot source (so the self-buff + Sweep are included); emits into the slot overlay for offense to consume.
+    `rampage_name` is Rampage's own catalog name — see emit_self_buff's docstring for why this matters."""
     if not coeff:
         return
     inc_sum = eff.total("skill_area_inc")
@@ -148,7 +166,7 @@ def emit_rampage(source, slot: int, eff, coeff: float) -> None:
     if amt:
         source.add_slotted("steep_strike_additional_dmg", amt, slot, None, SourceEntry(
             stat="steep_strike_additional_dmg", amount=amt, source_type="support",
-            label="Berserking Blade: Rampage",
+            label="Berserking Blade: Rampage", source_name=rampage_name,
             text=f"Skill Area bonus → +{amt * 100:.1f}% additional Steep Strike Damage |bb|rampage",
             points=1))
 
@@ -183,8 +201,9 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
     source.referenced_conditions.add("berserking_blade_stacks")
     cfg = extract_config(attached_supports, skills_by_id).get(slot, {})
     n = stacks(condition_state, "sweep_per_stack" in cfg)
-    emit_self_buff(source, slot, n, cfg.get("sweep_per_stack", 0.0))
-    emit_rampage(source, slot, source.materialize_for_skill(mod_tags, slot), cfg.get("rampage_coeff", 0.0))
+    emit_self_buff(source, slot, n, cfg.get("sweep_per_stack", 0.0), resolved.name, cfg.get("sweep_name"))
+    emit_rampage(source, slot, source.materialize_for_skill(mod_tags, slot), cfg.get("rampage_coeff", 0.0),
+                cfg.get("rampage_name"))
     return {}
 
 

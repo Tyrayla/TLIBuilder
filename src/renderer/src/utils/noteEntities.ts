@@ -5,6 +5,7 @@ import type {
   EquippedGearItem, EquippedSkill, SelectedPactSpirit, CreatedHeroMemory, PactSpirit,
   SkillItem, LegendaryGearIndexItem, LegendaryGearItem, ConditionDef, HeroTrait,
 } from '../api/client'
+import { MEMORY_RARITY_COLORS } from '../api/client'
 import { gearQualityColor } from './gearItem'
 import { sourceKindColor } from './sourceKind'
 
@@ -53,6 +54,14 @@ const typeColor = (t: NoteEntityType): string => ({
 
 const MEMORY_LABEL: Record<string, string> = { origin: 'Origin', discipline: 'Discipline', progress: 'Progress' }
 
+// Resolve a memory selection's display text (mirrors HeroTraitShared.resolveMemoryEffect, inlined here to keep
+// this util free of component imports): ensure a leading + and substitute the rolled value into the (min–max) range.
+function resolveMemoryModifier(sel: { modifier: string; rolledValue: number | null }): string {
+  const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
+  if (sel.rolledValue == null) return mod
+  return mod.replace(/\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/g, String(sel.rolledValue))
+}
+
 // ── Token grammar: {{type:key}} (key may contain anything but `}`) ───────────────
 const TOKEN_RE = /\{\{(item|node|skill|cond|trait|spirit|memory):([^}]+)\}\}/g
 export const tokenFor = (type: NoteEntityType, key: string): string => `{{${type}:${key}}}`
@@ -80,7 +89,7 @@ export function resolveNoteEntity(type: NoteEntityType, key: string, ctx: NoteRe
     case 'item': {
       const g = ctx.gear.find(i => i.item_id === key)
       if (g) return { ...base, name: g.displayName ?? g.name, color: gearQualityColor(g), source: 'build',
-        lines: [g.base_type ?? '', ...g.affixes.map(a => a.raw_text).filter(Boolean).slice(0, 10)].filter(Boolean) }
+        lines: [g.base_type ?? '', ...(g.affixes ?? []).map(a => a.raw_text).filter(Boolean).slice(0, 10)].filter(Boolean) }
       // Catalog: the FULL legendary catalog carries the affixes (variants); the lightweight index has only base_type.
       const cat = ctx.reference.legendaryCatalog?.find(i => i.item_id === key || i.name === key)
       if (cat) {
@@ -124,8 +133,16 @@ export function resolveNoteEntity(type: NoteEntityType, key: string, ctx: NoteRe
     }
     case 'memory': {
       const m = ctx.heroMemories.find(x => x?.memoryType === key)
-      if (m) return { ...base, name: `${MEMORY_LABEL[key] ?? key} Memory`, color: typeColor('memory'), source: 'build',
-        lines: [m.rarity, ...(m.fixedAffixes ?? []).flatMap(a => a ? [a.modifier] : [])].filter(Boolean).slice(0, 10) }
+      // Use the user label when set (like gear's `displayName ?? name`) so typing the label in notes resolves.
+      if (m) {
+        const rarityLine = `Memory of ${MEMORY_LABEL[key] ?? key} · ${m.rarity.charAt(0).toUpperCase()}${m.rarity.slice(1)}`
+        const affixes = [m.baseStat, ...(m.fixedAffixes ?? []), ...(m.randomAffixes ?? []), m.revivalMod]
+          .filter((s): s is NonNullable<typeof s> => !!s)
+          .map(resolveMemoryModifier)
+        // Chip color = the memory's RARITY color (like gear uses its quality color), not a fixed type color.
+        return { ...base, name: m.displayName ?? `${MEMORY_LABEL[key] ?? key} Memory`, color: MEMORY_RARITY_COLORS[m.rarity], source: 'build',
+          lines: [rarityLine, ...affixes].slice(0, 12) }
+      }
       return null
     }
   }

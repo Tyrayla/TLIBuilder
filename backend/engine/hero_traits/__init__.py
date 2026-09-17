@@ -12,13 +12,15 @@ from engine.hero_traits import wind_stalker as _ws
 from engine.hero_traits import sing_with_the_tide as _swt
 from engine.hero_traits import unsullied_blade as _ub
 from engine.hero_traits import licorice_note as _ln
+from engine.hero_traits import seething_silhouette as _ss
 
-_MODULES = (_ls, _hcc, _ws, _swt, _ub, _ln)
+_MODULES = (_ls, _hcc, _ws, _swt, _ub, _ln, _ss)
 
 _APPLY = {m.TRAIT_ID: m.apply for m in _MODULES if hasattr(m, "apply")}
 _STASH = {m.TRAIT_ID: m.stash for m in _MODULES if hasattr(m, "stash")}
 _STATUS = {m.TRAIT_ID: m.status_lines for m in _MODULES if hasattr(m, "status_lines")}
 _VIRTUAL = {m.TRAIT_ID: m.virtual_supports for m in _MODULES if hasattr(m, "virtual_supports")}
+_SPIRIT_GRANT = {m.TRAIT_ID: m.spirit_grant for m in _MODULES if hasattr(m, "spirit_grant")}
 
 # The three universal, build-independent inputs every status_lines() accepts (see engine.coverage.trait_coverage's
 # probe). `slot_levels`/`advanced_picks` describe a property of the TRAIT itself. `season` (2026-07-16 architecture
@@ -86,3 +88,13 @@ def virtual_supports(trait_id: str, **kw) -> list[dict]:
     Each is a normal support dict {item_id, slot, level, …}. [] when no module / none granted."""
     fn = _VIRTUAL.get(trait_id)
     return (fn(**kw) or []) if fn else []
+
+
+def spirit_grant(trait_id: str, **kw) -> dict | None:
+    """Whether the trait grants a Seething-Spirit-style autonomous copy of the main skill this pass, and
+    its modifiers — called by `compute.py`'s post-offense derived-secondary-damage-source pass (the same
+    architectural exception `minion_offense` already is: it needs the main slot's resolved skill/stat
+    source, unavailable to the pre-offense `apply()` hook). None when no module / not granted. See
+    `hero_traits/seething_silhouette.py::spirit_grant` for the shape and `README.md`'s "Spirit grant" hook."""
+    fn = _SPIRIT_GRANT.get(trait_id)
+    return fn(**kw) if fn else None

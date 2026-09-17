@@ -2,6 +2,7 @@ import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   LegendaryAffix, CustomizedAffix, EffectInput,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects, withGuaranteedPicks,
+  deriveTraitSlotLevels,
   traitGrantsSkillSlot, TRAIT_SKILL_SLOT, TRAIT_SKILL_ID,
   computeSkillSlotEligibility, computeInvalidSkillSlots,
 } from '../api/client'
@@ -16,8 +17,8 @@ export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, bu
 export type BuildState = ReturnType<typeof useBuildStore.getState>
 
 // Effective hero-trait picks for the engine payload = user picks + always-granted guaranteed nodes (enabled tiers).
-function _effTraitPicks(s: BuildState): string[] {
-  return withGuaranteedPicks(s.traitId, s.traitSlotLevels, s.advancedTraitSelections,
+function _effTraitPicks(s: BuildState, slotLevels: number[]): string[] {
+  return withGuaranteedPicks(s.traitId, slotLevels, s.advancedTraitSelections,
     useReferenceStore.getState().heroTraits ?? [])
 }
 
@@ -131,6 +132,12 @@ export function buildEngineStatsPayload(s: BuildState) {
   const _invalidSlots = computeInvalidSkillSlots(s.skills, computeSkillSlotEligibility(s.traitId, s.slots, {
     slates: s.slates, gear: s.gear, beltBlends: useReferenceStore.getState().beltBlends ?? undefined, prisms: s.prisms,
   }))
+  // Phase B: the advanced-slot levels are DERIVED from the socketed memories (SET to the memory's trait level;
+  // 0/inactive when a slot is empty) for EVERY trait — tree-styled traits (Selena) follow the same level rules,
+  // they only differ in ALLOCATION (which nodes are reachable). Single source of truth for the payload's trait
+  // fields (trait_slot_levels + the two _effTraitPicks calls + buildTraitEffects).
+  const _heroTraitsCatalog = useReferenceStore.getState().heroTraits ?? []
+  const traitSlotLevels = deriveTraitSlotLevels(s.heroMemories, s.traitSlotLevels, s.baseMemory)
   return {
     slots: s.slots,
     slates: s.slates,
@@ -144,17 +151,17 @@ export function buildEngineStatsPayload(s: BuildState) {
     },
     gear: buildGearPayload(s.gear),
     character: buildCharacterContributions(s.gear, charLevel),
-    memory_effects: buildMemoryEffects(s.heroMemories),
+    memory_effects: buildMemoryEffects(s.heroMemories, s.baseMemory),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits, s.fates, s.undetermined), s.spiritEffectExclude),
     // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status
     // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.
     trait_id: s.traitId,
-    trait_slot_levels: s.traitSlotLevels,
+    trait_slot_levels: traitSlotLevels,
     // Effective picks = user choices + always-granted guaranteed nodes (enabled tiers). Sent so both bespoke
     // modules and the generic resolver apply guaranteed nodes without persisting them into the saved selections.
-    advanced_trait_selections: _effTraitPicks(s),
-    trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, _effTraitPicks(s),
-      useReferenceStore.getState().heroTraits ?? []),
+    advanced_trait_selections: _effTraitPicks(s, traitSlotLevels),
+    trait_effects: buildTraitEffects(s.traitId, traitSlotLevels, _effTraitPicks(s, traitSlotLevels),
+      _heroTraitsCatalog),
     // Licorice Note: the Empower/Curse the trait prepares (Pungent cross-apply target). null → auto/none.
     licorice_prepared_skill: s.licoricePreparedSkill ?? null,
     // Licorice Note Ingredients: scent-bottle slot → [equipped ingredient names] (flattened from {category: name}).
@@ -186,6 +193,7 @@ export function buildEngineStatsPayload(s: BuildState) {
           specific_rolls: sup.specific_rolls,
           specific_roll_tiers: sup.specific_roll_tiers,
           roll_group_choice: sup.roll_group_choice,
+          support_index: sup.support_index,
           slot: sk.slot,
           enabled: sup.enabled !== false,
         }))),
@@ -197,6 +205,7 @@ export function buildEngineStatsPayload(s: BuildState) {
         specific_rolls: sup.specific_rolls,
         specific_roll_tiers: sup.specific_roll_tiers,
         roll_group_choice: sup.roll_group_choice,
+        support_index: sup.support_index,
         slot: TRAIT_SKILL_SLOT,
         enabled: sup.enabled !== false,
       })) : []),
@@ -204,6 +213,8 @@ export function buildEngineStatsPayload(s: BuildState) {
     custom_mods: s.customMods,
     // Editable calc-target ("dummy") stats — percentages; the engine converts to fractions + applies mitigation.
     target_config: s.targetConfig,
+    // Incoming-hit enemy skill (kind + per-type hit/DoT) for the defensive Max-Hit / EHP calc.
+    enemy_config: s.enemyConfig,
   }
 }
 
@@ -247,6 +258,16 @@ function _buildItemContributions(
       }))]
     }
   }
+  // Tower Sequence (crafted weapon/shield bases only) — the selected entry is already concrete affix
+  // text with no ranges, so append it with no pre-resolved stat_key; it falls through to the generic
+  // `unresolved` collection below and is resolved backend-side by the same modifier-text parser every
+  // other unrecognized affix uses (same mechanism as a mutation-resolved affix, minus the pre-resolution).
+  if (item.towerSequence) {
+    affixesToProcess = [...affixesToProcess, {
+      raw_text: item.towerSequence, modifier_id: null, expression: item.towerSequence, condition: null,
+      affix_kind: 'numeric' as const, numeric_values: [], affix_type: 'Tower Sequence',
+    }]
+  }
   const contributions: GearAffixContribution[] = []
   // Cardinal rule: never silently drop. Any affix the frontend can't turn into a contribution gets
   // its raw text collected here so the backend can resolve it (and report what it still can't).
@@ -277,7 +298,7 @@ function _buildItemContributions(
         handled = true
       }
       // Armour base defense implicit ("+N gear Energy Shield|Armour|Evasion") — the base item's flat
-      // defense, which feeds that item's local gear pool (scaled by its "% gear X" affixes below).
+      // defense, which feeds that item's local gear pool (scaled by its "% gear X" affixes in the backend).
       const defM = affix.raw_text.match(/^\+?([\d.]+)\s+gear\s+(energy shield|armou?r|evasion)$/i)
       if (defM) {
         const key = ({ 'energy shield': 'energy_shield_gear_flat', 'armor': 'armor_gear_flat',
@@ -361,38 +382,12 @@ function _buildItemContributions(
     }
   })
 
-  foldLocalGearDefense(contributions, item.name)
   return contributions
 }
 
-// Gear defense is LOCAL: each item's flat ES/Armour/Evasion (base implicit + explicit affixes) is
-// scaled by that item's "% gear X" affixes, and only the scaled flat feeds the global pool. So we
-// pre-apply the local "% gear X" here and emit one folded flat per defense type — the "% gear X" must
-// never reach the global increased pool (derive no longer reads *_gear_inc). Global "% increased /
-// additional Max X" (max_*_inc / max_*_additional) are separate and still pool globally.
-const _GEAR_DEFENSE: { flat: string; inc: string }[] = [
-  { flat: 'energy_shield_gear_flat', inc: 'energy_shield_gear_inc' },
-  { flat: 'armor_gear_flat',         inc: 'armor_gear_inc' },
-  { flat: 'evasion_gear_flat',       inc: 'evasion_gear_inc' },
-]
-function foldLocalGearDefense(contribs: GearAffixContribution[], itemName: string): void {
-  for (const { flat, inc } of _GEAR_DEFENSE) {
-    let flatSum = 0, incSum = 0   // incSum is in percent points (e.g. 57 for "+57% gear ES")
-    for (const c of contribs) {
-      if (c.stat === flat) flatSum += c.display_value
-      else if (c.stat === inc) incSum += c.display_value
-    }
-    // Drop the raw flat + inc rows for this defense type…
-    for (let i = contribs.length - 1; i >= 0; i--) {
-      if (contribs[i].stat === flat || contribs[i].stat === inc) contribs.splice(i, 1)
-    }
-    // …and re-emit the locally-scaled flat (base + explicit) × (1 + Σ % gear X).
-    if (flatSum > 0) {
-      contribs.push({ stat: flat, display_value: flatSum * (1 + incSum / 100), unit: '',
-        item_name: itemName, text: `Local gear defense (×${(1 + incSum / 100).toFixed(2)})`, slot: null, condition: null })
-    }
-  }
-}
+// Gear defense stays as raw per-item flat and "% gear" contributions until backend aggregation. That lets
+// talent modifiers such as "Defense from Shield" join the SAME local increased pool as an item's own gear %.
+// Global "% increased / additional Max X" pools remain separate.
 
 function _isWeaponSpecificStat(stat: string): boolean {
   // Weapon implicit base stats (attack speed, base damage, flat CSR) and per-weapon gear
@@ -617,7 +612,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // Carry item_name + slot on the unresolved push so backend-resolved affixes (e.g. per-consumed flat
     // damage) attribute to the actual item in the breakdown's Source Name (+ gear tooltip) and to its real
     // slot in the Source column — not a generic "Gear" / "Item".
-    result.push(unresolved.length ? { ...gi, item_name: item.name, slot: slots[0] ?? null, unresolved_texts: unresolved } : gi)
+    result.push({ ...gi, item_name: item.name, slot: slots[0] ?? null, is_shield: isShieldItem(item),
+      ...(unresolved.length ? { unresolved_texts: unresolved } : {}) })
 
     // Additional slots (same-item dual wield): emit ONLY global affixes.
     // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
@@ -628,7 +624,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
       const globalContribs = _buildItemContributions(item, slots[i], u)
         .filter(c => !_isWeaponSpecificStat(c.stat))
       if (globalContribs.length > 0) {
-        result.push({ contributions: globalContribs })
+        result.push({ contributions: globalContribs, item_name: item.name, slot: slots[i] ?? null, is_shield: isShieldItem(item) })
       }
       // The 2nd copy's untyped global affixes/implicits (e.g. a wand's "+40% Spell Damage") stack too.
       if (u.length > 0) {
@@ -646,7 +642,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
       const unresolved: string[] = []
       const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot, unresolved) }, item)
       // Carry item_name + slot (see note above) so single-weapon unresolved affixes attribute to the item/slot.
-      result.push(unresolved.length ? { ...gi, item_name: item.name, slot: (Array.isArray(item.slot) ? item.slot[0] : item.slot) ?? null, unresolved_texts: unresolved } : gi)
+      result.push({ ...gi, item_name: item.name, slot: (Array.isArray(item.slot) ? item.slot[0] : item.slot) ?? null,
+        is_shield: isShieldItem(item), ...(unresolved.length ? { unresolved_texts: unresolved } : {}) })
     }
   }
 

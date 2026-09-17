@@ -1,6 +1,108 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from engine.models import BuildSource
+from engine.models import BuildSource, SourceEntry
+
+
+_LOCAL_GEAR_DEFENSE = {
+    "energy_shield_gear_flat": "energy_shield_gear_inc",
+    "armor_gear_flat": "armor_gear_inc",
+    "evasion_gear_flat": "evasion_gear_inc",
+}
+
+
+def local_gear_defense_sources(source: BuildSource, flat_key: str) -> list[dict]:
+    """Finalized, per-item local-defense rows for computation and stat-breakdown display."""
+    inc_key = _LOCAL_GEAR_DEFENSE[flat_key]
+    flat_entries = [e for e in source.source_log if e.stat == flat_key and e.source_type == "gear"]
+    if not flat_entries:
+        return []
+
+    # Mark the normal local increased stat as consumed; values are selected per item below.
+    source.total(inc_key)
+    inc_entries = [e for e in source.source_log if e.stat == inc_key and e.source_type == "gear"]
+    targeted_keys = []
+    if any(e.gear_slot == "chest" for e in flat_entries):
+        targeted_keys.append("chest_defense_inc")
+    if any(e.is_shield for e in flat_entries):
+        targeted_keys.append("shield_defense_inc")
+        if flat_key == "energy_shield_gear_flat":
+            targeted_keys.append("shield_energy_shield_inc")
+    targeted_entries = {key: [e for e in source.source_log if e.stat == key] for key in targeted_keys}
+    targeted_totals = {key: source.total(key) for key in targeted_keys}
+
+    # One row per equipped item, rather than one for each of its raw base/implicit/affix lines.
+    # The nested increase rows retain the exact originating talent/gear source for the click-to-expand UI.
+    items: dict[tuple[str | None, str | None, str], list[SourceEntry]] = {}
+    for flat in flat_entries:
+        identity = (flat.gear_slot, flat.source_name, flat.label)
+        items.setdefault(identity, []).append(flat)
+
+    rows = []
+    for (_slot, _name, _label), item_flats in items.items():
+        flat = item_flats[0]
+        raw_amount = sum(e.amount for e in item_flats)
+        applicable = [e for e in inc_entries if e.gear_slot == flat.gear_slot]
+        if flat.gear_slot == "chest":
+            applicable.extend(targeted_entries.get("chest_defense_inc", []))
+        if flat.is_shield:
+            applicable.extend(targeted_entries.get("shield_defense_inc", []))
+            if flat_key == "energy_shield_gear_flat":
+                applicable.extend(targeted_entries.get("shield_energy_shield_inc", []))
+        local_inc = sum(e.amount for e in applicable)
+        local_increases = [{
+            "amount": e.amount,
+            "label": e.label,
+            "source_name": e.source_name,
+            "text": e.text,
+            "source_type": e.source_type,
+        } for e in applicable]
+        # Source-less targeted modifiers are uncommon (normal gameplay supplies source_log entries),
+        # but preserve their numerical contribution for programmatic/custom builds as well.
+        for key in targeted_keys:
+            applies = (key == "chest_defense_inc" and flat.gear_slot == "chest") or (key != "chest_defense_inc" and flat.is_shield)
+            logged = sum(e.amount for e in targeted_entries[key])
+            if applies and logged == 0 and targeted_totals[key]:
+                local_inc += targeted_totals[key]
+                local_increases.append({
+                    "amount": targeted_totals[key],
+                    "label": "Unattributed",
+                    "source_name": None,
+                    "text": key,
+                    "source_type": "custom",
+                })
+        rows.append({
+            "amount": raw_amount * (1.0 + local_inc),
+            "raw_amount": raw_amount,
+            "multiplier": 1.0 + local_inc,
+            "label": flat.label,
+            "source_name": flat.source_name,
+            "text": flat.text,
+            "local_increases": local_increases,
+        })
+    return rows
+
+
+def local_gear_defense_total_from_rows(source: BuildSource, flat_key: str, rows: list[dict]) -> float:
+    """Sum one defense type's flat total from already-computed `local_gear_defense_sources` rows —
+    lets a caller that already has `rows` (e.g. for the stat-breakdown display) avoid recomputing
+    them a second time. `source.total(flat_key)` is always read (marks the key consumed, and is the
+    whole answer when `rows` is empty). When `rows` is non-empty, its gear-item rows are already
+    locally scaled; any REMAINING amount under `flat_key` belongs to a non-gear source landing on
+    the same stat (rare — e.g. a talent's bare "+N maximum energy shield" phrasing routes here too,
+    same as gear's "+N gear armor"/"+N gear evasion") — not tied to an item, so it isn't part of
+    `rows` and applies unscaled, same as before this per-item split existed. Without this, such a
+    contribution would be silently excluded from the total whenever the build also has ANY
+    gear-sourced local defense (rows non-empty short-circuits the old empty-rows fallback)."""
+    grand_total = source.total(flat_key)
+    if not rows:
+        return grand_total
+    non_gear_total = grand_total - sum(row["raw_amount"] for row in rows)
+    return sum(row["amount"] for row in rows) + non_gear_total
+
+
+def local_gear_defense_total(source: BuildSource, flat_key: str) -> float:
+    """Compute one defense type from the item's raw flat and its additive local increased pool."""
+    return local_gear_defense_total_from_rows(source, flat_key, local_gear_defense_sources(source, flat_key))
 
 
 @dataclass
@@ -59,9 +161,9 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     ),
     DerivedStat(
         key="max_energy_shield",
-        # *_gear_flat already has the item's "% gear X" applied locally (statsPayload.foldLocalGearDefense),
+        # *_gear_flat is folded per item by local_gear_defense_total(), not in the global increased pool.
         # so the gear % is NOT a global inc here — only the truly-global "% increased Max ES" pools.
-        flat_keys=["max_energy_shield_flat", "energy_shield_gear_flat"],
+        flat_keys=["max_energy_shield_flat"],
         inc_keys=["max_energy_shield_inc"],
         add_pools=[["max_energy_shield_additional"]],
     ),
@@ -69,16 +171,16 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     # ── Armor / Evasion ────────────────────────────────────────────────────────
     # defense_inc is a shared multiplier that applies to both armor and evasion.
     # armor_additional and evasion_additional are each one independent pool.
-    # *_gear_flat is pre-scaled by the item's local "% gear X" (statsPayload) — not a global inc.
+    # *_gear_flat is folded per item by local_gear_defense_total(), not in the global increased pool.
     DerivedStat(
         key="armor",
-        flat_keys=["armor_flat", "armor_gear_flat"],
+        flat_keys=["armor_flat"],
         inc_keys=["armor_inc", "defense_inc"],
         add_pools=[["armor_additional"]],
     ),
     DerivedStat(
         key="evasion",
-        flat_keys=["evasion_flat", "evasion_gear_flat"],
+        flat_keys=["evasion_flat"],
         inc_keys=["evasion_inc", "defense_inc"],
         add_pools=[["evasion_additional"]],
     ),
@@ -121,6 +223,12 @@ def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None)
             value = max(0.0, float(overrides[d.key]))
         else:
             flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
+            if d.key == "max_energy_shield":
+                flat_total += local_gear_defense_total(source, "energy_shield_gear_flat")
+            elif d.key == "armor":
+                flat_total += local_gear_defense_total(source, "armor_gear_flat")
+            elif d.key == "evasion":
+                flat_total += local_gear_defense_total(source, "evasion_gear_flat")
             # Tortoise Shell: a % of FINAL Max Life is added as flat Energy Shield BEFORE ES inc/additional scale
             # it. max_life is derived earlier in this same pass (it precedes max_energy_shield), so read the just-
             # computed value from `results`. Done inline (not source.add) so it can't accumulate across passes.

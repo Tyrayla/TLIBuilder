@@ -9,6 +9,13 @@ import { dec } from '../utils/num'
 import { characterSummary } from '../utils/characterSummary'
 import { characterLevelFrom } from '../utils/conditions'
 
+// External links open in the system browser on desktop (IPC) and a new tab on web —
+// same pattern as BuildSelectScreen's openExternal.
+function openExternal(url: string) {
+  if (window.api?.openExternal) window.api.openExternal(url)
+  else window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 interface Props {
   screen: string
   buildName: string
@@ -68,7 +75,18 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
       })
     : []
 
-  const allContributors = [...contributors, ...minionContributors]
+  // Seething Spirit (Seething Silhouette hero trait): a second, independent damage source computed
+  // off the player's own main-skill stats + its own modifiers (backend/engine/compute.py). Only
+  // ever the single "seething_spirit" key — present only when a Spirit-granting pick is active.
+  const spiritOffense = (computedStats as { spirit_offense?: Record<string, OffenseResult> | null }).spirit_offense ?? null
+  const spiritContributors = spiritOffense
+    ? Object.values(spiritOffense).flatMap(result => {
+        const dps = result.supported ? (result.total_dps_vs_target ?? 0) : 0
+        return dps > 0 ? [{ name: result.skill_name || 'Seething Spirit', dps }] : []
+      })
+    : []
+
+  const allContributors = [...contributors, ...minionContributors, ...spiritContributors]
   const total = allContributors.reduce((s, c) => s + c.dps, 0)
 
   // Keep showing the last computed total/rows while a recompute is in flight (computedStats holds the
@@ -227,11 +245,20 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       <div className="sidebar-divider" />
 
       <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => nav('import-export')} />
+      <NavBtn label="⚑ Report a bug" active={false} onClick={() => window.dispatchEvent(new CustomEvent('tli-report-prepared'))} />
       {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
-      {/* Intentional trailing filler — keeps the nav packed at the top now that nothing sits at the bottom. */}
+      {/* Trailing filler pushes the support link to the very bottom of the nav. */}
       <div className="sidebar-spacer" />
+      <div className="sidebar-divider" />
+      <button
+        className="sidebar-nav-btn sidebar-support"
+        onClick={() => openExternal('https://ko-fi.com/tlibuilder')}
+        title="Support TLI Builder on Ko-fi"
+      >
+        ♥ Support the developer
+      </button>
     </div>
       <div className="sidebar-resize-handle" onMouseDown={startResize} title="Drag to resize the sidebar" />
     </div>

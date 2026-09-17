@@ -3,7 +3,7 @@ Tests: Focused Slash support — the regex now handling the "Deals" form text, t
 slash-skill resolver, and the skill-intrinsic Fervor additional-damage bonus end to end.
 """
 import pytest
-from engine.models import BuildSource
+from engine.models import BuildSource, SourceEntry
 from engine.skill_resolver import (
     resolve_skill, _REGISTRY, ResolvedSkill, SkillHitForm, IntrinsicAdditional,
 )
@@ -76,7 +76,11 @@ class TestIntrinsicEval:
         assert _eval_intrinsic_additional(bb, BuildSource(), {"fervor_rating": 100.0}) == 0.0
 
 
-class TestOffenseExtraAdditional:
+class TestOffenseIntrinsicAdditionalTracking:
+    """calculate_offense no longer takes an extra_additional parameter — a skill's intrinsic additional
+    damage (Fervor, Mana, …) is tracked as a real, untagged dmg_additional SourceEntry instead (see
+    compute.py's _track_skill_intrinsic_additional / _intrinsic_additional_entries). These confirm
+    calculate_offense picks such an entry up exactly like any other additional-damage source."""
     def _src(self):
         s = BuildSource()
         s.add("weapon_attack_speed", 1.0)
@@ -88,13 +92,17 @@ class TestOffenseExtraAdditional:
         return ResolvedSkill("t", "T", ["attack"], 1,
                             {1: [SkillHitForm("Hit", 100.0, "additive", None)]}, supported=True)
 
-    def test_extra_additional_multiplies_dps(self):
+    def test_tracked_dmg_additional_multiplies_dps(self):
         base = calculate_offense(self._src(), self._skill(), 1)
-        boosted = calculate_offense(self._src(), self._skill(), 1, extra_additional=0.5)
+        boosted_src = self._src()
+        boosted_src.add_with_source("dmg_additional", 0.5, SourceEntry(
+            stat="dmg_additional", amount=0.5, source_type="skill", label="Skill Intrinsic",
+            text="Test Intrinsic (fervor_rating)", source_name="T"))
+        boosted = calculate_offense(boosted_src, self._skill(), 1)
         assert base.total_dps > 0
         assert boosted.total_dps == pytest.approx(base.total_dps * 1.5)
 
-    def test_default_extra_additional_is_noop(self):
+    def test_no_intrinsic_entry_is_noop(self):
         a = calculate_offense(self._src(), self._skill(), 1)
-        b = calculate_offense(self._src(), self._skill(), 1, extra_additional=0.0)
+        b = calculate_offense(self._src(), self._skill(), 1)
         assert a.total_dps == pytest.approx(b.total_dps)

@@ -1,12 +1,14 @@
 import { create } from 'zustand'
+import type { TliErrorPayload } from '../errors/tliError'
 import { deepEqual as isEqual } from '../utils/fn'
 import type {
   TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput, InstalledFate, UndeterminedFate,
-  Loadout, TargetConfig,
+  Loadout, TargetConfig, EnemyIncomingConfig,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
 import { DEFAULT_TARGET_CONFIG } from '../utils/targetPresets'
+import { DEFAULT_ENEMY_CONFIG } from '../utils/enemyPresets'
 import {
   ALL_AREAS, readArea, resolvedPatch, loadoutById, ownerLoadout, snapshotAllAreas,
   loadoutKeyFromResolved, loadoutKeyFromState,
@@ -40,12 +42,17 @@ export interface LoadedBuild {
   licoricePreparedSkill: string | null   // Licorice Note: skill_id of the Empower/Curse the trait prepares
   elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: ingredient name}
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  // Optional (like traitTreeAllocations) so pre-existing LoadedBuild literals / fixtures don't need updating;
+  // `loadBuild` defaults it to null. The live BuildStore field below is always CreatedHeroMemory | null.
+  baseMemory?: CreatedHeroMemory | null   // the Base/Special slot memory (opened by a revived memory's enabler mod)
+  memoryInventory: CreatedHeroMemory[]   // owned/created memories palette (per-loadout, like slateInventory)
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>
   undetermined: (UndeterminedFate | null)[]
   notes: string
   customMods: string[]
   targetConfig: TargetConfig
+  enemyConfig: EnemyIncomingConfig
   loadouts: Loadout[]
   activeLoadoutId: string
 }
@@ -98,6 +105,8 @@ interface BuildStore {
   gear: EquippedGearItem[]
   characterLevel: number
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  baseMemory: CreatedHeroMemory | null   // the Base/Special slot memory (opened by a revived memory's enabler mod)
+  memoryInventory: CreatedHeroMemory[]   // owned/created memories palette (per-loadout, like slateInventory)
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>            // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
   undetermined: (UndeterminedFate | null)[]       // one per spirit slot (index 0–2)
@@ -117,11 +126,16 @@ interface BuildStore {
   // Calc-target ("training dummy") stats — per-loadout (a loadout area). Bumps buildVersion to recompute DPS-vs-target.
   targetConfig: TargetConfig
   setTargetConfig: (t: TargetConfig) => void
+  // Incoming-hit enemy skill — per-loadout (a loadout area). Drives the defensive Max-Hit / EHP calc.
+  enemyConfig: EnemyIncomingConfig
+  setEnemyConfig: (c: EnemyIncomingConfig) => void
   // Uptime calc mode (global): 'max' (assume-max, default) | 'real' (compute ramp). Not part of the saved
   // build — a display/calc preference. Drives the engine's uptime_mode for ailment ramp (Numbed, …).
   uptimeMode: 'max' | 'real'
   setUptimeMode: (m: 'max' | 'real') => void
   setHeroMemories: (memories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
+  setBaseMemory: (baseMemory: CreatedHeroMemory | null) => void
+  setMemoryInventory: (memoryInventory: CreatedHeroMemory[]) => void
   setPactSpirits: (spirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
   setFates: (fates: Record<string, InstalledFate>) => void
   setUndetermined: (undetermined: (UndeterminedFate | null)[]) => void
@@ -136,7 +150,8 @@ interface BuildStore {
   // Atomic build load — sets all fields at once, resets computedStats
   loadBuild: (data: LoadedBuild) => void
 
-  // Reference data — bumps buildVersion so first load triggers recalc
+  // Reference data — does NOT bump buildVersion (see setAllSpirits/setSpiritsFailure below);
+  // useBuildCalculation depends on spiritsResolved directly to trigger the first recalc instead.
   allSpirits: PactSpirit[]
   spiritsResolved: boolean
   spiritsFetchFailed: boolean
@@ -171,10 +186,10 @@ interface BuildStore {
   // Computed output — writing these MUST NOT bump buildVersion (infinite loop)
   computedStats: StatSheetResponse
   statsLoading: boolean
-  statsError: string
+  statsError: TliErrorPayload | null
   setComputedStats: (stats: StatSheetResponse, version: number) => void
   setStatsLoading: (v: boolean) => void
-  setStatsError: (e: string) => void
+  setStatsError: (e: TliErrorPayload | null) => void
 
   // Versioning — the single trigger for recalc
   buildVersion: number
@@ -202,12 +217,15 @@ const DEFAULT_BUILD: LoadedBuild = {
   licoricePreparedSkill: null,
   elixirIngredients: {},
   heroMemories: [null, null, null],
+  baseMemory: null,
+  memoryInventory: [],
   pactSpirits: [null, null, null],
   fates: {},
   undetermined: [null, null, null],
   notes: '',
   customMods: [],
   targetConfig: DEFAULT_TARGET_CONFIG,
+  enemyConfig: DEFAULT_ENEMY_CONFIG,
   loadouts: [],
   activeLoadoutId: '',
 }
@@ -226,6 +244,7 @@ function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
 export const useBuildStore = create<BuildStore>((set, get) => ({
   ...DEFAULT_BUILD,
   traitTreeAllocations: DEFAULT_BUILD.traitTreeAllocations ?? [],
+  baseMemory: DEFAULT_BUILD.baseMemory ?? null,
   uptimeMode: 'max',   // global calc pref (not per-build) — persists across build loads
   allSpirits: [],
   spiritsResolved: false,
@@ -233,7 +252,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   mainSkill: null,
   computedStats: EMPTY_STAT_SHEET,
   statsLoading: false,
-  statsError: '',
+  statsError: null,
   buildVersion: 0,
   computedVersion: -1,
   loadoutStatsCache: {},
@@ -291,8 +310,12 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),
   setTargetConfig: (targetConfig) => set((s) => ({ targetConfig, buildVersion: s.buildVersion + 1 })),
+  setEnemyConfig: (enemyConfig) => set((s) => ({ enemyConfig, buildVersion: s.buildVersion + 1 })),
   setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
+  setBaseMemory: (baseMemory) => set((s) => ({ baseMemory, buildVersion: s.buildVersion + 1 })),
+  // Inventory is display/library only (not engine-relevant) — bump version just to mark the build dirty.
+  setMemoryInventory: (memoryInventory) => set((s) => ({ memoryInventory, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),
   setFates: (fates) => set((s) => ({ fates, buildVersion: s.buildVersion + 1 })),
   setUndetermined: (undetermined) => set((s) => ({ undetermined, buildVersion: s.buildVersion + 1 })),
@@ -347,6 +370,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     set((s) => ({
       ...data,
       traitTreeAllocations: data.traitTreeAllocations ?? [],
+      baseMemory: data.baseMemory ?? null,
       mainSkill: deriveMainSkill(data.skills),
       computedStats: EMPTY_STAT_SHEET,
       loadoutStatsCache: {},
@@ -354,16 +378,20 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     })),
 
   // ── Reference data ──────────────────────────────────────────────────────────
+  // Deliberately does NOT bump buildVersion — this is app-boot data resolving, not a user edit, and
+  // previously used the version bump just to nudge useBuildCalculation to re-run (see that hook's own
+  // `spiritsResolved` dependency instead now). Bumping here made a just-opened/just-created build read
+  // as dirty the moment this async fetch landed, with no real edit having happened.
   setAllSpirits: (allSpirits) =>
     set((s) => {
       if (s.spiritsResolved && isEqual(s.allSpirits, allSpirits)) return s
-      return { allSpirits, spiritsResolved: true, buildVersion: s.buildVersion + 1 }
+      return { allSpirits, spiritsResolved: true }
     }),
 
   setSpiritsFailure: () =>
     set((s) => {
       if (s.spiritsResolved) return s
-      return { spiritsResolved: true, spiritsFetchFailed: true, buildVersion: s.buildVersion + 1 }
+      return { spiritsResolved: true, spiritsFetchFailed: true }
     }),
 
   // ── Main skill (kept for backward compat; prefer setSkills which auto-derives) ─
@@ -474,14 +502,14 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
         mainSkill: deriveMainSkill((patch.skills as EquippedSkill[] | undefined) ?? s.skills),
         buildVersion: nextVersion,
         ...(hit
-          ? { computedStats: cached!.stats, computedVersion: nextVersion, statsLoading: false, statsError: '' }
+          ? { computedStats: cached!.stats, computedVersion: nextVersion, statsLoading: false, statsError: null }
           : {}),
       }
     }),
 
   // ── Computed output (MUST NOT bump buildVersion) ────────────────────────────
   setComputedStats: (computedStats, computedVersion) =>
-    set({ computedStats, computedVersion, statsLoading: false, statsError: '' }),
+    set({ computedStats, computedVersion, statsLoading: false, statsError: null }),
 
   setStatsLoading: (statsLoading) => set({ statsLoading }),
   setStatsError: (statsError) => set({ statsError, statsLoading: false }),

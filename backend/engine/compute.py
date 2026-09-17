@@ -206,11 +206,23 @@ def _state_snapshot(condition_state: dict[str, float | bool]) -> frozenset:
 
 
 def _intrinsic_additional_entries(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> list[dict]:
-    """Per-entry breakdown of a skill's intrinsic 'additional damage' bonuses — [{label, amount fraction}].
+    """Per-entry breakdown of a skill's intrinsic 'additional damage' bonuses — [{label, text, amount fraction}].
     Each bonus is min(per * (rating / per_n) * (1 + effect_value), cap); rating comes from a condition
     (Focused Slash's Fervor Rating) or an aggregated stat (Moon Strike's Max Mana; Split Shot: Rapid Advance's
-    Max Channeled Stacks). These are applied as ONE extra multiplicative pool in offense (intrinsic_add) but
-    were previously invisible in the breakdown — the caller surfaces these entries on the OffenseResult."""
+    Max Channeled Stacks). The caller (`_track_skill_intrinsic_additional`, called by `_offense_for_slot` —
+    Seething Spirit inherits it via the SAME slot-folding it uses for any other slot-local skill self-buff,
+    with no separate call of its own) tracks each entry as a real, untagged `dmg_additional` SourceEntry
+    (`BuildSource.add_slotted`) — so it composes with every OTHER additional-damage source via the engine's
+    standard per-affix pooling rule (distinct sources multiply, same-identity sources sum) instead of the
+    old separate-uniform-stage `intrinsic_add` special case, and shows up natively in the stat_map/breakdown
+    with no side-channel field needed.
+
+    `text` is the SourceEntry's pooling-identity key — GUARANTEED UNIQUE per distinct mechanic even when
+    `IntrinsicAdditional.label` is left blank (every current skill leaves it blank), by folding in
+    `rating_key`. This matters ONLY if a single skill were ever given two simultaneous intrinsic entries
+    (none has one today): two entries sharing the exact same generic text would incorrectly get pooled as
+    ONE source (summed) instead of two distinct ones (multiplied) — see
+    test_two_simultaneous_intrinsic_entries_multiply_not_sum."""
     out: list[dict] = []
     for ia in getattr(skill, "intrinsic_additional", []):
         if getattr(ia, "rating_source", "condition") == "stat":
@@ -228,13 +240,77 @@ def _intrinsic_additional_entries(skill, source: BuildSource, condition_state: d
         cap = getattr(ia, "cap", None)
         if cap is not None:
             amount = min(amount, cap)
-        out.append({"label": getattr(ia, "label", "") or "Skill Intrinsic", "amount": amount})
+        label = getattr(ia, "label", "") or "Skill Intrinsic"
+        text = label if getattr(ia, "label", "") else f"{label} ({ia.rating_key})"
+        out.append({"label": label, "text": text, "amount": amount})
     return out
 
 
 def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> float:
     """Sum of a skill's intrinsic 'additional damage' bonuses (see _intrinsic_additional_entries). 0.0 if none."""
     return sum(e["amount"] for e in _intrinsic_additional_entries(skill, source, condition_state))
+
+
+def _track_skill_intrinsic_additional(source: BuildSource, eff: BuildSource, resolved, slot: int,
+                                       condition_state: dict[str, float | bool],
+                                       manual_cond_keys: set[str]) -> dict | None:
+    """Compute + track ALL of a skill's intrinsic 'additional damage' entries — the Fervor/Mana/Channeled-
+    Stack mechanic (`_intrinsic_additional_entries`) PLUS the Terra Charge consumed bonus. Reads rating/
+    effect values off `eff` (the already-materialized, slot-EFFECTIVE source, so a slot-local amplifier like
+    Tranquility's fervor_effect_additional scopes correctly), but WRITES via `source.add_slotted(...)`, not
+    `eff.add_with_source(...)`:
+
+    `eff` can be `source` ITSELF (BuildSource.materialize_for_skill's identity fast path, hit whenever there
+    are no scoped/slot entries to fold — the common case). Mutating it directly therefore silently mutated
+    the SHARED `source`: invisible in the player's own top-level `stat_map` (snapshotted earlier in
+    compute(), before this ever ran) and, worse, DOUBLED on Seething Spirit's panel — its own later
+    `source.materialize_for_skill(...)` call inherited the leaked entry via that same identity aliasing,
+    then this function added the SAME one again on Spirit's own call. Caught via a real in-app screenshot:
+    Focused Slash's Fervor line showed "×2 +40%" on Spirit's panel only, never the player's.
+
+    `add_slotted` is the fix AND the better architectural fit — it's the SAME mechanism every other slot-
+    local skill self-buff already uses (Berserking Blade's intrinsic buff, etc.), which (a) already has a
+    dedicated merge into `stat_map` wired up in `compute()` (the slot_log merge — see the comment where
+    `stat_map` is first built) and (b) Seething Spirit ALREADY correctly inherits with NO Spirit-side code
+    at all, via its own later `materialize_for_skill(..., main_slot)` call picking up the same slot's
+    entries — exactly like it already does for Berserking Blade's buff. The caller MUST re-materialize its
+    own `eff` after calling this (slot_entries changed) — this function does not do that for the caller,
+    since a fresh `eff` is only needed by whoever's about to run `calculate_offense`.
+
+    Returns the Terra Charge display dict (`terra_charge` on `OffenseResult`) or None — see the ── Terra
+    Charge ── comment below for the mechanic itself."""
+    from engine.models import SourceEntry
+    for _e in _intrinsic_additional_entries(resolved, eff, condition_state):
+        source.add_slotted("dmg_additional", _e["amount"], slot, None, SourceEntry(
+            stat="dmg_additional", amount=_e["amount"], source_type="skill", label="Skill Intrinsic",
+            text=_e["text"], source_name=resolved.name))
+    # ── Terra Charge (SS13 Terra system) ── consumed charges buff the ENTIRE Terra lifetime (owner-ruled
+    # 2026-08-10), so a steady-state MORE factor `1 + per_charge × charges` is exact. Charges default to the
+    # effective max (1 base + max_terra_charge_stacks_flat — base owner-verified; with the 0.5s/stack base
+    # restore, max is reached between any realistic recasts) and are user-overridable via the
+    # `terra_charges_consumed` condition (clamped to [0, max]). ADDITIVE per charge — the community
+    # per-charge-multiplicative claim is needs-verification, NOT implemented (see
+    # data/verification/terra-charge-system.json). Restore duration = 0.5s / (1 + recovery speed), the Help
+    # DB formula — surfaced for display; it does not gate the default (fast-cadence auto-cast scenarios like
+    # Wind Rhythm are a deferred follow-up, owner-approved).
+    terra_charge = None
+    if getattr(resolved, "terra_per_charge_additional", 0.0) > 0.0:
+        _tc_max = 1 + int(eff.total("max_terra_charge_stacks_flat"))
+        if "terra_charges_consumed" in manual_cond_keys:
+            _tc_charges = max(0.0, min(float(condition_state.get("terra_charges_consumed", _tc_max) or 0.0),
+                                       float(_tc_max)))
+        else:
+            _tc_charges = float(_tc_max)
+        _tc_amt = resolved.terra_per_charge_additional * _tc_charges
+        if _tc_amt > 0.0:
+            source.add_slotted("dmg_additional", _tc_amt, slot, None, SourceEntry(
+                stat="dmg_additional", amount=_tc_amt, source_type="skill", label="Skill Intrinsic",
+                text=f"Terra Charge consumed (×{_tc_charges:g})", source_name=resolved.name))
+        _tc_speed = eff.total("terra_charge_recovery_speed_inc")
+        terra_charge = {"max_stacks": _tc_max, "charges_consumed": _tc_charges,
+                        "per_charge_additional": resolved.terra_per_charge_additional,
+                        "restore_seconds_per_stack": 0.5 / (1.0 + _tc_speed) if _tc_speed > -1.0 else 0.5}
+    return terra_charge
 
 
 def _main_skill_use_rate(source, skills_by_id, build_input, condition_state, main_slot, resolved) -> float:
@@ -362,6 +438,39 @@ def _active_skill_costs(skills_input, skills_by_id, attached_supports, source, c
                           "flat": sc.flat, "arcane_fraction": sc.arcane_fraction,
                           "base_is_percent": sc.base_is_percent, "flags": sc.flags})
     return per_skill, tot_mana, tot_life
+
+
+def _source_log_stat_map(source: BuildSource) -> dict:
+    """Per-stat breakdown built directly off `source.source_log` — the SAME rows `calculate_offense`
+    itself summed to produce its totals, so a caller displaying this can never show a source the
+    engine didn't actually use, or omit one it did. Used for the main player `source` (the original
+    call site, byte-identical) AND — added alongside the Spirit level_summary fix — for a cloned/
+    modified `BuildSource` like Seething Spirit's (`compute()`'s `_spirit_source`), whose `dmg_additional`
+    pool diverges from the player's own (an excluded Fury's Onslaught line, an added Ritual of Offering
+    line) in a way the player's global stat map has no way to reflect. Does not include slot_log/
+    scoped_log (the two follow-up merges below, in `compute()` itself) — Spirit's clone carries neither."""
+    from models.stat_meta import STAT_META
+    stat_map: dict = {}
+    for entry in source.source_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat]["total"] = round(stat_map[entry.stat]["total"] + entry.amount, 6)
+        stat_map[entry.stat]["sources"].append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+        })
+    return stat_map
 
 
 def compute(
@@ -586,29 +695,99 @@ def compute(
 
     aura_summaries: list[dict] = []
     empower_summaries: list[dict] = []
+    warcry_summaries: list[dict] = []
     elixir_summaries: list[dict] = []
     curse_summaries: list[dict] = []
     curse_conflict: dict | None = None
+    warcry_conflict: dict | None = None
     reservation: dict | None = None
     _prev_consumed_recently_life = 0.0   # carries consumed-recently across passes for the AS-per-consumed feedback
     _prev_burst_rate = 0.0               # carries the burst-trigger rate across passes for the Flash Flood AS/CS feedback
-    # Origin of Thunder (Spirit Magus summoner buff): auto-active when a Thunder Magus summon skill is slotted.
-    # Set BEFORE the fixed-point loop so the aggregator's Origin-of-Thunder block emits the +6% additional
-    # Attack/Cast Speed + level-scaled additional damage (scaled by Origin of Spirit Magus Effect). Level = the
-    # summon skill's level. Marked manual so the condition-effect resolver doesn't clobber the engine value.
-    _slotted_for_origin: list[tuple[str, int]] = []
+    # Spirit Magus Origins (summoner buffs): auto-active when a magus summon skill is slotted. Set BEFORE
+    # the fixed-point loop so the aggregator emits them (scaled by Origin of Spirit Magus Effect). Thunder
+    # keeps its formula-based emission block (golden-locked, the data is exactly linear); the other four
+    # origins + the magnificent added-origin effects are parsed from the season data at the equipped level
+    # (engine/spirit_magus_origins.py; spec: .wolf/engine-spec-magus-origins.md). Same magus slotted twice
+    # does NOT stack (first slot wins — main first, matching the old Thunder `break`). Marked manual so the
+    # condition-effect resolver doesn't clobber the engine values.
+    from engine import spirit_magus_origins as _smo
+    _slotted_for_origin: list[tuple[str, int, int]] = []
     if build_input.main_skill:
-        _slotted_for_origin.append((build_input.main_skill.skill_id, build_input.main_skill.level))
+        _slotted_for_origin.append((build_input.main_skill.skill_id, build_input.main_skill.level, main_slot))
     for _sk in (skills_input or []):
         if _sk.get("enabled", True):
-            _slotted_for_origin.append((_sk["skill_id"], int(_sk.get("level", 1))))
-    for _sid, _lvl in _slotted_for_origin:
-        if _sid == "summon_thunder_magus":
-            condition_state["origin_of_thunder"] = True
-            condition_state["origin_of_thunder_level"] = float(_lvl)
-            manual_cond_keys.add("origin_of_thunder")
-            manual_cond_keys.add("origin_of_thunder_level")
-            break
+            _slotted_for_origin.append((_sk["skill_id"], int(_sk.get("level", 1)), int(_sk.get("slot", 0))))
+
+    def _set_origin_cond(key: str, value) -> None:
+        condition_state[key] = value
+        manual_cond_keys.add(key)
+
+    _seen_origin_ids: set[str] = set()
+    _granted_origin_flags: list[str] = []          # one entry per magus TYPE that actually granted its origin
+    _origin_parse_failures: list[str] = []         # magus slotted but magnitude unparsable → warned, not guessed
+    _pending_scalar: list[tuple[str, int, float]] = []   # (origin flag, min distinct types, pct) — gated below
+    _origin_display_info: dict[str, tuple[str, int, str, int]] = {}   # origin flag → (skill_id, slot, skill name, level)
+    _origin_added_info: dict[str, tuple[str, str]] = {}          # added flag → (owner origin flag, support name)
+    for _sid, _lvl, _oslot in _slotted_for_origin:
+        if _sid in _seen_origin_ids or not (_sid == _smo.THUNDER_ID or _sid in _smo.ORIGIN_SPECS):
+            continue
+        _seen_origin_ids.add(_sid)
+        _flag = None
+        if _sid == _smo.THUNDER_ID:
+            _flag = "origin_of_thunder"
+            _set_origin_cond("origin_of_thunder", True)
+            _set_origin_cond("origin_of_thunder_level", float(_lvl))
+        else:
+            _sd = (skills_by_id or {}).get(_sid)
+            _mag = _smo.origin_magnitude(_sd, _lvl) if _sd else None
+            if _mag is not None:   # unparsed origin doesn't activate — never guess a magnitude (warned below)
+                _spec = _smo.ORIGIN_SPECS[_sid]
+                _flag = _spec["cond"]
+                _set_origin_cond(_flag, True)
+                _set_origin_cond(_flag + "_value", float(_mag))
+            elif _sd is not None:
+                _origin_parse_failures.append(str(_sd.get("name") or _sid))
+        if _flag is None:
+            continue
+        _granted_origin_flags.append(_flag)
+        _origin_display_info[_flag] = (
+            _sid, _oslot, str(((skills_by_id or {}).get(_sid) or {}).get("name") or _sid), int(_lvl))
+        # Supports attached to THIS magus's slot: magnificent added-origin effects ("gains an additional
+        # effect: ...", tier-midpoint at the support's level; Wicked excluded — minion-scoped, see the
+        # module docstring) and origin-effect SCALAR supports ("N% Origin of Spirit Magus effect for the
+        # supported skill" — per-skill scoped to this magus's own factor; Friend pair gated on the count
+        # of distinct magus types, applied after the scan when the count is known).
+        for _sup in (build_input.attached_supports or []):
+            if _sup.get("slot", 1) != _oslot or not _sup.get("enabled", True):
+                continue
+            _sup_id = _sup.get("item_id") or ""
+            _mspec = _smo.MAGNIFICENT_ORIGIN_EFFECTS.get(_sup_id)
+            if _mspec is not None and _mspec["owner"] == _sid:
+                _msd = (skills_by_id or {}).get(_sup_id)
+                # Magnificents: the support's `level` field carries its roll TIER (0-2, lower = better);
+                # the helper applies support_resolver's tier convention (exact match, fallback tier 1).
+                _mid = _smo.magnificent_effect_midpoint(_msd, _sup.get("level")) if _msd else None
+                if _mid is not None:
+                    _set_origin_cond(_mspec["cond"], True)
+                    _set_origin_cond(_mspec["cond"] + "_value", float(_mid))
+                    _origin_added_info[_mspec["cond"]] = (
+                        _flag, str((_msd or {}).get("name") or _sup_id))
+            _sspec = _smo.SCALAR_ORIGIN_SUPPORTS.get(_sup_id)
+            if _sspec is not None:
+                _ssd = (skills_by_id or {}).get(_sup_id)
+                _pct = _smo.scalar_support_value(_ssd, int(_sup.get("level", 1))) if _ssd else None
+                if _pct is not None:
+                    _pending_scalar.append((_flag, int(_sspec["min_types"]), float(_pct)))
+    # Friend-of-Spirit-Magi gate: "at least N type(s) of Spirit Magus at the same time" — count = distinct
+    # magus types that actually granted an origin. Passing supports sum into THEIR magus's own increased
+    # factor (per-skill scope: "...effect for the supported skill").
+    _n_types = len(_granted_origin_flags)
+    _scalar_inc_by_flag: dict[str, float] = {}
+    for _flag, _min_types, _pct in _pending_scalar:
+        if _n_types >= _min_types:
+            _scalar_inc_by_flag[_flag] = _scalar_inc_by_flag.get(_flag, 0.0) + _pct / 100.0
+    for _flag, _inc in _scalar_inc_by_flag.items():
+        _set_origin_cond(_flag + "_support_inc", _inc)
 
     _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
@@ -632,6 +811,27 @@ def compute(
                 manual_cond_keys.add(_ck)
         active_booleans, numeric_vals = _derive_views(condition_state)
 
+        from engine.warcry import WARCRY_SKILL_IDS
+        _kragol_key = "kragols_roar_distinct_warcries"
+        _kragol_active = any(
+            isinstance(c.get("condition"), dict) and c["condition"].get("key") == _kragol_key
+            for item in build_input.gear for c in item.get("contributions", []))
+        _kragol_max = len({sk.get("skill_id") for sk in (skills_input or [])
+                           if sk.get("enabled", True) and sk.get("skill_id") in WARCRY_SKILL_IDS})
+        if _kragol_active:
+            if _kragol_key in manual_cond_keys:
+                # This Config input represents casts in the item's eight-second
+                # window; the user may lower it, but cannot exceed the number
+                # of distinct equipped Warcry skills that could have cast.
+                condition_state[_kragol_key] = min(
+                    max(0.0, float(condition_state.get(_kragol_key) or 0.0)),
+                    float(_kragol_max),
+                )
+            else:
+                condition_state[_kragol_key] = float(_kragol_max)
+        # The gear effects above are condition-scaled, so derive their numeric
+        # view after the automatic/default value (or manual clamp) is settled.
+        active_booleans, numeric_vals = _derive_views(condition_state)
         source = aggregate(
             build_input,
             season_trees,
@@ -641,6 +841,40 @@ def compute(
             identity_index=identity_index,
         )
         source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
+        source.enemy_config = build_input.enemy_config      # incoming-hit enemy skill → defensive Max-Hit / EHP (WS3)
+
+        # Warcry Power is the greater of target rarity and the build's minimum-enemies value, capped at
+        # 8 (16 with Formless). The same cap clamps a manual Config value.
+        _has_warcry = any(
+            sk.get("enabled", True) and sk.get("skill_id") in WARCRY_SKILL_IDS
+            for sk in (skills_input or [])
+        )
+        if _has_warcry:
+            if _kragol_active:
+                source.referenced_conditions.add(_kragol_key)
+                auto_sources[_kragol_key] = "Kragol's Roar (distinct equipped Warcries)"
+                auto_values[_kragol_key] = float(_kragol_max)
+                if _kragol_key not in manual_cond_keys:
+                    condition_state[_kragol_key] = float(_kragol_max)
+            _warcry_cap = 16.0 if condition_state.get("formless_warcry_effects") else 8.0
+            _warcry_minimum = source.total("warcry_min_targets_flat")
+            _warcry_default = min(_warcry_cap, max(float(condition_state.get("enemy_count_weight") or 5.0), _warcry_minimum))
+            auto_sources["warcry_power"] = "Maximum of target enemy count and minimum enemies affected by Warcry"
+            auto_values["warcry_power"] = _warcry_default
+            if "warcry_power" not in manual_cond_keys:
+                condition_state["warcry_power"] = _warcry_default
+
+        _has_shockwave_warcry = any(
+            sk.get("enabled", True) and sk.get("skill_id") == "shockwave_warcry"
+            for sk in (skills_input or [])
+        )
+        if _has_shockwave_warcry:
+            _shockwave_stacks_key = "shockwave_warcry_combo_finisher_stacks"
+            source.referenced_conditions.add(_shockwave_stacks_key)
+            auto_sources[_shockwave_stacks_key] = "Shockwave Warcry (full stacks)"
+            auto_values[_shockwave_stacks_key] = 5.0
+            if _shockwave_stacks_key not in manual_cond_keys:
+                condition_state[_shockwave_stacks_key] = 5.0
 
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
@@ -725,6 +959,14 @@ def compute(
         # in player-wide. Full uptime assumed while enabled. Runs each pass like the auras.
         elixir_summaries = apply_elixir_buffs(
             source, build_input.elixir_buffs, build_input.elixir_meta, active_booleans, numeric_vals)
+
+        # Warcries are ordinary timed buffs. Their scoped/global effects resolve into the
+        # same pools as their native modifiers; Real uptime only scales the persistent buff,
+        # while Resurrection's fixed restoration total is scheduled by its cooldown.
+        from engine.warcry import apply_warcry_buffs
+        warcry_loop_summaries, warcry_restoration_inputs, warcry_conflict = apply_warcry_buffs(
+            skills_input, skills_by_id, source, condition_state, build_input.uptime_mode,
+            power_is_manual="warcry_power" in manual_cond_keys)
 
         # Curses: scale each applied curse by the now-aggregated Curse Effect and bake the per-final-type
         # *_curse_taken enemy-vulnerability pools (consumed by offense). Runs each pass like the auras so curse
@@ -994,6 +1236,101 @@ def compute(
         condition_state["strength_ge_dexterity"] = _str_t >= _dex_t
         condition_state["dexterity_ge_strength"] = _dex_t >= _str_t
 
+        # Raw attribute totals as numeric `per`-op condition inputs (e.g. "+X per N Strength" gear/talent
+        # lines) — same site as the comparison above, just exposing the totals themselves instead of a bool.
+        _int_t = source.total("intelligence")
+        condition_state["strength_total"] = _str_t
+        condition_state["dexterity_total"] = _dex_t
+        condition_state["intelligence_total"] = _int_t
+        condition_state["highest_attribute_total"] = max(_str_t, _dex_t, _int_t)
+
+        # Attribute-scaled added elemental damage (Ralph's Burial / Magnus' Jealousy): "Adds A-B <Type>
+        # Damage per N <Attribute>" applies to BOTH Attacks and Spells (owner ruling 2026-09-02 — armor
+        # items, no scope word in the raw text). Same per-unit + explicit-divisor fold shape as the
+        # per-consumed added-damage loop above, keyed off the attribute totals computed just above instead
+        # of a consumed-recently value. floor(attribute/N) quantizes to whole N-chunks before scaling.
+        # Grouped PER ORIGINATING SOURCE by RAW affix text — deliberately NOT pooling_uuid or
+        # affix_identity(text): both are value-stripped identities (pooling_uuid is minted FROM
+        # affix_identity, see engine/identity_index.py) meant to pool multiple ROLLS of the SAME affix
+        # template together, which is exactly wrong here — it collapses two DIFFERENT items sharing the
+        # "Adds A-B <Type> Damage per N <Attribute>" template (their divisor is a stripped value token)
+        # into one group even though their divisors differ. Raw text keeps the divisor digits, so two
+        # items sharing a (damage type, attribute) pair with DIFFERENT divisors each floor against their
+        # OWN divisor instead of source.total()'s cross-source sum corrupting both.
+        # Own import (NOT the `_floored` bound above) — that one only executes inside the self-consume
+        # branch, so a build with this gear but no consume mechanic would hit an unbound name otherwise.
+        from engine.consumption import floored_consumed as _floored_attr
+        for _attr, _at in (("strength", _str_t), ("dexterity", _dex_t), ("intelligence", _int_t)):
+            for _dtype in ("physical", "fire", "cold", "lightning", "erosion"):
+                _min_key = f"{_dtype}_dmg_flat_min_per_{_attr}"
+                _max_key = f"{_dtype}_dmg_flat_max_per_{_attr}"
+                _unit_key = f"{_dtype}_dmg_flat_per_{_attr}_unit"
+                _entries = [e for e in source.source_log if e.stat in (_min_key, _max_key, _unit_key)]
+                if not _entries:
+                    continue
+                source.consumed_stats.update({_min_key, _max_key, _unit_key})
+                _groups: dict[tuple[str | None, str | None, str], dict] = {}
+                for e in _entries:
+                    # Each equipped item rounds its own attribute chunks. Identical affix text
+                    # in two slots must not merge before flooring (55 Strength is 5 + 5 chunks,
+                    # not floor(55 / (10 + 10))).
+                    gkey = (e.gear_slot, e.source_name, e.text)
+                    grp = _groups.setdefault(gkey, {"_entry": e})
+                    grp[e.stat] = grp.get(e.stat, 0.0) + e.amount
+                for _grp in _groups.values():
+                    _pu_min, _pu_max = _grp.get(_min_key, 0.0), _grp.get(_max_key, 0.0)
+                    _unit = _grp.get(_unit_key, 0.0)
+                    if not (_pu_min or _pu_max) or _unit <= 0:
+                        continue
+                    _cr = _floored_attr(_at, _unit)
+                    _orig = _grp["_entry"]
+                    for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
+                        _amt = _cr * _pu
+                        if not _amt:
+                            continue
+                        for _cls in ("attack", "spell"):
+                            source.add_with_source(f"{_dtype}_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
+                                stat=f"{_dtype}_{_cls}_dmg_flat_{_mm}", amount=_amt,
+                                source_type=_orig.source_type, label=_orig.label, points=1,
+                                text=_orig.text, source_name=_orig.source_name))
+
+        # Scoped sibling of the fold above (Tower Sequence: "Adds A-B <Type> Damage to Attacks per N
+        # <Attribute>" — a local weapon mod, unlike Ralph's Burial/Magnus' Jealousy's unscoped armor lines,
+        # so it must credit ONLY the scoped class, not both). Same per-unit + explicit-divisor shape, keyed
+        # per (attribute, damage type, class) instead of per (attribute, damage type).
+        for _attr, _at in (("strength", _str_t), ("dexterity", _dex_t), ("intelligence", _int_t)):
+            for _dtype in ("physical", "fire", "cold", "lightning", "erosion"):
+                for _cls in ("attack", "spell"):
+                    _min_key = f"{_dtype}_{_cls}_dmg_flat_min_per_{_attr}"
+                    _max_key = f"{_dtype}_{_cls}_dmg_flat_max_per_{_attr}"
+                    _unit_key = f"{_dtype}_{_cls}_dmg_flat_per_{_attr}_unit"
+                    _entries = [e for e in source.source_log if e.stat in (_min_key, _max_key, _unit_key)]
+                    if not _entries:
+                        continue
+                    source.consumed_stats.update({_min_key, _max_key, _unit_key})
+                    _groups2: dict[tuple[str | None, str | None, str], dict] = {}
+                    for e in _entries:
+                        # Keep identical scoped lines from separate equipped sources distinct so
+                        # their per-attribute breakpoints round independently.
+                        gkey = (e.gear_slot, e.source_name, e.text)
+                        grp = _groups2.setdefault(gkey, {"_entry": e})
+                        grp[e.stat] = grp.get(e.stat, 0.0) + e.amount
+                    for _grp in _groups2.values():
+                        _pu_min, _pu_max = _grp.get(_min_key, 0.0), _grp.get(_max_key, 0.0)
+                        _unit = _grp.get(_unit_key, 0.0)
+                        if not (_pu_min or _pu_max) or _unit <= 0:
+                            continue
+                        _cr = _floored_attr(_at, _unit)
+                        _orig = _grp["_entry"]
+                        for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
+                            _amt = _cr * _pu
+                            if not _amt:
+                                continue
+                            source.add_with_source(f"{_dtype}_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
+                                stat=f"{_dtype}_{_cls}_dmg_flat_{_mm}", amount=_amt,
+                                source_type=_orig.source_type, label=_orig.label, points=1,
+                                text=_orig.text, source_name=_orig.source_name))
+
         # "Enemy is Nearby" (boolean) implies at least one nearby enemy → keep the numeric enemies_nearby
         # count at >= 1 so "when only/at least N enemies nearby" gates resolve (doesn't drop a higher count).
         if condition_state.get("enemy_nearby"):
@@ -1184,6 +1521,12 @@ def compute(
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
+        if _has_warcry:
+            maxes["warcry_power"] = 16.0 if condition_state.get("formless_warcry_effects") else 8.0
+            if _kragol_active:
+                maxes["kragols_roar_distinct_warcries"] = _kragol_max
+        if _has_shockwave_warcry:
+            maxes["shockwave_warcry_combo_finisher_stacks"] = 5.0
 
         # "Gain on hit" core talents (Chilly/Perception/Tenacity, Ambition) → model the blessing/Fervor at
         # MAX (full-uptime approximation; future: selectable uptime calc modes). Flags arrive in
@@ -1286,33 +1629,14 @@ def compute(
     derive_condition_minimums(source)
     source._recording = False
 
-    # Tripwire: a single damage-taken stat reaching >=100% reduction implies immunity, which
-    # the current additive pooling can't represent (distinct sources should multiply). Raise
-    # so it's revisited rather than silently zeroing damage.
+    # Tripwire: distinct damage-taken-reduction sources multiply toward zero (see engine.guards), so this
+    # can only still fire if a SINGLE source alone reaches >=100% reduction — which isn't modelled as real
+    # immunity. Raise so it's revisited rather than silently zeroing damage.
     from engine.guards import check_damage_taken_immunity
     check_damage_taken_immunity(source)
 
     # Build stat_map from final source
-    stat_map: dict = {}
-    for entry in source.source_log:
-        if entry.stat not in stat_map:
-            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
-            stat_map[entry.stat] = {
-                "display_name": meta.display_name if meta else entry.stat,
-                "category": meta.category if meta else "Other",
-                "unit": meta.unit if meta else "",
-                "total": 0.0,
-                "sources": [],
-            }
-        stat_map[entry.stat]["total"] = round(stat_map[entry.stat]["total"] + entry.amount, 6)
-        stat_map[entry.stat]["sources"].append({
-            "source_type": entry.source_type,
-            "label": entry.label,
-            "text": entry.text,
-            "source_name": entry.source_name,
-            "amount": entry.amount,
-            "points": entry.points,
-        })
+    stat_map: dict = _source_log_stat_map(source)
 
     # (Slot-local contributions are merged into stat_map AFTER the offense pass below — apply_slot_effects emits
     # some of them during offense, so they aren't all in source.slot_log yet here. See the slot_log merge near
@@ -1355,16 +1679,20 @@ def compute(
 
     # Post-loop offense and defense (not part of the fixed-point convergence)
     from dataclasses import asdict
-    from engine.defense import calculate_defense
-    from engine.offense import calculate_offense, skill_effective_level
+    from engine.defense import calculate_defense, calculate_incoming
+    from engine.offense import calculate_offense, skill_level_summary
     from engine.skill_resolver import resolve_skill
     from engine import skill_charges
 
     # Record stat consumption across the offense + defense passes (defensive stats always read;
     # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
-    # reads nothing, so its damage mods fall out of consumed_stats and read as inert).
+    # runs the full pipeline with recording SUSPENDED inside calculate_offense, so its damage
+    # mods still fall out of consumed_stats and read as inert; see offense.py's partial-support note).
     source._recording = True
-    result_defense = asdict(calculate_defense(source, reservation))
+    _defense_obj = calculate_defense(source, reservation)
+    result_defense = asdict(_defense_obj)
+    # Per-type Max-Hit / EHP vs the selected enemy skill (source.enemy_config). Reuses the defense values above.
+    result_incoming = calculate_incoming(source, _defense_obj)
 
     # Recovery / sustain (Restoration, Regain, Regen, Temporary pools, EHP) — post-loop derived display, mirrors
     # defense. Restoration inputs (Elixir-scaled tonics + Rebirth-converted regain) come from the elixir summaries.
@@ -1374,6 +1702,7 @@ def compute(
     _restoration_inputs = []
     for _es in (elixir_summaries or []):
         _restoration_inputs.extend(_es.get("restoration") or [])
+    _restoration_inputs.extend(warcry_restoration_inputs or [])
     # Self-consume drains (Mana Boil / life-consume affixes). Per-use consume needs the active skill's use rate +
     # the attack-use rate (its rate when it is an attack); the heavy damage calc stays post-loop below.
     _cons_active = resolve_skill(skill_data) if (skill_data and build_input.main_skill and main_enabled) else None
@@ -1418,11 +1747,18 @@ def compute(
     _behavior = build_input.support_behavior or {}
     _behavior_by_slot = _behavior if all(isinstance(k, int) for k in _behavior) else {1: _behavior}
 
+    # Per-slot granted Tags (add_mod_tags), recorded by _offense_for_slot for the skill-slot summary below.
+    _granted_tags_by_slot: dict[int, set] = {}
+
     def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
         skill_effects module (if any) emits its slot-local effects first — Berserking Blade's intrinsic
         buff + Sweep/Rampage, Focused Slash's Behead/Tranquility, Moon Strike's Rainbow/Lunar Ring — and
-        may return offense overrides (e.g. Behead removing the Area tag)."""
+        may return offense overrides (e.g. Behead removing the Area tag).
+
+        Note on unsupported skills: the mechanic-detection reads below (tangle/spell-burst/shadow probes)
+        run BEFORE calculate_offense, i.e. OUTSIDE its recording-suppression window — deliberate: those
+        stats drive panels that DO render in the partial-support display, so they honestly badge Consumed."""
         _mt = ({t.lower() for t in resolved.tags}
                | {t.lower() for t in getattr(resolved, "extra_damage_mod_tags", [])})
         overrides = skill_effects.apply_slot_effects(
@@ -1430,10 +1766,23 @@ def compute(
             condition_state=condition_state, mod_tags=_mt,
             attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
         eff = source.materialize_for_skill(_mt, slot)
-        # Intrinsic additionals read the slot-EFFECTIVE source so a slot-local amplifier (e.g. Tranquility's
-        # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
-        _extra_entries = _intrinsic_additional_entries(resolved, eff, new_state)
-        extra = sum(e["amount"] for e in _extra_entries)
+        # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
+        # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
+        # without touching the global Fervor→crit. Tracked via `source.add_slotted` (NOT `eff.add_with_
+        # source`) — see `_track_skill_intrinsic_additional`'s docstring for why: add_with_source landed on
+        # `eff`, which can alias `source` itself (BuildSource's identity fast path when there's nothing else
+        # to fold), so it silently mutated the SHARED source — invisible in the player's own top-level
+        # stat_map (snapshotted earlier in compute(), before this line ever runs) AND, worse, doubled on
+        # Seething Spirit's panel (its own later materialize_for_skill call inherited the leaked entry, then
+        # added the SAME one again itself). add_slotted avoids both: it's the SAME mechanism every other
+        # slot-local skill self-buff already uses (Berserking Blade's intrinsic buff, etc.), which (a) has
+        # its own dedicated merge into stat_map already wired up (see the comment above `stat_map`'s
+        # construction), and (b) Spirit already correctly inherits with NO Spirit-side code, via its own
+        # later materialize_for_skill(..., main_slot) call picking up the same slot's entries — exactly like
+        # it already does for Berserking Blade's buff. Re-materialize after tracking so THIS call's own
+        # `eff` — not just Spirit's later one — sees what it just added.
+        terra_charge = _track_skill_intrinsic_additional(source, eff, resolved, slot, new_state, manual_cond_keys)
+        eff = source.materialize_for_skill(_mt, slot)
         # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
         # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
         tangle = None
@@ -1522,6 +1871,9 @@ def compute(
         # Channeled-scoped mods apply and the skill reports as channeled).
         if overrides.get("add_mod_tags"):
             add_mod_tags = (add_mod_tags or set()) | set(overrides["add_mod_tags"])
+        # Record the slot's GRANTED tags so the skill-slot summary's effective-level display matches the
+        # offense math (granted Tags count for +<Tag> Skill Level — owner-ruled 2026-08-10; see offense.py).
+        _granted_tags_by_slot[slot] = set(add_mod_tags or ())
         # ── Shadow Strike mode ── data-driven off the skill's own tags (Help DB: shadow-strike;
         # master_glossary 136 "Phantom") — any current/future registered Shadow-Strike skill lights this up,
         # not just Thunder Spike. N_base = Max Shadow Quantity (gear/support/talent, e.g. Haunt's "+2 Shadow
@@ -1543,45 +1895,144 @@ def compute(
             if _shadow_n > 0 or _shadow_chance > 0:
                 shadow = {"count": _shadow_n, "chance_pct": _shadow_chance, "chance_quantity": _shadow_chance_qty}
         _res = asdict(calculate_offense(
-            eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
+            eff, resolved, level, is_main_skill=is_main,
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
             demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
-        # Surface the intrinsic 'additional damage' pool (applied via offense.intrinsic_add, previously invisible
-        # in the breakdown — e.g. Split Shot: Rapid Advance's +% per additional Max Channeled Stack, Focused
-        # Slash's Fervor bonus) as labelled breakdown entries for the "Total Additional" panel.
-        _res["intrinsic_additional_sources"] = _extra_entries
+        _res["level_summary"] = skill_level_summary(
+            eff, list(resolved.tags) + sorted(add_mod_tags or ()), level, is_main, resolved.max_level)
+        if terra_charge is not None:
+            _res["terra_charge"] = terra_charge
         return _res
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
+    spirit_offense: dict[str, dict] = {}
+    _resolved_by_slot: dict[int, object] = {}
     if skill_data and build_input.main_skill and main_enabled:
         _resolved_main = resolve_skill(skill_data)
+        _resolved_by_slot[main_slot] = _resolved_main
         result_offense = _offense_for_slot(
             _resolved_main, build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
-        # Channeling: a boolean condition auto-on when the main skill resolves as channeled (inherent, e.g.
-        # Icebound Beam, or transformed, e.g. Split Shot + Rapid Advance). Forward-looking — no consumer yet;
-        # it just surfaces in Config (shown when a channeling skill exists) so future channel-gated mods can
-        # reference it. Reported via auto_sources/auto_values; the user can still toggle it off.
-        if result_offense.get("channeled_max_stacks", 0) > 0 or result_offense.get("channeled_behavior"):
-            auto_sources["channeling"] = "Channeling (main skill is channeled)"
-            auto_values["channeling"] = True
-            if "channeling" not in manual_cond_keys:
-                condition_state["channeling"] = True
-        # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
-        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as the
-        # auto default (all projectiles land), so the field tracks the count and the user can override downward.
-        # Gated on the resolver's explicit `shots_on_target_cap` delivery flag, NOT `compulsory_breakdown` — the
-        # shotgun-cap mechanic is independent of compulsory elemental conversion (SS13's Chromatic Shot dropped
-        # the latter but kept the former; see ResolvedSkill.shots_on_target_cap).
-        if getattr(_resolved_main, "shots_on_target_cap", False) and result_offense.get("projectile_count"):
-            _pc = float(result_offense["projectile_count"])
-            maxes["chromatic_shots_on_target"] = _pc
-            # Always report the count as the auto value (even when the user has overridden it), so the field's
-            # clear-to-default restores the build's projectile count rather than the catalog default.
-            auto_sources["chromatic_shots_on_target"] = "Chromatic Shot (all projectiles land)"
-            auto_values["chromatic_shots_on_target"] = _pc
+
+        # ── Spirit grant (e.g. Seething Silhouette's Seething Spirit) ── a hero trait may grant an
+        # autonomous copy that casts the player's own main skill using the player's own stats (not a
+        # separate minion stat pool) — dispatched generically via `hero_traits.spirit_grant(trait_id,
+        # ...)` (the registry, same as `apply`/`stash`/`status_lines`/`virtual_supports`), never a
+        # per-trait `==` check here. Computed as a SECOND, independent `calculate_offense` call on a
+        # CLONE of the main slot's already-materialized stat source (never mutating the shared
+        # `source`/`eff`) — deliberately bypassing `_offense_for_slot` so `skill_effects.
+        # apply_slot_effects` does not re-fire for this slot (it already ran once for the player's own
+        # hit above; re-running it would double-count slot-local buffs, e.g. Berserking Blade's
+        # intrinsic buff). Scope cut (Tyra-approved, see `hero_traits/seething_silhouette.py`'s
+        # docstring): tangle/spell-burst/demolisher/shadow modes are not modeled for the granted
+        # copy's hit. `spirit_grant()` is the single source of truth for whether it exists this pass
+        # and its modifiers — this block owns only the generic "second damage source" plumbing, not
+        # any specific trait's knowledge.
+        if _trait_active:
+            _spirit_berserk = condition_state.get("berserk_active")
+            _spirit_berserk = True if _spirit_berserk is None else bool(_spirit_berserk)
+            _spirit_grant = hero_traits.spirit_grant(
+                _trait_id, slot_levels=build_input.trait_slot_levels,
+                advanced_picks=build_input.advanced_trait_selections, berserk_active=_spirit_berserk)
+            if _spirit_grant is not None:
+                _spirit_mt = ({t.lower() for t in _resolved_main.tags}
+                              | {t.lower() for t in getattr(_resolved_main, "extra_damage_mod_tags", [])})
+                _spirit_eff = source.materialize_for_skill(_spirit_mt, main_slot)
+                _spirit_entries = list(_spirit_eff._entries)
+                _spirit_log = list(_spirit_eff.source_log)
+                # `player_only_dmg_to_exclude`: the additional-damage pool is a per-affix PRODUCT of
+                # (1+amount) factors (offense._build_additional_factors) — negative contributions are
+                # ALWAYS their own separate factor, never netted against a positive one. So offsetting
+                # via a fresh negative BuildSource.add() would compound instead of cancel (e.g.
+                # (1+0.78)×(1-0.78) = 0.39, not 1.0). The only correct exclusion is removing the
+                # player-only tracked SourceEntry (and its paired _entries tuple) so it contributes NO
+                # factor at all — same effect as it never having been emitted for Spirit's clone.
+                if _spirit_grant["player_only_dmg_to_exclude"]:
+                    _exclude_amt = _spirit_grant["player_only_dmg_to_exclude"]
+                    _exclude_name = _spirit_grant["source"]
+                    for _i, _e in enumerate(_spirit_log):
+                        if (_e.stat == "dmg_additional" and _e.source_name == _exclude_name
+                                and abs(_e.amount - _exclude_amt) < 1e-9):
+                            del _spirit_log[_i]
+                            break
+                    for _i, (_s, _a) in enumerate(_spirit_entries):
+                        if _s == "dmg_additional" and abs(_a - _exclude_amt) < 1e-9:
+                            del _spirit_entries[_i]
+                            break
+                _spirit_source = BuildSource(
+                    _entries=_spirit_entries, source_log=_spirit_log,
+                    consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording)
+                # Tracked via add_with_source (not the untracked .add() this used before) so these show up
+                # as real, labelled rows in Spirit's OWN breakdown (see `_spirit_result["stat_map"]` below) —
+                # untracked contributions still apply correctly to the pool MATH (offense.py's per-pool
+                # "reconcile add()-only contributions" fallback already summed them into the total), but
+                # they rendered as no row at all: Ritual of Offering's own +Spirit Damage line was invisible,
+                # and Fury's Onslaught's -30% Spirit Attack Speed looked like it "wasn't applying" even
+                # though it silently was.
+                if _spirit_grant["spirit_dmg_additional"]:
+                    _spirit_source.add_with_source("dmg_additional", _spirit_grant["spirit_dmg_additional"],
+                        SourceEntry(stat="dmg_additional", amount=_spirit_grant["spirit_dmg_additional"],
+                                    source_type="hero_trait", label="Hero Trait",
+                                    text=_spirit_grant["spirit_dmg_additional_text"],
+                                    source_name=_spirit_grant["source"]))
+                if _spirit_grant["spirit_attack_speed_additional"]:
+                    _spirit_source.add_with_source(
+                        "attack_speed_additional", _spirit_grant["spirit_attack_speed_additional"],
+                        SourceEntry(stat="attack_speed_additional",
+                                    amount=_spirit_grant["spirit_attack_speed_additional"],
+                                    source_type="hero_trait", label="Hero Trait",
+                                    text=_spirit_grant["spirit_attack_speed_additional_text"],
+                                    source_name=_spirit_grant["source"]))
+                _spirit_uptime = max(0.0, min(100.0, float(
+                    condition_state.get("seething_spirit_uptime", 100.0) or 0.0))) / 100.0
+                # is_main_skill=True (bug-279, 2026-09-10) — Spirit casts the player's OWN main skill, so its
+                # effective level must include the same "+N Main Skill Level" bonus (main_skill_level stat,
+                # only added when is_main_skill) the player's own hit gets; is_main_skill=False silently
+                # dropped it here, so a Main-Skill-Level source raised the player's damage but left Spirit's
+                # frozen. Passing the main slot's granted tags too (_granted_tags_by_slot, populated by the
+                # player's own _offense_for_slot call just above) for the same reason: a tag-scoped "+<Tag>
+                # Skill Level" bonus reached via a granted tag has the identical gap otherwise.
+                _spirit_add_mod_tags = _granted_tags_by_slot.get(main_slot) or None
+                # Spirit "casts your own main skill", so it inherits the skill's own intrinsic additional-
+                # damage mechanic (Focused Slash's Fervor bonus, Moon Strike's Mana bonus, Terra Charge, …)
+                # exactly like the player's own hit does — with NO Spirit-side tracking call needed at all:
+                # `_offense_for_slot` above already tracked it onto `source.slot_entries` for `main_slot` via
+                # `_track_skill_intrinsic_additional`'s `add_slotted`, and `_spirit_eff = source.
+                # materialize_for_skill(_spirit_mt, main_slot)` (just above, building `_spirit_source`)
+                # already folds in that SAME slot's entries — the identical mechanism Spirit already relies
+                # on to inherit any other slot-local skill self-buff (e.g. Berserking Blade's intrinsic
+                # buff), never re-derived here. (Terra Charge's own `terra_charge` DISPLAY dict is a player-
+                # side-only summary — not surfaced on Spirit's result; its damage contribution IS still
+                # inherited via the same slot-folding, only the informational stacks/cooldown box is player-only.)
+                _spirit_result = asdict(calculate_offense(
+                    _spirit_source, _resolved_main, build_input.main_skill.level, is_main_skill=True,
+                    add_mod_tags=_spirit_add_mod_tags))
+                # Mirror _offense_for_slot's level_summary attachment (line ~1824) — calculate_offense
+                # itself never sets it, and skipping this left Spirit's panel with no source-attributed
+                # "Effective Skill Level" breakdown (silent fallback to a bare `Level N` label in
+                # PlayerStatsScreen.tsx), even after bug-279 fixed the underlying number.
+                _spirit_result["level_summary"] = skill_level_summary(
+                    _spirit_source, list(_resolved_main.tags) + sorted(_spirit_add_mod_tags or ()),
+                    build_input.main_skill.level, True, _resolved_main.max_level)
+                # Spirit's OWN per-stat breakdown, built the identical way the player's global `stat_map`
+                # is (see `_source_log_stat_map`) — off Spirit's OWN `_spirit_source.source_log`, which by
+                # this point has Fury's Onslaught's player-only line surgically removed and its own
+                # Ritual-of-Offering/Fury's-Onslaught lines tracked. The player's global `stat_map` (built
+                # from the untouched `source`) can't stand in for this: it still carries Fury's Onslaught's
+                # excluded line and has no idea Spirit's own lines exist at all — exactly the "Total
+                # Additional" mismatch (shows Fury's Onslaught's +57% as a source row even though Spirit's
+                # own total excludes it, and never shows Ritual of Offering's own +Spirit-Damage line)
+                # reported against the frontend's Breakdown panels, which read a single shared stat map.
+                _spirit_result["stat_map"] = _source_log_stat_map(_spirit_source)
+                _spirit_result["total_dps"] = _spirit_result.get("total_dps", 0.0) * _spirit_uptime
+                _spirit_result["total_dps_vs_target"] = _spirit_result.get("total_dps_vs_target", 0.0) * _spirit_uptime
+                _spirit_result["skill_name"] = f"Seething Spirit ({result_offense.get('skill_name', '')})"
+                spirit_offense["seething_spirit"] = _spirit_result
+                if _spirit_grant["player_disarmed"]:
+                    result_offense["total_dps"] = 0.0
+                    result_offense["total_dps_vs_target"] = 0.0
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
     # cross-contamination between setups). Today's payloads carry only the main skill, so this is empty and
@@ -1594,9 +2045,58 @@ def compute(
             if not sd:
                 continue
             resolved_sk = resolve_skill(sd)
-            if not resolved_sk.supported:
-                continue
+            # Unsupported (unregistered) skills get a slot result too — supported=False, zero damage, but
+            # populated generic fields (rates/crit/costs/mechanic panels) for the partial-support display.
+            # Previously these slots were dropped entirely and the UI fell to its "no skill" branch.
+            _resolved_by_slot[sk["slot"]] = resolved_sk
             slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False, skill_dict=sd)
+
+    # ── Auto-derived conditions from ANY equipped active skill (owner-ruled 2026-08-11: these are general
+    # to the equipped skills, NOT main-slot-scoped — the main slot's only specialness is main-slot-scoped
+    # mods like +Main Skill Level and main-slot triggers). Scanned in ascending slot order: for first-set
+    # values (channeling) the LOWEST slot wins ties — a label-only choice, since the owner ruling gives the
+    # main slot no special claim here; numeric values (terra/chromatic) take the largest across slots.
+    _terra_best = 0.0        # best derived value THIS scan (maxes may hold a catalog-seeded max already —
+    _chromatic_best = 0.0    # comparing against that would wrongly skip the auto-default report)
+    for _slot in sorted(slot_offense):
+        _off = slot_offense[_slot]
+        _res_sk = _resolved_by_slot.get(_slot)
+        # Channeling: a boolean condition auto-on when ANY equipped skill resolves as channeled (inherent,
+        # e.g. Icebound Beam, or transformed, e.g. Split Shot + Rapid Advance). Forward-looking — no consumer
+        # yet; it just surfaces in Config (shown when a channeling skill exists) so future channel-gated mods
+        # can reference it. Reported via auto_sources/auto_values; the user can still toggle it off.
+        if (_off.get("channeled_max_stacks", 0) > 0 or _off.get("channeled_behavior")) \
+                and "channeling" not in auto_sources:
+            auto_sources["channeling"] = f"Channeling ({_off.get('skill_name') or 'equipped skill'} is channeled)"
+            auto_values["channeling"] = True
+            if "channeling" not in manual_cond_keys:
+                condition_state["channeling"] = True
+        # Terra Charges consumed: the effective max (1 + flat stacks) is the condition's max AND the auto
+        # default (all charges consumed — exact for realistic recast cadences at the 0.5s/stack base restore),
+        # so the field tracks the build's stack sources and the user can override downward. Two Terra skills
+        # equipped → the larger max wins (same field drives both).
+        if _off.get("terra_charge"):
+            _tc = _off["terra_charge"]
+            if float(_tc["max_stacks"]) > _terra_best:
+                _terra_best = float(_tc["max_stacks"])
+                maxes["terra_charges_consumed"] = _terra_best
+                auto_sources["terra_charges_consumed"] = "Terra Charge (max stacks consumed)"
+                auto_values["terra_charges_consumed"] = _terra_best
+        # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
+        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as
+        # the auto default (all projectiles land), so the field tracks the count and the user can override
+        # downward. Always report the count as the auto value (even when the user has overridden it), so the
+        # field's clear-to-default restores the build's projectile count rather than the catalog default.
+        # Gated on the resolver's explicit `shots_on_target_cap` delivery flag, NOT `compulsory_breakdown` —
+        # the shotgun-cap mechanic is independent of compulsory elemental conversion (SS13's Chromatic Shot
+        # dropped the latter but kept the former; see ResolvedSkill.shots_on_target_cap).
+        if getattr(_res_sk, "shots_on_target_cap", False) and _off.get("projectile_count"):
+            _pc = float(_off["projectile_count"])
+            if _pc > _chromatic_best:
+                _chromatic_best = _pc
+                maxes["chromatic_shots_on_target"] = _pc
+                auto_sources["chromatic_shots_on_target"] = "Chromatic Shot (all projectiles land)"
+                auto_values["chromatic_shots_on_target"] = _pc
 
     # ── Minion DPS pass (Spirit Magi / Synthetic Troops / Modularization) ─────────
     # Every slotted minion OWNER (a skill carrying nested `minion_skills`) contributes each nested ability's DPS,
@@ -1640,10 +2140,76 @@ def compute(
 
     source._recording = False
 
+    # ── Origin of Spirit Magus summary (display) ── PER-SKILL entries with structured grants, feeding
+    # the empower-style GRANTS section on each magus's foundation panel (owner-directed 2026-08-11).
+    # Values come from the same table + clamp helper the aggregator emits from, so the panel always
+    # mirrors what the engine actually granted (display-fidelity): each grant carries the raw data
+    # magnitude (`base`), the emitted magnitude (`value` = base × per-origin factor, clamped), and a
+    # unit ("pct" | "flat"). Post-loop, recording off → golden-neutral reads. None when no magus grants.
+    origin_summary: dict | None = None
+    if _granted_origin_flags:
+        _oi = source.total("spirit_magi_origin_effect_inc")
+        _oa = source.total("spirit_magi_origin_effect_additional")
+
+        def _summary_factor(flag: str) -> float:
+            # Mirror of the aggregator's per-origin factor (global pools + this magus's scalar-support share).
+            return _smo.origin_factor(_oi, _oa, float(condition_state.get(flag + "_support_inc", 0.0) or 0.0))
+
+        _skills_out: list[dict] = []
+        for _flag in _granted_origin_flags:
+            _sid, _oslot, _sname, _slvl = _origin_display_info[_flag]
+            _f = _summary_factor(_flag)
+            _grants: list[dict] = []
+            if _flag == "origin_of_thunder":
+                _lvl = float(condition_state.get("origin_of_thunder_level", 20.0) or 20.0)
+                _raw_dmg = 2.5 + max(0.0, _lvl - 1.0) * 0.25
+                _grants = [
+                    {"label": "Additional Attack and Cast Speed", "base": 6.0, "value": 6.0 * _f,
+                     "unit": "pct", "clamp": None},
+                    {"label": "Additional Damage", "base": _raw_dmg, "value": _raw_dmg * _f,
+                     "unit": "pct", "clamp": None},
+                ]
+            else:
+                _raw = float(condition_state.get(_flag + "_value", 0.0) or 0.0)
+                if _raw:
+                    _glabel, _gunit = _smo.GRANT_LABELS[_flag]
+                    _gclamp = _smo.CLAMP_BY_FLAG.get(_flag)
+                    _grants = [{"label": _glabel, "base": _raw,
+                                "value": _smo.scaled_magnitude(_raw, _f, _gclamp),
+                                "unit": _gunit,
+                                # Raw-% clamp floor (e.g. -50.0) — the frontend renders the clamp note
+                                # from THIS, never from a label heuristic.
+                                "clamp": (_gclamp / 0.01) if _gclamp is not None else None}]
+            _added: list[dict] = []
+            for _aflag, (_owner_flag, _sup_name) in _origin_added_info.items():
+                if _owner_flag == _flag and condition_state.get(_aflag):
+                    _araw = float(condition_state.get(_aflag + "_value", 0.0) or 0.0)
+                    if _araw:
+                        _alabel, _aunit = _smo.GRANT_LABELS[_aflag]
+                        _aclamp = _smo.CLAMP_BY_FLAG.get(_aflag)
+                        _added.append({"label": _alabel, "base": _araw,
+                                       "value": _smo.scaled_magnitude(_araw, _f, _aclamp),
+                                       "unit": _aunit, "support_name": _sup_name,
+                                       "clamp": (_aclamp / 0.01) if _aclamp is not None else None})
+            if _grants or _added:
+                _skills_out.append({
+                    "skill_id": _sid, "slot": _oslot, "skill_name": _sname, "level": _slvl,
+                    "origin_name": _smo.ORIGIN_NAMES.get(_flag, "Origin of Spirit Magus"),
+                    "factor": _f, "grants": _grants, "added": _added,
+                })
+        if _skills_out:
+            origin_summary = {"factor": _smo.origin_factor(_oi, _oa), "skills": _skills_out}
+
     # ── General build warnings (player diagnostics; extensible) ───────────────
     # Ineffective curse: an applied curse amplifies a damage type the build doesn't actually deal (e.g. an
     # Electrocute Lightning curse when 100% of the lightning is converted to cold) → it contributes nothing.
     warnings: list[dict] = []
+    for _nm in _origin_parse_failures:
+        warnings.append({
+            "kind": "origin_parse_failure",
+            "text": f"{_nm} is slotted but its Origin of Spirit Magus magnitude could not be read from the "
+                    f"skill data — the origin buff is NOT applied (never guessed).",
+        })
 
     # Mana-gated empower deactivation (Mana Boil's Euphoria turns off at 0 Mana). We DON'T auto-disable the buff —
     # we WARN when Mana is unsustainable (drains to 0 at steady state), so the user sees that their costs/consumes
@@ -1683,18 +2249,46 @@ def compute(
             sd = skills_by_id.get(sk["skill_id"])
             if sd:
                 resolved_sk = resolve_skill(sd)
-                eff = skill_effective_level(
-                    source, resolved_sk.tags, sk["level"],
+                level_summary = (slot_offense.get(sk["slot"]) or {}).get("level_summary")
+                if level_summary is None:
+                    level_summary = skill_level_summary(
+                    # Granted Tags (e.g. Condensed's Fire Tag) count for +<Tag> Skill Level — keep this
+                    # display in lockstep with the offense math (owner-ruled 2026-08-10).
+                    source.materialize_for_skill(
+                        {t.lower() for t in resolved_sk.tags} | _granted_tags_by_slot.get(sk["slot"], set()), sk["slot"]),
+                    resolved_sk.tags + sorted(_granted_tags_by_slot.get(sk["slot"], ())), sk["level"],
                     is_main_skill=(sk["slot"] == 1),
-                )
+                    max_level=resolved_sk.max_level,
+                    )
                 result_skill_slots.append({
                     "slot":           sk["slot"],
                     "skill_id":       sk["skill_id"],
                     "skill_name":     resolved_sk.name or sd.get("name", sk["skill_id"]),
                     "level":          sk["level"],
-                    "effective_level": eff,
+                    "effective_level": level_summary["effective_level"],
+                    "level_summary": level_summary,
                     "supported":      resolved_sk.supported,
                 })
+
+    result_support_slots: list[dict] | None = None
+    if build_input.attached_supports and skills_by_id is not None:
+        from engine.support_resolver import _tier_value, support_level_summary
+        result_support_slots = []
+        for sup in build_input.attached_supports:
+            data = skills_by_id.get(sup.get("item_id"))
+            if not data:
+                continue
+            base_level = _tier_value(sup.get("level"))
+            level_summary = support_level_summary(source, data.get("skill_tags"), base_level)
+            result_support_slots.append({
+                "slot": sup.get("slot", 1),
+                "support_index": sup.get("support_index"),
+                "item_id": sup.get("item_id"),
+                "skill_name": data.get("name") or sup.get("item_id"),
+                "level": base_level,
+                "effective_level": level_summary["effective_level"],
+                "level_summary": level_summary,
+            })
 
     # Calculation-target (dummy) profile for the enemy-stats panel: base + effective armor/resist after
     # this build's penetration, plus the active enemy debuffs (user-set / auto-derived conditions).
@@ -1797,13 +2391,10 @@ def compute(
 
     # Tag-scoped contributions (add_scoped — e.g. Aim/Euphoria's Ranged/Beam +additional (Ailment) Damage, or a
     # "Ranged Damage" gear line) live in scoped_log and apply only to skills carrying the tag. They're absent from
-    # `total`/`sources` AND from slot_log, so they never showed in the breakdown. Surface those whose scope matches
-    # the MAIN skill's tags (so the shown entries actually apply to it) in the same slot_sources list, with the
-    # scope noted. Display-only; totals stay byte-identical.
-    _main_tags = {t.lower() for t in (result_offense.get("skill_tags") or [])} if result_offense else set()
+    # `total`/`sources` AND from slot_log, so they never showed in the breakdown. Export all of them with their
+    # scope; the renderer filters against the currently selected skill's tags, not only the main skill's tags.
+    # Display-only; totals stay byte-identical.
     for (stat, _amount, scope), entry in zip(source.scoped_entries, source.scoped_log):
-        if scope is not None and scope.lower() not in _main_tags:
-            continue
         if stat not in stat_map:
             meta = next((m for s, m in STAT_META.items() if s.value == stat), None)
             stat_map[stat] = {
@@ -1837,6 +2428,11 @@ def compute(
         if _is_active(v)
     }
 
+    from engine.warcry import summarize_warcries
+    warcry_summaries = summarize_warcries(
+        skills_input, skills_by_id, source, condition_state,
+        power_is_manual="warcry_power" in manual_cond_keys)
+
     return StatResult(
         stat_map=stat_map,
         condition_maximums=maxes,
@@ -1844,21 +2440,27 @@ def compute(
         clamp_report=clamp_report,
         offense=result_offense,
         defense=result_defense,
+        incoming=result_incoming,
         recovery=result_recovery,
         consumption=result_consumption,
         skill_cost=result_skill_cost,
         skill_slots=result_skill_slots,
+        support_slots=result_support_slots,
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         minion_offense=minion_offense or None,
+        spirit_offense=spirit_offense or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
         empower_summaries=empower_summaries,
+        warcry_summaries=warcry_summaries,
         elixir_summaries=elixir_summaries,
         curse_summaries=curse_summaries,
         curse_conflict=curse_conflict,
+        warcry_conflict=warcry_conflict,
         warnings=warnings,
+        origin_summary=origin_summary,
         reservation=reservation,
         numbed=numbed,
         referenced_conditions=sorted(source.referenced_conditions),

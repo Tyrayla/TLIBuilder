@@ -87,14 +87,17 @@ class TestScopedPenSurfacesOnTargetPanel:
         return r if isinstance(r, dict) else r.model_dump()
 
     def test_attack_scoped_pen_shows_for_attack(self):
-        ts = self._run("berserking_blade", dual=True)["target_stats"]
-        a = ts["armor"]
+        resp = self._run("berserking_blade", dual=True)
+        a = resp["target_stats"]["armor"]
         assert a["pen"] == pytest.approx(0.225)           # 20-25% midpoint, attack-scoped, gate met (160% recently)
         assert a["effective_phys"] == pytest.approx(0.275)  # 0.50 base - 0.225 pen
-        # The scoped pen must also appear in the per-stat SOURCE breakdown (it's absent from the global stat_map,
-        # so the panel reads it from target_stats.pen_sources). Without this the tooltip showed only the base.
-        srcs = (ts.get("pen_sources") or {}).get("armor_pen") or []
-        assert any(abs(s["amount"] - 0.225) < 1e-6 for s in srcs)
+        # The scoped pen must also appear in the per-stat SOURCE breakdown. This used to be a bespoke
+        # target_stats.pen_sources field (scoped contributions "never entered the global stat_map" — true
+        # when that field was written, no longer true once the scoped_log merge into slot_sources landed);
+        # confirmed byte-identical to the global path and removed as redundant. The panel now reads this
+        # from the SAME stats.armor_pen.slot_sources every other scoped-stat breakdown already uses.
+        srcs = (resp["stats"].get("armor_pen") or {}).get("slot_sources") or []
+        assert any(abs(s["amount"] - 0.225) < 1e-6 and s["scope"] == "attack" for s in srcs)
 
     def test_attack_scoped_pen_hidden_for_spell(self):
         a = self._run("chromatic_shot")["target_stats"]["armor"]

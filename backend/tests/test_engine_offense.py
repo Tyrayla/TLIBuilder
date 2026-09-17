@@ -34,6 +34,31 @@ class TestSupportedFlag:
         assert r.total_dps == 0.0
         assert r.total_dps_vs_target == 0.0
 
+    def test_unsupported_skill_generic_fields_populated(self):
+        # Partial-support display (docs/BACKLOG.md §5): an unregistered skill runs the full pipeline —
+        # damage stays zeroed (no hit forms), but the registry-independent outputs (tags, rates, crit,
+        # level) come back populated so the UI can show them without stating a damage number.
+        r = calculate_offense(
+            _source(weapon_attack_speed=2.0, weapon_crit_rating_flat=500.0),
+            _skill(supported=False), 1,
+        )
+        assert r.supported is False
+        assert r.total_dps == 0.0 and r.hit_forms == []
+        assert r.skill_tags == ["attack"]
+        assert r.skills_per_second == pytest.approx(2.0)
+        assert r.crit_chance == pytest.approx(0.05)
+        assert r.crit_multiplier == pytest.approx(1.5)
+        assert r.effective_level >= 1
+
+    def test_unsupported_skill_does_not_record_consumption(self):
+        # Damage-mod badges must keep reading "unused" on a skill whose damage isn't modeled — the full
+        # pipeline runs, but with consumption recording suspended (and restored afterwards).
+        s = _source(weapon_attack_speed=2.0, crit_dmg_inc=0.4)
+        s._recording = True
+        calculate_offense(s, _skill(supported=False), 1)
+        assert s.consumed_stats == set()
+        assert s._recording is True   # restored, not left off
+
 
 class TestCrit:
     def test_zero_csr_zero_crit(self):
@@ -287,10 +312,97 @@ class TestPoolingUuidKey:
         assert "attack_dmg_additional" in s.consumed_stats
         assert "fire_dmg_additional" not in s.consumed_stats  # fire never applies to a physical-only attack
 
-    def test_generic_add_with_extra_additional(self):
-        s = _add_src((_ATK, 0.08, _ATK_1H), (_ATK, 0.08, _ATK_WARCRY))
-        r = calculate_offense(s, _skill(tags=("attack",)), 1, extra_additional=0.25)
+    def test_generic_add_with_tracked_intrinsic_entry(self):
+        # The old extra_additional parameter is gone — a skill's intrinsic additional damage (Fervor, Mana,
+        # …) is now tracked as a plain untagged dmg_additional SourceEntry, composing as its own distinct
+        # factor in the SAME per-affix product as every other additional-damage source, rather than a
+        # separate uniform stage. Same expected total as before — this is a byte-identical result for the
+        # single-entry case, just reached via the normal pooling path instead of a side channel.
+        s = _add_src((_ATK, 0.08, _ATK_1H), (_ATK, 0.08, _ATK_WARCRY), ("dmg_additional", 0.25, "Test Intrinsic"))
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
         assert r.generic_add == pytest.approx(1.08 * 1.08 * 1.25)
+
+
+class TestEngineEmittedBreakdownKeys:
+    """Regression: PlayerStatsScreen.tsx used to hand-derive which stat keys belong to the Total
+    Additional/Total Increased/Crit Multiplier breakdown panels via its own hasTag() checks — a second,
+    independently-maintained approximation of offense.py's OWN pool-membership lists (_HIT_ADDITIONAL_STATS/
+    _HIT_INC_STATS/_CRIT_DMG_STATS, built dynamically from STAT_META). That approximation only covered
+    attack/spell/melee/area/projectile/tangle/spell_burst — confirmed (via direct STAT_META audit) to
+    silently miss live, correctly-applied keys: sentry_dmg_additional, channeled_dmg_additional,
+    ailment_dmg_inc, ranged_dmg_inc, triggered_dmg_inc, and others, each affecting DPS with no breakdown
+    source to show for it. generic_add_keys/generic_inc_keys/type_add_keys/type_inc_keys/crit_dmg_keys now
+    export the EXACT filtered list the real sum/product used, so this class of bug can't recur — verified
+    here against skill tags the old hand-written functions never checked at all."""
+
+    def test_generic_add_keys_includes_previously_unmatched_tags(self):
+        r = calculate_offense(_add_src(), _skill(tags=("sentry", "channeled")), 1)
+        assert "sentry_dmg_additional" in r.generic_add_keys
+        assert "channeled_dmg_additional" in r.generic_add_keys
+        # Untagged pool members always apply, regardless of the skill's own tags.
+        assert "dmg_additional" in r.generic_add_keys
+        assert "at_center_dmg_additional" in r.generic_add_keys
+
+    def test_generic_inc_keys_includes_previously_unmatched_tags(self):
+        r = calculate_offense(_add_src(), _skill(tags=("ailment", "ranged", "triggered")), 1)
+        assert "ailment_dmg_inc" in r.generic_inc_keys
+        assert "ranged_dmg_inc" in r.generic_inc_keys
+        assert "triggered_dmg_inc" in r.generic_inc_keys
+
+    def test_type_add_keys_and_type_inc_keys_are_per_dtype_and_untagged_skill_still_gets_base_keys(self):
+        r = calculate_offense(_add_src(types=("fire",)), _skill(tags=()), 1)
+        assert "fire_dmg_additional" in r.type_add_keys["fire"]
+        assert "elemental_dmg_additional" in r.type_add_keys["fire"]
+        assert "fire_dmg_inc" in r.type_inc_keys["fire"]
+        assert "elemental_dmg_inc" in r.type_inc_keys["fire"]
+        # A skill with NO skill-type tags at all still gets the untagged pool members.
+        assert "dmg_additional" in r.generic_add_keys
+        assert "dmg_inc" in r.generic_inc_keys
+
+    def test_crit_dmg_keys_matches_skill_tags_and_dtype(self):
+        r = calculate_offense(_add_src(types=("cold",)), _skill(tags=("spell", "cold")), 1)
+        assert "crit_dmg_inc" in r.crit_dmg_keys
+        assert "crit_dmg_additional" in r.crit_dmg_keys
+        assert "spell_crit_dmg_inc" in r.crit_dmg_keys
+        assert "cold_crit_dmg_inc" in r.crit_dmg_keys
+        assert "attack_crit_dmg_inc" not in r.crit_dmg_keys
+
+    def test_exported_keys_never_show_a_key_the_real_pool_did_not_actually_use(self):
+        # The inverse check: nothing in the exported lists should be a key the real generic_add/generic_inc
+        # computation didn't ALSO filter in — i.e. the export can't show a source the engine wouldn't apply.
+        # Cross-checks generic_add_keys/generic_inc_keys against the module's own authoritative
+        # _HIT_ADDITIONAL_STATS/_HIT_INC_STATS lists using the identical predicate calculate_offense uses.
+        from engine.offense import _HIT_ADDITIONAL_STATS, _HIT_INC_STATS, _DTYPE_TAG_SET, _skill_gate
+        skill = _skill(tags=("attack", "melee"))
+        r = calculate_offense(_add_src(), skill, 1)
+        pool_tags = {"attack", "melee"}
+        expected_add = {key for key, tags in _HIT_ADDITIONAL_STATS
+                        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)}
+        expected_inc = {key for key, tags in _HIT_INC_STATS
+                        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)}
+        assert set(r.generic_add_keys) == expected_add
+        assert set(r.generic_inc_keys) == expected_inc
+
+    def test_flat_min_keys_excludes_weapon_gear_on_a_true_spell(self):
+        # Regression: the old hand-written flatMinKeys ALWAYS included {dtype}_dmg_gear_flat_min (+
+        # elemental_dmg_gear_flat_min), even for a true spell (skill.is_spell) — but _spell_flat never
+        # reads those keys; weapon base doesn't apply to spells. That meant a spellcaster's weapon flat
+        # damage could show as an "Added Min/Max" SOURCE on a spell it never actually contributed to —
+        # a source displayed as applying when it wasn't, found while converting this key list to be
+        # engine-emitted. Uses _spell() (defined below) — a real is_spell=True ResolvedSkill.
+        spell = _spell(dtype="lightning")
+        r = calculate_offense(_add_src(types=("lightning",)), spell, 16)
+        assert r.flat_min_keys["lightning"] == ["lightning_spell_dmg_flat_min"]
+        assert r.flat_max_keys["lightning"] == ["lightning_spell_dmg_flat_max"]
+        assert "lightning_dmg_gear_flat_min" not in r.flat_min_keys["lightning"]
+        assert "elemental_dmg_gear_flat_min" not in r.flat_min_keys["lightning"]
+
+    def test_flat_min_keys_includes_weapon_gear_on_an_attack(self):
+        r = calculate_offense(_add_src(types=("fire",)), _skill(tags=("attack",)), 1)
+        assert "fire_dmg_gear_flat_min" in r.flat_min_keys["fire"]
+        assert "fire_attack_dmg_flat_min" in r.flat_min_keys["fire"]
+        assert "elemental_dmg_gear_flat_min" in r.flat_min_keys["fire"]
+        assert "fire_spell_dmg_flat_min" not in r.flat_min_keys["fire"]
 
 
 def _spell(base=(25.0, 482.0), eff=1.36, cast=0.65, max_level=20, level=16, dtype="lightning", jumps=0):

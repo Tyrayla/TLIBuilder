@@ -1,0 +1,57 @@
+name: Deploy Web Data CDN
+
+# Deploys the season catalogs + engine-data.zip to the Cloudflare Pages "tlibuilder-data" project
+# (the CDN the web app's Pyodide worker reads from — separate from the app code itself). Deliberately
+# NOT wired to any push trigger in this repo: a season data refresh happens in the private `tli-data`
+# repo, which this repo can't observe, and it's a genuinely different event from an app-code release
+# (see docs/BACKLOG.md §7). Run manually — from the Actions tab, `gh workflow run deploy-web-data.yml`,
+# or the `deploy:web:data` npm script / `deploy-web` skill for a local/offline fallback — whenever the
+# fetched data/ actually changed and the CDN needs to catch up.
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-web-data
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Fetch private game data
+        env:
+          TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+        run: node scripts/fetch-data.mjs
+
+      - name: Build web data export
+        run: npm run build:web:data
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 7ca006edeffe5f31f4899364ecd94085 # "Tyrayla@gmail.com's Account" — not a secret
+          command: pages deploy web-data --project-name=tlibuilder-data
+
+      - name: Verify the CDN reflects the new export
+        run: node scripts/verify-web-deploy.mjs --url=https://tlibuilder-data.pages.dev --dist=web-data --check=manifest.json

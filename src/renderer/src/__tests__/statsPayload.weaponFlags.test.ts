@@ -59,3 +59,57 @@ describe('shield in weapon2 is excluded from dual-wield + weapon-class counting'
     expect(flags.oneHanded).toBe(true)
   })
 })
+
+// isDualWielding reads only slots + isShieldItem (base_type regex) — no catalog needed here.
+describe('isDualWielding — positive/negative basics', () => {
+  it('is true with a real weapon in both weapon slots', () => {
+    const w1 = item({ slot: 'weapon1', base_type: 'Longsword' })
+    const w2 = item({ slot: 'weapon2', base_type: 'Hatchet' })
+    expect(isDualWielding([w1, w2])).toBe(true)
+  })
+  it('is true for a same-item dual wield (one item whose array slot fills both weapon slots)', () => {
+    expect(isDualWielding([item({ slot: ['weapon1', 'weapon2'], base_type: 'Longsword' })])).toBe(true)
+  })
+  it('is false with only one weapon equipped', () => {
+    expect(isDualWielding([item({ slot: 'weapon1', base_type: 'Longsword' })])).toBe(false)
+  })
+  it('is false with no weapons equipped', () => {
+    expect(isDualWielding([item({ slot: 'helmet', base_type: 'Iron Helm' })])).toBe(false)
+  })
+})
+
+describe('wornWeaponFlags + countUniqueWeaponTypes — catalog-resolved classes', () => {
+  beforeEach(() => useReferenceStore.setState({ craftBaseItems: [
+    { item_id: 'one_handed_sword', name: 'Swords', base_items: [{ name: 'Longsword' }, { name: 'Rapier' }] },
+    { item_id: 'one_handed_axe', name: 'Axes', base_items: [{ name: 'Hatchet' }] },
+    { item_id: 'two_handed_sword', name: 'Greatswords', base_items: [{ name: 'Greatsword' }] },
+  ] as unknown as never }))
+
+  it('flags a two-handed weapon', () => {
+    expect(wornWeaponFlags([item({ slot: 'weapon1', base_type: 'Greatsword' })])).toEqual({
+      shield: false, oneHanded: false, twoHanded: true, dualWield: false,
+    })
+  })
+  it('flags dual one-handed weapons', () => {
+    const w1 = item({ slot: 'weapon1', base_type: 'Longsword' })
+    const w2 = item({ slot: 'weapon2', base_type: 'Hatchet' })
+    expect(wornWeaponFlags([w1, w2])).toEqual({
+      shield: false, oneHanded: true, twoHanded: false, dualWield: true,
+    })
+  })
+  it('counts two different KNOWN classes as 2 (catalog map hit, not the unknown fallback)', () => {
+    const w1 = item({ slot: 'weapon1', base_type: 'Longsword' })
+    const w2 = item({ slot: 'weapon2', base_type: 'Hatchet' })
+    expect(countUniqueWeaponTypes([w1, w2])).toBe(2)
+  })
+  it('counts two same-class KNOWN weapons with DIFFERENT base names as 1 (catalog collapse)', () => {
+    // Longsword and Rapier are distinct base_type strings that both map to one_handed_sword — so this
+    // exercises the catalog-map collapse, not mere string equality.
+    const w1 = item({ slot: 'weapon1', base_type: 'Longsword' })
+    const w2 = item({ slot: 'weapon2', base_type: 'Rapier' })
+    expect(countUniqueWeaponTypes([w1, w2])).toBe(1)
+  })
+  it('is 0 with no weapons equipped', () => {
+    expect(countUniqueWeaponTypes([item({ slot: 'helmet', base_type: 'Iron Helm' })])).toBe(0)
+  })
+})

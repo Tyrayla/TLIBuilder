@@ -32,6 +32,10 @@ class SourceEntry:
     # for gear contributions. Lets offense scope a main-hand-only modifier to the weapon1 base share (see
     # BuildSource.main_hand_flat). None for non-weapon sources. Not read by compute.py's stat_map → output-neutral.
     weapon_slot:  str | None = None
+    # Equipped item slot and shield identity. Used only by local defense calculation, where a talent can
+    # scale the flat defense belonging to a chest or shield without touching other equipped items.
+    gear_slot:    str | None = None
+    is_shield:    bool = False
     # Minted language-independent pooling identity (engine/identity_index.py), stamped by the aggregator on
     # DEFINITION-level contributions only (gear/character/spirit/memory/trait/custom). offense pools by
     # `pooling_uuid or affix_identity(text)`. None on minted-suffix entries (supports/nodes/cores — their
@@ -67,6 +71,8 @@ class BuildSource:
     referenced_conditions: set[str] = field(default_factory=set)
     # Editable calc-target stats (fractions) for offense mitigation; None → offense's Lv85 constants.
     target_config: dict | None = None
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc: {enemyId, skillId, kind, damage:{<type>_hit/_dot}}.
+    enemy_config: dict | None = None
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -150,6 +156,8 @@ class BuildInput:
     # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
     # erosion_res}. None → offense uses its historical Lv85 constants.
     target_config: dict | None = None
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc (WS3). Shape mirrors the renderer EnemyIncomingConfig.
+    enemy_config: dict | None = None
     # Unified condition state: boolean conditions store True/False, numeric store float, enum store str.
     condition_state: dict[str, float | bool | str] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
@@ -221,21 +229,27 @@ class StatResult:
     clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}
     offense:             dict | None = None      # OffenseResult as dict, or None if no skill
     defense:             dict | None = None      # DefenseResult as dict
+    incoming:            dict | None = None      # calculate_incoming: per-type Max-Hit / EHP vs the selected enemy skill
     recovery:            dict | None = None      # RecoveryResult as dict (restoration/regain/regen/temp/EHP)
     consumption:         dict | None = None      # ConsumptionResult as dict (self-consume drains + consumed-recently)
     skill_cost:          dict | None = None      # SkillCostResult as dict (active skill per-cast Mana/Life cost breakdown)
     skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported
+    support_slots:       list[dict] | None = None  # per-support effective-level display summaries
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     minion_offense:      dict | None = None       # {owner_id: OffenseResult dict} per slotted minion owner — ONE result whose hit_forms are the minion's damage abilities (NYI/supported=False unless the owner has a bespoke module)
+    spirit_offense:      dict | None = None       # {"seething_spirit": OffenseResult dict} — Seething Silhouette's Seething Spirit, a second independent calculate_offense() on the player's own main-skill stats + its own modifiers; None unless granted
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
     empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)
+    warcry_summaries:    list | None = None        # per-Warcry display summary (effect, power, timing, uptime)
     elixir_summaries:    list | None = None        # per-elixir display summary (Elixir Effect, granted buffs, timing, NYI)
     curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
+    warcry_conflict:     dict | None = None         # set when multiple Warcries need a most-recent selection
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
+    origin_summary:      dict | None = None         # Origin of Spirit Magus display summary: {factor, skills:[{skill_id, slot, skill_name, origin_name, factor, grants:[{label, base, value, unit}], added:[... + support_name]}]}
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
     numbed:              dict | None = None          # Numbed ailment box: base/stacks/duration/effect pools + uptime
     referenced_conditions: list[str] = field(default_factory=list)  # condition keys any build mod references (gate on/off) — UI hides the rest

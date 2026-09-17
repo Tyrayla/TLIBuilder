@@ -1,10 +1,14 @@
 import argparse
+import hashlib
+import logging
 import json
 import os
 import re
 import socket
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +46,17 @@ try:
             _n, _d = _term.get("name"), _term.get("description")
             if _n and _d:
                 _GLOSSARY_BY_NAME[_n.strip().lower()] = _d.strip()
+except (OSError, ValueError):
+    pass
+
+# Hero-memory base-stat scaling table (season-STABLE, hand-authored; source: MinMaxedARPG). Top-level, NOT
+# under seasons/, so the per-season data-scraper re-import never overwrites it. Base-stat value = f(memory
+# type, stat, rarity, level) via piecewise-linear interpolation between the per-rarity anchors; folded into
+# /api/hero-memories so it rides the existing catalog fetch (and the web CDN export) with no extra endpoint.
+_HERO_MEMORY_BASE_STATS: dict = {}
+try:
+    with open(os.path.join(_DATA_ROOT, 'hero_memory_base_stats.json'), encoding="utf-8") as _bf:
+        _HERO_MEMORY_BASE_STATS = json.load(_bf)
 except (OSError, ValueError):
     pass
 
@@ -110,6 +125,83 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+_LOG = logging.getLogger(__name__)
+
+_ERROR_REGISTRY: dict[str, dict[str, object]] = {
+    "TLI-BOOT-001": {"title": "The local backend did not start", "remediation": "Restart TLI Builder and try again.", "retryable": True},
+    "TLI-NET-001": {"title": "A required service cannot be reached", "remediation": "Check your connection, then retry.", "retryable": True},
+    "TLI-DATA-001": {"title": "Required game data is unavailable", "remediation": "Select or import a season, then try again.", "retryable": False},
+    "TLI-BUILD-001": {"title": "This build code cannot be imported", "remediation": "Check the code and make sure it was copied completely.", "retryable": False},
+    "TLI-CALC-001": {"title": "Calculation cannot model this build", "remediation": "Adjust the affected setting, or use a different configuration.", "retryable": False},
+    "TLI-SHARE-001": {"title": "The shared build could not be loaded", "remediation": "Check the link and your connection, then try again.", "retryable": True},
+    "TLI-UI-001": {"title": "The app encountered an unexpected screen error", "remediation": "Save a recovery code, then reload the app.", "retryable": True},
+    "TLI-UNEXPECTED-001": {"title": "Something unexpected went wrong", "remediation": "Try again. If this continues, copy the details for a bug report.", "retryable": True},
+}
+
+
+def _error_detail(code: str, operation: str, message: str | None = None, *, retryable: bool | None = None) -> dict[str, object]:
+    entry = _ERROR_REGISTRY[code]
+    safe_message = message or str(entry["title"])
+    # Group equivalent failures without retaining a traceback or volatile values (ids, numbers, paths).
+    fingerprint_source = re.sub(r"\b[0-9a-f]{8,}\b|\d+", "#", f"{code}|{operation}|{safe_message}".lower())
+    return {
+        "code": code,
+        "title": entry["title"],
+        "message": safe_message,
+        "remediation": entry["remediation"],
+        "operation": operation,
+        "retryable": entry["retryable"] if retryable is None else retryable,
+        "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()[:16],
+    }
+
+
+def _error_code_for_request(request: Request) -> str:
+    path = request.url.path
+    if "/build-code/" in path:
+        return "TLI-BUILD-001"
+    if "season" in path or path in {"/api/trees", "/api/skills"}:
+        return "TLI-DATA-001"
+    return "TLI-UNEXPECTED-001"
+
+
+@app.middleware("http")
+async def _attach_request_id(request: Request, call_next):
+    request.state.request_id = uuid.uuid4().hex
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
+
+@app.exception_handler(HTTPException)
+async def _structured_http_exception(request: Request, exc: HTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict) and isinstance(detail.get("code"), str):
+        payload = dict(detail)
+    else:
+        code = _error_code_for_request(request)
+        # Existing endpoints may interpolate request values into HTTPException.detail. Do not copy
+        # those values into player-visible diagnostics; deliberately typed errors above are the only
+        # messages that cross this boundary.
+        payload = _error_detail(code, f"http.{request.method.lower()}.{request.url.path.removeprefix('/api/').replace('/', '.')}")
+    payload["requestId"] = request.state.request_id
+    return JSONResponse({"error": payload}, status_code=exc.status_code, headers={"X-Request-ID": request.state.request_id})
+
+
+@app.exception_handler(RequestValidationError)
+async def _structured_validation_exception(request: Request, _exc: RequestValidationError):
+    code = _error_code_for_request(request)
+    payload = _error_detail(code, f"http.{request.method.lower()}.{request.url.path.removeprefix('/api/').replace('/', '.')}", "The request has an invalid format.", retryable=False)
+    payload["requestId"] = request.state.request_id
+    return JSONResponse({"error": payload}, status_code=422, headers={"X-Request-ID": request.state.request_id})
+
+
+@app.exception_handler(Exception)
+async def _structured_unexpected_exception(request: Request, exc: Exception):
+    _LOG.exception("Unhandled backend error (request_id=%s)", request.state.request_id, exc_info=exc)
+    payload = _error_detail("TLI-UNEXPECTED-001", f"http.{request.method.lower()}.{request.url.path.removeprefix('/api/').replace('/', '.')}")
+    payload["requestId"] = request.state.request_id
+    return JSONResponse({"error": payload}, status_code=500, headers={"X-Request-ID": request.state.request_id})
 
 app.add_middleware(
     CORSMiddleware,
@@ -566,7 +658,9 @@ def encode_build_code(req: BuildCodeEncodeRequest):
         code = _build_code.encode_build(req.build)
         return {"code": code}
     except Exception:
-        raise HTTPException(status_code=400, detail="Failed to encode build.")
+        raise HTTPException(status_code=400, detail=_error_detail(
+            "TLI-BUILD-001", "build-code.encode", "This build could not be encoded."
+        ))
 
 
 @app.post("/api/build-code/decode")
@@ -578,7 +672,9 @@ def decode_build_code(req: BuildCodeDecodeRequest):
         build = _build_code.decode_build(req.code, gear_items)
         return {"build": build}
     except _build_code.BuildCodeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=_error_detail(
+            "TLI-BUILD-001", "build-code.decode", str(exc)
+        ))
 
 
 # ── Engine ─────────────────────────────────────────────────────────────────────
@@ -604,6 +700,16 @@ class TargetConfigRequest(BaseModel):
     coldRes:      float = 30.0
     lightningRes: float = 30.0
     erosionRes:   float = 30.0
+
+
+class EnemyIncomingRequest(BaseModel):
+    # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc. `kind` ('attack'|'spell') routes the
+    # block/evade layer; `damage` carries raw per-type hit/DoT magnitudes (<type>_hit / <type>_dot), passed
+    # through as-is (no percent scaling). Defaults = the Test Enemy's Test Attack (1000 per hit type).
+    enemyId: str = "test_enemy"
+    skillId: str = "test_attack"
+    kind:    str = "attack"
+    damage:  dict[str, float] = {}
 
 
 class EngineStatsRequest(BaseModel):
@@ -640,6 +746,7 @@ class EngineStatsRequest(BaseModel):
     elixir_ingredients: dict[str, list[str]] = {}
     uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
     target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
+    enemy_config:    EnemyIncomingRequest | None = None  # incoming-hit enemy skill for defensive Max-Hit / EHP (WS3)
 
 
 # node_type_filter.json is ~520 KB and season-static, but was reparsed on EVERY engine_stats call (and N times
@@ -995,6 +1102,16 @@ def engine_stats(req: EngineStatsRequest):
         "lightning_res": _tc.lightningRes / 100.0,
         "erosion_res": _tc.erosionRes / 100.0,
     }
+
+    # Incoming-hit enemy skill → passed through as-is (raw per-type damage; no percent scaling). None keeps the
+    # defensive calc on its Test-Attack default when the client sends nothing.
+    _ec = req.enemy_config
+    enemy_config = None if _ec is None else {
+        "enemyId": _ec.enemyId,
+        "skillId": _ec.skillId,
+        "kind": _ec.kind,
+        "damage": dict(_ec.damage),
+    }
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -1022,16 +1139,29 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
+        enemy_config=enemy_config,
         inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()),
     )
     from engine.identity_index import get_identity_index
-    result = compute(
-        build, season_trees, filter_data,
-        skill_data=skill_data,
-        skills_input=skills_input or None,
-        skills_by_id=skills_by_id or None,
-        identity_index=get_identity_index(active_season) if active_season else None,
-    )
+    from engine.guards import ImmunityThresholdError
+    try:
+        result = compute(
+            build, season_trees, filter_data,
+            skill_data=skill_data,
+            skills_input=skills_input or None,
+            skills_by_id=skills_by_id or None,
+            identity_index=get_identity_index(active_season) if active_season else None,
+        )
+    except ImmunityThresholdError as exc:
+        # A deliberate engine guardrail for a build state the damage model can't yet represent
+        # correctly (see guards.py). Relay the real message instead of a bare 500 so the renderer can
+        # show the user why the calculation failed. Scoped to this specific exception type, NOT bare
+        # ValueError — an unrelated internal ValueError (a real bug, not a build-state guardrail) must
+        # keep falling through as a 500 with a server-side traceback, not get silently relabeled as
+        # if the user's build were the cause.
+        raise HTTPException(status_code=422, detail=_error_detail(
+            "TLI-CALC-001", "engine.stats", str(exc), retryable=False
+        ))
     return {
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,
@@ -1042,6 +1172,7 @@ def engine_stats(req: EngineStatsRequest):
         "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
+        "incoming": result.incoming,
         "recovery": result.recovery,
         "consumption": result.consumption,
         "skill_cost": result.skill_cost,
@@ -1058,6 +1189,11 @@ def engine_stats(req: EngineStatsRequest):
         # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
         # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
         "minion_offense": result.minion_offense,
+        # {"seething_spirit": OffenseResult} — Seething Silhouette's Seething Spirit, a second independent
+        # calculate_offense() on the player's own main-skill stats + its own modifiers. Additive.
+        "spirit_offense": result.spirit_offense,
+        # Origin of Spirit Magus display summary ({factor, effects[]}) — None when no magus is slotted. Additive.
+        "origin_summary": result.origin_summary,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.
@@ -1074,6 +1210,7 @@ def engine_stats(req: EngineStatsRequest):
         # Per-empower summary (Empower Effect + granted buffs + NYI) for the Skill panel, statuses, and the
         # settable per-empower buff-stack conditions (sliders).
         "empowers": result.empower_summaries,
+        "warcries": result.warcry_summaries,
         "empower_statuses": empower_statuses,
         "empower_stack_conditions": empower_stack_conditions,
         # Per-elixir summary (Elixir Effect + granted buffs + timing + NYI) for the Skill panel, plus statuses.
@@ -1085,6 +1222,7 @@ def engine_stats(req: EngineStatsRequest):
         "curse_meta": curse_meta,
         "curse_statuses": curse_statuses,
         "curse_conflict": result.curse_conflict,
+        "warcry_conflict": result.warcry_conflict,
         # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
         # Bespoke-trait status lines flagged "warning" (e.g. Licorice Note's activation-medium pitfall) are merged
         # here so they surface on the Config screen's warnings banner (trait_mod_statuses itself isn't shown).
@@ -1139,6 +1277,7 @@ def get_conditions():
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":
             entry["is_derived"] = True
+        entry["source"] = c.source
         if not c.visible:
             entry["visible"] = False
         if c.trait_id:
@@ -1630,6 +1769,8 @@ _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
         (["spell_burst_charge_speed_inc"], ["spell_burst_chance_gain_stacks_flat"]),
     "max terra charge stacks +(#) +(#) % terra charge recovery speed":
         (["max_terra_charge_stacks_flat"], ["terra_charge_recovery_speed_inc"]),
+    "max terra charge stacks +(#) +(#) % additional terra skill damage":
+        (["max_terra_charge_stacks_flat"], ["terra_skill_dmg_additional"]),
     "max terra quantity +(#) +(#) % additional damage":
         (["max_terra_quantity_flat"], ["dmg_additional"]),
     "+(#) jumps +(#) % additional damage":
@@ -1962,10 +2103,43 @@ _BLESSING_KEY_MAP = {
 }
 
 
+# A bare number or a "(a-b)" range — several legendary-gear "per N <Attribute>" affixes roll the divisor
+# (or the "up to Y%" cap) itself as a range across tiers/corrosion states, e.g. Royal Cycle's
+# "per (10-12) Strength". Mirrors mod_parser's established range→midpoint convention (see
+# mod_parser._parse_custom_mod_text_base's leading-range collapse) so this table stays consistent with it.
+_NUM_TOKEN = r"\d+(?:\.\d+)?|\(\s*\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*\)"
+
+
+def _resolve_num_token(tok: str) -> float:
+    tok = tok.strip()
+    rm = re.match(r"\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)", tok)
+    if rm:
+        return (float(rm.group(1)) + float(rm.group(2))) / 2.0
+    return float(tok)
+
+
+def _attr_per_pattern(attr_word: str, key: str) -> tuple:
+    """'+X per N <Attr>[, up to Y%]' → {"key": key, "op": "per", "divisor": N, cap?: Y/100}. N and Y may
+    each be a plain number or a "(a-b)" range (collapsed to its midpoint)."""
+    pat = re.compile(
+        rf"(?:per|for\s+every)\s+({_NUM_TOKEN})\s+{attr_word}\b"
+        rf"(?:\s*,?\s*up\s+to\s+\+?({_NUM_TOKEN})\s*%)?", re.I)
+
+    def build(m: "re.Match") -> dict:
+        expr = {"key": key, "op": "per", "divisor": _resolve_num_token(m.group(1))}
+        if m.group(2):
+            expr["cap"] = _resolve_num_token(m.group(2)) / 100.0
+        return expr
+
+    return pat, build
+
+
 # Condition-clause patterns → engine condition expressions (for talent/affix gates). Negated forms are
 # listed before their positive counterparts so "not low" wins over "low". A value can be a static expr
 # or a callable(match)->expr for thresholds. These map onto conditions in data/conditions.json.
 _COND_PATTERNS: list[tuple] = [
+    (re.compile(r"for\s+each\s+different\s+warcry\s+cast\s+for\s+8\s*s", re.I),
+     {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}),
     # Low-resource gates (self) — negated first
     (re.compile(r"energy\s+shield\s+is\s+not\s+low|not\s+at\s+low\s+energy\s+shield", re.I), {"not": "low_energy_shield"}),
     (re.compile(r"life\s+is\s+not\s+low|not\s+at\s+low\s+life", re.I), {"not": "low_life"}),
@@ -2127,6 +2301,15 @@ _COND_PATTERNS: list[tuple] = [
     # Per-Fervor-Rating scaling: "+X per N Fervor Rating" → ×floor(fervor/N).
     (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
     (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
+    # Per-attribute scaling: "+X per N Strength/Dexterity/Intelligence[, up to Y%]" → ×floor(total/N),
+    # optionally capped. Mirrors the fervor_rating / remaining_energy per+cap pattern shape; N and Y may
+    # roll as a "(a-b)" range (Royal Cycle, Ralph's Journey, Last Words of Chaos) — see _attr_per_pattern.
+    _attr_per_pattern("strength", "strength_total"),
+    _attr_per_pattern("dexterity", "dexterity_total"),
+    _attr_per_pattern("intelligence", "intelligence_total"),
+    # Royal Cycle: "for every N of the highest stat among Strength, Dexterity, and Intelligence"
+    (re.compile(rf"for\s+every\s+({_NUM_TOKEN})\s+of\s+the\s+highest\s+stat\s+among\s+strength\s*,?\s*dexterity\s*,?\s*(?:and\s+)?intelligence\b", re.I),
+     lambda m: {"key": "highest_attribute_total", "op": "per", "divisor": _resolve_num_token(m.group(1))}),
     # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True Body hits an
     # enemy" — True Body is ASSUMED to mean the player's own cast (not a Shadow), which would happen every
     # cast, so the owner-approved model is a DEFAULT-ON condition (thunder_spike_true_body_buff,
@@ -2271,6 +2454,50 @@ def _resolve_gear_affix_clauses(text: str) -> list[dict]:
         return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
     out: list[dict] = []
     for clause in _expand_named_buffs(text):
+        if re.search(r"each\s+different\s+warcry\s+cast", clause, re.I):
+            cond_expr = {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}
+            parsed = []
+            minimum = re.search(r"\+([\d.]+)\s+to\s+the\s+minimum\s+number", clause, re.I)
+            effect = re.search(r"\+([\d.]+)\s*%\s+additional\s+warcry\s+effect", clause, re.I)
+            cdr = re.search(r"\+([\d.]+)\s*%\s+additional\s+warcry\s+cooldown\s+recovery\s+speed", clause, re.I)
+            # Corroded Kragol has a separate, ordinary (not "additional")
+            # Warcry Effect roll on both of its Warcry clauses.
+            effect_inc = re.search(r"\+([\d.]+)\s*%\s+(?<!additional\s)warcry\s+effect", clause, re.I)
+            if minimum:
+                parsed.append({"stat_key": "warcry_min_targets_flat", "amount": float(minimum.group(1)), "text": clause})
+            if effect:
+                parsed.append({"stat_key": "warcry_effect_additional", "amount": float(effect.group(1)) / 100, "text": clause})
+            if cdr:
+                parsed.append({"stat_key": "warcry_cdr_speed_additional", "amount": float(cdr.group(1)) / 100, "text": clause})
+            out.append({"clause": clause, "parsed": parsed, "cond_expr": cond_expr,
+                        "resolved": bool(parsed), "curse": None})
+            if effect_inc:
+                # The Corroded plain "Warcry Effect" roll is not introduced by
+                # "for each different cast"; preserve it as an unconditional
+                # increased-effect source rather than scaling it by that count.
+                out.append({"clause": clause, "parsed": [
+                    {"stat_key": "warcry_effect_inc", "amount": float(effect_inc.group(1)) / 100,
+                     "text": clause}], "cond_expr": None, "resolved": True, "curse": None})
+            continue
+        # Kragol's duration line is scoped to Warcries and scales by the
+        # resolved Warcry Power (each enemy affected).  It intentionally uses
+        # its own additional-duration pool so it cannot change other skills.
+        if re.search(r"additional\s+duration\s+for\s+the\s+current\s+warcry", clause, re.I):
+            duration = re.search(r"([+-])\s*([\d.]+)\s*%\s+additional\s+duration", clause, re.I)
+            effect_inc = re.search(r"\+([\d.]+)\s*%\s+(?<!additional\s)warcry\s+effect", clause, re.I)
+            parsed = []
+            if duration:
+                sign = -1.0 if duration.group(1) == "-" else 1.0
+                parsed.append({"stat_key": "warcry_skill_effect_duration_additional",
+                               "amount": sign * float(duration.group(2)) / 100, "text": clause})
+            out.append({"clause": clause, "parsed": parsed,
+                        "cond_expr": {"key": "warcry_power", "op": "per", "divisor": 1},
+                        "resolved": bool(parsed), "curse": None})
+            if effect_inc:
+                out.append({"clause": clause, "parsed": [
+                    {"stat_key": "warcry_effect_inc", "amount": float(effect_inc.group(1)) / 100,
+                     "text": clause}], "cond_expr": None, "resolved": True, "curse": None})
+            continue
         cond_expr = None
         parsed = _parse_custom_mod_text(clause)
         if not parsed:
@@ -2784,6 +3011,22 @@ def get_grafts():
     return {"season": active, "grafts": _resolve_grafts(data.get("grafts", []))}
 
 
+@app.get("/api/crosswalk-tables")
+def get_crosswalk_tables():
+    """Compendium→Builder crosswalk bridge tables for the active season (Import from Compendium). Returns {}
+    when the season has no crosswalk data — the importer then reports it can't convert that season. Also returns
+    treeNames (tree slug → display name) so the converter can set TreeSlot.treeName / slate treeType."""
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "tables": {}, "treeNames": {}}
+    tables = season_manager.load_crosswalk_tables(active)
+    tree_names = {}
+    if tables:  # only bother when the season actually has crosswalk data
+        for slug, data in season_manager.load_all_season_trees(active, raw=True).items():
+            tree_names[slug] = data.get("tree_name", slug)
+    return {"season": active, "tables": tables, "treeNames": tree_names}
+
+
 # ── Belt Blends (Blending Rituals) ───────────────────────────────────────────────
 
 class ImportCrawlerBeltBlendsRequest(BaseModel):
@@ -2883,7 +3126,10 @@ def import_hero_memories_endpoint(req: ImportSingletonRequest):
 @app.get("/api/hero-memories")
 def get_hero_memories():
     active = season_manager.get_active_season()
-    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": []}
+    # base_stat_scaling is season-independent (hand-authored top-level file) — include it even when no season /
+    # no per-season memory data is loaded, so the creator's base-stat auto-scaling works regardless.
+    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": [],
+             "base_stat_scaling": _HERO_MEMORY_BASE_STATS}
     if not active:
         return empty
     data = season_manager.load_hero_memories(active)
@@ -2895,7 +3141,20 @@ def get_hero_memories():
         "fixed_affixes": data.get("fixed_affixes", []),
         "random_affixes": data.get("random_affixes", []),
         "base_stats": data.get("base_stats", []),
+        "base_stat_scaling": _HERO_MEMORY_BASE_STATS,
     }
+
+
+@app.get("/api/memory-revival")
+def get_memory_revival():
+    active = season_manager.get_active_season()
+    empty = {"season": None, "affixes": []}
+    if not active:
+        return empty
+    data = season_manager.load_memory_revival(active)
+    if not data:
+        return {**empty, "season": active}
+    return {"season": active, "affixes": data.get("affixes", [])}
 
 
 @app.post("/api/dev/import-memory-revival")
@@ -2916,6 +3175,17 @@ def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     parsed = import_tower_sequence(req.data, req.season_name)
     season_manager.save_tower_sequence(req.season_name, parsed)
     return {"ok": True, "count": parsed["entry_count"]}
+
+
+@app.get("/api/tower-sequence")
+def get_tower_sequence():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "entries": []}
+    data = season_manager.load_tower_sequence(active)
+    if not data:
+        return {"season": active, "entries": []}
+    return {"season": active, "entries": data.get("entries", [])}
 
 
 class DiffSeasonsRequest(BaseModel):

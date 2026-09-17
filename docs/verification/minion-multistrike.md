@@ -8,15 +8,15 @@
 
 ## Derived / confirmed formula
 
-Mirrors the player multistrike: an attack ability auto-repeats with chance c (each full 100% = +1 guaranteed repeat, leftover = chance of one more); the n-th hit of a chain gains (n-1) increasing-damage stacks (Initial Count pre-stacks). The +20% multistrike Attack Speed is INCREASED, so it dilutes against the minion's own increased AS: s = (1 + minion_as_inc + 0.20)/(1 + minion_as_inc). DPS multiplier = E[chain damage] / (E[chain time] x rate). Verified vs the player: c=1.16, inc=0.55, no AS -> x1.6033.
+Mirrors the player multistrike: an attack ability auto-repeats with chance c (each full 100% = +1 guaranteed repeat, leftover = chance of one more); the n-th hit of a chain gains (n-1) increasing-damage stacks (Initial Count pre-stacks), CAPPED at the realized chain's Max Multistrike Count L-1 (bug-263, fixed 2026-08-19 — mirror of the player fix; Initial Count cannot push a hit past L-1). The +20% multistrike Attack Speed is INCREASED, so it dilutes against the minion's own increased AS: s = (1 + minion_as_inc + 0.20)/(1 + minion_as_inc). DPS multiplier = E[chain damage] / (E[chain time] x rate). Verified vs the player: c=1.16, inc=0.55, no AS -> x1.6033.
 
 ## Notes / caveats / open questions
 
-Shipped, unverified. Copies the in-game-verified player multistrike model; confirm minion throughput vs the Recount.
+Shipped, unverified. Copies the player multistrike model incl. the bug-263 increment cap; confirm minion throughput vs the Recount. NOTE: the stat `minion_max_multistrike_count_flat` is named 'Max Multistrike Count' but consumed as Initial Count — naming/semantics review flagged for a later minion pass (no mod_parser feeder found).
 
 ## Implementation (engine model)
 
-calculate_minion_offense reads minion_multistrike_chance + minion_multistrike_increasing_dmg_inc (+ minion_max_multistrike_count_flat as Initial Count), computes multistrike_mult and folds it into per_minion_dps; sets OffenseResult.multistrike_* fields. Spell minion abilities never multistrike. Frontend Multistrike box un-gated for minions (reads the offense's own multistrike_* fields, no player stat leak).
+calculate_minion_offense reads minion_multistrike_chance + minion_multistrike_increasing_dmg_inc (+ minion_max_multistrike_count_flat as Initial Count), computes multistrike_mult and folds it into per_minion_dps; sets OffenseResult.multistrike_* fields. _chain_dmg(L) = sum over n of (1 + inc*min(_init + n-1, L-1)) — increment stacks capped at L-1 (no Cat-Dive proc on minions). Without _init the min() is inert, so non-init minion builds are unchanged. Spell minion abilities never multistrike. Frontend Multistrike box un-gated for minions.
 
 ## Sources
 

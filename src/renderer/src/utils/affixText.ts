@@ -48,6 +48,71 @@ export function hasRangeValues(affix: LegendaryAffix): boolean {
   return affix.affix_kind === 'numeric' && affix.numeric_values.some(v => v.kind === 'range')
 }
 
+// Normalize a stat phrase for "is this the SAME stat?" comparison: lower-case, drop the Minion qualifier in
+// BOTH forms — the "Minion X" prefix and the "X for Minions" suffix (so a player half and its minion mirror
+// compare equal), strip trailing condition clauses (when/while/against/during/if …, so a stat and its
+// conditional variant compare equal), and drop digits/punctuation/%.
+const _CONDITION_RE = /\b(?:when|while|against|during|if)\b.*$/i
+function normStatPhrase(seg: string): string {
+  return seg
+    .replace(_CONDITION_RE, ' ')
+    .toLowerCase()
+    .replace(/\bfor minions?\b/g, ' ')   // "… for Minions" suffix mirror
+    .replace(/\bminion\b/g, ' ')          // "Minion …" prefix mirror
+    .replace(/[^a-z ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Numbers on ONE affix line that are ONE in-game roll: the player/minion mirror mods ("+X% Attack and Cast
+// Speed +X% Minion Attack and Cast Speed") and same-stat conditional splits. We group numeric_value indices by
+// identical range AND matching underlying stat (the text between number tokens, minion/condition-normalized), so
+// the roll editors drive each group with a single control. Owner (2026-08-09): NARROW to genuine combined lines
+// — two distinct stats that merely share a range (e.g. Ignite damage vs chance to Ignite) must NOT be locked.
+// `rawText` is the affix's raw_text; when omitted the stat check is skipped (range-only grouping).
+export function sharedRollGroups(numericValues: LegendaryNumericValue[], rawText = ''): number[][] {
+  // Per-index [start,end) span of each numeric token in rawText (range or fixed), scanned in order so duplicate
+  // tokens like "(109–122)" resolve to the correct occurrence.
+  const spans: (readonly [number, number] | null)[] = []
+  let cur = 0
+  for (const nv of numericValues) {
+    const raw = nv.raw
+    const at = raw ? rawText.indexOf(raw, cur) : -1
+    if (at >= 0 && raw) { spans.push([at, at + raw.length]); cur = at + raw.length }
+    else spans.push(null)
+  }
+  // Stat phrase for range index i = text from the end of token i to the start of the next token (or line end).
+  const phraseFor = (i: number): string => {
+    const span = spans[i]
+    if (!rawText || !span) return ''
+    let end = rawText.length
+    for (let j = i + 1; j < spans.length; j++) { const s = spans[j]; if (s) { end = s[0]; break } }
+    return normStatPhrase(rawText.slice(span[1], end))
+  }
+
+  const groups: number[][] = []
+  const byKey = new Map<string, number[]>()
+  numericValues.forEach((nv, i) => {
+    if (nv.kind !== 'range') {
+      // Fixed values never group — each is its own singleton, preserving order.
+      groups.push([i])
+      return
+    }
+    // Same range AND same underlying stat → one shared roll. The phrase is '' when rawText is absent, collapsing
+    // to range-only grouping (back-compat).
+    const key = `r:${nv.sign ?? ''}:${nv.min}:${nv.max}:${phraseFor(i)}`
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.push(i)
+    } else {
+      const g = [i]
+      byKey.set(key, g)
+      groups.push(g)
+    }
+  })
+  return groups
+}
+
 export function reconstructAffixText(affix: LegendaryAffix, chosenValues: Record<number, number>): string {
   let text = affix.raw_text
   for (let i = affix.numeric_values.length - 1; i >= 0; i--) {

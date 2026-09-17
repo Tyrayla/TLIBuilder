@@ -33,6 +33,7 @@ const CONNECTIONS: TraitTreeConnection[] = [
 
 function memory(): CreatedHeroMemory {
   return {
+    id: 'mem-test',
     memoryType: 'origin',
     rarity: 'normal',
     baseStat: null,

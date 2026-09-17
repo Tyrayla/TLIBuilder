@@ -80,6 +80,7 @@ class RecoveryResult:
     burst_mana_lost_per_sec: float = 0.0
     burst_life_restore_per_sec: float = 0.0
     burst_es_restore_per_sec: float = 0.0
+    es_regen_per_sec: float = 0.0                # % Max ES/sec sources (Origin of Ice) × Max ES
     # Net sustain (recovery − consumption). Still excludes the skill's intrinsic Life/Mana COST (no skill-cost model)
     net_life_per_sec: float = 0.0
     net_mana_per_sec: float = 0.0
@@ -235,6 +236,10 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
 
     # Regen (over time): flat + %-of-max, × speed.
     life_regen_ps = (source.total("life_regen_flat") + source.total("life_regen_inc") * max_life) * (1.0 + source.total("life_regen_speed_inc"))
+    # ES regen (% of Max ES per second — Frost Magus Origin of Ice is the first source). ES historically
+    # had only missing-based Regain; this is a continuous restore like Life regen. NOT scaled by
+    # life_regen_speed_inc (that pool is Life-scoped by wording); no ES-regen speed stat exists yet.
+    es_regen_ps = source.total("energy_shield_regen_pct") * source.total("max_energy_shield")
     # Baseline Mana Regen every character has (Help DB / Mana.md): 7 Mana/sec flat + 1.75% of Max Mana/sec. The %
     # component scales per level via Max Mana (which grows +5/level). Added on top of gear/talent regen sources.
     base_mana_regen = _BASE_MANA_REGEN_FLAT + _BASE_MANA_REGEN_PCT * max_mana
@@ -291,8 +296,9 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
 
     net_life = life_ps + life_regain_ps + life_regen_ps - cons_life - sc_life + burst_life_restore_ps
     net_mana = mana_ps + mana_regen_ps - cons_mana - sc_mana - burst_mana_lost_ps
-    # ES recovery = restoration (Pixie excess→ES + Rebirth-converted) + missing-based Shield Regain. No ES regen modeled.
-    net_es = es_restore_ps + shield_regain_ps - cons_es + burst_es_restore_ps
+    # ES recovery = restoration (Pixie excess→ES + Rebirth-converted) + missing-based Shield Regain + ES regen
+    # (Origin of Ice — the first continuous ES-regen source).
+    net_es = es_restore_ps + shield_regain_ps + es_regen_ps - cons_es + burst_es_restore_ps
 
     # Sustainability verdict: net ≥ 0 → sustainable; else time-to-empty from the current pool. (Once C/F solve the
     # steady-state pool %, net AT that % is the honest verdict; a clamp-to-0 equilibrium = unsustainable.)
@@ -333,6 +339,7 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         restoration_sources=life_src + mana_src + burst_src,
         life_regain_per_sec=life_regain_ps, shield_regain_per_sec=shield_regain_ps,
         life_regen_per_sec=life_regen_ps, mana_regen_per_sec=mana_regen_ps,
+        es_regen_per_sec=es_regen_ps,
         base_mana_regen_per_sec=base_mana_regen,
         temporary_life=temp_life, temporary_mana=temp_mana,
         total_max_life=max_life + temp_life, total_max_mana=max_mana + temp_mana,

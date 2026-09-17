@@ -48,7 +48,7 @@ _TRAIL_COND_RE = re.compile(
     r"\b(?:when|while|if|against|upon|after)\b|\bfrom\s+\w+\s+enem|\bat\s+(?:low|full|max)\b|\bfor\s+[\d.]+\s*s\b"
     r"|\bper\s+(?:\d+\s+)?stack|\bfor\s+every\b|\bfor\s+each\b"
     r"|\bdealt\s+to\b|\bto\s+(?:nearby|distant)\s+enem|\b(?:to\s+enemies\s+)?in\s+proximity\b"
-    r"|\bper\s+(?:\d+\s+)?(?:fervor|command|strength|dexterity|intelligence|growth)\b", re.I)
+    r"|\bper\s+(?:(?:\d+(?:\.\d+)?|\([\d.]+\s*[-–]\s*[\d.]+\))\s+)?(?:fervor|command|strength|dexterity|intelligence|growth)\b", re.I)
 
 
 # Compound lines join several "+N% Stat" mods with "and"/"," — split BEFORE a conjunction that precedes
@@ -152,6 +152,9 @@ def _classify_effect(effect: str, parse_mod, translate_cond) -> dict:
     # (flat additions + multipliers still apply). NOT a final-value override (per stat.py MANA_COST_OVERRIDE note).
     if re.search(r"skills?\s+no\s+longer\s+cost(?:s)?\s+mana", text, re.I):
         return {"kind": "flag", "flag": "skill_no_mana_cost"}
+
+    if re.search(r"doubles?\s+max\s+warcry\s+skill\s+effects", text, re.I):
+        return {"kind": "flag", "flag": "formless_warcry_effects"}
 
     flag = _gain_on_hit_flag(text)
     if flag:

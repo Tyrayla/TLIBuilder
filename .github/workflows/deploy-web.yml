@@ -1,0 +1,62 @@
+name: Deploy Web App
+
+# Deploys the tlibuilder.com web build (Pyodide-in-browser build of the same engine the desktop
+# app ships) to the Cloudflare Pages "tlibuilder" project. Triggers on push to `main` — the branch
+# that represents the currently-shipped app, per CLAUDE.md ("merge to main only when explicitly
+# asked") — so the live site tracks what's actually been released, not every `dev` commit.
+#
+# This does NOT deploy the separate `tlibuilder-data` CDN (season catalogs + engine-data.zip) —
+# that's decoupled on purpose (see deploy-web-data.yml): a season data refresh and an app-code
+# release are different events with no shared trigger in this repo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Fetch private game data
+        env:
+          TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+        run: node scripts/fetch-data.mjs
+
+      - name: Build web app
+        # `.env.web` is intentionally local-only, so CI must provide this public
+        # compile-time value explicitly. The renderer uses it to fetch catalog
+        # data from the separate Cloudflare Pages CDN.
+        env:
+          VITE_STATIC_DATA_BASE: https://tlibuilder-data.pages.dev
+        run: npm run build:web
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 7ca006edeffe5f31f4899364ecd94085 # "Tyrayla@gmail.com's Account" — not a secret
+          command: pages deploy dist-web --project-name=tlibuilder
+
+      - name: Verify production reflects the new build
+        run: node scripts/verify-web-deploy.mjs --url=https://tlibuilder.com --dist=dist-web

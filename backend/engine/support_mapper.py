@@ -102,6 +102,11 @@ _CAPTURE_RULES: list[tuple[str, str, str]] = [
     (r"min channeled stacks",                         "min_channeled_stacks_flat", "flat"),
     (r"horizontal projectile penetration",            "horizontal_projectile_penetration_flat", "flat"),
     (r"demolisher charge restoration speed",          "demolisher_charge_speed_inc", "pct"),
+    # Ground Divide (Supports Terra Skills) — NOT inert: both feed compute._offense_for_slot's Terra Charge
+    # block (effective max stacks default + the restore-duration display). "Restoration" is the support/Help-DB
+    # wording; gear says "Recovery" — one stat either way.
+    (r"max terra charge stacks",                      "max_terra_charge_stacks_flat", "flat"),
+    (r"terra charge restoration speed|terra charge recovery speed", "terra_charge_recovery_speed_inc", "pct"),
     (r"aura effect for the supported",                "aura_effect_inc", "pct"),
     # Sealed-mana reservation supports (slot-local; consumed by engine.utility.apply_reservation). The
     # "additional" rule MUST precede the generic one (first match wins). Values may be negative (Seal

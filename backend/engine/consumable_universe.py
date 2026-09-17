@@ -45,7 +45,7 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
 
 _ALL_TAGS = [
     "attack", "spell", "minion", "projectile", "ranged", "channeled", "area", "melee", "trauma", "wilt",
-    "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike", "spell_burst",
+    "ignite", "tangle", "sentry", "warcry", "shadow strike", "reaping", "affliction", "multistrike", "spell_burst", "terra",
     # Damage-type tags — element-tagged stats (e.g. fire_crit_dmg_inc) are read only when the skill's
     # mod_tags include that element (offense._CRIT_DMG_STATS tag-filter). The universe is the union over
     # ALL skills, so it carries every element tag; omitting these falsely badges type crit damage "yellow".
@@ -99,7 +99,7 @@ def _make_skill(is_spell):
 def consumable_universe() -> frozenset[str]:
     from models.stat_meta import STAT_META
     from engine.offense import calculate_offense, _APS_ADDITIONAL_STATS, _CAST_ADDITIONAL_STATS
-    from engine.defense import calculate_defense
+    from engine.defense import calculate_defense, calculate_incoming
     from engine.derive import derive_stats
     from engine.compute import derive_condition_maximums, derive_condition_minimums
 
@@ -121,6 +121,11 @@ def consumable_universe() -> frozenset[str]:
         s = _make_source(conv_keys, all_keys)
         fn(s)
         consumed |= s.consumed_stats
+    # calculate_incoming reads the damage-taken pools (dmg_taken_additional + typed/hit/dot) — out of the fn-loop
+    # since it needs a DefenseResult. Scan it so those reads register as consumed (Tenacity et al. are now live).
+    s = _make_source(conv_keys, all_keys)
+    calculate_incoming(s, calculate_defense(s))
+    consumed |= s.consumed_stats
     # Speed-additional pools read via source_log, not source.total → never self-record. Add them back.
     for k, _ in _APS_ADDITIONAL_STATS:
         consumed.add(k)
@@ -144,14 +149,18 @@ def consumable_universe() -> frozenset[str]:
     # Recovery Speed scales cooldown, Charging Progress + Max Charge feed charges — all outside the synthetic passes.
     consumed |= {"elixir_effect_inc", "elixir_effect_additional",
                  "elixir_duration_additional", "elixir_charging_progress_flat",
-                 "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc"}
+                 "duration_inc", "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc", "cdr_speed_additional"}
+    # engine.warcry reads these only for the active Warcry summary.
+    consumed |= {"warcry_effect_inc", "warcry_effect_additional", "warcry_skill_effect_duration_inc", "warcry_cdr_speed_inc",
+                 "warcry_min_targets_flat", "shadow_strike_tracking_area_inc", "warcry_cdr_speed_additional",
+                 "warcry_skill_effect_duration_additional"}
     # engine.recovery (post-loop sustain stage) reads the Restoration / Regain / Regen / Temporary-pool stats —
     # outside the synthetic offense/defense/derive passes, so whitelist them.
     consumed |= {"restoration_effect_inc", "restoration_effect_additional",
                  "restoration_duration_inc", "restoration_duration_additional",
                  "life_regain_inc", "energy_shield_regain_inc", "regain_interval_additional",
                  "life_regain_interval_additional", "energy_shield_regain_interval_additional",
-                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc",
+                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc", "energy_shield_regen_pct",
                  "mana_regen_flat", "mana_regen_speed_inc", "mana_regen_pct",
                  "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
                  "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
@@ -176,7 +185,10 @@ def consumable_universe() -> frozenset[str]:
                  "minion_dmg_additional_per_20_growth",
                  "minion_ultimate_attack_speed_additional", "minion_ultimate_cast_speed_additional",
                  "minion_ultimate_attack_speed_additional_per_40_growth",
-                 "minion_ultimate_cast_speed_additional_per_40_growth"}
+                 "minion_ultimate_cast_speed_additional_per_40_growth",
+                 "minion_dmg_additional_per_100_growth",
+                 "minion_attack_speed_additional_per_100_growth",
+                 "minion_cast_speed_additional_per_100_growth"}
     consumed |= {f"minion_lucky_{t}" for t in ("physical", "fire", "cold", "lightning", "erosion")}
     # Minion multistrike — read explicitly in calculate_minion_offense (mirrors the player multistrike model).
     consumed |= {"minion_multistrike_chance", "minion_multistrike_increasing_dmg_inc"}
@@ -204,6 +216,27 @@ def consumable_universe() -> frozenset[str]:
                  for mm in ("min", "max")}
     consumed |= {"physical_dmg_flat_per_life_consumed_cap", "physical_dmg_flat_per_mana_consumed_cap",
                  "crit_rating_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed"}
+    # Attribute-scaled added elemental damage (Ralph's Burial / Magnus' Jealousy): "Adds A-B <Type> Damage
+    # per N <Attribute>" — folded in-loop into the REAL {dtype}_{attack,spell}_dmg_flat_{min,max} stats
+    # (engine.compute), so whitelist the per-unit consumer + its divisor to badge Consumed (green).
+    consumed |= {f"{dtype}_dmg_flat_{mm}_per_{attr}"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")
+                 for mm in ("min", "max")}
+    consumed |= {f"{dtype}_dmg_flat_per_{attr}_unit"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")}
+    # Scoped sibling (Tower Sequence: "Adds A-B <Type> Damage to Attacks per N <Attribute>" — a local
+    # weapon mod, credited to only the scoped class instead of both; see engine.compute's per-class fold).
+    consumed |= {f"{dtype}_{cls}_dmg_flat_{mm}_per_{attr}"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")
+                 for cls in ("attack", "spell")
+                 for mm in ("min", "max")}
+    consumed |= {f"{dtype}_{cls}_dmg_flat_per_{attr}_unit"
+                 for dtype in ("physical", "fire", "cold", "lightning", "erosion")
+                 for attr in ("strength", "dexterity", "intelligence")
+                 for cls in ("attack", "spell")}
     # Compensatory Life: increased Spell Damage + Mana Regeneration Speed per Mana consumed — folded in-loop into the
     # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
     consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",
@@ -233,6 +266,11 @@ def consumable_universe() -> frozenset[str]:
                  "has_dormant_entanglement_flag",
                  # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
                  "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
+    # Terra system (SS13): the charge model in compute._offense_for_slot reads max stacks (effective max =
+    # 1 + flat) and recovery speed (restore duration display); compute_dot reads the Terra-scoped damage
+    # pools on Terra-tagged skills (the hit path reads them via the "terra" tag in _ALL_TAGS above).
+    consumed |= {"max_terra_charge_stacks_flat", "terra_charge_recovery_speed_inc",
+                 "terra_skill_dmg_inc", "terra_skill_dmg_additional", "terra_dmg_enhancement_additional"}
     # Shadow Strike mode (engine.compute._offense_for_slot / engine.offense.calculate_offense's `shadow=`
     # path) reads these outside the synthetic passes: Max Shadow Quantity (N_base), Despised Shadow's
     # chance/quantity EV inputs, and additional Shadow Damage (read explicitly, excluded from the generic

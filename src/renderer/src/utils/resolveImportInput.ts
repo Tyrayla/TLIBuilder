@@ -1,13 +1,14 @@
 import { api } from '../api/client'
+import { normalizeError, TliError } from '../errors/tliError'
 
 /**
  * Thrown when an import input is a share link but the linked build could not be
  * fetched (service unreachable, network error, or unknown id). Lets callers
  * show a link-specific message instead of the generic "invalid code" error.
  */
-export class ShareFetchError extends Error {
-  constructor(message: string) {
-    super(message)
+export class ShareFetchError extends TliError {
+  constructor(error: unknown) {
+    super(normalizeError(error, 'TLI-SHARE-001', 'share.import').payload)
     this.name = 'ShareFetchError'
   }
 }
@@ -35,12 +36,12 @@ export async function resolveImportInput(input: string): Promise<string> {
       // Validate before handing to the decoder — prevents an error page or
       // malformed response from the share service reaching the Python codec.
       if (!code.startsWith('tli1_')) {
-        throw new ShareFetchError('Share service returned an invalid build code.')
+        throw new ShareFetchError(new Error('Share service returned an invalid build code.'))
       }
       return code
     } catch (e) {
       if (e instanceof ShareFetchError) throw e
-      throw new ShareFetchError(e instanceof Error ? e.message : String(e))
+      throw new ShareFetchError(e)
     }
   }
 

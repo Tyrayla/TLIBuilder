@@ -3,6 +3,7 @@ declare global {
     api?: {
       getPythonPort: () => Promise<number>
       apiRequest: (method: string, path: string, body?: unknown) => Promise<{ ok: boolean; status: number; data: unknown }>
+      reportRequest: (body: unknown) => Promise<{ ok: boolean; status: number; data: unknown }>
       getIsDev: () => Promise<boolean>
       isVerbose: boolean
       notifyDirty: (dirty: boolean) => void
@@ -20,6 +21,7 @@ declare global {
       onUpdateCheckError: (cb: (msg: string) => void) => void
       getSettings: () => Promise<AppSettings>
       setSetting: (key: keyof AppSettings, value: unknown) => Promise<AppSettings>
+      onDeepLinkShare: (cb: (shareId: string) => void) => void
     }
   }
 }

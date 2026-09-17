@@ -605,6 +605,136 @@ def test_origin_of_thunder_buffs_summoner_through_engine():
     assert stats["attack_speed_additional"]["total"] >= 0.06                     # +6% on top of any dual-wield add
 
 
+def test_origins_buff_summoner_through_engine():
+    """The four data-parsed origins (spirit_magus_origins.py): each slotted magus grants its summoner buff
+    at the equipped level's data value, emitted globally by the aggregator. L20 values from SS13 skill data."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+
+    def stats_for(sid, level=20, **extra):
+        return engine_stats(EngineStatsRequest(**make_request(sid, level, **extra))).get("stats", {})
+
+    s = stats_for("summon_fire_magus")
+    assert s["attack_crit_rating_flat"]["total"] == pytest.approx(115.0)     # +115 CSR @ L20 (58 @ L1)
+    assert s["spell_crit_rating_flat"]["total"] == pytest.approx(115.0)      # applies to BOTH sides
+    s = stats_for("summon_frost_magus")
+    assert s["life_regen_inc"]["total"] == pytest.approx(0.03825)            # 3.825%/s @ L20 (2.4 @ L1)
+    assert s["energy_shield_regen_pct"]["total"] == pytest.approx(0.03825)   # same % for Max ES
+    s = stats_for("summon_rock_magus")
+    assert s["hit_dmg_taken_additional"]["total"] == pytest.approx(-0.0805)  # −8.05% @ L20 (−5.2 @ L1)
+    s = stats_for("summon_erosion_magus")
+    assert s["dot_dmg_taken_additional"]["total"] == pytest.approx(-0.0915)  # −9.15% @ L20 (−6.3 @ L1)
+
+
+def test_origin_scaling_honors_data_level_caps():
+    """The data itself CAPS Rock/Erosion origins at L21 (-8.2% / -9.3%, flat through L40) while Fire keeps
+    scaling to L40 (+175). The per-level parse must track the data exactly — no extrapolation past a cap."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+
+    def stat_at(sid, level, key):
+        r = engine_stats(EngineStatsRequest(**make_request(sid, level)))
+        return r["stats"][key]["total"]
+
+    assert stat_at("summon_rock_magus", 21, "hit_dmg_taken_additional") == pytest.approx(-0.082)
+    assert stat_at("summon_rock_magus", 40, "hit_dmg_taken_additional") == pytest.approx(-0.082)   # capped
+    assert stat_at("summon_erosion_magus", 40, "dot_dmg_taken_additional") == pytest.approx(-0.093)  # capped
+    assert stat_at("summon_fire_magus", 40, "attack_crit_rating_flat") == pytest.approx(175.0)       # NOT capped
+
+
+def test_origin_effect_scales_and_rock_clamps_at_50():
+    """Origin of Spirit Magus Effect scales every origin's magnitude ((1+inc)×(1+additional)); Rock/Erosion
+    clamp at the printed 'up to −50%' AFTER scaling."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+    r = engine_stats(EngineStatsRequest(**make_request(
+        "summon_fire_magus", 20, custom_mods=["+50 % Origin of Spirit Magus effect"])))
+    assert r["stats"]["attack_crit_rating_flat"]["total"] == pytest.approx(172.5)   # 115 × 1.5
+    r = engine_stats(EngineStatsRequest(**make_request(
+        "summon_rock_magus", 20, custom_mods=["+1000 % Origin of Spirit Magus effect"])))
+    assert r["stats"]["hit_dmg_taken_additional"]["total"] == pytest.approx(-0.50)  # −88.55% → clamped −50%
+    r = engine_stats(EngineStatsRequest(**make_request(
+        "summon_erosion_magus", 20, custom_mods=["+1000 % Origin of Spirit Magus effect"])))
+    assert r["stats"]["dot_dmg_taken_additional"]["total"] == pytest.approx(-0.50)  # erosion clamps too
+
+
+def test_origin_summary_payload_shape():
+    """origin_summary carries PER-SKILL entries the foundation panel's GRANTS section renders verbatim:
+    global factor + per-magus {skill identity, origin name, per-origin factor, structured grants/added}."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+    sup = [{"item_id": "precise_superpower", "skill_type": "support_skill", "rank": 1, "level": 20, "slot": 1},
+           {"item_id": "summon_fire_magus_fire_ward_magnificent", "skill_type": "magnificent_support_skill",
+            "rank": 5, "level": 1, "slot": 1}]
+    r = engine_stats(EngineStatsRequest(**make_request("summon_fire_magus", 20, attached_supports=sup)))
+    o = r["origin_summary"]
+    assert o["factor"] == pytest.approx(1.0)                    # global pools empty — support share is per-origin
+    (sk,) = o["skills"]
+    assert sk["skill_id"] == "summon_fire_magus" and sk["slot"] == 1 and sk["level"] == 20
+    assert sk["origin_name"] == "Origin of Fire"
+    assert sk["factor"] == pytest.approx(1.52)                  # fire's own factor incl. Superpower @ L20
+    (g,) = sk["grants"]
+    assert g["label"] == "Attack and Spell Critical Strike Rating" and g["unit"] == "flat"
+    assert g["base"] == pytest.approx(115.0) and g["value"] == pytest.approx(174.8)   # 115 × 1.52
+    assert g["clamp"] is None                                    # fire doesn't clamp; rock/erosion carry -50
+    (a,) = sk["added"]
+    assert a["label"] == "Max Fire Resistance" and a["unit"] == "pct"
+    assert a["base"] == pytest.approx(1.5) and a["value"] == pytest.approx(1.5 * 1.52)
+    assert "Fire Ward" in a["support_name"]
+    # No magus slotted → no summary at all.
+    r2 = engine_stats(EngineStatsRequest(**make_request("berserking_blade", 14)))
+    assert r2.get("origin_summary") is None
+
+
+def test_magnificent_ward_adds_origin_effect_at_tier_midpoint():
+    """A magnificent added-origin support ('Origin ... gains an additional effect') emits its summoner-side
+    effect at the midpoint of its roll-TIER range (the support's `level` field is the 0-2 Tier control,
+    lower = better, per support_resolver's convention), scaled by Origin of Spirit Magus Effect."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+
+    def ward(tier):
+        return [{"item_id": "summon_fire_magus_fire_ward_magnificent",
+                 "skill_type": "magnificent_support_skill", "rank": 5, "level": tier, "slot": 1}]
+
+    r = engine_stats(EngineStatsRequest(**make_request("summon_fire_magus", 20, attached_supports=ward(1))))
+    base = r["stats"]["fire_resistance_max_inc"]["total"]
+    assert base == pytest.approx(0.015)                                      # tier 1 headline (1.4–1.6)% mid
+    r0 = engine_stats(EngineStatsRequest(**make_request("summon_fire_magus", 20, attached_supports=ward(0))))
+    assert r0["stats"]["fire_resistance_max_inc"]["total"] == pytest.approx(0.019)   # tier 0 best (1.8–2.0)% mid
+    r2 = engine_stats(EngineStatsRequest(**make_request("summon_fire_magus", 20, attached_supports=ward(1),
+                                                        custom_mods=["+50 % Origin of Spirit Magus effect"])))
+    assert r2["stats"]["fire_resistance_max_inc"]["total"] == pytest.approx(base * 1.5)
+    # Disabled support → no added effect.
+    r3 = engine_stats(EngineStatsRequest(**make_request("summon_fire_magus", 20,
+        attached_supports=[{**ward(1)[0], "enabled": False}])))
+    assert "fire_resistance_max_inc" not in r3["stats"]
+
+
+def test_scalar_origin_supports_scale_their_own_magus_only():
+    """Origin-effect scalar supports ('N% Origin of Spirit Magus effect for the supported skill') raise ONLY
+    their magus's factor via the increased pool; the Friend pair gates on distinct magus-type count."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+
+    def req(skills, supports):
+        base = make_request(skills[0][0], skills[0][1], attached_supports=supports)
+        base["skills"] = [{"slot": i + 1, "skill_id": s, "level": l} for i, (s, l) in enumerate(skills)]
+        return engine_stats(EngineStatsRequest(**base))
+
+    sup = [{"item_id": "precise_superpower", "skill_type": "support_skill", "rank": 1, "level": 20, "slot": 1}]
+    r = req([("summon_fire_magus", 20)], sup)
+    assert r["stats"]["attack_crit_rating_flat"]["total"] == pytest.approx(115.0 * 1.52)   # +52% @ support L20
+
+    supF = [{"item_id": "friend_of_spirit_magi", "skill_type": "support_skill", "rank": 1, "level": 20, "slot": 1}]
+    r1 = req([("summon_fire_magus", 20)], supF)
+    assert r1["stats"]["attack_crit_rating_flat"]["total"] == pytest.approx(115.0)         # <2 types → gated OFF
+    r2 = req([("summon_fire_magus", 20), ("summon_frost_magus", 20)], supF)
+    assert r2["stats"]["attack_crit_rating_flat"]["total"] == pytest.approx(115.0 * 1.55)  # 2 types → +55% @ L20
+    # Per-skill scope: the OTHER magus's origin is untouched by fire's support.
+    assert r2["stats"]["life_regen_inc"]["total"] == pytest.approx(0.03825)
+
+
 def test_unmodelled_minion_contributes_no_damage_through_engine():
     """The registry gate: with no bespoke module for Summon Fire Magus, the owner comes back as ONE NYI result
     (supported=false, 0 DPS) that still lists its abilities — surfaced, not silently dropped."""

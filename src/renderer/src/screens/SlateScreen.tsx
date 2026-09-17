@@ -7,6 +7,7 @@ import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
 import { summarizeSlateBonuses } from '../utils/slateBonusSummary'
+import { nextOrientationIndex } from './slateOrientation'
 
 // One selectable slate modifier option (its effects badged for engine support). Extracted so the
 // status hook isn't called inside the options .map().
@@ -189,7 +190,7 @@ function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationInd
 
 function getOrientationCount(kind: SlateKind): number {
   if (kind === 'base') return 4
-  return LEGENDARY_ORIENTATIONS[kind as LegendaryKind]?.length ?? 0
+  return orientationsFor(kind).length
 }
 
 function getCenterOffset(cells: [number, number][]): [number, number] {
@@ -472,7 +473,7 @@ interface CreatorSlot {
 }
 
 function initSlots(kind: SlateKind): CreatorSlot[] {
-  return (SLOT_CONFIG[kind]?.sections ?? []).flatMap(s =>
+  return slotSections(kind).flatMap(s =>
     Array.from({ length: s.count }, () => ({
       slotType: s.maxType, maxType: s.maxType,
       canBeCore: s.canBeCore ?? false, isCore: s.canBeCore ?? false,
@@ -483,7 +484,7 @@ function initSlots(kind: SlateKind): CreatorSlot[] {
 
 function getSections(kind: SlateKind): { label: string; indices: number[]; canBeCore: boolean }[] {
   let offset = 0
-  return (SLOT_CONFIG[kind]?.sections ?? []).map(s => {
+  return slotSections(kind).map(s => {
     const indices = Array.from({ length: s.count }, (_, i) => offset + i)
     offset += s.count
     return { label: s.label, indices, canBeCore: s.canBeCore ?? false }
@@ -598,10 +599,35 @@ function getPrairieModifiers(prairie: PlacedSlate, placed: PlacedSlate[]): strin
 
 const MOTH_DELTA: Record<MothDirection, [number, number]> = { above: [-1,0], below: [1,0], left: [0,-1], right: [0,1] }
 
+// ── Fallback-safe table lookups ─────────────────────────────────────────────────
+// Centralized so a stale/unknown `kind` (the 2026-08-02 slate-board crash class) degrades gracefully
+// in ONE place instead of repeating `TABLE[kind as LegendaryKind]?.x ?? fallback` at every call site.
+// A missing key optional-chains to the fallback, so the `as LegendaryKind` cast is safe.
+// `kind` is `string` (not SlateKind) because some callers pass a raw `creator.kind`; the internal
+// `as LegendaryKind` cast + optional chain is exactly what the inline call sites did.
+function legendaryColor(kind: string, fallback: string): string {
+  return LEGENDARY_META[kind as LegendaryKind]?.color ?? fallback
+}
+function legendaryLabel(kind: string, fallback = 'Slate'): string {
+  return LEGENDARY_META[kind as LegendaryKind]?.label ?? fallback
+}
+function orientationsFor(kind: string): [number, number][][] {
+  return LEGENDARY_ORIENTATIONS[kind as LegendaryKind] ?? []
+}
+function slotSections(kind: SlateKind): SectionDef[] {
+  return SLOT_CONFIG[kind]?.sections ?? []
+}
+function poolScopeFor(kind: SlateKind) {
+  return SLOT_CONFIG[kind]?.poolScope
+}
+function mothDelta(dir: MothDirection): [number, number] {
+  return MOTH_DELTA[dir] ?? [0, 0]
+}
+
 function getMothModifier(moth: PlacedSlate, placed: PlacedSlate[]): string | null {
   if (!moth.mothDirection) return null
   const [mr, mc] = moth.anchor
-  const [dr, dc] = MOTH_DELTA[moth.mothDirection] ?? [0, 0]
+  const [dr, dc] = mothDelta(moth.mothDirection)
   const target = placed.find(s => s.id !== moth.id && s.cells.some(([r, c]) => `${r},${c}` === `${mr + dr},${mc + dc}`))
   if (!target) return null
   const effects = getBottomEffects(target)
@@ -632,7 +658,7 @@ function copyMediumLines(slate: PlacedSlate, placed: PlacedSlate[], dirs: [numbe
 function slateCopyLines(slate: PlacedSlate, placed: PlacedSlate[]): string[] {
   if (slate.kind === 'spark_of_moth_fire') { const m = getMothModifier(slate, placed); return m ? [m] : [] }
   if (slate.kind === 'when_sparks_set_prairie_ablaze') return getPrairieModifiers(slate, placed)
-  if (slate.kind === 'space_rift') return slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection] ?? [0, 0]], true) : []
+  if (slate.kind === 'space_rift') return slate.mothDirection ? copyMediumLines(slate, placed, [mothDelta(slate.mothDirection)], true) : []
   if (slate.kind === 'residence_of_stars') return copyMediumLines(slate, placed, Object.values(MOTH_DELTA), false)
   return []
 }
@@ -796,7 +822,7 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
   const { kind, orientationIndex, shapeIndex, treeType } = creator
   const color = kind === 'base'
     ? (treeType ? treeColors[treeType] ?? '#888' : '#888')
-    : LEGENDARY_META[kind as LegendaryKind]?.color ?? '#888'
+    : legendaryColor(kind, '#888')
   const count = getOrientationCount(kind)
 
   const legLabel = (idx: number) => {
@@ -854,7 +880,7 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#666', marginBottom: 8 }}>
             {count > 1 ? 'Rotation' : 'Shape'}
           </div>
-          {(LEGENDARY_ORIENTATIONS[kind as LegendaryKind] ?? []).map((offsets, idx) => {
+          {orientationsFor(kind).map((offsets, idx) => {
             const active = idx === orientationIndex
             return (
               <button key={idx} onClick={() => onSelectOrientation(idx)} style={{
@@ -900,8 +926,8 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
   const mediumCopyLines = isMediumCopy ? slateCopyLines(slate, allPlaced) : []
   const color = slate.kind === 'base'
     ? (treeColors[slate.treeType ?? ''] ?? '#666')
-    : LEGENDARY_META[slate.kind as LegendaryKind]?.color ?? '#666'
-  const label = slate.kind === 'base' ? 'Base Slate' : LEGENDARY_META[slate.kind as LegendaryKind]?.label ?? 'Slate'
+    : legendaryColor(slate.kind, '#666')
+  const label = slate.kind === 'base' ? 'Base Slate' : legendaryLabel(slate.kind)
 
   const mothMod = isMoth ? getMothModifier(slate, allPlaced) : null
   const prairieMods = isPrairie ? getPrairieModifiers(slate, allPlaced) : []
@@ -991,11 +1017,21 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
 
 // Saved-slate thumbnail in the inventory grid: click to place, right-click to delete, hover for a floating
 // detail tooltip (built from the template — no placed instance, so no DPS delta).
-function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDuplicate }: {
+function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDuplicate, onRename }: {
   template: SlateTemplate; color: string; treeColors: Record<string, string>
   onPlace: () => void; onDelete: () => void; onDuplicate: () => void
+  onRename: (next: string) => void   // sets a DISPLAY label only (true kind name kept in the tooltip)
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const [renaming, setRenaming] = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
+  const commitRename = () => { onRename(renameDraft); setRenaming(false) }
+  const cornerBtn = (extra: React.CSSProperties): React.CSSProperties => ({
+    position: 'absolute', width: 18, height: 18, padding: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'var(--bg-surface)', color: 'var(--fg-muted)', border: `1px solid ${color}55`, borderRadius: 5,
+    fontSize: 11, cursor: 'pointer', lineHeight: 1, ...extra,
+  })
   const pseudo: PlacedSlate = {
     id: `tpl-${template.id}`, templateId: template.id, kind: template.kind as SlateKind, cells: [], anchor: [0, 0],
     orientationIndex: template.orientationIndex, shapeIndex: template.shapeIndex,
@@ -1005,23 +1041,30 @@ function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDupli
   }
   return (
     <>
-      <div {...tip.triggerProps} onClick={onPlace} onContextMenu={e => { e.preventDefault(); onDelete() }}
-        title="Click to place · right-click to delete"
-        style={{
-          position: 'relative', width: 62, height: 62, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
-        }}>
-        <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
-        <button
-          onClick={e => { e.stopPropagation(); onDuplicate() }}
-          title="Duplicate — tweak a copy and compare"
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 62 }}>
+        <div {...tip.triggerProps} onClick={onPlace} onContextMenu={e => { e.preventDefault(); onDelete() }}
+          title="Click to place · right-click to delete"
           style={{
-            position: 'absolute', top: -6, right: -6, width: 18, height: 18, padding: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg-surface)', color: 'var(--fg-muted)', border: `1px solid ${color}55`, borderRadius: 5,
-            fontSize: 11, cursor: 'pointer', lineHeight: 1,
-          }}
-        >⧉</button>
+            position: 'relative', width: 62, height: 62, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
+          }}>
+          <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
+          <button onClick={e => { e.stopPropagation(); setRenameDraft(template.displayName ?? ''); setRenaming(true) }}
+            title="Rename — set a display label" style={cornerBtn({ top: -6, left: -6 })}>✎</button>
+          <button onClick={e => { e.stopPropagation(); onDuplicate() }}
+            title="Duplicate — tweak a copy and compare" style={cornerBtn({ top: -6, right: -6 })}>⧉</button>
+        </div>
+        {renaming ? (
+          <input className="gear-build-rename-input" autoFocus value={renameDraft} placeholder="Label…"
+            style={{ width: 62, fontSize: 9, padding: '1px 3px' }}
+            onChange={e => setRenameDraft(e.target.value)} onBlur={commitRename}
+            onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false) }} />
+        ) : template.displayName ? (
+          <span title={template.displayName}
+            style={{ fontSize: 9, color: 'var(--fg-muted)', maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {template.displayName}
+          </span>
+        ) : null}
       </div>
       {tip.open && (
         <FloatingPortal>
@@ -1066,7 +1109,7 @@ function SlateOverview({ placed, hideHeading }: { placed: PlacedSlate[]; hideHea
     for (const slate of placed) {
       if (slate.kind === 'spark_of_moth_fire') { lines.push(...mothBottomLines(slate, placed)); continue }
       if (slate.kind === 'when_sparks_set_prairie_ablaze') { lines.push(...prairieBottomLines(slate, placed)); continue }
-      if (slate.kind === 'space_rift') { lines.push(...(slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection] ?? [0, 0]], true) : [])); continue }
+      if (slate.kind === 'space_rift') { lines.push(...(slate.mothDirection ? copyMediumLines(slate, placed, [mothDelta(slate.mothDirection)], true) : [])); continue }
       if (slate.kind === 'residence_of_stars') { lines.push(...copyMediumLines(slate, placed, Object.values(MOTH_DELTA), false)); continue }
       for (const s of slate.slots) {
         if (s.isCore && s.selectedCoreKey) {
@@ -1129,6 +1172,7 @@ export default function SlateScreen({ treeColors }: Props) {
   const setSlates = useBuildStore(s => s.setSlates)
   const slateInventory = useBuildStore(s => s.slateInventory)
   const setSlateInventory = useBuildStore(s => s.setSlateInventory)
+  const activeLoadoutId = useBuildStore(s => s.activeLoadoutId)
   const [placed, setPlaced] = useState<PlacedSlate[]>(
     () => (slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
@@ -1154,17 +1198,18 @@ export default function SlateScreen({ treeColors }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 
-  // Auto-keep every CONFIGURED slate in the build's inventory so it can be re-placed without rebuilding.
-  // Entries are keyed by the slate's STABLE templateId and UPSERTED — so editing a slate updates its single
-  // entry rather than spawning one per intermediate state. The slate currently being edited is skipped so its
-  // in-progress (intermediate) states aren't saved; it's upserted once editing ends / focus switches away.
+  // Auto-keep every placed slate in the build's inventory so it can be re-placed without rebuilding —
+  // INCLUDING slates with no modifiers yet (empty base slates, Corner of Divinity, and Moth/Prairie
+  // legendary slates that have no node slots at all). Entries are keyed by the slate's STABLE templateId
+  // and UPSERTED — so editing a slate updates its single entry rather than spawning one per intermediate
+  // state. Only the slate currently being edited is skipped so its in-progress states aren't saved; it's
+  // upserted once editing ends / focus switches away.
   useEffect(() => {
     const inv = useBuildStore.getState().slateInventory
     const byId = new Map(inv.map(t => [t.id, t]))
     let changed = false
     for (const sl of placed) {
       if (sl.id === editingSlateId) continue                                     // skip in-progress edits
-      if (!sl.slots.some(s => s.selectedNodeId || s.selectedCoreKey)) continue   // skip empty / Moth/Prairie
       const t = toTemplate(sl)
       const prev = byId.get(t.id)
       if (!prev || JSON.stringify(prev) !== JSON.stringify(t)) { byId.set(t.id, t); changed = true }
@@ -1172,6 +1217,16 @@ export default function SlateScreen({ treeColors }: Props) {
     if (changed) setSlateInventory([...byId.values()])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed, editingSlateId])
+
+  // Re-seed the local board when the active loadout changes. The `placed` initializer only runs on
+  // mount, so a loadout switch (which swaps store.slates) would otherwise leave the board showing the
+  // previous loadout until you navigate away and back. The store→local reseed here is followed by the
+  // local→store sync effect above finding them equal (no spurious dirty bump / loop).
+  useEffect(() => {
+    setPlaced((useBuildStore.getState().slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
+    setMode({ type: 'idle' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLoadoutId])
 
   useEffect(() => {
     const handler = () => setMode(prev => {
@@ -1200,7 +1255,7 @@ export default function SlateScreen({ treeColors }: Props) {
         if (!sameSession) {
           editSnapshot.current = { ...slate, slots: slate.slots.map(s => ({ ...s })), cells: slate.cells.map(c => [...c] as [number, number]) }
         }
-        const poolScope = SLOT_CONFIG[slate.kind]?.poolScope
+        const poolScope = poolScopeFor(slate.kind)
         const needsPoolLoad = !slate.pool && poolScope !== 'none'
         setMode({
           type: 'editing', slateId: slate.id, creator: {
@@ -1402,7 +1457,7 @@ export default function SlateScreen({ treeColors }: Props) {
           .then(pool => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
           .catch(() => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
       }, 0)
-    } else if (SLOT_CONFIG[kind]?.poolScope === 'all') {
+    } else if (poolScopeFor(kind) === 'all') {
       setTimeout(() => {
         setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
         api.getSlatePoolAll()
@@ -1416,7 +1471,7 @@ export default function SlateScreen({ treeColors }: Props) {
   // clicks the board to drop it (reuses the normal placement + ghost flow).
   function placeFromTemplate(t: SlateTemplate) {
     const kind = t.kind as SlateKind
-    const scope = SLOT_CONFIG[kind]?.poolScope
+    const scope = poolScopeFor(kind)
     const needsPool = (kind === 'base' && !!t.treeType) || scope === 'all'
     setMode({ type: 'creating', creator: {
       kind, shapeIndex: t.shapeIndex, treeType: (t.treeType as PrimaryTree) ?? null,
@@ -1447,6 +1502,14 @@ export default function SlateScreen({ treeColors }: Props) {
     setSlateInventory([...inv, copy])
   }
 
+  // Rename sets a DISPLAY label only (mirrors gear/hero-memory rename): strip control chars, cap 60, clear
+  // when empty. The true kind name stays in the tooltip; the label shows as a caption under the tile.
+  function renameTemplate(id: string, nextRaw: string) {
+    const next = nextRaw.replace(/\p{C}/gu, '').trim().slice(0, 60)
+    setSlateInventory(useBuildStore.getState().slateInventory.map(t =>
+      t.id === id ? { ...t, displayName: next || undefined } : t))
+  }
+
   function updateSlot(idx: number, patch: Partial<CreatorSlot>) {
     if (!creator) return
     updateCreator({ slots: creator.slots.map((s, i) => i === idx ? { ...s, ...patch } : s) })
@@ -1474,7 +1537,10 @@ export default function SlateScreen({ treeColors }: Props) {
 
   function handleRotate() {
     if (!creator) return
-    updateCreator({ orientationIndex: (creator.orientationIndex + 1) % getOrientationCount(creator.kind) })
+    // nextOrientationIndex is a no-op when getOrientationCount() returns < 2 (e.g. 0 for an unrecognized
+    // kind), so a `% 0` NaN can never corrupt orientationIndex even if the Rotate button's `count > 1`
+    // gate is ever relaxed.
+    updateCreator({ orientationIndex: nextOrientationIndex(creator.orientationIndex, getOrientationCount(creator.kind)) })
   }
 
   // ── Board interactions ──────────────────────────────────────────────────────
@@ -1551,13 +1617,13 @@ export default function SlateScreen({ treeColors }: Props) {
     const { kind, treeType, slots, pool, poolLoading, openPicker, pickerSearch, mothDirection } = creator
     const accentColor = kind === 'base'
       ? (treeType ? treeColors[treeType] ?? '#888' : '#888')
-      : LEGENDARY_META[kind as LegendaryKind]?.color ?? '#888'
+      : legendaryColor(kind, '#888')
     const sections = getSections(kind)
     const showDividers = kind === 'base'
     // "Add to Inventory" is available while CREATING once the slate is meaningfully configured (≥1 modifier slot
     // filled, or a copy-type slate which has no slots). Editing slates are already auto-saved to the inventory.
     const canSaveToInventory = slots.some(s => s.selectedNodeId || s.selectedCoreKey)
-      || SLOT_CONFIG[kind]?.poolScope === 'none'
+      || poolScopeFor(kind) === 'none'
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onClick={e => e.stopPropagation()}>
@@ -1595,7 +1661,7 @@ export default function SlateScreen({ treeColors }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
           <SlateIcon kind={kind} treeType={treeType} shapeIndex={creator.shapeIndex} size={28} />
           <span style={{ fontSize: 17, fontWeight: 700, color: kind === 'base' ? '#ccc' : accentColor }}>
-            {kind === 'base' ? 'Base Slate' : LEGENDARY_META[kind as LegendaryKind]?.label ?? 'Slate'}
+            {kind === 'base' ? 'Base Slate' : legendaryLabel(kind)}
           </span>
           {mode.type === 'creating' && (
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#666' }}>Click the board to place</span>
@@ -1770,10 +1836,11 @@ export default function SlateScreen({ treeColors }: Props) {
               {slateInventory.map(t => {
                 const color = t.kind === 'base'
                   ? (treeColors[t.treeType ?? ''] ?? '#666')
-                  : LEGENDARY_META[t.kind as LegendaryKind]?.color ?? '#666'
+                  : legendaryColor(t.kind, '#666')
                 return (
                   <InventoryTile key={t.id} template={t} color={color} treeColors={treeColors}
-                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} onDuplicate={() => duplicateTemplate(t.id)} />
+                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} onDuplicate={() => duplicateTemplate(t.id)}
+                    onRename={(next) => renameTemplate(t.id, next)} />
                 )
               })}
             </div>
@@ -1792,10 +1859,10 @@ export default function SlateScreen({ treeColors }: Props) {
 
   const ghostColor = creator
     ? (creator.kind === 'base' && creator.treeType ? treeColors[creator.treeType] ?? '#888'
-        : creator.kind !== 'base' ? LEGENDARY_META[creator.kind as LegendaryKind]?.color ?? '#888' : '#888')
+        : creator.kind !== 'base' ? legendaryColor(creator.kind, '#888') : '#888')
     : dragSlate
       ? (dragSlate.slate.kind === 'base' ? treeColors[dragSlate.slate.treeType ?? ''] ?? '#888'
-          : LEGENDARY_META[dragSlate.slate.kind as LegendaryKind]?.color ?? '#888')
+          : legendaryColor(dragSlate.slate.kind, '#888'))
       : '#888'
 
   return (
@@ -1886,7 +1953,7 @@ export default function SlateScreen({ treeColors }: Props) {
                 const isConflicted = conflictedCells.has(key)
                 const isGhostValid = ghostValidCells.has(key)
                 const sColor = slate
-                  ? (slate.kind === 'base' ? treeColors[slate.treeType ?? ''] ?? '#666' : LEGENDARY_META[slate.kind as LegendaryKind]?.color ?? '#666')
+                  ? (slate.kind === 'base' ? treeColors[slate.treeType ?? ''] ?? '#666' : legendaryColor(slate.kind, '#666'))
                   : null
                 const isSelected = slate?.id === editingSlateId
 

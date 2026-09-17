@@ -78,11 +78,18 @@ def _dedupe(seq):
 
 
 def _split_dnr_penalty(modifier: str) -> tuple[str, str]:
-    """Return (penalty, short_name) for a do-not-replace affix; penalty = text before 'Mutated'."""
+    """Return (penalty, short_name) for a do-not-replace affix; penalty = text before 'Mutated'.
+
+    The affix adds a bracket-named talent, e.g. '…current Talent Panel: [One For All] Gains …'. That bracketed
+    talent name IS the prism's short_name ('One For All'), which is how the editor keys `do_not_replace`. Key on
+    it — NOT the full tail after the colon (that tail includes the effect text and matches no prism short_name,
+    which is why do-not-replace options never appeared in the editor for any prism)."""
     idx = modifier.find("Mutated")
     penalty = modifier[:idx].strip() if idx >= 0 else ""
     m = _DNR_NAME_RE.search(modifier)
-    name = m.group(1).strip() if m else ""
+    tail = m.group(1).strip() if m else ""
+    bracket = re.search(r"\[([^\]]+)\]", tail)
+    name = bracket.group(1).strip() if bracket else tail
     return penalty, name
 
 

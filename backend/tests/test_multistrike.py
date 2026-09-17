@@ -3,7 +3,9 @@
 Model (Tyra-validated vs in-game: base 352 → 618 over a 5-min dummy test = ×1.755, plus a throughput test of
 ~1.92 attacks/sec = the multistrike rate 1.935, confirming the +20% buff persists across all attacks):
   multiplier = E[chain damage] / (chain time × sps) = s × E[f(L)] / (1 + chance)
-where f(L) = L + inc·(init·L + L(L-1)/2) (+ Cat-Dive boost), inc = base × (1 + additional), and s = the +20%
+where f(L) = Σ_{n=1..L} (1 + inc·stacks(n)), stacks(n) = (1−q)·min(init + n−1, L−1) + q·(L−1). Increment stacks
+are CAPPED at the realized chain's Max Multistrike Count L−1 (bug-263); init pre-stacks the ramp but can't push a
+hit past the cap; q is the Cat-Dive proc (lift the hit to the cap). inc = base × (1 + additional), s = the +20%
 INCREASED attack-speed factor applied to every attack. Worked example (1.16 chance, 0.82 increment, no other
 AS → s=1.20): ×1.8013.
 """
@@ -46,12 +48,20 @@ def test_multiplier_scales_total_dps():
     assert base["multistrike_mult"] == 1.0                                # no chance → no multistrike
 
 
-def test_initial_count_prestacks_without_extra_attacks():
+def test_initial_count_prestacks_but_caps_at_max_multistrike_count():
+    # Initial Multistrike Count pre-stacks the increment ramp, but each hit's stacks are CAPPED at the realized
+    # chain's Max Multistrike Count = L−1 (help_db "multistrike"; owner-confirmed 2026-08-18: bug-263). chance 1.16
+    # (G=1, p=0.16), inc 0.27, s=1.20. With +2 Initial Count the length-2 chain (cap 1) has both hits at 1 stack
+    # (2.54) and the length-3 chain (cap 2) all three at 2 stacks (4.62): e_chain = 0.84·2.54 + 0.16·4.62 = 2.8728,
+    # mult = 2.8728/1.8 = 1.596 — up from 1.398, a modest +14%. NOT the uncapped +54% the old (buggy) model gave,
+    # because the cap clamps the tail hits instead of letting them ramp past the chain's max count.
     a = _off(sups=MS_SUP)
     b = _off(gear=_gear(initial_multistrike_count_flat=2), sups=MS_SUP)
     assert b["multistrike_chance"] == a["multistrike_chance"]             # no extra attacks
     assert b["multistrike_max_count"] == a["multistrike_max_count"]
-    assert b["multistrike_mult"] > a["multistrike_mult"] * 1.3            # pre-stacked increment → big jump
+    assert a["multistrike_mult"] == pytest.approx(1.398, rel=0.005)
+    assert b["multistrike_mult"] == pytest.approx(1.596, rel=0.005)       # pre-stack helps, but capped at L−1
+    assert b["multistrike_mult"] > a["multistrike_mult"]                  # still a net gain
 
 
 def test_additional_increment_multiplies_base():
@@ -68,6 +78,18 @@ def test_cat_dive_max_count_proc_raises_mult():
     b = _off(gear=_gear(multistrike_max_count_proc_chance=0.5), sups=MS_SUP)
     assert a["multistrike_mult"] == pytest.approx(1.398, rel=0.005)
     assert b["multistrike_mult"] == pytest.approx(1.497, rel=0.005)       # realized-L Cat Dive boost
+
+
+def test_cat_dive_proc_over_100pct_clamps_to_cap():
+    # multistrike_max_count_proc_chance is a CHANCE — at q ≥ 100% every hit is guaranteed to deal at the chain's
+    # max count (L−1 stacks), and it must NOT overshoot the cap. q=1.0 and q=3.0 both pin every hit to the cap, so
+    # they produce the identical mult (a guaranteed proc, clamped). chance 1.16, inc 0.27, s=1.20: every hit at
+    # cap → f(2)=1+(1+0.27)=2.27→ both hits at 1 stack = 2·1.27 = 2.54; f(3)=3 hits at 2 stacks = 3·1.54 = 4.62;
+    # e=0.84·2.54+0.16·4.62=2.8728, mult=2.8728/1.8=1.596.
+    g1 = _off(gear=_gear(multistrike_max_count_proc_chance=1.0), sups=MS_SUP)
+    g3 = _off(gear=_gear(multistrike_max_count_proc_chance=3.0), sups=MS_SUP)
+    assert g1["multistrike_mult"] == pytest.approx(1.596, rel=0.005)      # guaranteed proc → every hit at cap
+    assert g3["multistrike_mult"] == pytest.approx(g1["multistrike_mult"], rel=1e-6)   # q>1 clamped, no overshoot
 
 
 def test_sub_100_chance_does_not_speed_non_multistrike_swings():

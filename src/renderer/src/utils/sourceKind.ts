@@ -16,6 +16,7 @@ const LABELS: Record<string, string> = {
   hero_memory: 'Memory',
   hero_trait: 'Hero Trait',
   condition: 'Condition',
+  warcry: 'Warcry',
 }
 
 // Gear (rarity/legendary via gearQualityColor) and Tree (per-tree branch color) are resolved per-row at the
@@ -33,6 +34,7 @@ const COLORS: Record<string, string> = {
   Memory: '#6fc0b0',    // teal
   'Hero Trait': '#d0a860', // amber
   Condition: '#c08060', // brown
+  Warcry: '#d88b3d',    // orange
 }
 
 export function sourceKindLabel(sourceType: string | undefined | null): string {

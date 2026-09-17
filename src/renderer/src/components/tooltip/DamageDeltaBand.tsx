@@ -52,7 +52,7 @@ export function DamageDeltaBand({ delta, label = 'Damage' }: { delta: DamageDelt
       return (
         <div className="tooltip-delta tooltip-delta--loss">
           <span>{label}</span>
-          <span>error</span>
+          <span title={delta.message}>Calculation error</span>
         </div>
       )
   }

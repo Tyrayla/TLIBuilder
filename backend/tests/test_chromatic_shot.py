@@ -342,3 +342,48 @@ def test_ss13_lightchaser_forces_all_projectiles_despite_user_cap():
               conds={"chromatic_shots_on_target": 4}, supports=_sup(LC))
     assert capped["hit_forms"][0]["hits_per_fire"] == 4      # user-capped
     assert lc["hit_forms"][0]["hits_per_fire"] == 9           # homing forces all to land
+
+
+# ── Granted Tags feed +<Tag> Skill Level (owner-ruled 2026-08-10) ──────────────────────────────────────
+CONDENSED_FIRE_SUP = "chromatic_shot_condensed_fire_noble"
+
+
+def test_ss13_condensed_granted_tag_enables_element_skill_level():
+    """"The supported skill gains the Fire Tag" (Condensed Fire) makes +Fire Skill Level gear apply —
+    owner-ruled 2026-08-10. +5 Fire Skill Level at max level 20 → above-max ×1.10^5 on the whole output,
+    exactly matching what +5 physical_skill_level (a native tag) does. Off-element levels stay inert."""
+    b = _off(season="SS13", supports=_sup(CONDENSED_FIRE_SUP))["total_dps"]
+    fire = _off(season="SS13", supports=_sup(CONDENSED_FIRE_SUP),
+                gear=[_flat_item("R", [("fire_skill_level", 5)])])["total_dps"]
+    cold = _off(season="SS13", supports=_sup(CONDENSED_FIRE_SUP),
+                gear=[_flat_item("R", [("cold_skill_level", 5)])])["total_dps"]
+    assert fire / b == pytest.approx(1.10 ** 5)
+    assert cold == pytest.approx(b)
+    # Display parity: the skill-slot summary's effective level reflects the granted tag too.
+    r = _resp(season="SS13", supports=_sup(CONDENSED_FIRE_SUP),
+              gear=[_flat_item("R", [("fire_skill_level", 5)])])
+    slot1 = next(s for s in r["skill_slots"] if s["slot"] == 1)
+    assert slot1["effective_level"] == 25
+
+
+def test_ss13_no_support_fire_skill_level_still_inert():
+    """Without the granted tag, +Fire Skill Level stays inert on the plain-Physical SS13 Chromatic Shot."""
+    b = _off(season="SS13")["total_dps"]
+    fire = _off(season="SS13", gear=[_flat_item("R", [("fire_skill_level", 5)])])["total_dps"]
+    assert fire == pytest.approx(b)
+
+
+def test_moon_strike_damage_only_pseudo_tag_does_not_enable_spell_skill_level():
+    """Moon Strike's extra_damage_mod_tags=['spell'] is DAMAGE-POOL-ONLY (its field contract) — it must NOT
+    enable spell_skill_level. Pins the boundary of the granted-tag skill-level rule: only add_mod_tags
+    (real granted Tags) count, never the damage-mod pseudo-tags."""
+    with _pinned_season("SS13"):
+        req0 = make_request("moon_strike", 20)
+        req1 = make_request("moon_strike", 20, gear=[_flat_item("R", [("spell_skill_level", 5)])])
+        r0 = engine_stats(EngineStatsRequest(**req0))
+        r1 = engine_stats(EngineStatsRequest(**req1))
+        r0 = r0 if isinstance(r0, dict) else r0.model_dump()
+        r1 = r1 if isinstance(r1, dict) else r1.model_dump()
+    s0 = next(s for s in r0["skill_slots"] if s["slot"] == 1)
+    s1 = next(s for s in r1["skill_slots"] if s["slot"] == 1)
+    assert s0["effective_level"] == s1["effective_level"] == 20
