@@ -317,6 +317,12 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.396,
     "crit_chance_uncapped": 0.396,
+    "crit_dmg_keys": [
+      "crit_dmg_additional",
+      "crit_dmg_inc",
+      "attack_crit_dmg_inc",
+      "physical_crit_dmg_inc"
+    ],
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "damage_rows": [
@@ -441,8 +447,76 @@
       "lightning": 10.0,
       "physical": 578.0
     },
+    "flat_max_keys": {
+      "cold": [
+        "cold_dmg_gear_flat_max",
+        "cold_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "erosion": [
+        "erosion_dmg_gear_flat_max",
+        "erosion_attack_dmg_flat_max"
+      ],
+      "fire": [
+        "fire_dmg_gear_flat_max",
+        "fire_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "lightning": [
+        "lightning_dmg_gear_flat_max",
+        "lightning_attack_dmg_flat_max",
+        "elemental_dmg_gear_flat_max"
+      ],
+      "physical": [
+        "physical_dmg_gear_flat_max",
+        "physical_attack_dmg_flat_max"
+      ]
+    },
+    "flat_min_keys": {
+      "cold": [
+        "cold_dmg_gear_flat_min",
+        "cold_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "erosion": [
+        "erosion_dmg_gear_flat_min",
+        "erosion_attack_dmg_flat_min"
+      ],
+      "fire": [
+        "fire_dmg_gear_flat_min",
+        "fire_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "lightning": [
+        "lightning_dmg_gear_flat_min",
+        "lightning_attack_dmg_flat_min",
+        "elemental_dmg_gear_flat_min"
+      ],
+      "physical": [
+        "physical_dmg_gear_flat_min",
+        "physical_attack_dmg_flat_min"
+      ]
+    },
     "generic_add": 17.34698296047972,
+    "generic_add_keys": [
+      "hit_dmg_additional",
+      "dmg_additional",
+      "dmg_max_additional",
+      "dmg_min_additional",
+      "attack_dmg_additional",
+      "melee_dmg_additional",
+      "area_dmg_additional",
+      "demolisher_consume_dmg_additional",
+      "at_center_dmg_additional"
+    ],
     "generic_inc": 0,
+    "generic_inc_keys": [
+      "dmg_inc",
+      "attack_dmg_inc",
+      "shield_dmg_inc",
+      "melee_dmg_inc",
+      "area_dmg_inc"
+    ],
     "hit_forms": [
       {
         "avg_hit_pre_crit": 42894.46935970397,
@@ -473,6 +547,7 @@
         "name": "Primary Fissure",
         "nyi": [],
         "proc_chance": 1.0,
+        "proc_stat_key": null,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       },
@@ -505,11 +580,11 @@
         "name": "Fissure Ticks (Frequent Quake)",
         "nyi": [],
         "proc_chance": 1.0,
+        "proc_stat_key": null,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
     ],
-    "intrinsic_additional_sources": [],
     "jumps": 0,
     "jumps_base": 0,
     "level_summary": {
@@ -596,6 +671,7 @@
     "spirit_magi_max": 0,
     "spirit_magi_physique_inc": 0.0,
     "spirit_magi_stage": 0,
+    "steep_strike_additional_dmg": 0.0,
     "steep_strike_chance": 0.0,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -622,10 +698,80 @@
       "lightning": 22.941384965234434,
       "physical": 17.34698296047972
     },
+    "type_add_keys": {
+      "fire": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "fire_dmg_additional",
+        "elemental_dmg_additional",
+        "demolisher_consume_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "lightning": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "lightning_dmg_additional",
+        "elemental_dmg_additional",
+        "demolisher_consume_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "physical": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "physical_dmg_additional",
+        "physical_dmg_min_additional",
+        "physical_dmg_max_additional",
+        "demolisher_consume_dmg_additional",
+        "at_center_dmg_additional"
+      ]
+    },
     "type_inc": {
       "fire": 0,
       "lightning": 0,
       "physical": 0
+    },
+    "type_inc_keys": {
+      "fire": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "fire_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "lightning": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "lightning_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "physical": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc",
+        "physical_dmg_inc"
+      ]
     },
     "weapon_aps_gear": 0,
     "weapon_aps_mh": 0,
@@ -665,6 +811,12 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.396,
       "crit_chance_uncapped": 0.396,
+      "crit_dmg_keys": [
+        "crit_dmg_additional",
+        "crit_dmg_inc",
+        "attack_crit_dmg_inc",
+        "physical_crit_dmg_inc"
+      ],
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
       "damage_rows": [
@@ -789,8 +941,76 @@
         "lightning": 10.0,
         "physical": 578.0
       },
+      "flat_max_keys": {
+        "cold": [
+          "cold_dmg_gear_flat_max",
+          "cold_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "erosion": [
+          "erosion_dmg_gear_flat_max",
+          "erosion_attack_dmg_flat_max"
+        ],
+        "fire": [
+          "fire_dmg_gear_flat_max",
+          "fire_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "lightning": [
+          "lightning_dmg_gear_flat_max",
+          "lightning_attack_dmg_flat_max",
+          "elemental_dmg_gear_flat_max"
+        ],
+        "physical": [
+          "physical_dmg_gear_flat_max",
+          "physical_attack_dmg_flat_max"
+        ]
+      },
+      "flat_min_keys": {
+        "cold": [
+          "cold_dmg_gear_flat_min",
+          "cold_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "erosion": [
+          "erosion_dmg_gear_flat_min",
+          "erosion_attack_dmg_flat_min"
+        ],
+        "fire": [
+          "fire_dmg_gear_flat_min",
+          "fire_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "lightning": [
+          "lightning_dmg_gear_flat_min",
+          "lightning_attack_dmg_flat_min",
+          "elemental_dmg_gear_flat_min"
+        ],
+        "physical": [
+          "physical_dmg_gear_flat_min",
+          "physical_attack_dmg_flat_min"
+        ]
+      },
       "generic_add": 17.34698296047972,
+      "generic_add_keys": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "attack_dmg_additional",
+        "melee_dmg_additional",
+        "area_dmg_additional",
+        "demolisher_consume_dmg_additional",
+        "at_center_dmg_additional"
+      ],
       "generic_inc": 0,
+      "generic_inc_keys": [
+        "dmg_inc",
+        "attack_dmg_inc",
+        "shield_dmg_inc",
+        "melee_dmg_inc",
+        "area_dmg_inc"
+      ],
       "hit_forms": [
         {
           "avg_hit_pre_crit": 42894.46935970397,
@@ -821,6 +1041,7 @@
           "name": "Primary Fissure",
           "nyi": [],
           "proc_chance": 1.0,
+          "proc_stat_key": null,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         },
@@ -853,11 +1074,11 @@
           "name": "Fissure Ticks (Frequent Quake)",
           "nyi": [],
           "proc_chance": 1.0,
+          "proc_stat_key": null,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         }
       ],
-      "intrinsic_additional_sources": [],
       "jumps": 0,
       "jumps_base": 0,
       "level_summary": {
@@ -944,6 +1165,7 @@
       "spirit_magi_max": 0,
       "spirit_magi_physique_inc": 0.0,
       "spirit_magi_stage": 0,
+      "steep_strike_additional_dmg": 0.0,
       "steep_strike_chance": 0.0,
       "supported": true,
       "tangle_attach_range": 0.0,
@@ -970,10 +1192,80 @@
         "lightning": 22.941384965234434,
         "physical": 17.34698296047972
       },
+      "type_add_keys": {
+        "fire": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "fire_dmg_additional",
+          "elemental_dmg_additional",
+          "demolisher_consume_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "lightning": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "lightning_dmg_additional",
+          "elemental_dmg_additional",
+          "demolisher_consume_dmg_additional",
+          "at_center_dmg_additional"
+        ],
+        "physical": [
+          "hit_dmg_additional",
+          "dmg_additional",
+          "dmg_max_additional",
+          "dmg_min_additional",
+          "attack_dmg_additional",
+          "melee_dmg_additional",
+          "area_dmg_additional",
+          "physical_dmg_additional",
+          "physical_dmg_min_additional",
+          "physical_dmg_max_additional",
+          "demolisher_consume_dmg_additional",
+          "at_center_dmg_additional"
+        ]
+      },
       "type_inc": {
         "fire": 0,
         "lightning": 0,
         "physical": 0
+      },
+      "type_inc_keys": {
+        "fire": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "fire_dmg_inc",
+          "elemental_dmg_inc"
+        ],
+        "lightning": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "lightning_dmg_inc",
+          "elemental_dmg_inc"
+        ],
+        "physical": [
+          "dmg_inc",
+          "attack_dmg_inc",
+          "shield_dmg_inc",
+          "melee_dmg_inc",
+          "area_dmg_inc",
+          "physical_dmg_inc"
+        ]
       },
       "weapon_aps_gear": 0,
       "weapon_aps_mh": 0,

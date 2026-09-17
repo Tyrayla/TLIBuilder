@@ -3,6 +3,7 @@
 // `api` object can expose them, and getShareBase is re-exported below so existing
 // `import { getShareBase } from './client'` callers keep working.
 import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
+import type { SharePreview } from './share'
 import { dec } from '../utils/num'
 import { errorFromResponse, normalizeError, TliError, type TliErrorCode } from '../errors/tliError'
 
@@ -10,6 +11,7 @@ let BASE = ''
 let ipcMode = false
 export function getApiBase(): string { return BASE }
 export { getShareBase }
+export type { SharePreview }
 
 // True in the hosted web build (no Electron preload bridge). Desktop-only UI (auto-update, release channel) hides
 // when this is set — the web app updates by redeploy + refresh, not electron-updater.
@@ -855,6 +857,10 @@ export interface HitFormResult {
   // Non-empty → this form is NOT-YET-IMPLEMENTED (0 DPS, excluded from % of Total); the strings are the reasons.
   // Surfaces a minion's non-damage abilities (Empower buffs / locked Ultimates) as visible, selectable forms.
   nyi?: string[]
+  // Stable identifier for "which form is this" (e.g. "steep_strike_chance") — matches a form-scoped
+  // multiplier on OffenseResult (e.g. steep_strike_additional_dmg) to the ONE form it applies to, without
+  // string-matching on `name` (parsed from in-game text, not a stable key). null/undefined = no proc key.
+  proc_stat_key?: string | null
 }
 
 // One row of the engine-owned breakdown table (backend/engine/offense.py DamageRow) - the reconciliation
@@ -884,6 +890,11 @@ export interface OffenseResult {
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
   level_summary?: LevelSummary | null
+  // Per-stat breakdown built off THIS result's own materialized source, set only when it diverges from
+  // the player's global stat map (currently: Seething Spirit's clone — see compute.py's
+  // `_source_log_stat_map`). Breakdown panels prefer this over the shared BreakdownCtx statMap when
+  // present, so a divergent pool (e.g. Spirit's dmg_additional) never shows the wrong source rows.
+  stat_map?: Record<string, StatEntry> | null
   hit_forms: HitFormResult[]
   crit_chance: number            // effective (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
   crit_chance_uncapped?: number  // true chance from rating (may exceed 1.0) — display-only, surfaces over-cap
@@ -894,6 +905,11 @@ export interface OffenseResult {
   quad_dmg_chance?: number
   double_dmg_factor?: number       // expected-value damage multiplier folded into DPS (1.0 = none)
   steep_strike_chance: number
+  // Additional Steep Strike Damage (e.g. Berserking Blade Rampage's skill-area share) — a FORM-SCOPED
+  // multiplier, NOT folded into generic_add/type_add (it applies only to the form whose proc_stat_key is
+  // "steep_strike_chance", never the skill's other forms). Fraction (0.15 = +15%); 0 when the skill has no
+  // steep-strike form.
+  steep_strike_additional_dmg?: number
   skills_per_second: number
   base_cast_time: number
   total_dps: number
@@ -1054,6 +1070,11 @@ export interface OffenseResult {
   base_csr: number
   flat_dmg_min: Record<string, number>
   flat_dmg_max: Record<string, number>
+  // Which stat keys actually feed flat_dmg_min/max for THIS skill, per dtype — a true spell reads only
+  // {dtype}_spell_dmg_flat_*; an attack reads {dtype}_dmg_gear_flat_* (+ attack/spell/elemental additions).
+  // Weapon base never applies to a true spell — see offense.py's OffenseResult.flat_min_keys comment.
+  flat_min_keys?: Record<string, string[]>
+  flat_max_keys?: Record<string, string[]>
   base_dmg_min: Record<string, number>
   base_dmg_max: Record<string, number>
   type_inc: Record<string, number>
@@ -1063,9 +1084,19 @@ export interface OffenseResult {
   generic_add: number          // INCLUDES the main-stat Damage Bonus below
   main_stat_damage_bonus: number  // fraction (0.255 = +25.5%) from the skill's main-stat attributes
   main_stats: string[]            // attributes summed (e.g. ['dexterity','intelligence'])
-  // Skill-intrinsic 'additional damage' pool ({label, amount fraction}) folded into generic_add via
-  // intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus). Shown in the Total Additional panel.
-  intrinsic_additional_sources?: Array<{ label: string; amount: number }>
+  // The EXACT stat keys eligible for generic_inc/generic_add/type_inc/type_add/crit_dmg on THIS
+  // skill/build — filtered engine-side by the SAME tag-gate predicates that computed those values, so a
+  // breakdown panel built from these can never show/omit a source the engine didn't actually use. Prefer
+  // these over any hand-written key list (mirrors the enemy_vuln_sources_by_type precedent).
+  generic_inc_keys?: string[]
+  generic_add_keys?: string[]
+  type_inc_keys?: Record<string, string[]>
+  type_add_keys?: Record<string, string[]>
+  crit_dmg_keys?: string[]
+  // A skill's own intrinsic 'additional damage' mechanic (Focused Slash's Fervor bonus, Rapid Advance's
+  // per-Max-Channeled-Stack bonus, …) is no longer a separate side-channel field — the engine now tracks
+  // it as a real dmg_additional SourceEntry, so it shows up natively via stat_map/the Total Additional
+  // breakdown's normal source rows, same as any other additional-damage source.
   skill_tags: string[]
   skill_area_inc: number
 }
@@ -1572,10 +1603,6 @@ export interface TargetStats {
   // Raw penetration totals (fractions; reduction deltas).
   pen?: { armor: number; all_resistance_reduction: number; elemental: number;
           fire: number; cold: number; lightning: number; erosion: number }
-  // Per-stat penetration source breakdown (incl. skill-scoped pens absent from the global stat_map), keyed by
-  // the pen stat (e.g. "armor_pen"). amount is a fraction (0.225 = 22.5% pen from that source).
-  pen_sources?: Record<string, { source_type: string; label: string; text?: string;
-                                  source_name?: string; amount: number }[]>
 }
 
 export interface NumbedInfo {

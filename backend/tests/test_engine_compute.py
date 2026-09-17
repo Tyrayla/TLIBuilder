@@ -8,7 +8,10 @@ from engine.models import BuildSource
 from engine.compute import (
     _derive_views, _clamp_and_rederive,
     derive_condition_maximums, derive_condition_minimums,
+    _intrinsic_additional_entries, _track_skill_intrinsic_additional,
 )
+from engine.offense import calculate_offense
+from engine.skill_resolver import ResolvedSkill, SkillHitForm, IntrinsicAdditional
 from models.conditions import ConditionDef
 
 
@@ -150,3 +153,48 @@ class TestConditionMinimums:
         monkeypatch.setattr("models.conditions.ALL_CONDITIONS",
                             [_cond("c", value_type="numeric")])
         assert "c" not in derive_condition_minimums(_src())
+
+
+class TestIntrinsicAdditionalMultiEntry:
+    """No current skill has two simultaneous `IntrinsicAdditional` entries (Focused Slash/Moon
+    Strike/Howling Gale/Mind Control/Path of Flames each have exactly one) — but the engine must still get
+    it right if one ever does, since `_build_additional_factors` pools `dmg_additional` entries by TEXT
+    identity: two entries sharing the same text would incorrectly SUM (same-identity rule) instead of
+    MULTIPLY (distinct-source rule) — silently wrong, not an error. `_intrinsic_additional_entries` guards
+    this by folding `rating_key` into the text whenever `label` is left blank (every current skill leaves
+    it blank) — see its own docstring."""
+
+    class _FakeSkill:
+        name = "Test Skill"
+        intrinsic_additional = [
+            IntrinsicAdditional(per=0.10, rating_key="fake_rating_a", rating_source="condition"),
+            IntrinsicAdditional(per=0.20, rating_key="fake_rating_b", rating_source="condition"),
+        ]
+
+    def test_entries_get_distinct_text(self):
+        cond = {"fake_rating_a": 1.0, "fake_rating_b": 1.0}
+        entries = _intrinsic_additional_entries(self._FakeSkill(), BuildSource(), cond)
+        assert len(entries) == 2
+        assert entries[0]["amount"] == pytest.approx(0.10)
+        assert entries[1]["amount"] == pytest.approx(0.20)
+        assert entries[0]["text"] != entries[1]["text"]
+
+    def test_two_tracked_entries_multiply_not_sum(self):
+        cond = {"fake_rating_a": 1.0, "fake_rating_b": 1.0}
+        source = BuildSource()
+        source.add("weapon_attack_speed", 1.0)
+        source.add("physical_attack_dmg_flat_min", 100.0)
+        source.add("physical_attack_dmg_flat_max", 100.0)
+        slot = 1
+        eff = source.materialize_for_skill(set(), slot)
+        _track_skill_intrinsic_additional(source, eff, self._FakeSkill(), slot, cond, set())
+        # Re-materialize — add_slotted lands in slot_entries, not source_log, so the CALLER's `eff` needs a
+        # fresh materialize to see it (see _track_skill_intrinsic_additional's own docstring for why).
+        eff = source.materialize_for_skill(set(), slot)
+        skill = ResolvedSkill("t", "T", ["attack"], 1,
+                              {1: [SkillHitForm("Hit", 100.0, "additive", None)]}, supported=True)
+        r = calculate_offense(eff, skill, 1)
+        # MULTIPLY (distinct sources): (1 + 0.10) * (1 + 0.20) = 1.32 -- NOT summed-then-added: 1 + 0.10 +
+        # 0.20 = 1.30.
+        assert r.generic_add == pytest.approx(1.10 * 1.20)
+        assert r.generic_add != pytest.approx(1.30)

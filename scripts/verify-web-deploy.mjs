@@ -47,6 +47,31 @@ function extractEntryScriptPath(html) {
   return m[1]
 }
 
+function extractStaticDataBase(bundle) {
+  const match = /https:\/\/tlibuilder-data\.pages\.dev/.exec(bundle)
+  if (!match) {
+    throw new Error('The local web entry bundle does not contain the static data CDN URL. Check VITE_STATIC_DATA_BASE.')
+  }
+  return match[0]
+}
+
+async function verifyStaticCatalog(entryPath, args) {
+  const localBundlePath = join(process.cwd(), args.dist, entryPath.replace(/^\//, ''))
+  if (!existsSync(localBundlePath)) throw new Error(`${localBundlePath} not found — could not inspect the built entry bundle`)
+  const dataBase = extractStaticDataBase(readFileSync(localBundlePath, 'utf-8'))
+  const manifestUrl = `${dataBase}/manifest.json`
+  const manifestResponse = await fetch(manifestUrl, { cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+  if (!manifestResponse.ok) throw new Error(`HTTP ${manifestResponse.status} fetching static data manifest ${manifestUrl}`)
+  const manifest = await manifestResponse.json()
+  if (!manifest?.season || typeof manifest.season !== 'string') throw new Error(`Static data manifest at ${manifestUrl} has no season`)
+  const catalogUrl = `${dataBase}/${manifest.season}/hero_traits.json`
+  const catalogResponse = await fetch(catalogUrl, { cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+  if (!catalogResponse.ok) throw new Error(`HTTP ${catalogResponse.status} fetching static catalog ${catalogUrl}`)
+  const catalog = await catalogResponse.json()
+  if (!Array.isArray(catalog?.traits) || !catalog.traits.length) throw new Error(`Static catalog at ${catalogUrl} contains no hero traits`)
+  console.log(`verify-web-deploy: static catalog ready (${manifest.season}, ${catalog.traits.length} hero traits)`)
+}
+
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -119,6 +144,7 @@ async function main() {
     console.error('This can be genuine propagation lag (retry the check) or a deploy that silently failed — check `wrangler pages deployment list`.')
     process.exit(1)
   }
+  await verifyStaticCatalog(entryPath, args)
 }
 
 main().catch((err) => {

@@ -394,6 +394,12 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.05,
     "crit_chance_uncapped": 0.05,
+    "crit_dmg_keys": [
+      "crit_dmg_additional",
+      "crit_dmg_inc",
+      "spell_crit_dmg_inc",
+      "lightning_crit_dmg_inc"
+    ],
     "crit_luck_effect": "",
     "crit_multiplier": 1.75,
     "damage_rows": [
@@ -479,8 +485,54 @@
     "flat_dmg_min": {
       "lightning": 15.0
     },
+    "flat_max_keys": {
+      "cold": [
+        "cold_spell_dmg_flat_max"
+      ],
+      "erosion": [
+        "erosion_spell_dmg_flat_max"
+      ],
+      "fire": [
+        "fire_spell_dmg_flat_max"
+      ],
+      "lightning": [
+        "lightning_spell_dmg_flat_max"
+      ],
+      "physical": [
+        "physical_spell_dmg_flat_max"
+      ]
+    },
+    "flat_min_keys": {
+      "cold": [
+        "cold_spell_dmg_flat_min"
+      ],
+      "erosion": [
+        "erosion_spell_dmg_flat_min"
+      ],
+      "fire": [
+        "fire_spell_dmg_flat_min"
+      ],
+      "lightning": [
+        "lightning_spell_dmg_flat_min"
+      ],
+      "physical": [
+        "physical_spell_dmg_flat_min"
+      ]
+    },
     "generic_add": 1.296,
+    "generic_add_keys": [
+      "hit_dmg_additional",
+      "dmg_additional",
+      "dmg_max_additional",
+      "dmg_min_additional",
+      "spell_dmg_additional",
+      "at_center_dmg_additional"
+    ],
     "generic_inc": 0,
+    "generic_inc_keys": [
+      "dmg_inc",
+      "spell_dmg_inc"
+    ],
     "hit_forms": [
       {
         "avg_hit_pre_crit": 246.24,
@@ -512,11 +564,11 @@
         "name": "Chain Lightning",
         "nyi": [],
         "proc_chance": 1.0,
+        "proc_stat_key": null,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
     ],
-    "intrinsic_additional_sources": [],
     "jumps": 2,
     "jumps_base": 2,
     "level_summary": {
@@ -601,6 +653,7 @@
     "spirit_magi_max": 0,
     "spirit_magi_physique_inc": 0.0,
     "spirit_magi_stage": 0,
+    "steep_strike_additional_dmg": 0.0,
     "steep_strike_chance": 0.0,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -628,12 +681,94 @@
       "lightning": 1.296,
       "physical": 1.296
     },
+    "type_add_keys": {
+      "cold": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "cold_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "erosion": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "erosion_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "fire": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "fire_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "lightning": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "lightning_dmg_additional",
+        "elemental_dmg_additional",
+        "at_center_dmg_additional"
+      ],
+      "physical": [
+        "hit_dmg_additional",
+        "dmg_additional",
+        "dmg_max_additional",
+        "dmg_min_additional",
+        "spell_dmg_additional",
+        "physical_dmg_additional",
+        "physical_dmg_min_additional",
+        "physical_dmg_max_additional",
+        "at_center_dmg_additional"
+      ]
+    },
     "type_inc": {
       "cold": 0,
       "erosion": 0,
       "fire": 0,
       "lightning": 0,
       "physical": 0
+    },
+    "type_inc_keys": {
+      "cold": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "cold_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "erosion": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "erosion_dmg_inc"
+      ],
+      "fire": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "fire_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "lightning": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "lightning_dmg_inc",
+        "elemental_dmg_inc"
+      ],
+      "physical": [
+        "dmg_inc",
+        "spell_dmg_inc",
+        "physical_dmg_inc"
+      ]
     },
     "weapon_aps_gear": 0,
     "weapon_aps_mh": 0,

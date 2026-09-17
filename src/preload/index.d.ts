@@ -21,6 +21,7 @@ declare global {
       onUpdateCheckError: (cb: (msg: string) => void) => void
       getSettings: () => Promise<AppSettings>
       setSetting: (key: keyof AppSettings, value: unknown) => Promise<AppSettings>
+      onDeepLinkShare: (cb: (shareId: string) => void) => void
     }
   }
 }

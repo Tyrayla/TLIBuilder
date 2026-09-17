@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { api } from '../api/client'
 import { submitBugReport } from '../api/share'
 import type { TliErrorPayload } from '../errors/tliError'
 import { createCalculationSnapshot, createDiagnostics, currentSeason, getReportRuntimeContext, REPORT_CATEGORIES, type ReportCategory } from '../reports/reporting'
@@ -13,13 +14,19 @@ export default function ReportModal({ onClose, error }: { onClose: () => void, e
   const [submitting, setSubmitting] = useState(false)
   const [receipt, setReceipt] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const snapshotSummary = useMemo(() => includeBuild ? 'Current engine inputs (not build name, notes, local IDs, folders, or share links)' : 'No build configuration', [includeBuild])
+  const snapshotSummary = useMemo(() => includeBuild ? 'Current engine inputs and an importable build code (not build name, notes, local IDs, folders, or share links)' : 'No build configuration', [includeBuild])
 
   const submit = async () => {
     if (!expected.trim() || !actual.trim() || submitting) return
     setSubmitting(true); setSubmitError(null)
     try {
       const runtime = getReportRuntimeContext()
+      const snapshot = includeBuild ? createCalculationSnapshot() : undefined
+      let buildCode: string | undefined
+      if (snapshot) {
+        // Best-effort: an encode failure should never block sending the rest of the report.
+        try { buildCode = (await api.encodeBuildCode(snapshot)).code } catch { /* omit build_code */ }
+      }
       const response = await submitBugReport({
         category,
         runtime: runtime.runtime,
@@ -34,7 +41,8 @@ export default function ReportModal({ onClose, error }: { onClose: () => void, e
         reproduction_steps: steps.trim() || undefined,
         discord_username: discord.trim() || undefined,
         diagnostics: createDiagnostics(error),
-        build_snapshot: includeBuild ? createCalculationSnapshot() : undefined,
+        build_snapshot: snapshot,
+        build_code: buildCode,
       })
       setReceipt(response.reportId)
     } catch {

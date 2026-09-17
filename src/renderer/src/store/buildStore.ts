@@ -150,7 +150,8 @@ interface BuildStore {
   // Atomic build load — sets all fields at once, resets computedStats
   loadBuild: (data: LoadedBuild) => void
 
-  // Reference data — bumps buildVersion so first load triggers recalc
+  // Reference data — does NOT bump buildVersion (see setAllSpirits/setSpiritsFailure below);
+  // useBuildCalculation depends on spiritsResolved directly to trigger the first recalc instead.
   allSpirits: PactSpirit[]
   spiritsResolved: boolean
   spiritsFetchFailed: boolean
@@ -377,16 +378,20 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     })),
 
   // ── Reference data ──────────────────────────────────────────────────────────
+  // Deliberately does NOT bump buildVersion — this is app-boot data resolving, not a user edit, and
+  // previously used the version bump just to nudge useBuildCalculation to re-run (see that hook's own
+  // `spiritsResolved` dependency instead now). Bumping here made a just-opened/just-created build read
+  // as dirty the moment this async fetch landed, with no real edit having happened.
   setAllSpirits: (allSpirits) =>
     set((s) => {
       if (s.spiritsResolved && isEqual(s.allSpirits, allSpirits)) return s
-      return { allSpirits, spiritsResolved: true, buildVersion: s.buildVersion + 1 }
+      return { allSpirits, spiritsResolved: true }
     }),
 
   setSpiritsFailure: () =>
     set((s) => {
       if (s.spiritsResolved) return s
-      return { spiritsResolved: true, spiritsFetchFailed: true, buildVersion: s.buildVersion + 1 }
+      return { spiritsResolved: true, spiritsFetchFailed: true }
     }),
 
   // ── Main skill (kept for backward compat; prefer setSkills which auto-derives) ─
