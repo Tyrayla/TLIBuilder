@@ -145,6 +145,7 @@ export interface BugReportRequest {
   discord_username?: string
   diagnostics: Record<string, unknown>
   build_snapshot?: Record<string, unknown>
+  build_code?: string
 }
 
 export async function submitBugReport(report: BugReportRequest): Promise<{ reportId: string }> {
