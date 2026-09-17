@@ -68,7 +68,7 @@ test('build-code round trip: create → save → export → reimport', async ({ 
 
   // Reimport through the Import Code modal — crosses the frozen codec + resolver + store.
   await page.getByRole('button', { name: 'Import Code' }).click()
-  const importModal = page.locator('.modal-card', { hasText: 'Import Build Code' })
+  const importModal = page.locator('.modal-card', { hasText: 'Import Build' })
   await importModal.getByPlaceholder('Paste a tli1_… code or share link…').fill(code)
   await importModal.getByRole('button', { name: 'Import', exact: true }).click()
   // An empty build trips the compat warning ("no tree slots selected") — confirm through it.
