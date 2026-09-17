@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-09-17
+
+### Sharing & reporting
+- **Share any Builder loadout with a permanent overview page.** Generate a shareable link from Import / Export, then open a responsive read-only overview in the browser. Shared pages include Discord and Twitter/X preview cards, and the desktop app now recognizes `tlibuilder://` links so a shared build can open directly in Builder.
+- **Bug reports can include a build code.** Reports now carry a build code alongside the opted-in diagnostic snapshot, making a reported build reproducible without exposing a full saved-build library.
+
+### Engine & DPS
+- **Corrected Seething Spirit's source breakdown.** Its damage contributions now show the proper source rows and effective skill-level attribution.
+- **Improved additional-damage attribution.** Skill-intrinsic additional damage is tracked as a real stat source, and the engine exports computed breakdown key lists instead of relying on frontend guesses. This improves source rows for affected skills and supports.
+- **Fixed Berserking Blade source names and Steep Strike additional damage.**
+
+### Web
+- **Fixed production web data-CDN configuration.** The web build now targets the correct static-data CDN, with deploy verification checking that the CDN serves real content after a release.
+
 ## [0.6.7] - 2026-09-13
 
 ### Bug fixes
