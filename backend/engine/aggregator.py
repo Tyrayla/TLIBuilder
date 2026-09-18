@@ -468,6 +468,13 @@ def aggregate(
                            "hero_trait", "Hero Trait", active_booleans, numeric_vals, stamp=_stamp)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
+    # pooling_uuid is keyed on the textarea LINE INDEX, not `_stamp(text)` like every other loop here.
+    # Custom mods aren't real catalog affixes, so two hand-typed lines with identical wording must each
+    # multiply independently (never sum just because the text matches) — modifier_lines.pool_identity
+    # special-cases source_type == "custom" to key on this uuid directly, bypassing the season identity
+    # index entirely. See that function's docstring, docs/ADDITIONAL_DAMAGE_POOLING.md, and bug-234 for
+    # the full rationale. Real gear/talent/support affixes are untouched by this and keep pooling by
+    # identical affix-text identity.
     for contrib in build.custom_contributions:
         stat = contrib.get("stat_key")
         if not stat:
@@ -485,6 +492,7 @@ def aggregate(
                 continue
             if isinstance(cond, dict) and "cap" in cond:
                 amount = min(amount, float(cond["cap"]))
+        _line_idx = contrib.get("line_index")
         entry = SourceEntry(
             stat=stat,
             amount=amount,
@@ -492,7 +500,7 @@ def aggregate(
             label="Custom Config",
             text=contrib.get("text", ""),
             points=1,
-            pooling_uuid=_stamp(contrib.get("text")),
+            pooling_uuid=f"custom-line:{_line_idx}" if _line_idx is not None else None,
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 

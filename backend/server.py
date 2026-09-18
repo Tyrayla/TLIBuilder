@@ -862,8 +862,10 @@ def engine_stats(req: EngineStatsRequest):
     # helper (same parse used by the /validate-custom-mods editor endpoint, so green/red matches what's applied).
     custom_contributions: list[dict] = []
     custom_mod_statuses: list[dict] = []
-    for mod_text in req.custom_mods:
+    for _line_index, mod_text in enumerate(req.custom_mods):
         _contribs, _status = _resolve_custom_mod(mod_text)
+        for _c in _contribs:
+            _c["line_index"] = _line_index
         custom_contributions.extend(_contribs)
         custom_mod_statuses.append(_status)
 
