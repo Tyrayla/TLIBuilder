@@ -25,11 +25,10 @@ data/
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/
 .claude/*
-# …except the shared engine-authoring skills (committed so the team/repo gets them)
-!.claude/skills/
 CLAUDE.md
 AGENTS.md
 agent-governance/
+.agents/
 
 # docs: keep durable references tracked; handoffs / plans / audit snapshots stay local only
 docs/*HANDOFF*.md
