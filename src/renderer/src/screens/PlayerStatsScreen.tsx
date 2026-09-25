@@ -2801,7 +2801,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           (or Show-all). Per-skill scoping + "cannot inflict" override chains in the breakdown are Phase-2. */}
       {/* Minions don't model ailments/CC and have no minion-scoped ailment pools, so these player-mechanic
           boxes are hidden in minion mode (only minion sources belong in a minion's view). */}
-      {!minion && (hasDot || showAll) && offense.affliction && (
+      {!minion && (hasDot || (dealsType('fire') && (offense.affliction?.true_flame_fire_taken ?? 0) > 0) || showAll) && offense.affliction && (
         <GridBox><AfflictionPanel affliction={offense.affliction} /></GridBox>
       )}
 
@@ -3535,6 +3535,7 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
 function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | undefined }) {
   if (!affliction) return null
   const pct = (value: number) => `${value >= 0 ? '+' : ''}${dec(value * 100)}%`
+  const trueFlameActive = (affliction.true_flame_conversion ?? 0) > 0 && (affliction.true_flame_fire_taken ?? 0) > 0
   return (
     <StatPanel title="Affliction" accent="#d06a9a"
       info="Enemy Affliction is a configured snapshot. Increased Effect adds together; every Additional Effect source multiplies separately. The displayed values are materialized for the headline skill, so a linked Cataclysm only appears where it applies.">
@@ -3574,6 +3575,25 @@ function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | u
         title: 'Affliction per Second', keys: ['affliction_per_second_flat'], total: affliction.per_second, totalUnit: ' /s',
         formula: 'net positive Affliction rate for the headline skill; the configured snapshot does not decay by itself',
       }}>{affliction.per_second >= 0 ? '+' : ''}{dec(affliction.per_second)} /s</Row>
+      {trueFlameActive && <>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#e87030', margin: '6px 0 2px' }}>
+          True Flame
+        </div>
+        <Row label="Fire Hit Damage Taken" breakdown={{
+          title: 'True Flame Fire Hit Damage Taken', keys: [], total: affliction.true_flame_fire_taken, totalUnit: '%',
+          formula: 'final Affliction DoT bonus × True Flame Conversion',
+          extra: [
+            { value: `+${dec(affliction.dot_taken * 100)}%`, stat: 'Final Affliction DoT Bonus', source: 'Calculated', sourceName: 'Affliction' },
+            { value: `×${dec(affliction.true_flame_conversion)}`, stat: 'True Flame Conversion', source: 'True Flame', sourceName: `${dec(affliction.true_flame_conversion * 100)}% of the final Affliction DoT bonus` },
+          ],
+          displaySources: [{
+            statKey: 'true_flame_fire_hit_taken', statName: 'True Flame Fire Hit Damage Taken', unit: '×',
+            source_type: 'condition', label: 'Enemy', text: 'True Flame', source_name: 'True Flame',
+            amount: affliction.true_flame_fire_taken, points: 1, slot: null, scope: null,
+            displayValue: `×${dec(1 + affliction.true_flame_fire_taken)}`,
+          }],
+        }}>{pct(affliction.true_flame_fire_taken)}</Row>
+      </>}
     </StatPanel>
   )
 }

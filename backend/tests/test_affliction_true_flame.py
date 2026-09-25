@@ -71,6 +71,8 @@ def test_true_flame_requires_ignite_and_uses_final_affliction_bonus():
     assert "true_flame_fire_hit_taken" not in unignited["stats"]
     # 234% final Affliction DoT bonus × 65% = 152.1% Fire Hit Damage taken.
     assert ignited["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(1.521)
+    assert ignited["offense"]["affliction"]["true_flame_conversion"] == pytest.approx(0.65)
+    assert ignited["offense"]["affliction"]["true_flame_fire_taken"] == pytest.approx(1.521)
 
 
 def test_magnus_prefixed_true_flame_line_is_parsed():

@@ -1630,6 +1630,8 @@ export interface AfflictionInfo {
   dot_taken: number
   initial: number
   per_second: number
+  true_flame_conversion: number
+  true_flame_fire_taken: number
 }
 
 export interface CoreTalentStatus {

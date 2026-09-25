@@ -1983,16 +1983,28 @@ def compute(
             demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
         # This belongs to EACH offense result: Cataclysm and the Affliction application rate are scoped to
         # the skill slot the user is inspecting in the left-side calculation panels.
-        from engine.offense import additional_total_product as _offense_affliction_add_product
+        from engine.offense import (
+            _additional_global_product as _offense_affliction_global_product,
+            additional_total_product as _offense_affliction_add_product,
+        )
+        _affliction_additional_product = _offense_affliction_add_product(eff, "affliction_effect_additional")
+        _true_flame_base = eff.total("true_flame_fire_hit_taken")
+        _true_flame_global_product = _offense_affliction_global_product(eff, "affliction_effect_additional")
+        _true_flame_taken = _true_flame_base * (
+            _affliction_additional_product / _true_flame_global_product
+            if _true_flame_global_product else 1.0
+        )
         _res["affliction"] = {
             "stacks": float(condition_state.get("affliction_stacks", 100.0) or 0.0),
             "max_stacks": float(maxes.get("affliction_stacks", 100.0)),
             "base_per_stack": 0.01,
             "effect_inc": eff.total("affliction_effect_inc"),
-            "effect_additional": _offense_affliction_add_product(eff, "affliction_effect_additional") - 1.0,
+            "effect_additional": _affliction_additional_product - 1.0,
             "dot_taken": eff.total("affliction_dot_taken"),
             "initial": eff.total("affliction_initial_flat"),
             "per_second": eff.total("affliction_per_second_flat"),
+            "true_flame_conversion": eff.total("affliction_dot_to_fire_hit"),
+            "true_flame_fire_taken": _true_flame_taken,
         }
         _res["level_summary"] = skill_level_summary(
             eff, list(resolved.tags) + sorted(add_mod_tags or ()), level, is_main, resolved.max_level)
@@ -2425,10 +2437,6 @@ def compute(
     if _numbed > 0:
         debuff_details.append({"name": "Numbed", "scope": "Lightning damage", "stacks": _numbed,
                                "taken_inc": source.total("numbed_lightning_taken")})
-    _true_flame_taken = _tp_source.total("true_flame_fire_hit_taken")
-    if _true_flame_taken > 0:
-        debuff_details.append({"name": "True Flame", "scope": "Fire hit damage",
-                               "taken_inc": _true_flame_taken})
     target_stats = {**target_profile(_tp_source), "debuffs": _debuffs, "debuff_details": debuff_details}
 
     # ── Numbed ailment box (player-stats display) ─────────────────────────────
