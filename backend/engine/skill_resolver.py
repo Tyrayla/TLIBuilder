@@ -745,6 +745,21 @@ def _resolve_path_of_flames(skill_data: dict) -> ResolvedSkill:
     return _resolve_dot_skill(skill_data, base_text_key="Descript", damage_type="fire")
 
 
+@_register("black_hole")
+def _resolve_black_hole(skill_data: dict) -> ResolvedSkill:
+    """Black Hole's Persistent Erosion text uses a `N-N` range, unlike the shared pure-DoT parser."""
+    forms: dict[int, list[DotForm]] = {}
+    for entry in skill_data.get("progression", []):
+        level, values = entry.get("level"), entry.get("values") or {}
+        m = re.search(r"Deals\s+([\d.,]+)\s*-\s*[\d.,]+\s+Persistent\s+Erosion\s+Damage", str(values.get("Descript", "")), re.I)
+        if m:
+            forms[int(level)] = [DotForm(base_per_second=float(m.group(1).replace(",", "")), dtype="erosion", duration=4.0)]
+    return ResolvedSkill(skill_id=skill_data["item_id"], name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []), max_level=skill_data.get("max_level", 20),
+        hit_forms_by_level={}, dot_forms_by_level=forms, supported=True, is_spell=True,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")), damage_types=["erosion"])
+
+
 # ── Frost Terra (SS13 Terra system — the first modeled Terra skill) ────────────────────────────────────────
 # Tags: Spell, Cold, Area, Persistent, Terra. A cast-and-forget persistent area (6s), NOT channeled: the
 # Terra applies a Persistent Cold DoT to enemies inside — "Deals N Persistent Cold damage every second for

@@ -834,7 +834,7 @@ def engine_stats(req: EngineStatsRequest):
     skills_by_id: dict = {}
 
     # Load skills cache if any skill info is needed
-    needs_skills = bool(req.main_skill or req.skills or req.attached_supports)
+    needs_skills = bool(req.main_skill or req.skills or req.attached_supports or req.gear)
     if needs_skills:
         skills_by_id = _get_skills_data(active_season)
         # Inject the synthetic Rosa Holy Domain trait skill (not in crawler data) so its slot-10 supports resolve.
@@ -930,10 +930,53 @@ def engine_stats(req: EngineStatsRequest):
     enabled_supports = enabled_supports + _hero_traits.virtual_supports(
         req.trait_id, slot_levels=req.trait_slot_levels,
         advanced_picks=req.advanced_trait_selections, main_slot=_main_slot)
+    # Magmaskull grants a virtual Lv30â€“40 Cataclysm to the Main Skill.  Put it through the ordinary
+    # attached-support path so its rate and supported-skill Effect remain slot-scoped and level-correct.
+    _mag_cat_level = None
+    for _gear_item in req.gear:
+        for _contrib in (_gear_item.get("contributions") or []):
+            _item_name = _contrib.get("item_name") or _gear_item.get("name") or ""
+            _text = _contrib.get("text") or ""
+            if str(_item_name).lower() != "magmaskull" and _gear_item.get("item_id") != "magmaskull":
+                continue
+            _match = re.search(r"main\s+skill\s+is\s+supported\s+by\s+lv\.\s*(\d+)\s+cataclysm", _text, re.I)
+            if _match:
+                _mag_cat_level = int(_contrib.get("display_value") or _match.group(1))
+                break
+        if _mag_cat_level is not None:
+            break
+    if _mag_cat_level is not None:
+        enabled_supports.append({"item_id": "cataclysm", "skill_type": "support_skill",
+                                 "level": _mag_cat_level, "slot": _main_slot, "virtual": "magmaskull"})
+    # Corroded Magmaskull can append a second clause to its virtual Cataclysm: additional Fire HIT damage
+    # against a target at maximum Affliction.  It is main-slot-only and uses the derived predicate, never a
+    # manual toggle.  Target-vulnerability staging keeps it out of Fire DoT.
+    _mag_cat_fire = None
+    for _gear_item in req.gear:
+        for _contrib in (_gear_item.get("contributions") or []):
+            if ((_contrib.get("item_name") or _gear_item.get("name") or "").lower() != "magmaskull"
+                    and _gear_item.get("item_id") != "magmaskull"):
+                continue
+            _fire_match = re.search(r"cataclysm\s*\+?\s*([\d.]+)\s*%\s+additional\s+hit\s+fire\s+damage\s+to\s+enemies\s+with\s+max\s+affliction", _contrib.get("text") or "", re.I)
+            if _fire_match:
+                _mag_cat_fire = float(_contrib.get("display_value") or _fire_match.group(1)) / 100.0
+                break
+        if _mag_cat_fire is not None:
+            break
+    _mag_cat_extra_contributions = ([] if not _mag_cat_fire else [{
+        "stat_key": "magmaskull_cataclysm_fire_hit_taken", "amount": _mag_cat_fire,
+        "text": "Magmaskull Cataclysm: additional Hit Fire Damage at Max Affliction",
+        "label": "Magmaskull", "source_name": "Magmaskull", "slot": _main_slot,
+        "condition": "enemy_has_max_affliction",
+    }])
     if enabled_supports:
         from engine.support_resolver import resolve_support_contributions, resolve_support_behavior
-        support_contributions = resolve_support_contributions(enabled_supports, skills_by_id, _translate_condition_expr)
+        support_contributions = resolve_support_contributions(
+            enabled_supports, skills_by_id, _translate_condition_expr,
+            {s.get("slot", 1): s.get("skill_id") for s in skills_input},
+        )
         support_behavior = resolve_support_behavior(enabled_supports, skills_by_id)
+    support_contributions += _mag_cat_extra_contributions
 
     # Resolve granted core talents (tree / slate / legendary / belt blend), deduped to count each
     # exactly once, into stat contributions + base-effect override flags. Flags ride in condition_state

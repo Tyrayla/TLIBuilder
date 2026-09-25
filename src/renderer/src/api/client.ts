@@ -1385,6 +1385,8 @@ export interface StatSheetResponse {
   // per-stack duration, effective stacks, the enemy Lightning-taken total, and (real uptime mode) the
   // Feline Figure application rate + the FF-inflicted Numbed duration that produced the steady state.
   numbed?: NumbedInfo | null
+  // Target Affliction calculation for the headline skill (includes slot-specific support effects).
+  affliction?: AfflictionInfo | null
   // Per equipped aura/Focus passive: the buff lines it grants (already scaled by Aura Effect + interpolated to
   // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
   auras?: AuraSummary[]
@@ -1617,6 +1619,17 @@ export interface NumbedInfo {
   uptime_mode: 'max' | 'real'
   ff_duration?: number        // real mode: Feline Figure-inflicted Numbed duration (incl. Electroplated ×2)
   application_rate?: number   // real mode: Feline Figure trigger rate (≤1/s, single target)
+}
+
+export interface AfflictionInfo {
+  stacks: number
+  max_stacks: number
+  base_per_stack: number
+  effect_inc: number
+  effect_additional: number  // effective multiplicative pool: product(1 + each source) - 1
+  dot_taken: number
+  initial: number
+  per_second: number
 }
 
 export interface CoreTalentStatus {

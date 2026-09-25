@@ -178,6 +178,7 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "+(#) % additional ignite damage":                   "ignite_dmg_additional",
     # Affliction
     "+(#) affliction inflicted per second":              "affliction_per_second_flat",
+    "+(#) max affliction":                               "max_affliction_flat",
     # Sentry
     "max sentry quantity +(#)":                          "max_sentry_quantity_flat",
     # Barrage
@@ -1099,9 +1100,43 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
 
     # True Flame: "N% of the additional bonus to Damage Over Time taken from Affliction is also applied to your
     # Fire Hit Damage" (lead "When an enemy is Ignited" splits off as the gate). Inert until Affliction modeled.
-    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+additional\s+bonus\s+to\s+damage\s+over\s+time\s+taken\s+from\s+affliction\s+is\s+also\s+applied\s+to\s+your\s+fire\s+hit\s+damage', t, re.I)
+    m = re.search(r'([\d.]+)\s*%\s*of\s+the\s+additional\s+bonus\s+to\s+damage\s+over\s+time\s+taken\s+from\s+affliction\s+is\s+also\s+applied\s+to\s+your\s+fire\s+hit\s+damage', t, re.I)
     if m:
         return [{"stat_key": "affliction_dot_to_fire_hit", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Cataclysm's two effects are deliberately distinct.  The Affliction grant is represented as a rate for
+    # ramp reporting; the Effect bonus is slot-local when emitted by the support resolver.
+    m = re.search(r'affliction\s+grants\s+an\s+additional\s+([\d.]+)\s*%\s+effect\s+to\s+the\s+supported\s+skill', t, re.I)
+    if m:
+        return [{"stat_key": "affliction_effect_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+    m = re.search(r'(?:when\s+the\s+supported\s+skill\s+deals\s+damage\s+over\s+time,?\s*)?it\s+inflicts\s+([\d.]+)\s+affliction\s+on\s+the\s+enemy.*?effect\s+cooldown:\s*([\d.]+)\s*s', t, re.I)
+    if m:
+        return [{"stat_key": "cataclysm_affliction_per_second_flat",
+                 "amount": float(m.group(1)) / float(m.group(2)), "text": t}]
+
+    # Torturer's Touch: its effect-scaled Affliction loss is resolved after all normal Affliction
+    # Effect sources are known (increased plus each additional multiplier).  Keep only the divisor
+    # here; aggregator performs the whole-effect-step calculation.
+    m = re.search(r'\+\s*([\d.]+)\s+affliction\s+per\s+second\s+for\s+every\s+\+?\s*([\d.]+)\s*%\s+affliction\s+effect', t, re.I)
+    if m:
+        return [{"stat_key": "torturers_touch_affliction_per_second_per_effect", "amount": float(m.group(1)), "text": t},
+                {"stat_key": "torturers_touch_affliction_effect_step", "amount": float(m.group(2)) / 100.0, "text": t}]
+
+    # Magmaskull: one compound line whose values feed the Affliction resolver.  Keep every component separate so
+    # its initial application, negative APS, and capped Fire-hit vulnerability retain their distinct rules.
+    m = re.search(
+        r'changes\s+the\s+initially\s+inflicted\s+affliction\s+to\s+([\d.]+).*?'
+        r'\+\s*([\d.]+)\s*%\s+additional\s+hit\s+fire\s+damage\s+taken,?\s+up\s+to\s+\+?\s*([\d.]+)\s*%\s*'
+        r'([-+]\s*[\d.]+)\s+affliction\s+per\s+second\s+for\s+every\s+\+?\s*([\d.]+)\s*%\s+affliction\s+effect', t, re.I)
+    if m:
+        initial, fire_per, fire_cap, aps_per, step = m.groups()
+        return [
+            {"stat_key": "magmaskull_initial_affliction_flat", "amount": float(initial), "text": t},
+            {"stat_key": "magmaskull_fire_hit_taken_per_effect", "amount": float(fire_per) / 100.0, "text": t},
+            {"stat_key": "magmaskull_fire_hit_taken_cap", "amount": float(fire_cap) / 100.0, "text": t},
+            {"stat_key": "magmaskull_affliction_per_second_per_effect", "amount": float(aps_per.replace(' ', '')), "text": t},
+            {"stat_key": "magmaskull_affliction_effect_step", "amount": float(step) / 100.0, "text": t},
+        ]
 
     # United Stand (2nd line): "N% of the Life and Energy Shield Regain Effect of Synthetic Troop Minions is
     # also applied to you" — fraction of minion regain shared to the player. Needs Regain + testing.

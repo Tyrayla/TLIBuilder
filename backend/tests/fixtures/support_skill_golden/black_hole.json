@@ -8,6 +8,8 @@
     "all_skill_level",
     "all_stats_flat",
     "all_stats_inc",
+    "area_dmg_additional",
+    "area_dmg_inc",
     "armor",
     "armor_additional",
     "armor_effective_rate_non_physical_inc",
@@ -31,8 +33,6 @@
     "cast_speed_additional",
     "cast_speed_inc",
     "cataclysm_affliction_per_second_flat",
-    "channeled_dmg_additional",
-    "channeled_dmg_inc",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_convert_to_erosion",
@@ -120,7 +120,6 @@
     "hit_curse_taken",
     "hit_dmg_additional",
     "hit_dmg_taken_additional",
-    "intelligence",
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
@@ -180,7 +179,6 @@
     "mana_restored_pct_current_per_attack_use",
     "max_affliction_flat",
     "max_agility_blessing_stacks_flat",
-    "max_channeled_stacks_flat",
     "max_electrify_stacks_flat",
     "max_elemental_resistance_inc",
     "max_energy_shield",
@@ -205,7 +203,6 @@
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
     "max_terra_charge_stacks_flat",
-    "min_channeled_stacks_flat",
     "no_guard_dmg_taken",
     "paralysis_dmg_taken",
     "physical_as_cold",
@@ -236,6 +233,8 @@
     "restoration_effect_inc",
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
+    "skill_area_additional",
+    "skill_area_inc",
     "skill_cost_additional",
     "skill_cost_flat",
     "skill_cost_inc",
@@ -266,7 +265,7 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "base_cast_time": 0.333,
+    "base_cast_time": 0.8,
     "base_csr": 500.0,
     "base_dmg_max": {},
     "base_dmg_min": {},
@@ -276,12 +275,12 @@
     "channel_attack_to_next_additional": 0.0,
     "channel_attack_to_next_increased": 0.0,
     "channeled_attack_frequency": 0.0,
-    "channeled_behavior": "refresh",
-    "channeled_burst_rate": 0.6966966966966966,
-    "channeled_max_stacks": 5,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
     "channeled_min_stacks": 0,
-    "channeled_rounds_per_cycle": 5.0,
-    "channeled_stacks": 5.0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "compulsory_breakdown": {},
     "crit_chance": 0.15,
     "crit_chance_uncapped": 0.15,
@@ -296,15 +295,15 @@
     "damage_rows": [
       {
         "dps_by_type_vs_target": {
-          "erosion": 3271.95202870326
+          "erosion": 762.6809570688001
         },
-        "dps_final": 2337.1085919309003,
-        "dps_vs_target_final": 3271.95202870326,
+        "dps_final": 544.7721121920001,
+        "dps_vs_target_final": 762.6809570688001,
         "form_index": -1,
         "hit_max_by_type": {},
         "hit_min_by_type": {},
         "kind": "dot",
-        "name": "Mind Control (Damage over Time)",
+        "name": "Black Hole (Damage over Time)",
         "nyi": [],
         "pct_of_total": 100.0
       }
@@ -408,21 +407,21 @@
         "physical_spell_dmg_flat_min"
       ]
     },
-    "generic_add": 4.5030994064179195,
+    "generic_add": 1.6206220800000002,
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
       "dmg_max_additional",
       "dmg_min_additional",
       "spell_dmg_additional",
-      "channeled_dmg_additional",
+      "area_dmg_additional",
       "at_center_dmg_additional"
     ],
     "generic_inc": 0,
     "generic_inc_keys": [
       "dmg_inc",
       "spell_dmg_inc",
-      "channeled_dmg_inc"
+      "area_dmg_inc"
     ],
     "hit_forms": [],
     "jumps": 0,
@@ -436,10 +435,8 @@
       "effective_level": 20
     },
     "main_stat_damage_bonus": 0.0,
-    "main_stats": [
-      "intelligence"
-    ],
-    "mana_cost": 8.0,
+    "main_stats": [],
+    "mana_cost": 15.0,
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "minion_empower": null,
@@ -476,14 +473,15 @@
     "shadow_tracking_distance": 0.0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
-    "skill_name": "Mind Control",
+    "skill_name": "Black Hole",
     "skill_tags": [
       "Spell",
+      "Area",
+      "Persistent",
       "Erosion",
-      "Channeled",
-      "Persistent"
+      "Empower"
     ],
-    "skills_per_second": 3.483483483483483,
+    "skills_per_second": 1.45,
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_add": 0.0,
@@ -525,14 +523,14 @@
     "target_mitigation_by_type": {
       "erosion": 0.48999999999999994
     },
-    "total_dps": 2337.1085919309003,
-    "total_dps_vs_target": 3271.95202870326,
+    "total_dps": 544.7721121920001,
+    "total_dps_vs_target": 762.6809570688001,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
-      "fire": 4.5030994064179195,
-      "lightning": 5.9553489649876985,
-      "physical": 4.5030994064179195
+      "fire": 1.6206220800000002,
+      "lightning": 2.1432727007999994,
+      "physical": 1.6206220800000002
     },
     "type_add_keys": {
       "fire": [
@@ -541,9 +539,9 @@
         "dmg_max_additional",
         "dmg_min_additional",
         "spell_dmg_additional",
+        "area_dmg_additional",
         "fire_dmg_additional",
         "elemental_dmg_additional",
-        "channeled_dmg_additional",
         "at_center_dmg_additional"
       ],
       "lightning": [
@@ -552,9 +550,9 @@
         "dmg_max_additional",
         "dmg_min_additional",
         "spell_dmg_additional",
+        "area_dmg_additional",
         "lightning_dmg_additional",
         "elemental_dmg_additional",
-        "channeled_dmg_additional",
         "at_center_dmg_additional"
       ],
       "physical": [
@@ -563,10 +561,10 @@
         "dmg_max_additional",
         "dmg_min_additional",
         "spell_dmg_additional",
+        "area_dmg_additional",
         "physical_dmg_additional",
         "physical_dmg_min_additional",
         "physical_dmg_max_additional",
-        "channeled_dmg_additional",
         "at_center_dmg_additional"
       ]
     },
@@ -579,22 +577,22 @@
       "fire": [
         "dmg_inc",
         "spell_dmg_inc",
+        "area_dmg_inc",
         "fire_dmg_inc",
-        "elemental_dmg_inc",
-        "channeled_dmg_inc"
+        "elemental_dmg_inc"
       ],
       "lightning": [
         "dmg_inc",
         "spell_dmg_inc",
+        "area_dmg_inc",
         "lightning_dmg_inc",
-        "elemental_dmg_inc",
-        "channeled_dmg_inc"
+        "elemental_dmg_inc"
       ],
       "physical": [
         "dmg_inc",
         "spell_dmg_inc",
-        "physical_dmg_inc",
-        "channeled_dmg_inc"
+        "area_dmg_inc",
+        "physical_dmg_inc"
       ]
     },
     "weapon_aps_gear": 0,
@@ -616,7 +614,7 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "base_cast_time": 0.333,
+      "base_cast_time": 0.8,
       "base_csr": 500.0,
       "base_dmg_max": {},
       "base_dmg_min": {},
@@ -626,12 +624,12 @@
       "channel_attack_to_next_additional": 0.0,
       "channel_attack_to_next_increased": 0.0,
       "channeled_attack_frequency": 0.0,
-      "channeled_behavior": "refresh",
-      "channeled_burst_rate": 0.6966966966966966,
-      "channeled_max_stacks": 5,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
       "channeled_min_stacks": 0,
-      "channeled_rounds_per_cycle": 5.0,
-      "channeled_stacks": 5.0,
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
       "compulsory_breakdown": {},
       "crit_chance": 0.15,
       "crit_chance_uncapped": 0.15,
@@ -646,15 +644,15 @@
       "damage_rows": [
         {
           "dps_by_type_vs_target": {
-            "erosion": 3271.95202870326
+            "erosion": 762.6809570688001
           },
-          "dps_final": 2337.1085919309003,
-          "dps_vs_target_final": 3271.95202870326,
+          "dps_final": 544.7721121920001,
+          "dps_vs_target_final": 762.6809570688001,
           "form_index": -1,
           "hit_max_by_type": {},
           "hit_min_by_type": {},
           "kind": "dot",
-          "name": "Mind Control (Damage over Time)",
+          "name": "Black Hole (Damage over Time)",
           "nyi": [],
           "pct_of_total": 100.0
         }
@@ -758,21 +756,21 @@
           "physical_spell_dmg_flat_min"
         ]
       },
-      "generic_add": 4.5030994064179195,
+      "generic_add": 1.6206220800000002,
       "generic_add_keys": [
         "hit_dmg_additional",
         "dmg_additional",
         "dmg_max_additional",
         "dmg_min_additional",
         "spell_dmg_additional",
-        "channeled_dmg_additional",
+        "area_dmg_additional",
         "at_center_dmg_additional"
       ],
       "generic_inc": 0,
       "generic_inc_keys": [
         "dmg_inc",
         "spell_dmg_inc",
-        "channeled_dmg_inc"
+        "area_dmg_inc"
       ],
       "hit_forms": [],
       "jumps": 0,
@@ -786,10 +784,8 @@
         "effective_level": 20
       },
       "main_stat_damage_bonus": 0.0,
-      "main_stats": [
-        "intelligence"
-      ],
-      "mana_cost": 8.0,
+      "main_stats": [],
+      "mana_cost": 15.0,
       "mercury_baptism_dps": 0.0,
       "mercury_baptism_fraction": 0.0,
       "minion_empower": null,
@@ -826,14 +822,15 @@
       "shadow_tracking_distance": 0.0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
-      "skill_name": "Mind Control",
+      "skill_name": "Black Hole",
       "skill_tags": [
         "Spell",
+        "Area",
+        "Persistent",
         "Erosion",
-        "Channeled",
-        "Persistent"
+        "Empower"
       ],
-      "skills_per_second": 3.483483483483483,
+      "skills_per_second": 1.45,
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
       "spell_burst_cast_to_next_add": 0.0,
@@ -875,14 +872,14 @@
       "target_mitigation_by_type": {
         "erosion": 0.48999999999999994
       },
-      "total_dps": 2337.1085919309003,
-      "total_dps_vs_target": 3271.95202870326,
+      "total_dps": 544.7721121920001,
+      "total_dps_vs_target": 762.6809570688001,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
-        "fire": 4.5030994064179195,
-        "lightning": 5.9553489649876985,
-        "physical": 4.5030994064179195
+        "fire": 1.6206220800000002,
+        "lightning": 2.1432727007999994,
+        "physical": 1.6206220800000002
       },
       "type_add_keys": {
         "fire": [
@@ -891,9 +888,9 @@
           "dmg_max_additional",
           "dmg_min_additional",
           "spell_dmg_additional",
+          "area_dmg_additional",
           "fire_dmg_additional",
           "elemental_dmg_additional",
-          "channeled_dmg_additional",
           "at_center_dmg_additional"
         ],
         "lightning": [
@@ -902,9 +899,9 @@
           "dmg_max_additional",
           "dmg_min_additional",
           "spell_dmg_additional",
+          "area_dmg_additional",
           "lightning_dmg_additional",
           "elemental_dmg_additional",
-          "channeled_dmg_additional",
           "at_center_dmg_additional"
         ],
         "physical": [
@@ -913,10 +910,10 @@
           "dmg_max_additional",
           "dmg_min_additional",
           "spell_dmg_additional",
+          "area_dmg_additional",
           "physical_dmg_additional",
           "physical_dmg_min_additional",
           "physical_dmg_max_additional",
-          "channeled_dmg_additional",
           "at_center_dmg_additional"
         ]
       },
@@ -929,22 +926,22 @@
         "fire": [
           "dmg_inc",
           "spell_dmg_inc",
+          "area_dmg_inc",
           "fire_dmg_inc",
-          "elemental_dmg_inc",
-          "channeled_dmg_inc"
+          "elemental_dmg_inc"
         ],
         "lightning": [
           "dmg_inc",
           "spell_dmg_inc",
+          "area_dmg_inc",
           "lightning_dmg_inc",
-          "elemental_dmg_inc",
-          "channeled_dmg_inc"
+          "elemental_dmg_inc"
         ],
         "physical": [
           "dmg_inc",
           "spell_dmg_inc",
-          "physical_dmg_inc",
-          "channeled_dmg_inc"
+          "area_dmg_inc",
+          "physical_dmg_inc"
         ]
       },
       "weapon_aps_gear": 0,
@@ -998,6 +995,41 @@
         }
       ],
       "total": 1.0,
+      "unit": ""
+    },
+    "affliction_initial_flat": {
+      "category": "Other",
+      "display_name": "affliction_initial_flat",
+      "sources": [
+        {
+          "amount": 100.0,
+          "label": "Black Hole",
+          "points": 1,
+          "source_name": "Black Hole",
+          "source_type": "skill",
+          "text": "Initially inflicts 100 Affliction"
+        }
+      ],
+      "total": 100.0,
+      "unit": ""
+    },
+    "affliction_per_second_flat": {
+      "category": "Ailments",
+      "display_name": "Affliction per second",
+      "slot_sources": [
+        {
+          "amount": 100.0,
+          "label": "Black Hole",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Black Hole",
+          "source_type": "skill",
+          "text": "+100.00 Affliction per second"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
       "unit": ""
     },
     "attack_block_chance_inc": {
@@ -1085,56 +1117,6 @@
       "display_name": "Additional Damage",
       "slot_sources": [
         {
-          "amount": 0.2,
-          "label": "Mind Control: Befuddle (Magnificent) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Mind Control: Befuddle (Magnificent)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |mind_control_befuddle_magnificent|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Mind Control: Concentrate (Magnificent) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Mind Control: Concentrate (Magnificent)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |mind_control_concentrate_magnificent|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Mind Control: Enthrall (Noble) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Mind Control: Enthrall (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |mind_control_enthrall_noble|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Mind Control: Entice (Noble) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Mind Control: Entice (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |mind_control_entice_noble|universal"
-        },
-        {
-          "amount": 0.34,
-          "label": "Mind Control: Entice (Noble) (Tier 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Mind Control: Entice (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |mind_control_entice_noble|specific"
-        },
-        {
           "amount": 0.16,
           "label": "Overload",
           "points": 1,
@@ -1190,6 +1172,22 @@
         }
       ],
       "total": -0.16,
+      "unit": "%"
+    },
+    "dot_dmg_additional": {
+      "category": "Ailments",
+      "display_name": "Additional Damage Over Time",
+      "sources": [
+        {
+          "amount": 0.35000000000000003,
+          "label": "Black Hole",
+          "points": 1,
+          "source_name": "Black Hole",
+          "source_type": "skill",
+          "text": "+35.0% additional DoT Damage in Black Hole (10\u00d710 Affliction)"
+        }
+      ],
+      "total": 0.35,
       "unit": "%"
     },
     "extra_jumps_flat": {

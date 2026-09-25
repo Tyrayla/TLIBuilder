@@ -1,6 +1,8 @@
 {
   "consumed_stats": [
     "active_skill_level",
+    "affliction_dot_taken_base",
+    "affliction_effect_additional",
     "all_skill_level",
     "all_stats_flat",
     "all_stats_inc",
@@ -27,6 +29,7 @@
     "blur_effect_inc",
     "cast_speed_additional",
     "cast_speed_inc",
+    "cataclysm_affliction_per_second_flat",
     "channeled_dmg_additional",
     "channeled_dmg_inc",
     "cold_as_erosion",
@@ -161,6 +164,7 @@
     "mana_regen_pct",
     "mana_regen_speed_inc",
     "mana_restored_pct_current_per_attack_use",
+    "max_affliction_flat",
     "max_agility_blessing_stacks_flat",
     "max_electrify_stacks_flat",
     "max_elemental_resistance_inc",
@@ -293,7 +297,9 @@
     "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {},
+    "enemy_vuln_by_form": {},
     "enemy_vuln_by_type": {},
+    "enemy_vuln_sources_by_form": {},
     "enemy_vuln_sources_by_type": {},
     "flat_dmg_max": {
       "fire": 135.0,
@@ -608,7 +614,9 @@
       "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {},
+      "enemy_vuln_by_form": {},
       "enemy_vuln_by_type": {},
+      "enemy_vuln_sources_by_form": {},
       "enemy_vuln_sources_by_type": {},
       "flat_dmg_max": {
         "fire": 135.0,
@@ -874,6 +882,41 @@
     }
   },
   "stats": {
+    "affliction_dot_taken": {
+      "category": "Other",
+      "display_name": "affliction_dot_taken",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Enemy Affliction",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Affliction",
+          "source_type": "condition",
+          "text": "+100.0% Damage over Time taken"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "affliction_dot_taken_base": {
+      "category": "Other",
+      "display_name": "affliction_dot_taken_base",
+      "sources": [
+        {
+          "amount": 1.0,
+          "label": "Enemy Affliction",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+100.0% Damage over Time taken (Affliction 100; before additional Effect)"
+        }
+      ],
+      "total": 1.0,
+      "unit": ""
+    },
     "attack_block_chance_inc": {
       "category": "Defense",
       "display_name": "Attack Block Chance",

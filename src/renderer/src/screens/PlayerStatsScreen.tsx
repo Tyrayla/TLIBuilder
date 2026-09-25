@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary, WarcrySummary, LevelSummary } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary, WarcrySummary, LevelSummary, AfflictionInfo } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from '../components/HeroTraitShared'
@@ -3500,18 +3500,60 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
       })}
       {(details.length > 0 || target.debuffs.length > 0) && (
         <>
-          {/* Names-only list of the debuffs currently on the target — the exact amplification values live in the
-              per-type resistance rows above (and their breakdowns), so they're not repeated here. */}
+          {/* Target debuffs that do not change resistance (such as Affliction) need their exact scope and
+              amplification shown here; resistance-changing debuffs remain explained by the rows above. */}
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#9a6a9a', margin: '6px 0 2px' }}>
             Active Debuffs
           </div>
           <div style={{ fontSize: 12, color: '#d0a0e0', lineHeight: 1.5 }}>
             {details.length > 0
-              ? details.map(d => `${d.name}${d.stacks ? ` ×${Math.round(d.stacks)}` : ''}`).join(', ')
+              ? details.map(d => `${d.name}${d.stacks ? ` ×${Math.round(d.stacks)}` : ''}: +${dec(d.taken_inc * 100)}% ${d.scope} taken`).join(', ')
               : target.debuffs.join(', ')}
           </div>
         </>
       )}
+    </StatPanel>
+  )
+}
+
+// Affliction is a configurable target snapshot with both global and skill-local scaling. Keep its full formula
+// in a dedicated calculation box so it is as inspectable as other modeled mechanics (e.g. Channeled), rather
+// than burying the final vulnerability inside a generic target-debuff label.
+function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | undefined }) {
+  if (!affliction) return null
+  const pct = (value: number) => `${value >= 0 ? '+' : ''}${dec(value * 100)}%`
+  return (
+    <StatPanel title="Affliction" accent="#d06a9a"
+      info="Enemy Affliction is a configured snapshot. Increased Effect adds together; every Additional Effect source multiplies separately. The displayed values are materialized for the headline skill, so a linked Cataclysm only appears where it applies.">
+      <Row label="Current Affliction" breakdown={{
+        title: 'Current Affliction', keys: [], total: affliction.stacks, totalUnit: '',
+        formula: 'Configured target snapshot, capped by Maximum Affliction',
+        extra: [{ value: `${dec(affliction.max_stacks)}`, stat: 'Maximum Affliction', source: 'Calculated', sourceName: '100 base + maximum-Affliction modifiers' }],
+      }}>{dec(affliction.stacks)} / {dec(affliction.max_stacks)}</Row>
+      <Row label="Base Effect" breakdown={{
+        title: 'Affliction Base Effect', keys: [], total: affliction.base_per_stack, totalUnit: '%',
+        formula: '1% Damage over Time taken per Affliction',
+      }}>{dec(affliction.base_per_stack * 100)}% / stack</Row>
+      <Row label="Increased Effect" breakdown={{
+        title: 'Increased Affliction Effect', keys: ['affliction_effect_inc'], total: affliction.effect_inc, totalUnit: '%',
+        formula: 'sum of increased Affliction Effect',
+      }}>{pct(affliction.effect_inc)}</Row>
+      <Row label="Additional Effect" breakdown={{
+        title: 'Additional Affliction Effect', keys: ['affliction_effect_additional'], total: affliction.effect_additional, totalUnit: '%',
+        formula: 'product of (1 + each Additional Affliction Effect source) - 1',
+      }}>{pct(affliction.effect_additional)}</Row>
+      <Row label="DoT Damage Taken" breakdown={{
+        title: 'Affliction DoT Damage Taken', keys: ['affliction_dot_taken'], total: affliction.dot_taken, totalUnit: '%',
+        formula: 'Affliction × 1% × (1 + Increased Effect) × product(1 + Additional Effect)',
+      }}>{pct(affliction.dot_taken)}</Row>
+      {affliction.initial > 0 && <Row label="Inflicted Initially" breakdown={{
+        title: 'Affliction Inflicted Initially', keys: ['affliction_initial_flat'], total: affliction.initial, totalUnit: '',
+        formula: 'sum of initial Affliction sources when the target is first afflicted',
+      }}>+{dec(affliction.initial)}</Row>}
+      <Row label="Affliction per Second" breakdown={{
+        title: 'Affliction per Second', keys: ['affliction_per_second_flat'], total: affliction.per_second, totalUnit: ' /s',
+        formula: 'net positive Affliction rate for the headline skill; the configured snapshot does not decay by itself',
+      }}>{affliction.per_second >= 0 ? '+' : ''}{dec(affliction.per_second)} /s</Row>
     </StatPanel>
   )
 }
@@ -3825,6 +3867,7 @@ export default function PlayerStatsScreen() {
             stacks live on the Conditionals screen, not here — this screen only displays the calculation.) */}
         <div style={{ flex: '22', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
+          <AfflictionPanel affliction={computedStats.affliction} />
           <AttributesPanel statMap={statMap} />
           <BlessingsPanel blessings={blessings} />
           <UtilityPanel statMap={statMap} />
