@@ -3541,11 +3541,12 @@ function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | u
       <Row label="Current Affliction" breakdown={{
         title: 'Current Affliction', keys: ['max_affliction_flat'], total: affliction.stacks, totalUnit: '',
         formula: 'Configured target snapshot, capped by Maximum Affliction',
-        extra: [{ value: `${dec(affliction.max_stacks)}`, stat: 'Maximum Affliction', source: 'Calculated', sourceName: '100 base + maximum-Affliction modifiers' }],
+        extra: [{ value: '100', stat: 'Maximum Affliction', source: 'Baseline', sourceName: 'Base cap' }],
       }}>{dec(affliction.stacks)} / {dec(affliction.max_stacks)}</Row>
       <Row label="Base Effect" breakdown={{
         title: 'Affliction Base Effect', keys: [], total: affliction.base_per_stack, totalUnit: '%',
         formula: '1% Damage over Time taken per Affliction',
+        extra: [{ value: `${dec(affliction.base_per_stack * 100)}%`, stat: 'Base Affliction Effect', source: 'Baseline', sourceName: 'Damage over Time taken per Affliction' }],
       }}>{dec(affliction.base_per_stack * 100)}% / stack</Row>
       <Row label="Increased Effect" breakdown={{
         title: 'Increased Affliction Effect', keys: ['affliction_effect_inc'], total: affliction.effect_inc, totalUnit: '%',
