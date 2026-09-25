@@ -2425,18 +2425,6 @@ def compute(
     if _numbed > 0:
         debuff_details.append({"name": "Numbed", "scope": "Lightning damage", "stacks": _numbed,
                                "taken_inc": source.total("numbed_lightning_taken")})
-    # Affliction is a target-state condition rather than an ordinary player stat.  Surface its final,
-    # main-skill-materialized DoT vulnerability here so the calculation UI shows what the configurable
-    # Enemy Affliction value is doing (including a Cataclysm linked to the displayed skill).
-    _affliction_taken = _tp_source.total("affliction_dot_taken")
-    if not _affliction_taken:
-        from engine.offense import additional_total_product as _target_affliction_add_product
-        _affliction_taken = (_tp_source.total("affliction_dot_taken_base")
-                             * _target_affliction_add_product(_tp_source, "affliction_effect_additional"))
-    _affliction_stacks = float(condition_state.get("affliction_stacks", 100.0) or 0.0)
-    if _affliction_stacks > 0 and _affliction_taken > 0:
-        debuff_details.append({"name": "Affliction", "scope": "Damage over Time",
-                               "stacks": _affliction_stacks, "taken_inc": _affliction_taken})
     _true_flame_taken = _tp_source.total("true_flame_fire_hit_taken")
     if _true_flame_taken > 0:
         debuff_details.append({"name": "True Flame", "scope": "Fire hit damage",

@@ -509,7 +509,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
   label: string; children: React.ReactNode; labelColor?: string;
   onClick?: (e: React.MouseEvent) => void;
   expandable?: boolean; expanded?: boolean;
-  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
+  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; displaySources?: Collected[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
 }) {
   const ctx = useContext(BreakdownCtx)
   // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
@@ -532,7 +532,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} localGearSources={breakdown!.localGearSources} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} displaySources={breakdown!.displaySources} localGearSources={breakdown!.localGearSources} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -958,10 +958,19 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                 // own armour/resist half (target_mitigation_by_type), not m ÷ Π(vuln).
                 const vk = offense.enemy_vuln_sources_by_type?.[d] ?? []
                 const mitigation = offense.target_mitigation_by_type?.[d] ?? m
+                const afflictionTaken = vk.includes('affliction_dot_taken') ? (offense.affliction?.dot_taken ?? 0) : 0
+                const multiplierKeys = afflictionTaken > 0 ? vk.filter(k => k !== 'affliction_dot_taken') : vk
+                const multiplierSources: Collected[] | undefined = afflictionTaken > 0 ? [{
+                  statKey: 'affliction_dot_taken', statName: 'Affliction DoT Damage Taken', unit: '×',
+                  source_type: 'condition', label: 'Enemy', text: 'Enemy Affliction', source_name: 'Affliction',
+                  amount: afflictionTaken, points: 1, slot: null, scope: null,
+                  displayValue: `×${dec(1 + afflictionTaken)}`,
+                }] : undefined
                 return <td key={d} style={td}>
-                  <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={vk} total={m} totalUnit="×"
+                  <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={multiplierKeys} total={m} totalUnit="×"
                     formula="Target Mitigation × Π(1 + enemy vulnerability)"
-                    extra={[{ value: `×${dec(mitigation)}`, stat: 'Target Mitigation', source: 'Target', sourceName: '(1 − armour) × (1 − resistance)' }]}>
+                    extra={[{ value: `×${dec(mitigation)}`, stat: 'Target Mitigation', source: 'Target', sourceName: '(1 − armour) × (1 − resistance)' }]}
+                    displaySources={multiplierSources}>
                     ×{dec(m)}
                   </Breakdown>
                 </td>
@@ -3547,8 +3556,14 @@ function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | u
         formula: 'product of (1 + each Additional Affliction Effect source) - 1',
       }}>{pct(affliction.effect_additional)}</Row>
       <Row label="DoT Damage Taken" breakdown={{
-        title: 'Affliction DoT Damage Taken', keys: ['affliction_dot_taken'], total: affliction.dot_taken, totalUnit: '%',
+        title: 'Affliction DoT Damage Taken', keys: [], total: affliction.dot_taken, totalUnit: '%',
         formula: 'Affliction × 1% × (1 + Increased Effect) × product(1 + Additional Effect)',
+        displaySources: [{
+          statKey: 'affliction_dot_taken', statName: 'Affliction DoT Damage Taken', unit: '×',
+          source_type: 'condition', label: 'Enemy', text: 'Enemy Affliction', source_name: 'Affliction',
+          amount: affliction.dot_taken, points: 1, slot: null, scope: null,
+          displayValue: `×${dec(1 + affliction.dot_taken)}`,
+        }],
       }}>{pct(affliction.dot_taken)}</Row>
       {affliction.initial > 0 && <Row label="Inflicted Initially" breakdown={{
         title: 'Affliction Inflicted Initially', keys: ['affliction_initial_flat'], total: affliction.initial, totalUnit: '',
