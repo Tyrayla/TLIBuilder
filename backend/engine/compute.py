@@ -1981,6 +1981,19 @@ def compute(
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
             demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
+        # This belongs to EACH offense result: Cataclysm and the Affliction application rate are scoped to
+        # the skill slot the user is inspecting in the left-side calculation panels.
+        from engine.offense import additional_total_product as _offense_affliction_add_product
+        _res["affliction"] = {
+            "stacks": float(condition_state.get("affliction_stacks", 100.0) or 0.0),
+            "max_stacks": float(maxes.get("affliction_stacks", 100.0)),
+            "base_per_stack": 0.01,
+            "effect_inc": eff.total("affliction_effect_inc"),
+            "effect_additional": _offense_affliction_add_product(eff, "affliction_effect_additional") - 1.0,
+            "dot_taken": eff.total("affliction_dot_taken"),
+            "initial": eff.total("affliction_initial_flat"),
+            "per_second": eff.total("affliction_per_second_flat"),
+        }
         _res["level_summary"] = skill_level_summary(
             eff, list(resolved.tags) + sorted(add_mod_tags or ()), level, is_main, resolved.max_level)
         if terra_charge is not None:
@@ -2458,20 +2471,6 @@ def compute(
         numbed["ff_duration"] = _ff_dur
         numbed["application_rate"] = min(float(_ls_state.get("inflict_aps", 0.0) or 0.0), 1.0)
 
-    # Target-state summary for the dedicated Affliction calculation box. `_tp_source` is materialized for
-    # the headline skill, so a supported-skill-only Cataclysm is reflected in both Effect and rate.
-    _affliction_additional = additional_total_product(_tp_source, "affliction_effect_additional") - 1.0
-    affliction = {
-        "stacks": float(condition_state.get("affliction_stacks", 100.0) or 0.0),
-        "max_stacks": float(maxes.get("affliction_stacks", 100.0)),
-        "base_per_stack": 0.01,
-        "effect_inc": _tp_source.total("affliction_effect_inc"),
-        "effect_additional": _affliction_additional,
-        "dot_taken": _affliction_taken,
-        "initial": _tp_source.total("affliction_initial_flat"),
-        "per_second": _tp_source.total("affliction_per_second_flat"),
-    }
-
     from engine.aggregator import blessings_summary
     blessings = blessings_summary(active_booleans, numeric_vals, source)
 
@@ -2575,6 +2574,5 @@ def compute(
         origin_summary=origin_summary,
         reservation=reservation,
         numbed=numbed,
-        affliction=affliction,
         referenced_conditions=sorted(source.referenced_conditions),
     )

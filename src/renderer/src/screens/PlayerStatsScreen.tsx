@@ -2792,6 +2792,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           (or Show-all). Per-skill scoping + "cannot inflict" override chains in the breakdown are Phase-2. */}
       {/* Minions don't model ailments/CC and have no minion-scoped ailment pools, so these player-mechanic
           boxes are hidden in minion mode (only minion sources belong in a minion's view). */}
+      {!minion && (hasDot || showAll) && offense.affliction && (
+        <GridBox><AfflictionPanel affliction={offense.affliction} /></GridBox>
+      )}
+
       {!minion && AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
         const chance = stat(a.chanceKey)
         return (
@@ -3526,7 +3530,7 @@ function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | u
     <StatPanel title="Affliction" accent="#d06a9a"
       info="Enemy Affliction is a configured snapshot. Increased Effect adds together; every Additional Effect source multiplies separately. The displayed values are materialized for the headline skill, so a linked Cataclysm only appears where it applies.">
       <Row label="Current Affliction" breakdown={{
-        title: 'Current Affliction', keys: [], total: affliction.stacks, totalUnit: '',
+        title: 'Current Affliction', keys: ['max_affliction_flat'], total: affliction.stacks, totalUnit: '',
         formula: 'Configured target snapshot, capped by Maximum Affliction',
         extra: [{ value: `${dec(affliction.max_stacks)}`, stat: 'Maximum Affliction', source: 'Calculated', sourceName: '100 base + maximum-Affliction modifiers' }],
       }}>{dec(affliction.stacks)} / {dec(affliction.max_stacks)}</Row>
@@ -3867,7 +3871,6 @@ export default function PlayerStatsScreen() {
             stacks live on the Conditionals screen, not here — this screen only displays the calculation.) */}
         <div style={{ flex: '22', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
-          <AfflictionPanel affliction={computedStats.affliction} />
           <AttributesPanel statMap={statMap} />
           <BlessingsPanel blessings={blessings} />
           <UtilityPanel statMap={statMap} />

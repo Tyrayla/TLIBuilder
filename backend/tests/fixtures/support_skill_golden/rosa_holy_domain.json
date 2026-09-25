@@ -1,8 +1,12 @@
 {
   "consumed_stats": [
     "active_skill_level",
+    "affliction_dot_taken",
     "affliction_dot_taken_base",
     "affliction_effect_additional",
+    "affliction_effect_inc",
+    "affliction_initial_flat",
+    "affliction_per_second_flat",
     "all_skill_level",
     "all_stats_flat",
     "all_stats_inc",
@@ -249,6 +253,16 @@
   ],
   "offense": {
     "above_max_mult": 5.184903179257141,
+    "affliction": {
+      "base_per_stack": 0.01,
+      "dot_taken": 1.0,
+      "effect_additional": 0.0,
+      "effect_inc": 0,
+      "initial": 0,
+      "max_stacks": 100.0,
+      "per_second": 0,
+      "stacks": 100.0
+    },
     "base_cast_time": 1.0,
     "base_csr": 500.0,
     "base_dmg_max": {},
@@ -566,6 +580,16 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 5.184903179257141,
+      "affliction": {
+        "base_per_stack": 0.01,
+        "dot_taken": 1.0,
+        "effect_additional": 0.0,
+        "effect_inc": 0,
+        "initial": 0,
+        "max_stacks": 100.0,
+        "per_second": 0,
+        "stacks": 100.0
+      },
       "base_cast_time": 1.0,
       "base_csr": 500.0,
       "base_dmg_max": {},

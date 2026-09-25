@@ -286,6 +286,10 @@ def test_dot_vulnerability_breakdown_names_affliction_source():
     # 100% × 1.5 × 1.2 = 180% additional DoT taken, exposed in the shared vulnerability breakdown.
     assert offense["enemy_vuln_by_type"]["fire"] == pytest.approx(2.8)
     assert "affliction_dot_taken" in offense["enemy_vuln_sources_by_type"]["fire"]
+    # The selected-skill mechanic panel reads this same materialized payload and the normal source map.
+    assert offense["affliction"]["dot_taken"] == pytest.approx(1.8)
+    assert offense["affliction"]["effect_additional"] == pytest.approx(0.2)
+    assert result["stats"]["affliction_dot_taken"]["slot_sources"][0]["amount"] == pytest.approx(1.8)
 
 
 def test_fire_hit_and_dot_have_separate_vulnerability_breakdowns():

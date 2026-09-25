@@ -890,6 +890,8 @@ export interface OffenseResult {
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
   level_summary?: LevelSummary | null
+  // Target Affliction calculation materialized for this skill slot.
+  affliction?: AfflictionInfo | null
   // Per-stat breakdown built off THIS result's own materialized source, set only when it diverges from
   // the player's global stat map (currently: Seething Spirit's clone — see compute.py's
   // `_source_log_stat_map`). Breakdown panels prefer this over the shared BreakdownCtx statMap when
@@ -1385,8 +1387,6 @@ export interface StatSheetResponse {
   // per-stack duration, effective stacks, the enemy Lightning-taken total, and (real uptime mode) the
   // Feline Figure application rate + the FF-inflicted Numbed duration that produced the steady state.
   numbed?: NumbedInfo | null
-  // Target Affliction calculation for the headline skill (includes slot-specific support effects).
-  affliction?: AfflictionInfo | null
   // Per equipped aura/Focus passive: the buff lines it grants (already scaled by Aura Effect + interpolated to
   // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
   auras?: AuraSummary[]

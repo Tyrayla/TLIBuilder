@@ -252,6 +252,5 @@ class StatResult:
     origin_summary:      dict | None = None         # Origin of Spirit Magus display summary: {factor, skills:[{skill_id, slot, skill_name, origin_name, factor, grants:[{label, base, value, unit}], added:[... + support_name]}]}
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
     numbed:              dict | None = None          # Numbed ailment box: base/stacks/duration/effect pools + uptime
-    affliction:          dict | None = None          # target Affliction calculation box (main-skill-materialized effect/rate)
     referenced_conditions: list[str] = field(default_factory=list)  # condition keys any build mod references (gate on/off) — UI hides the rest
     auto_conditions:     dict[str, dict] = field(default_factory=dict)  # engine-activated (not user-set) conditions → {value, source} for the Config "auto" badge
