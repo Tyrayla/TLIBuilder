@@ -1,38 +1,67 @@
-# Test backlog (backburner)
+# Test backlog
 
-Tracks test coverage that's intentionally deferred. Run the suite from `backend/` with
-`py -3.12 -m pytest tests/`. As of 2026-06-07 the backend suite is **271 tests, all green**.
+> Last verified against: 5e6ddd4 (2026-09-25).
 
-## Recently added (done)
-- `tests/test_passive_tree.py` — the preceding-columns unlock rule: `is_column_unlocked` /
-  `points_before_column`, `allocate` (locks, full node, connection prereqs normal=3/legendary=1,
-  multiple sources), `deallocate` (right-column stranding, connection prereqs), end-to-end.
-- `tests/test_engine_offense.py` — `calculate_offense`: supported flag, crit-chance + crit-mult
-  formulas, APS (gear/mh/inc/additional), dummy-target mitigation, hit-form summing, steep split.
-- `tests/test_engine_derive.py` — `derive_stats` (attributes, life/mana/ES, armor/evasion shared
-  `defense_inc`, additional pools, clamp-at-0, source injection).
-- `tests/test_engine_compute.py` — pure helpers `_derive_views`, `_clamp_and_rederive`
-  (clamping + `*_active` re-derivation), `derive_condition_maximums` / `_minimums`.
+What test coverage is deferred, and what to do next. The detailed plan with effort estimates is
+[`TEST_EXPANSION_PLAN.md`](TEST_EXPANSION_PLAN.md); this page tracks where that plan stands.
 
-## Deferred — backend
-- **`compute()` full fixed-point loop** (engine/compute.py): convergence over
-  aggregate → derive → clamp → re-derive, the `computed_stat` condition injection, the stat_map
-  / Character-section assembly, and the clamp_report. Needs a small season-tree + filter-data
-  fixture (or a faked `aggregate`). The pure helpers it calls are already covered.
-- **server.py endpoints** — `/api/validate-allocate` and `/api/engine/stats` integration tests.
-  Both depend on loaded season data (`TREES`, `_build_tree`, skill data), so they need a fixture
-  or a test season; the underlying logic (PassiveTree, offense, derive, compute helpers) is
-  already unit-tested.
-- **engine/aggregator.py** — already covered (`tests/test_engine_aggregator.py`); consider adding
-  gear-contribution + memory/spirit-effect aggregation edge cases if those change.
+## Current state (2026-09-25)
 
-## Deferred — frontend (vitest)
-Setup: `vitest.config.ts` (node env); example in `src/renderer/src/__tests__/stats-computing.test.ts`.
-- `utils/statsPayload.ts` — `buildEngineStatsPayload` shape + `buildGearPayload`
-  (single vs dual-wield, weapon-implicit parsing, customization values).
-- `utils/affixText.ts` — `tooltipAffixText` / `reconstructAffixText` range reconstruction.
-- **Damage-delta classification** in `components/tooltip/useDamageDelta.ts` — extract the
-  ≈0-delta classification into a pure function and test it. NOTE: this is changing — the
-  "not yet supported" vs "no damage change" split currently uses a frontend category list and
-  will be reworked when the engine models "consume stats" (life/mana/ES → damage). Test it after
-  that lands.
+- Backend: about 4,100 collected pytest cases (1,878 test functions, many parametrized), plus the
+  golden fixtures (`support_skill_golden`, `scope_golden`) and the consumable-universe scan.
+- Renderer: 42 vitest files, 423 tests, all pure logic in a `node` environment.
+- E2E: 4 Playwright specs (web and Electron smoke, a web journey, Electron perf).
+- CI (`.github/workflows/ci.yml`) runs typecheck, vitest, and pytest.
+- Live verification: the `app-harness` skill drives the Electron app and the web build through
+  agent-browser on per-worktree dev slots (`scripts/dev-slot.mjs`). Its feature map lists which
+  features have been driven on which platform.
+
+### Weak-test audit
+
+On 2026-09-25 every backend and renderer test was scanned for the five shapes the `test-behavior`
+skill rejects (no assertion, existence-only, mock-only, self-referential, constant pin). Nine
+backend candidates came up and none is a real problem:
+
+- `test_ailment_inflict.py` (3): asserts sit on the same line after `;`, which the scanner missed.
+- `test_guards.py` (4): "must not raise" checks, each paired with a sibling test that asserts the
+  raise.
+- `test_models_stat*.py` (2): structural checks across every row of a registry, which the skill
+  keeps on purpose.
+
+The renderer suite had no candidates. The scanner lives at
+`.wolf/scratch/weak_tests.py` in the docs-architecture worktree; re-run it after large test
+additions.
+
+## Test Expansion Plan status
+
+| Phase | Status |
+|---|---|
+| 0: un-gate season-independent backend tests | Done (2026-08-27, +757 tests) |
+| 1: test infrastructure | Partly done: CI runs typecheck, vitest, pytest. **Not done:** jsdom / Testing Library for component tests, coverage reporting |
+| 2: tier-1 renderer interaction tests | Not started (no test renders a component yet) |
+| 3: user-journey E2E | Started: 4 specs; the app harness now proves journeys live first, then `testing` turns them into specs |
+| 4: tier-2 screens and backfill | Not started |
+
+## Next batches (each needs owner review before it lands)
+
+1. **Phase 1 finish:** add `jsdom` and `@testing-library/react` as dev dependencies and a
+   `renderer` vitest project with the jsdom environment. This is a dependency change, so it goes
+   through the security lane.
+2. **Phase 2, first slice:** interaction tests for the build lifecycle in `App.tsx` (open, save,
+   the unsaved-changes modal, discard) and `ImportExportOverlay` round-trips, following the
+   `test-behavior` skill.
+3. **Phase 3, from the feature map:** turn the harness journey `main-skill-dps` (Chain Lightning
+   Lv20 = 566 Full DPS on both targets) into Playwright specs for the web and Electron projects.
+
+## Deferred (carried over)
+
+- **`compute()` full fixed-point loop** (`backend/engine/compute.py`): convergence over
+  aggregate → derive → clamp → re-derive, the `computed_stat` condition injection, and the
+  clamp report, beyond what the goldens already pin.
+- **server.py endpoint integration tests** for `/api/validate-allocate` and `/api/engine/stats`
+  with a small test season.
+- **Renderer utilities:** `utils/statsPayload.ts` payload shape and `buildGearPayload` (single vs
+  dual wield); `utils/affixText.ts` range reconstruction.
+- **Damage-delta classification** in `components/tooltip/useDamageDelta.ts`: extract the
+  near-zero classification into a pure function and test it once the "consume stats" engine work
+  settles.

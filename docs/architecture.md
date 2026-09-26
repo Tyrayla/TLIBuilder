@@ -1,5 +1,8 @@
 # Architecture Overview
 
+> **Superseded (2026-09-25).** This page describes the code as of May 2026 and is kept for history.
+> The current description is [architecture/README.md](architecture/README.md).
+
 ## Application Stack
 
 - Python backend server
