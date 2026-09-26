@@ -21,7 +21,11 @@
     "test": "vitest run",
     "test:e2e": "npm run build && npm run build:web && playwright test -c e2e",
     "test:e2e:web": "npm run build:web && playwright test -c e2e --project=web",
-    "test:e2e:electron": "npm run build && set PW_NO_WEBSERVER=1&& playwright test -c e2e --project=electron"
+    "test:e2e:electron": "npm run build && set PW_NO_WEBSERVER=1&& playwright test -c e2e --project=electron",
+    "slot:info": "node scripts/dev-slot.mjs info",
+    "dev:slot": "node scripts/dev-slot.mjs electron",
+    "web:slot": "node scripts/dev-slot.mjs web",
+    "test:e2e:slot": "node scripts/dev-slot.mjs e2e"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",

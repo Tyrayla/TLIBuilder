@@ -18,15 +18,16 @@ const isVerbose = process.env.VERBOSE === 'true'
 // bounded report JSON; it never controls a URL or gets arbitrary network IPC.
 const REPORT_SERVICE_URL = (process.env.TLI_REPORT_BASE_URL ?? 'https://api.tlibuilder.com').replace(/\/+$/, '')
 
-// E2E harness overrides (set only by e2e/fixtures/electron.ts): an isolated userData dir and a
-// dedicated backend port, so a test run never touches real settings and never port-kills a live
-// dev backend on 8766. Hard-gated to the unpackaged app — a shipped build must never let an env
-// var redirect userData or point killPortProcess() at an arbitrary port. Data-dir isolation needs
-// no code here — the dev-mode spawn env inherits process.env, so a TLI_DATA_DIR set at launch
-// reaches the Python backend directly.
-const _e2ePortRaw = app.isPackaged ? NaN : parseInt(process.env.TLI_E2E_PYTHON_PORT || '', 10)
+// Isolation overrides for side-by-side unpackaged runs: an isolated userData dir and a dedicated
+// backend port, so a second instance never touches real settings and never port-kills another
+// instance's backend (dev uses 8766). Set by scripts/dev-slot.mjs (TLI_DEV_*: one port set per
+// worktree "slot") and by e2e/fixtures/electron.ts (TLI_E2E_*, the original names, still honored).
+// Hard-gated to the unpackaged app — a shipped build must never let an env var redirect userData or
+// point killPortProcess() at an arbitrary port. Data-dir isolation needs no code here — the dev-mode
+// spawn env inherits process.env, so a TLI_DATA_DIR set at launch reaches the Python backend directly.
+const _e2ePortRaw = app.isPackaged ? NaN : parseInt(process.env.TLI_DEV_PYTHON_PORT || process.env.TLI_E2E_PYTHON_PORT || '', 10)
 const E2E_PYTHON_PORT = Number.isInteger(_e2ePortRaw) && _e2ePortRaw >= 1024 && _e2ePortRaw <= 65535 ? _e2ePortRaw : null
-const E2E_USERDATA = app.isPackaged ? undefined : process.env.TLI_E2E_USERDATA
+const E2E_USERDATA = app.isPackaged ? undefined : (process.env.TLI_DEV_USERDATA || process.env.TLI_E2E_USERDATA)
 if (E2E_USERDATA) app.setPath('userData', E2E_USERDATA)
 
 let PYTHON_PORT = 8765
