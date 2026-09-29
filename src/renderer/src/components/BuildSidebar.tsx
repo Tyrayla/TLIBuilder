@@ -46,6 +46,7 @@ function fmtDps(n: number): string {
 function DpsBox({ onNav }: { onNav: (t: string) => void }) {
   const computedStats = useBuildStore(s => s.computedStats)
   const statsLoading  = useBuildStore(s => s.statsLoading)
+  const statsError    = useBuildStore(s => s.statsError)
   const skills        = useBuildStore(s => s.skills)
   const skillsById    = useReferenceStore(s => s.skillsById)
 
@@ -96,7 +97,13 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
     <div className="sidebar-dps-box" onClick={() => onNav('stats')} title="Click to open Calcs">
       <div className="sidebar-dps-label">Full DPS</div>
       <div className="sidebar-dps-value">
-        {total > 0 ? fmtDps(total) : statsLoading ? '…' : '—'}
+        {total > 0
+          ? fmtDps(total)
+          // bug-289: statsLoading wins over a stale statsError (setStatsLoading(true) doesn't clear a
+          // previous error), so a new compute after a failure reads "…", not a stuck "Error". A failed
+          // compute with nothing to show reads as "Error", not a bare "—" (visually identical to "nothing
+          // equipped yet") — the error message rides as the title tooltip.
+          : statsLoading ? '…' : statsError ? <span title={statsError.message}>Error</span> : '—'}
       </div>
       {allContributors.length > 0 && (
         <div className="sidebar-dps-breakdown">

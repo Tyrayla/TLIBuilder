@@ -146,7 +146,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const loadAll = () => {
     setLoading(true)
     Promise.all([api.getBuilds(), api.getBuildFolders()])
-      .then(([b, m]) => { setBuilds(b); setManifest(m); setLoading(false) })
+      // bug-290: defensive guard — a null/undefined catalog response must not crash the very next
+      // render's builds.filter / manifest.folders.filter, so treat it as empty instead.
+      .then(([b, m]) => { setBuilds(b ?? []); setManifest(m ?? EMPTY_MANIFEST); setLoading(false) })
       .catch(() => setLoading(false))
   }
 

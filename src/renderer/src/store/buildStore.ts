@@ -194,6 +194,12 @@ interface BuildStore {
   // Versioning — the single trigger for recalc
   buildVersion: number
   computedVersion: number
+
+  // Runtime-only counter bumped exclusively by loadBuild (never by setTraitData or any other setter,
+  // and never serialized/saved — it is not part of LoadedBuild). Lets a hook like useDefaultHeroTrait
+  // latch "once per load" instead of "once per buildId", since a fresh unsaved build's buildId (null)
+  // is indistinguishable from the store's own boot state.
+  loadGeneration: number
 }
 
 const DEFAULT_BUILD: LoadedBuild = {
@@ -255,6 +261,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   statsError: null,
   buildVersion: 0,
   computedVersion: -1,
+  loadGeneration: 0,
   loadoutStatsCache: {},
 
   // ── Build identity ──────────────────────────────────────────────────────────
@@ -375,6 +382,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       computedStats: EMPTY_STAT_SHEET,
       loadoutStatsCache: {},
       buildVersion: s.buildVersion + 1,
+      loadGeneration: s.loadGeneration + 1,
     })),
 
   // ── Reference data ──────────────────────────────────────────────────────────

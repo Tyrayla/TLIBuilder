@@ -508,6 +508,17 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('get-is-dev', () => !app.isPackaged)
 
+  const netError = (message: string) => ({
+    error: {
+      code: 'TLI-NET-001',
+      title: 'A required service cannot be reached',
+      message,
+      remediation: 'Restart TLI Builder and try again.',
+      operation: 'electron.ipc.api-request',
+      retryable: true,
+    },
+  })
+
   ipcMain.handle('api-request', async (_event, { method, path, body }: { method: string; path: string; body?: unknown }) => {
     const url = `http://127.0.0.1:${PYTHON_PORT}/api${path}`
     try {
@@ -517,7 +528,17 @@ app.whenReady().then(async () => {
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(30000),
       })
-      const data = await res.json().catch(() => null)
+      let parseFailed = false
+      const data = await res.json().catch(() => { parseFailed = true; return null })
+      if (res.ok && parseFailed) {
+        // A 2xx with a body that isn't valid JSON is not a success the renderer can use —
+        // treat it as the same retryable transport failure as an unreachable backend.
+        return {
+          ok: false,
+          status: 0,
+          data: netError('TLI Builder returned an unreadable response from its local backend.'),
+        }
+      }
       return { ok: res.ok, status: res.status, data }
     } catch (e) {
       // Preserve a typed, player-safe transport failure. Previously this returned only status 0
@@ -525,16 +546,7 @@ app.whenReady().then(async () => {
       return {
         ok: false,
         status: 0,
-        data: {
-          error: {
-            code: 'TLI-NET-001',
-            title: 'A required service cannot be reached',
-            message: 'TLI Builder could not contact its local backend.',
-            remediation: 'Restart TLI Builder and try again.',
-            operation: 'electron.ipc.api-request',
-            retryable: true,
-          },
-        },
+        data: netError('TLI Builder could not contact its local backend.'),
       }
     }
   })
