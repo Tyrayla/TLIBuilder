@@ -1502,8 +1502,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* ── Settings modal ───────────────────────────────────────────────────────── */
 
-.settings-modal-card { width: 480px; max-width: 90vw; }
-.settings-modal-body { padding: 4px 20px 8px; }
+/* Capped to the window so the title and Close stay reachable in a short window; the body scrolls.
+   Divided by --ui-zoom (set in App.tsx) because the root CSS zoom doesn't scale vh. */
+.settings-modal-card { width: 480px; max-width: 90vw; max-height: calc(100vh / var(--ui-zoom, 1) - 32px); display: flex; flex-direction: column; }
+.settings-modal-body { padding: 4px 20px 8px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .settings-section { margin-bottom: 18px; }
 .settings-section-title {
   font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;

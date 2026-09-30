@@ -570,7 +570,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
 
       {loading ? (
         <LoadingState label="Loading builds…" />
-      ) : builds.length === 0 ? (
+      ) : builds.length === 0 && manifest.folders.length === 0 ? (
         <div className="empty-state">
           <p>No saved builds yet.</p>
           <p>Click <strong style={{ color: '#e0e0e0' }}>+ New Build</strong> to get started.</p>

@@ -32,6 +32,13 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
     window.api?.getSettings?.().then((s: AppSettings) => setChannel(s.updateChannel)).catch(() => {})
   }, [])
 
+  // Escape closes, like the backdrop click and the Close button.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const switchChannel = async (ch: Channel) => {
     if (ch === channel || saving) return
     setChannel(ch)

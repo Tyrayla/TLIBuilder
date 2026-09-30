@@ -252,8 +252,14 @@ function App() {
   useEffect(() => { window.api?.notifyDirty?.(isDirty && screen !== 'build-select') }, [isDirty, screen])
 
   // Global UI zoom (Settings → Display). Applied as CSS zoom on the document root so the whole interface scales.
+  // Also exposed as --ui-zoom: vh units are not scaled by this zoom, so a height capped to the window must
+  // divide by it (e.g. the Settings modal).
   const uiScale = useUiPrefs(s => s.uiScale)
-  useEffect(() => { document.documentElement.style.zoom = String(uiScale || 1) }, [uiScale])
+  useEffect(() => {
+    const zoom = String(uiScale || 1)
+    document.documentElement.style.zoom = zoom
+    document.documentElement.style.setProperty('--ui-zoom', zoom)
+  }, [uiScale])
 
   // When condition definitions load, fill any empty conditionState with defaults.
   // This covers new builds and imported builds that predate the conditions system.
