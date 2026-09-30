@@ -3,8 +3,11 @@ import { api } from '../api/client'
 import { submitBugReport } from '../api/share'
 import type { TliErrorPayload } from '../errors/tliError'
 import { createCalculationSnapshot, createDiagnostics, currentSeason, getReportRuntimeContext, REPORT_CATEGORIES, type ReportCategory } from '../reports/reporting'
+import { useEscapeToClose } from './useEscapeToClose'
 
 export default function ReportModal({ onClose, error }: { onClose: () => void, error?: TliErrorPayload }) {
+  // Escape closes, like the backdrop click and Cancel.
+  useEscapeToClose(onClose)
   const [category, setCategory] = useState<ReportCategory>(error ? 'app_behavior' : 'wrong_calculation')
   const [expected, setExpected] = useState('')
   const [actual, setActual] = useState(error ? `${error.title} (${error.code})` : '')
