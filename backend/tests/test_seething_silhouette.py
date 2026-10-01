@@ -235,6 +235,25 @@ def _spirit_dps(resp):
     return r["total_dps_vs_target"] if r else None
 
 
+def test_spirit_honors_editable_target_dummy_like_the_player():
+    # bug-305: Spirit's offense ran on a rebuilt BuildSource that dropped target_config, so its vs-target DPS
+    # stayed on the Lv85 dummy while the player's own hit used the configured one. Both hit the same target,
+    # so a softer dummy must scale Spirit's vs-target DPS by the same factor as the player's.
+    soft = {"level": 40, "armor": 0, "fireRes": 0, "coldRes": 0, "lightningRes": 0, "erosionRes": 0}
+    base = _run(picks=["Fury's Onslaught"])
+    req = make_request(SKILL, 20, trait_id="seething_silhouette", trait_slot_levels=[5, 5, 1, 1],
+                       advanced_trait_selections=["Fury's Onslaught"], dual_wield=True,
+                       extra_conditions={"berserk_active": True})
+    req["target_config"] = soft
+    r = engine_stats(EngineStatsRequest(**req))
+    soft_resp = r.model_dump() if hasattr(r, "model_dump") else r
+
+    player_ratio = soft_resp["offense"]["total_dps_vs_target"] / base["offense"]["total_dps_vs_target"]
+    spirit_ratio = _spirit_dps(soft_resp) / _spirit_dps(base)
+    assert player_ratio > 1.0                       # the softer dummy really does take more damage
+    assert spirit_ratio == pytest.approx(player_ratio)
+
+
 def test_no_spirit_pick_no_spirit_offense():
     resp = _run(picks=[])
     assert resp.get("spirit_offense") is None

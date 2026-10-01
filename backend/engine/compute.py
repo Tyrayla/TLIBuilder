@@ -2068,9 +2068,12 @@ def compute(
                         if _s == "dmg_additional" and abs(_a - _exclude_amt) < 1e-9:
                             del _spirit_entries[_i]
                             break
+                # Spirit hits the same calc target as the player, so carry the editable dummy / enemy
+                # configs too; without them Spirit's vs-target DPS stayed on the Lv85 constants (bug-305).
                 _spirit_source = BuildSource(
                     _entries=_spirit_entries, source_log=_spirit_log,
-                    consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording)
+                    consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording,
+                    target_config=_spirit_eff.target_config, enemy_config=_spirit_eff.enemy_config)
                 # Tracked via add_with_source (not the untracked .add() this used before) so these show up
                 # as real, labelled rows in Spirit's OWN breakdown (see `_spirit_result["stat_map"]` below) —
                 # untracked contributions still apply correctly to the pool MATH (offense.py's per-pool
