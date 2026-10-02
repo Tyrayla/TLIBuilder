@@ -1,0 +1,81 @@
+name: E2E (web)
+
+# Runs the Playwright web journeys (e2e/web) against a build of this commit whose data is served
+# from the same origin (scripts/build-web-local-data.mjs): the commit's own engine runs against the
+# current tli-data, and the run never depends on the live data CDN. Pyodide still loads from jsDelivr.
+#
+# Runs before every production web deploy (deploy-web.yml calls it), on pull requests into main,
+# nightly against dev, and on demand. Scheduled runs only start once this file is on the default branch.
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * *'   # nightly, against dev
+  workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      # Only the dataset token: the caller (deploy-web.yml) passes nothing else, so this job, which runs
+      # npm ci and test code, never holds the deploy credentials.
+      TLI_DATA_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-web:
+    name: Playwright (web)
+    # Pull requests from forks get no secrets, so they can't fetch the private dataset.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A scheduled run starts on the default branch; the nightly run tests dev.
+          ref: ${{ github.event_name == 'schedule' && 'dev' || '' }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        # export_web_data.py imports the backend to export the catalogs.
+        run: pip install -r backend/requirements.txt
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Fetch private game data
+        env:
+          TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+        run: node scripts/fetch-data.mjs
+
+      - name: Build the web app with same-origin data
+        run: node scripts/build-web-local-data.mjs
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run web journeys
+        env:
+          # Block the live data CDN (e2e/fixtures/web.ts): the build must use its same-origin /data.
+          TLI_E2E_NO_CDN: '1'
+        run: npx playwright test -c e2e --project=web
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-web-results
+          path: e2e/test-results
+          retention-days: 14

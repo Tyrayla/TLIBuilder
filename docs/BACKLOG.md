@@ -855,9 +855,11 @@ build-code round trip + unsaved-changes guard. Run: `npm run test:e2e`. Remainin
 - **Folder CRUD + drag-and-drop journey** (BuildSelectScreen).
 - **`data-testid` pass** — journeys currently use structural class selectors (`.modal-card`, `.build-card`,
   `.build-sidebar`, `textarea.share-code-area`) against plan step 3; add testids and migrate.
-- **Hermetic web target** — the web build still fetches catalogs from the live CDN (`VITE_STATIC_DATA_BASE`);
-  serve a local mirror of `web-data/` + catalog exports so CI needs no network.
-- **CI job** — run the web project per push once a workflow exists; electron nightly.
+- **Hermetic web target** — done for data: `scripts/build-web-local-data.mjs` builds `web-data/` from the
+  fetched data and serves it from the same origin (`/data`), so tests never touch the live CDN. Pyodide still
+  loads from jsDelivr; mirroring it would make the target fully offline.
+- **CI job** — web: `.github/workflows/e2e-web.yml` runs before every production web deploy, on PRs into
+  `main`, and nightly on `dev`. Electron in CI is still open.
 
 ### Findings surfaced by the E2E work (app-side, owner-acknowledged 2026-08-04)
 

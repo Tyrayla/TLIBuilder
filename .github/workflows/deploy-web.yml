@@ -19,7 +19,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  e2e:
+    # The web journeys must pass before anything reaches the live site.
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/e2e-web.yml
+    # Only what the test job needs; never the Cloudflare deploy token.
+    secrets:
+      TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+
   deploy:
+    needs: e2e
     # The deploy step publishes to production (--branch=main), so only run from main — a manual
     # dispatch from another branch must not overwrite the live site.
     if: github.ref == 'refs/heads/main'

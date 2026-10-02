@@ -11,7 +11,8 @@ const PORT = Number(process.env.TLI_E2E_WEB_PORT || 8800)
 // 127.0.0.1 by default; set TLI_E2E_WEB_HOST=0.0.0.0 to preview from a phone on the LAN.
 const HOST = process.env.TLI_E2E_WEB_HOST || '127.0.0.1'
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
-  '.json': 'application/json', '.zip': 'application/zip', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml' }
+  '.json': 'application/json', '.zip': 'application/zip', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml',
+  '.webp': 'image/webp' }
 
 const server = http.createServer(async (req, res) => {
   let p = decodeURIComponent((req.url || '/').split('?')[0])
