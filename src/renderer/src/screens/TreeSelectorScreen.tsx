@@ -42,6 +42,7 @@ export default function TreeSelectorScreen({
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
+  const prisms = useBuildStore(s => s.prisms)
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
   const [localIcons, setLocalIcons] = useState<Record<string, string | null>>(treeIcons)
 
@@ -109,6 +110,7 @@ export default function TreeSelectorScreen({
           activeSlot={previewMode ? -1 : activeSlot}
           treeColors={localColors}
           treeIcons={localIcons}
+          prisms={previewMode ? [] : prisms}
           onOverview={onGoToSelector}
           onSlotClick={onSlotClick}
           onPreview={onPreview}
