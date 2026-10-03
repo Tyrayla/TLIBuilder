@@ -1,6 +1,13 @@
 {
   "consumed_stats": [
     "active_skill_level",
+    "affliction_dot_taken",
+    "affliction_dot_taken_base",
+    "affliction_dot_to_fire_hit",
+    "affliction_effect_additional",
+    "affliction_effect_inc",
+    "affliction_initial_flat",
+    "affliction_per_second_flat",
     "all_resistance_reduction",
     "all_skill_level",
     "all_stats_flat",
@@ -29,13 +36,16 @@
     "blur_effect_inc",
     "cast_speed_additional",
     "cast_speed_inc",
+    "cataclysm_affliction_per_second_flat",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_convert_to_erosion",
     "cold_convert_to_fire",
     "cold_crit_dmg_inc",
+    "cold_curse_taken",
     "cold_dmg_additional",
     "cold_dmg_inc",
+    "cold_infiltration_taken",
     "cold_pen",
     "cold_resistance",
     "cold_resistance_max_inc",
@@ -72,6 +82,7 @@
     "elemental_dmg_taken_additional",
     "elemental_pen",
     "elemental_resistance",
+    "enemy_nearby_dmg_taken_additional",
     "energy_shield_consumed_flat_per_sec",
     "energy_shield_consumed_pct_current_per_sec",
     "energy_shield_consumed_pct_max_per_sec",
@@ -111,12 +122,16 @@
     "fire_taken_as_erosion_inc",
     "fire_taken_as_lightning_inc",
     "fire_taken_as_physical_inc",
+    "frail_spell_taken",
+    "frostbite_cold_taken",
+    "hit_curse_taken",
     "hit_dmg_additional",
     "hit_dmg_taken_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
+    "knockback_dmg_taken",
     "life_consumed_flat_per_attack_use",
     "life_consumed_flat_per_cast",
     "life_consumed_flat_per_sec",
@@ -170,6 +185,7 @@
     "mana_regen_pct",
     "mana_regen_speed_inc",
     "mana_restored_pct_current_per_attack_use",
+    "max_affliction_flat",
     "max_agility_blessing_stacks_flat",
     "max_electrify_stacks_flat",
     "max_elemental_resistance_inc",
@@ -195,6 +211,8 @@
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
     "max_terra_charge_stacks_flat",
+    "no_guard_dmg_taken",
+    "paralysis_dmg_taken",
     "physical_as_cold",
     "physical_as_elemental",
     "physical_as_erosion",
@@ -252,13 +270,27 @@
     "terra_skill_dmg_additional",
     "terra_skill_dmg_inc",
     "terra_skill_level",
+    "tide_dmg_taken",
     "triple_dmg_chance",
+    "true_flame_fire_hit_taken",
     "unlucky_crit",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
   ],
   "offense": {
     "above_max_mult": 1.0,
+    "affliction": {
+      "base_per_stack": 0.01,
+      "dot_taken": 1.0,
+      "effect_additional": 0.0,
+      "effect_inc": 0,
+      "initial": 0,
+      "max_stacks": 100.0,
+      "per_second": 0,
+      "stacks": 100.0,
+      "true_flame_conversion": 0,
+      "true_flame_fire_taken": 0.0
+    },
     "base_cast_time": 1.0,
     "base_csr": 500.0,
     "base_dmg_max": {},
@@ -289,10 +321,10 @@
     "damage_rows": [
       {
         "dps_by_type_vs_target": {
-          "cold": 2869.1329841894517
+          "cold": 5738.265968378903
         },
         "dps_final": 4098.761405984931,
-        "dps_vs_target_final": 2869.1329841894517,
+        "dps_vs_target_final": 5738.265968378903,
         "form_index": -1,
         "hit_max_by_type": {},
         "hit_min_by_type": {},
@@ -322,9 +354,45 @@
     "double_dmg_chance": 0,
     "double_dmg_factor": 1,
     "effective_level": 20,
-    "enemy_mult_by_type": {},
-    "enemy_vuln_by_type": {},
-    "enemy_vuln_sources_by_type": {},
+    "enemy_mult_by_type": {
+      "cold": 0.9799999999999999
+    },
+    "enemy_vuln_by_form": {
+      "dot:cold": 2.0
+    },
+    "enemy_vuln_by_type": {
+      "cold": 2.0
+    },
+    "enemy_vuln_sources_by_form": {
+      "dot:cold": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frostbite_cold_taken",
+        "affliction_dot_taken",
+        "cold_infiltration_taken",
+        "frail_spell_taken",
+        "cold_curse_taken",
+        "hit_curse_taken"
+      ]
+    },
+    "enemy_vuln_sources_by_type": {
+      "cold": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frostbite_cold_taken",
+        "affliction_dot_taken",
+        "cold_infiltration_taken",
+        "frail_spell_taken",
+        "cold_curse_taken",
+        "hit_curse_taken"
+      ]
+    },
     "flat_dmg_max": {
       "fire": 135.0,
       "lightning": 198.0,
@@ -487,7 +555,9 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "target_mitigation_by_type": {},
+    "target_mitigation_by_type": {
+      "cold": 0.48999999999999994
+    },
     "terra_charge": {
       "charges_consumed": 1.0,
       "max_stacks": 1,
@@ -495,7 +565,7 @@
       "restore_seconds_per_stack": 0.5
     },
     "total_dps": 4098.761405984931,
-    "total_dps_vs_target": 2869.1329841894517,
+    "total_dps_vs_target": 5738.265968378903,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
@@ -594,6 +664,18 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
+      "affliction": {
+        "base_per_stack": 0.01,
+        "dot_taken": 1.0,
+        "effect_additional": 0.0,
+        "effect_inc": 0,
+        "initial": 0,
+        "max_stacks": 100.0,
+        "per_second": 0,
+        "stacks": 100.0,
+        "true_flame_conversion": 0,
+        "true_flame_fire_taken": 0.0
+      },
       "base_cast_time": 1.0,
       "base_csr": 500.0,
       "base_dmg_max": {},
@@ -624,10 +706,10 @@
       "damage_rows": [
         {
           "dps_by_type_vs_target": {
-            "cold": 2869.1329841894517
+            "cold": 5738.265968378903
           },
           "dps_final": 4098.761405984931,
-          "dps_vs_target_final": 2869.1329841894517,
+          "dps_vs_target_final": 5738.265968378903,
           "form_index": -1,
           "hit_max_by_type": {},
           "hit_min_by_type": {},
@@ -657,9 +739,45 @@
       "double_dmg_chance": 0,
       "double_dmg_factor": 1,
       "effective_level": 20,
-      "enemy_mult_by_type": {},
-      "enemy_vuln_by_type": {},
-      "enemy_vuln_sources_by_type": {},
+      "enemy_mult_by_type": {
+        "cold": 0.9799999999999999
+      },
+      "enemy_vuln_by_form": {
+        "dot:cold": 2.0
+      },
+      "enemy_vuln_by_type": {
+        "cold": 2.0
+      },
+      "enemy_vuln_sources_by_form": {
+        "dot:cold": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frostbite_cold_taken",
+          "affliction_dot_taken",
+          "cold_infiltration_taken",
+          "frail_spell_taken",
+          "cold_curse_taken",
+          "hit_curse_taken"
+        ]
+      },
+      "enemy_vuln_sources_by_type": {
+        "cold": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frostbite_cold_taken",
+          "affliction_dot_taken",
+          "cold_infiltration_taken",
+          "frail_spell_taken",
+          "cold_curse_taken",
+          "hit_curse_taken"
+        ]
+      },
       "flat_dmg_max": {
         "fire": 135.0,
         "lightning": 198.0,
@@ -822,7 +940,9 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "target_mitigation_by_type": {},
+      "target_mitigation_by_type": {
+        "cold": 0.48999999999999994
+      },
       "terra_charge": {
         "charges_consumed": 1.0,
         "max_stacks": 1,
@@ -830,7 +950,7 @@
         "restore_seconds_per_stack": 0.5
       },
       "total_dps": 4098.761405984931,
-      "total_dps_vs_target": 2869.1329841894517,
+      "total_dps_vs_target": 5738.265968378903,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
@@ -928,6 +1048,41 @@
     }
   },
   "stats": {
+    "affliction_dot_taken": {
+      "category": "Other",
+      "display_name": "affliction_dot_taken",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Enemy Affliction",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Affliction",
+          "source_type": "condition",
+          "text": "+100.0% Damage over Time taken"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "affliction_dot_taken_base": {
+      "category": "Other",
+      "display_name": "affliction_dot_taken_base",
+      "sources": [
+        {
+          "amount": 1.0,
+          "label": "Enemy Affliction",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+100.0% Damage over Time taken (Affliction 100; before additional Effect)"
+        }
+      ],
+      "total": 1.0,
+      "unit": ""
+    },
     "attack_block_chance_inc": {
       "category": "Defense",
       "display_name": "Attack Block Chance",

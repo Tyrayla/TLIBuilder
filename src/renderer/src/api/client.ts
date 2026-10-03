@@ -143,6 +143,10 @@ function responseError(method: string, path: string, status: number, body: unkno
   return errorFromResponse(body, code, operation, `${method} ${path} failed (${status})`, true)
 }
 
+// Shared backoff schedule between the IPC transport-retry loop and the HTTP fetch-retry loop below —
+// bug-288 requires them to match exactly (400ms, 800ms, 1200ms, 1600ms for attempts 0-3).
+export function backoffDelayMs(attempt: number): number { return 400 * (attempt + 1) }
+
 async function get<T>(path: string, retries = 4): Promise<T> {
   // Web build: serve reference catalogs from the static CDN (gzipped JSON) instead of the backend.
   const staticUrl = staticCatalogUrl(path)
@@ -162,10 +166,20 @@ async function get<T>(path: string, retries = 4): Promise<T> {
   }
   if (webCompute && webApi) return webApi.webApiRequest<T>('GET', `/api${path}`)
   if (ipcMode) {
-    rlog(`GET (IPC) ${path}`)
-    const result = await window.api!.apiRequest('GET', path) as { ok: boolean; status: number; data: T }
-    if (!result.ok) throw responseError('GET', path, result.status, result.data)
-    return result.data
+    // bug-288: a transport failure (status 0 — TLI-NET-001, retryable) gets the same retry budget and
+    // backoff as the HTTP path below. A real response (404/500/etc.) is never retried.
+    // Only GET retries a transport failure here: GETs are idempotent, so re-sending one is harmless.
+    // post/put/del stay single-attempt so a write is never submitted twice.
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      rlog(`GET (IPC) ${path} — attempt ${attempt + 1}/${retries + 1}`)
+      const result = await window.api!.apiRequest('GET', path) as { ok: boolean; status: number; data: T }
+      if (result.ok) return result.data
+      if (result.status !== 0 || attempt === retries) throw responseError('GET', path, result.status, result.data)
+      const delay = backoffDelayMs(attempt)
+      rlog(`GET (IPC) ${path} — retrying in ${delay}ms`)
+      await new Promise(r => setTimeout(r, delay))
+    }
+    throw new Error(`GET ${path} failed`)
   }
   const url = `${BASE}${path}`
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -179,7 +193,7 @@ async function get<T>(path: string, retries = 4): Promise<T> {
       const isNetwork = e instanceof TypeError
       rerr(`GET ${url} — error (isNetwork=${isNetwork}): ${e}`)
       if (!isNetwork || attempt === retries) throw normalizeError(e, 'TLI-NET-001', `api.get.${path.replace(/^\//, '').replaceAll('/', '.')}`)
-      const delay = 400 * (attempt + 1)
+      const delay = backoffDelayMs(attempt)
       rlog(`GET ${url} — retrying in ${delay}ms`)
       await new Promise(r => setTimeout(r, delay))
     }
@@ -890,6 +904,8 @@ export interface OffenseResult {
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
   level_summary?: LevelSummary | null
+  // Target Affliction calculation materialized for this skill slot.
+  affliction?: AfflictionInfo | null
   // Per-stat breakdown built off THIS result's own materialized source, set only when it diverges from
   // the player's global stat map (currently: Seething Spirit's clone — see compute.py's
   // `_source_log_stat_map`). Breakdown panels prefer this over the shared BreakdownCtx statMap when
@@ -1617,6 +1633,19 @@ export interface NumbedInfo {
   uptime_mode: 'max' | 'real'
   ff_duration?: number        // real mode: Feline Figure-inflicted Numbed duration (incl. Electroplated ×2)
   application_rate?: number   // real mode: Feline Figure trigger rate (≤1/s, single target)
+}
+
+export interface AfflictionInfo {
+  stacks: number
+  max_stacks: number
+  base_per_stack: number
+  effect_inc: number
+  effect_additional: number  // effective multiplicative pool: product(1 + each source) - 1
+  dot_taken: number
+  initial: number
+  per_second: number
+  true_flame_conversion: number
+  true_flame_fire_taken: number
 }
 
 export interface CoreTalentStatus {

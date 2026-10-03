@@ -35,10 +35,14 @@ _WFB_MAX_RE = re.compile(r"stacking up to\s*(\d+)", re.I)
 _SUPPORT_MECHANIC_KEYS = frozenset({
     "multistrike_chance", "multistrike_increasing_dmg_inc",
     "multistrike_increasing_dmg_additional", "initial_multistrike_count_flat",
+    # Cataclysm: both lines are slot-local to the supported skill.  The first is an additional Effect
+    # factor consumed by the Affliction DoT vulnerability; the second is report/ramp-only APS.
+    "affliction_effect_additional", "cataclysm_affliction_per_second_flat",
+    "terra_affliction_per_second_base",
 })
 # Mechanic stats whose magnitude scales with the support's GEM LEVEL — read the progression[level] value rather
 # than the (Lv1) description text. (Multistrike Chance: 101%@L1 → 116%@L16 → 140%@L40.)
-_LEVEL_SCALED_MECHANIC_KEYS = frozenset({"multistrike_chance"})
+_LEVEL_SCALED_MECHANIC_KEYS = frozenset({"multistrike_chance", "affliction_effect_additional"})
 
 
 def _support_text(data: dict) -> str:
@@ -172,7 +176,7 @@ def _progression_value_for_line(prog_entry: dict, line: str) -> float | None:
     return None
 
 
-def _support_mechanic_contribs(sup: dict, data: dict) -> list[dict]:
+def _support_mechanic_contribs(sup: dict, data: dict, skills_by_id: dict | None = None, slot_skill: dict | None = None) -> list[dict]:
     """Slot-local MECHANIC contributions (Multistrike chance / increment / initial count, …) parsed from a
     support's lines — whitelisted stats only, with gem-level scaling for the ones that scale. Generic: any
     support carrying these lines flows through here (the Multistrike support, Wind Stalker's granted support,
@@ -183,6 +187,17 @@ def _support_mechanic_contribs(sup: dict, data: dict) -> list[dict]:
     prog_entry = _progression_for_tier(data.get("progression"), _tier_value(sup.get("level")))
     seen: set = set()
     out: list[dict] = []
+    # Burst of Agony's Terra support is a 2-Affliction hit every .03s.  The host is
+    # Corrosive Shot only; compute applies ordinary Attack Speed to this base rate per slot.
+    if (sup.get("item_id") == "corrosive_shot_burst_of_agony_noble"
+            and (slot_skill is None or slot_skill.get(slot) == "corrosive_shot")):
+        joined = _dedup_join(data.get("description_lines", []))
+        m = re.search(r'inflicts\s+([\d.]+)\s+affliction.*?interval.*?([\d.]+)\s*s', joined, re.I)
+        if m:
+            rate = float(m.group(1)) / float(m.group(2))
+            out.append({"stat_key": "terra_affliction_per_second_base", "amount": rate,
+                        "text": f"Terra Affliction: {m.group(1)} every {m.group(2)}s",
+                        "label": name, "source_name": name, "slot": slot})
     for line in (data.get("description_lines") or []):
         # "for every / for each X" lines are CONDITIONAL scaling (e.g. "+12% increment for every 1 Sentry",
         # "+1 Projectile for every 80% Multistrike chance") — not flat grants. The generic parser would grab the
@@ -193,6 +208,13 @@ def _support_mechanic_contribs(sup: dict, data: dict) -> list[dict]:
             sk = parsed.get("stat_key")
             if sk not in _SUPPORT_MECHANIC_KEYS or sk in seen:
                 continue
+            if sk == "cataclysm_affliction_per_second_flat" and slot_skill is not None:
+                host = (skills_by_id or {}).get(slot_skill.get(slot))
+                if not host:
+                    continue
+                from engine.skill_resolver import resolve_skill
+                if not resolve_skill(host).dot_forms_by_level:
+                    continue
             amount = parsed.get("amount", 0.0)
             if sk in _LEVEL_SCALED_MECHANIC_KEYS:
                 scaled = _progression_value_for_line(prog_entry, line)
@@ -211,6 +233,7 @@ def resolve_support_contributions(
     attached_supports: list[dict] | None,
     skills_by_id: dict[str, dict] | None,
     translate_cond=None,
+    slot_skill: dict | None = None,
 ) -> list[dict]:
     """Return a list of {stat_key, amount, text, label[, condition]} for every attached support's
     additional-damage lines. Empty list when there are no supports or no resolvable lines.
@@ -235,7 +258,7 @@ def resolve_support_contributions(
 
         # 0) Mechanic lines (Multistrike chance/increment, …) — whitelisted, slot-local, level-scaled. Runs for
         #    every support; emits nothing unless a whitelisted phrase is present.
-        out.extend(_support_mechanic_contribs(sup, data))
+        out.extend(_support_mechanic_contribs(sup, data, skills_by_id, slot_skill))
 
         # 1) Universal rank line — Noble/Magnificent only, and only when the support's data actually
         #    carries the line (summon/minion supports don't; ~12–15% of noble/mag).
@@ -541,6 +564,11 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
             continue  # Attack/Spell/Curse/Empower tag-gate
         level = _tier_value(sup.get("level")) + _support_level_bonus(source, data.get("skill_tags"))
         name = data.get("name") or item_id
+        _host_has_dot = False
+        _host_id = (slot_skill or {}).get(sup.get("slot", 1))
+        if _host_id and skills_by_id.get(_host_id):
+            from engine.skill_resolver import resolve_skill
+            _host_has_dot = bool(resolve_skill(skills_by_id[_host_id]).dot_forms_by_level)
 
         # Empower-effect supports (bespoke): contribute slot-local Empower Skill Effect scaled by the host skill's
         # charges (Mass Effect) or a user-set cast count (Well-Fought Battle, default max). Their lines don't map
@@ -554,6 +582,8 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
 
         for line in parsed.lines:
             for c in map_line(line, level, cat, conds):
+                if c.stat_key == "cataclysm_affliction_per_second_flat" and not _host_has_dot:
+                    continue
                 contribs.append({
                     "stat_key": c.stat_key,
                     "amount": c.amount,

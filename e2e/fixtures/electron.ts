@@ -7,7 +7,9 @@ import path from 'path'
 const REPO_ROOT = path.resolve(__dirname, '..', '..')
 // Dedicated port, far from 8765 (packaged) / 8766 (dev) — main kills whatever holds its port on
 // startup, so pointing E2E at its own port is what keeps a test run from killing a live dev backend.
-export const E2E_PYTHON_PORT = 8801
+// scripts/dev-slot.mjs e2e sets TLI_E2E_PYTHON_PORT per worktree slot so E2E can run in several
+// worktrees at once; unset keeps the historical 8801.
+export const E2E_PYTHON_PORT = Number(process.env.TLI_E2E_PYTHON_PORT || 8801)
 
 export interface E2eDirs {
   root: string
@@ -47,6 +49,10 @@ export async function launchApp(dirs: E2eDirs): Promise<ElectronApplication> {
       TLI_DEV_PYTHON: venvPython,
       TLI_E2E_USERDATA: dirs.userData,
       TLI_E2E_PYTHON_PORT: String(E2E_PYTHON_PORT),
+      // main prefers the TLI_DEV_* names; pin them too so a dev-slot shell's values can't leak in and
+      // aim the test app at (and port-kill) that slot's live dev backend.
+      TLI_DEV_USERDATA: dirs.userData,
+      TLI_DEV_PYTHON_PORT: String(E2E_PYTHON_PORT),
       TLI_DATA_DIR: dirs.dataDir,
     },
   })

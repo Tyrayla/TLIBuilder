@@ -17,6 +17,7 @@ import {
   useDamageDelta, withNodePoints, withPrismBoxPoints, withNodeStatesMap, type LabeledDelta,
 } from '../components/tooltip/useDamageDelta'
 import { nodeThreshold, diffAdded, diffRemoved, nodeStatesSignature } from '../utils/passiveTreeDiff'
+import { prismBoxAllocations } from '../utils/talentPoints'
 
 const EMPTY_SLOTS: null[] = [null, null, null, null]
 
@@ -609,8 +610,10 @@ export default function TreeViewerScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLoadoutId])
 
-  // Prism reflected-box points count toward the budget + column thresholds (they cost points in-game).
-  const total = sumPoints(nodeStates) + (treePrism ? sumPoints(treePrism.boxAllocations) : 0)
+  // Inverse Image reflected-box points count toward the budget + column thresholds (they cost points in-game);
+  // prismBoxAllocations ignores any allocations on an Ethereal prism, which has no box.
+  const treeBox = prismBoxAllocations(treePrism)
+  const total = sumPoints(nodeStates) + sumPoints(treeBox)
 
   // Column unlock = points spent in columns strictly to the LEFT of a column (its own and
   // further-right points don't count). Column 0 is always open.
@@ -618,7 +621,7 @@ export default function TreeViewerScreen({
   if (treeData) {
     for (const n of treeData.nodes) colPoints[n.column] += nodeStates[n.id] ?? 0
     // Reflected-box allocations are position-keyed ("col,row") — their column is the key's first field.
-    if (treePrism) for (const [pos, pts] of Object.entries(treePrism.boxAllocations)) colPoints[Number(pos.split(',')[0]) || 0] += pts
+    for (const [pos, pts] of Object.entries(treeBox)) colPoints[Number(pos.split(',')[0]) || 0] += pts
   }
   const isColUnlocked = (col: number): boolean => {
     if (col === 0) return true
@@ -1483,6 +1486,7 @@ export default function TreeViewerScreen({
           activeSlot={previewMode ? -1 : activeSlot}
           treeColors={treeColors}
           treeIcons={treeIcons}
+          prisms={previewMode ? [] : prisms}
           onOverview={onBack}
           onSlotClick={onSlotClick}
           onPreview={onPreview}

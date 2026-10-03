@@ -122,6 +122,10 @@ class BuildSource:
             scoped_log=self.scoped_log,
             slot_entries=self.slot_entries,
             slot_log=self.slot_log,
+            # Offense reads these off the source it's given; without them a materialized skill silently
+            # fell back to the Lv85 dummy constants and ignored the editable target / enemy settings.
+            target_config=self.target_config,
+            enemy_config=self.enemy_config,
         )
 
     def total(self, stat: str) -> float:

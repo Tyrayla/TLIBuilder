@@ -1,7 +1,9 @@
 # Engine Authoring Reference
 
-Shared reference for adding game mechanics to the DPS engine. The `.claude/skills/add-*` skills link here so the
-gotchas and verify steps live in one place. Humans can read this top-to-bottom; skills cite the relevant section.
+Shared reference for adding game mechanics to the DPS engine. The maintainers' engine-authoring agent skills
+(`add-skill`, `add-stat`, `add-condition`, `add-hero-trait`, `add-support`; kept outside this repository) link
+here so the gotchas and verify steps live in one place. Humans can read this top-to-bottom; the skills cite the
+relevant section.
 
 > **Never reference other game titles** anywhere (code, comments, docs). This is TLI Builder for *Torchlight:
 > Infinite* only.

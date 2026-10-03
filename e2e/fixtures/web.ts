@@ -34,11 +34,17 @@ export const test = base.extend<{}, WebWorkerFixtures>({
   webPage: [
     async ({ webBrowser }, use) => {
       const page = await webBrowser.newPage()
-      // The share service is a live external API — no test may ever hit it. Only the share host is
-      // blocked: the web build loads its catalogs + engine data from the live static CDN
-      // (VITE_STATIC_DATA_BASE), so this target needs network. A local CDN mirror would make it
-      // fully hermetic — tracked in docs/BACKLOG.md.
+      // The share service is a live external API — no test may ever hit it. A plain `npm run build:web`
+      // build loads its catalogs + engine data from the live data CDN (VITE_STATIC_DATA_BASE); the
+      // scripts/build-web-local-data.mjs build serves them from the same origin instead. Pyodide always
+      // loads from jsDelivr, so this target still needs network.
       await page.route(/api\.tlibuilder\.com/, (route) => route.abort())
+      // CI builds the app with its data served from the same origin (scripts/build-web-local-data.mjs) and sets
+      // TLI_E2E_NO_CDN=1. Block the data CDN then, so a build that still reads from it fails loudly instead of
+      // quietly testing against production data.
+      if (process.env.TLI_E2E_NO_CDN) {
+        await page.context().route(/tlibuilder-data\.pages\.dev/, (route) => route.abort())
+      }
 
       await page.goto(WEB_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       await page.waitForFunction(

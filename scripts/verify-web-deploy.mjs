@@ -12,12 +12,16 @@
 // --check=index.html   (default, for the app deploy) — extracts the hashed entry-script path
 //                       from <dist>/index.html and polls --url until the live HTML references
 //                       the same path.
-// --check=manifest.json (for the data CDN deploy) — compares <dist>/manifest.json against
-//                       --url/manifest.json as parsed JSON (so trailing whitespace/formatting
-//                       differences don't cause a false failure).
+// --check=manifest.json (for the data CDN deploy) — byte-compares manifest.json, engine-data.zip and
+//                       each file under <dist>/<season>/ against --url. The manifest carries a
+//                       `content` fingerprint of the season catalogs and icons (export_web_data.py
+//                       content_digest), so it also covers the ~1000 icons without fetching them.
+//                       A deploy that silently went to a preview branch instead of production, or
+//                       never landed, fails this check.
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 
 const FETCH_TIMEOUT_MS = 15_000
 
@@ -105,21 +109,39 @@ async function main() {
     const localPath = join(distPath, 'manifest.json')
     if (!existsSync(localPath)) throw new Error(`${localPath} not found — did the build step run first?`)
     const local = JSON.parse(readFileSync(localPath, 'utf-8'))
-    const remoteUrl = `${args.url.replace(/\/$/, '')}/manifest.json`
-    console.log(`verify-web-deploy: polling ${remoteUrl} for manifest.json ${JSON.stringify(local)} ...`)
-    const ok = await pollUntil(
+    if (!local?.season || typeof local.season !== 'string') throw new Error(`${localPath} has no season`)
+    const seasonDir = join(distPath, local.season)
+    if (!existsSync(seasonDir)) throw new Error(`${seasonDir} not found — did the build step run first?`)
+    if (typeof local.content !== 'string') throw new Error(`${localPath} has no content fingerprint — re-run npm run build:web:data`)
+    if (!existsSync(join(distPath, 'engine-data.zip'))) throw new Error(`${join(distPath, 'engine-data.zip')} not found — did the build step run first?`)
+    const files = [
       'manifest.json',
+      'engine-data.zip',
+      ...readdirSync(seasonDir).filter((f) => statSync(join(seasonDir, f)).isFile()).map((f) => `${local.season}/${f}`),
+    ]
+    const sha = (buf) => createHash('sha256').update(buf).digest('hex')
+    const expected = new Map(files.map((f) => [f, sha(readFileSync(join(distPath, f)))]))
+    const base = args.url.replace(/\/$/, '')
+    console.log(`verify-web-deploy: polling ${base} until ${files.length} data files match the local build ...`)
+    const ok = await pollUntil(
+      `${files.length} data files`,
       async () => {
-        const res = await fetch(remoteUrl, { cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
-        if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${remoteUrl}`)
-        const remote = JSON.parse(await res.text())
-        return JSON.stringify(remote) === JSON.stringify(local)
+        // In parallel, so one attempt costs about one fetch timeout rather than files.length of them.
+        const results = await Promise.all(files.map(async (f) => {
+          const res = await fetch(`${base}/${f}`, { cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+          if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${base}/${f}`)
+          return sha(Buffer.from(await res.arrayBuffer())) === expected.get(f) ? null : f
+        }))
+        const stale = results.filter(Boolean)
+        if (stale.length) throw new Error(`${stale.length} file(s) differ from the local build: ${stale.join(', ')}`)
+        return true
       },
       args
     )
     if (!ok) {
-      console.error(`verify-web-deploy: FAILED — ${remoteUrl} did not match local manifest within ${args.timeout}s.`)
-      console.error('This can be genuine propagation lag (retry the check) or a deploy that silently failed — check `wrangler pages deployment list`.')
+      console.error(`verify-web-deploy: FAILED — ${base} did not serve the local data build within ${args.timeout}s.`)
+      console.error('This can be propagation lag (retry the check), a deploy that went to a preview branch instead of')
+      console.error('production, or a deploy that silently failed — check `wrangler pages deployment list`.')
       process.exit(1)
     }
     return

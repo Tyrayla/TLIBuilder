@@ -1,6 +1,13 @@
 {
   "consumed_stats": [
     "active_skill_level",
+    "affliction_dot_taken",
+    "affliction_dot_taken_base",
+    "affliction_dot_to_fire_hit",
+    "affliction_effect_additional",
+    "affliction_effect_inc",
+    "affliction_initial_flat",
+    "affliction_per_second_flat",
     "all_resistance_reduction",
     "all_skill_level",
     "all_stats_flat",
@@ -29,6 +36,7 @@
     "blur_effect_inc",
     "cast_speed_additional",
     "cast_speed_inc",
+    "cataclysm_affliction_per_second_flat",
     "chromatic_shots_on_target_flat",
     "cold_as_erosion",
     "cold_as_fire",
@@ -179,6 +187,8 @@
     "lucky_erosion",
     "lucky_fire",
     "lucky_lightning",
+    "magmaskull_cataclysm_fire_hit_taken",
+    "magmaskull_fire_hit_taken",
     "main_skill_level",
     "main_stat_damage_bonus_disabled_flag",
     "main_stat_dmg_bonus_inc",
@@ -200,6 +210,7 @@
     "mana_regen_pct",
     "mana_regen_speed_inc",
     "mana_restored_pct_current_per_attack_use",
+    "max_affliction_flat",
     "max_agility_blessing_stacks_flat",
     "max_electrify_stacks_flat",
     "max_elemental_resistance_inc",
@@ -291,6 +302,7 @@
     "temporary_mana_pct",
     "tide_dmg_taken",
     "triple_dmg_chance",
+    "true_flame_fire_hit_taken",
     "unlucky_cold",
     "unlucky_crit",
     "unlucky_erosion",
@@ -301,6 +313,18 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
+    "affliction": {
+      "base_per_stack": 0.01,
+      "dot_taken": 1.0,
+      "effect_additional": 0.0,
+      "effect_inc": 0,
+      "initial": 0,
+      "max_stacks": 100.0,
+      "per_second": 0,
+      "stacks": 100.0,
+      "true_flame_conversion": 0,
+      "true_flame_fire_taken": 0.0
+    },
     "base_cast_time": 0.65,
     "base_csr": 500.0,
     "base_dmg_max": {
@@ -392,11 +416,67 @@
       "fire": 0.48999999999999994,
       "lightning": 0.7349999999999999
     },
+    "enemy_vuln_by_form": {
+      "hit:cold": 1.1,
+      "hit:erosion": 1.0,
+      "hit:fire": 1.0,
+      "hit:lightning": 1.5
+    },
     "enemy_vuln_by_type": {
       "cold": 1.1,
       "erosion": 1.0,
       "fire": 1.0,
       "lightning": 1.5
+    },
+    "enemy_vuln_sources_by_form": {
+      "hit:cold": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frostbite_cold_taken",
+        "cold_infiltration_taken",
+        "frail_spell_taken",
+        "cold_curse_taken",
+        "hit_curse_taken"
+      ],
+      "hit:erosion": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frail_spell_taken",
+        "erosion_curse_taken",
+        "hit_curse_taken"
+      ],
+      "hit:fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "true_flame_fire_hit_taken",
+        "magmaskull_fire_hit_taken",
+        "magmaskull_cataclysm_fire_hit_taken",
+        "fire_infiltration_taken",
+        "frail_spell_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "hit:lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "frail_spell_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "enemy_vuln_sources_by_type": {
       "cold": [
@@ -427,6 +507,9 @@
         "knockback_dmg_taken",
         "tide_dmg_taken",
         "enemy_nearby_dmg_taken_additional",
+        "true_flame_fire_hit_taken",
+        "magmaskull_fire_hit_taken",
+        "magmaskull_cataclysm_fire_hit_taken",
         "fire_infiltration_taken",
         "frail_spell_taken",
         "fire_curse_taken",
@@ -798,6 +881,18 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
+      "affliction": {
+        "base_per_stack": 0.01,
+        "dot_taken": 1.0,
+        "effect_additional": 0.0,
+        "effect_inc": 0,
+        "initial": 0,
+        "max_stacks": 100.0,
+        "per_second": 0,
+        "stacks": 100.0,
+        "true_flame_conversion": 0,
+        "true_flame_fire_taken": 0.0
+      },
       "base_cast_time": 0.65,
       "base_csr": 500.0,
       "base_dmg_max": {
@@ -889,11 +984,67 @@
         "fire": 0.48999999999999994,
         "lightning": 0.7349999999999999
       },
+      "enemy_vuln_by_form": {
+        "hit:cold": 1.1,
+        "hit:erosion": 1.0,
+        "hit:fire": 1.0,
+        "hit:lightning": 1.5
+      },
       "enemy_vuln_by_type": {
         "cold": 1.1,
         "erosion": 1.0,
         "fire": 1.0,
         "lightning": 1.5
+      },
+      "enemy_vuln_sources_by_form": {
+        "hit:cold": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frostbite_cold_taken",
+          "cold_infiltration_taken",
+          "frail_spell_taken",
+          "cold_curse_taken",
+          "hit_curse_taken"
+        ],
+        "hit:erosion": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frail_spell_taken",
+          "erosion_curse_taken",
+          "hit_curse_taken"
+        ],
+        "hit:fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "true_flame_fire_hit_taken",
+          "magmaskull_fire_hit_taken",
+          "magmaskull_cataclysm_fire_hit_taken",
+          "fire_infiltration_taken",
+          "frail_spell_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "hit:lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "frail_spell_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "enemy_vuln_sources_by_type": {
         "cold": [
@@ -924,6 +1075,9 @@
           "knockback_dmg_taken",
           "tide_dmg_taken",
           "enemy_nearby_dmg_taken_additional",
+          "true_flame_fire_hit_taken",
+          "magmaskull_fire_hit_taken",
+          "magmaskull_cataclysm_fire_hit_taken",
           "fire_infiltration_taken",
           "frail_spell_taken",
           "fire_curse_taken",
@@ -1294,6 +1448,41 @@
     }
   },
   "stats": {
+    "affliction_dot_taken": {
+      "category": "Other",
+      "display_name": "affliction_dot_taken",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Enemy Affliction",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Affliction",
+          "source_type": "condition",
+          "text": "+100.0% Damage over Time taken"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "affliction_dot_taken_base": {
+      "category": "Other",
+      "display_name": "affliction_dot_taken_base",
+      "sources": [
+        {
+          "amount": 1.0,
+          "label": "Enemy Affliction",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+100.0% Damage over Time taken (Affliction 100; before additional Effect)"
+        }
+      ],
+      "total": 1.0,
+      "unit": ""
+    },
     "attack_block_chance_inc": {
       "category": "Defense",
       "display_name": "Attack Block Chance",

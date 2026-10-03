@@ -218,6 +218,51 @@ class TestAdditionalPooling:
         assert r.type_add["physical"] == pytest.approx(0.40 * 0.40)
 
 
+class TestCustomModPoolingIndependence:
+    """Custom mods are the one exception to identical-wording-sums (engine/modifier_lines.pool_identity,
+    source_type == "custom" branch). Two hand-typed lines are two independent hypothetical sources even
+    with byte-identical text — each must multiply on its own. This is a deliberate, narrow carve-out:
+    `test_identical_affix_across_items_adds` above is the sibling proof that real gear/talent affixes are
+    untouched and still sum by identical affix-text identity."""
+
+    def _custom_src(self, *entries) -> BuildSource:
+        # entries: (stat, amount, text, line_index) — mirrors what aggregator.py stamps for a real
+        # custom-mod contribution (pooling_uuid=f"custom-line:{line_index}").
+        s = BuildSource()
+        s.add("weapon_attack_speed", 1.0)
+        s.add("physical_dmg_gear_flat_min", 100.0)
+        s.add("physical_dmg_gear_flat_max", 100.0)
+        for stat, amount, text, line_index in entries:
+            pooling_uuid = f"custom-line:{line_index}" if line_index is not None else None
+            s.add_with_source(stat, amount, SourceEntry(
+                stat=stat, amount=amount, source_type="custom", label="Custom Config",
+                text=text, points=1, pooling_uuid=pooling_uuid))
+        return s
+
+    def test_two_identical_wording_lines_multiply_independently(self):
+        # +50% additional damage, typed as two SEPARATE lines -> 1.5 * 1.5 = 2.25, not 1.5+1.5-1=2.0.
+        s = self._custom_src((_ATK, 0.50, "+50% additional damage", 0),
+                              (_ATK, 0.50, "+50% additional damage", 1))
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
+        assert r.type_add["physical"] == pytest.approx(1.5 * 1.5)
+
+    def test_wanting_the_summed_result_means_typing_one_combined_line(self):
+        # The escape hatch this design implies: one line at +100% gives the "2.0" a user might expect
+        # from summing two +50% lines — proving that behavior is still reachable, just not implicit.
+        s = self._custom_src((_ATK, 1.00, "+100% additional damage", 0))
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
+        assert r.type_add["physical"] == pytest.approx(2.0)
+
+    def test_missing_line_index_falls_back_to_text_identity(self):
+        # Custom contributions built without going through server.py's enumerate() loop (e.g. hand-built
+        # test/legacy dicts with no "line_index" key) get pooling_uuid=None -> pool_identity's custom
+        # branch falls back to affix_identity(text), so identical text still sums as it always has.
+        s = self._custom_src((_ATK, 0.50, "+50% additional damage", None),
+                              (_ATK, 0.50, "+50% additional damage", None))
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
+        assert r.type_add["physical"] == pytest.approx(2.0)  # 1 + 0.5 + 0.5, one summed factor
+
+
 class TestPoolingUuidKey:
     """The minted-identity pooling key (engine/modifier_lines.pool_identity + identity_index).
 

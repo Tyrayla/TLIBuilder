@@ -1521,6 +1521,13 @@ def compute(
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
+        # Affliction's target cap is dynamic.  Keep this explicit rather than relying solely on the catalog entry:
+        # older build payloads/data snapshots still get the authoritative base-100 + stat-derived cap, and the
+        # derived "has max Affliction" predicate never hard-codes 100.
+        _max_affliction = max(0.0, 100.0 + source.total("max_affliction_flat"))
+        maxes["affliction_stacks"] = _max_affliction
+        if "affliction_stacks" not in condition_state:
+            condition_state["affliction_stacks"] = float(numeric_vals.get("affliction_stacks", 0.0) or 0.0)
         if _has_warcry:
             maxes["warcry_power"] = 16.0 if condition_state.get("formless_warcry_effects") else 8.0
             if _kragol_active:
@@ -1593,6 +1600,8 @@ def compute(
             _prev_burst_rate = 0.5 * _cur_burst_rate + 0.5 * _prev_burst_rate
 
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
+        _affliction_now = float(new_state.get("affliction_stacks", 0.0) or 0.0)
+        new_state["enemy_has_max_affliction"] = _affliction_now >= _max_affliction
         snapshot = _state_snapshot(new_state)
         # The Tide-of-the-Styx attack-speed feedback (line ~552) reads the DAMPED _prev_consumed_recently_life,
         # which is NOT in condition_state. Without it in the snapshot, the loop can declare convergence the moment
@@ -1628,6 +1637,36 @@ def compute(
     derive_condition_maximums(source)
     derive_condition_minimums(source)
     source._recording = False
+
+    # Black Hole's Euphoria line is a target-zone DoT modifier, not a modifier to Black Hole's own
+    # damage only.  While its Persistent DoT holds the target in the hole, every DoT against that
+    # target receives the level-scaled factor.  The hit also immediately inflicts 100 Affliction;
+    # keep the event separate from its 100/s repeat rate for ramp reporting.
+    _black_hole_skill = next((s for s in (skills_input or [])
+                              if s.get("enabled", True) and s.get("skill_id") == "black_hole"), None)
+    if _black_hole_skill:
+        _black_hole_level = int(_black_hole_skill.get("level", 1) or 1)
+        _black_hole_data = (skills_by_id or {}).get("black_hole") or {}
+        _black_hole_per_ten = 0.0
+        for _entry in _black_hole_data.get("progression", []):
+            if int(_entry.get("level", 0) or 0) != _black_hole_level:
+                continue
+            import re as _black_hole_re
+            _match = _black_hole_re.search(r'\+\s*([\d.]+)\s*%\s*additional\s+damage\s+over\s+time.*?every\s+10\s+affliction',
+                                            str((_entry.get("values") or {}).get("Descript", "")), _black_hole_re.I)
+            if _match:
+                _black_hole_per_ten = float(_match.group(1)) / 100.0
+            break
+        _black_hole_steps = max(0, int(float(condition_state.get("affliction_stacks", 0.0) or 0.0) // 10))
+        _black_hole_bonus = _black_hole_steps * _black_hole_per_ten
+        source.add_with_source("affliction_initial_flat", 100.0, SourceEntry(
+            stat="affliction_initial_flat", amount=100.0, source_type="skill", label="Black Hole",
+            source_name="Black Hole", text="Initially inflicts 100 Affliction", points=1))
+        if _black_hole_bonus:
+            source.add_with_source("dot_dmg_additional", _black_hole_bonus, SourceEntry(
+                stat="dot_dmg_additional", amount=_black_hole_bonus, source_type="skill", label="Black Hole",
+                source_name="Black Hole",
+                text=f"+{_black_hole_bonus * 100:.1f}% additional DoT Damage in Black Hole ({_black_hole_steps}×10 Affliction)", points=1))
 
     # Tripwire: distinct damage-taken-reduction sources multiply toward zero (see engine.guards), so this
     # can only still fire if a SINGLE source alone reaches >=100% reduction — which isn't modelled as real
@@ -1783,6 +1822,49 @@ def compute(
         # `eff` — not just Spirit's later one — sees what it just added.
         terra_charge = _track_skill_intrinsic_additional(source, eff, resolved, slot, new_state, manual_cond_keys)
         eff = source.materialize_for_skill(_mt, slot)
+        # The final Affliction vulnerability is slot-sensitive (Cataclysm grants additional Effect only to
+        # its supported skill). Materialize it as a real, per-offense source entry so DoT breakdown exports
+        # reconcile with the multiplier and name the stat that actually applied.
+        if eff.total("affliction_dot_taken_base"):
+            from engine.offense import additional_total_product as _affliction_add_product
+            _affliction_taken = (eff.total("affliction_dot_taken_base")
+                                 * _affliction_add_product(eff, "affliction_effect_additional"))
+            if _affliction_taken:
+                from engine.models import SourceEntry as _AfflictionSourceEntry
+                # Persist the final slot-sensitive value, not only its global base, so source breakdowns
+                # can explain the exact Cataclysm-aware multiplier that reached this skill.
+                source.add_slotted("affliction_dot_taken", _affliction_taken, slot, None, _AfflictionSourceEntry(
+                    stat="affliction_dot_taken", amount=_affliction_taken, source_type="condition",
+                    label="Enemy Affliction", text=f"+{_affliction_taken * 100:.1f}% Damage over Time taken",
+                    source_name="Affliction",
+                ))
+                eff = source.materialize_for_skill(_mt, slot)
+        # Sources that build Affliction over time are reporting/ramp inputs only: the target snapshot
+        # remains user-configured.  Terra's cadence receives ordinary attack-speed scaling; Black Hole
+        # applies 100 once per second while its own DoT is active.
+        _affliction_aps = (eff.total("terra_affliction_per_second_base")
+                            if resolved.skill_id == "corrosive_shot" else 0.0)
+        if _affliction_aps:
+            from engine.offense import additional_total_product as _additional_product
+            _affliction_aps *= ((1.0 + eff.total("attack_speed_inc"))
+                                * _additional_product(eff, "attack_speed_additional"))
+        # Black Hole is intrinsically a Persistent DoT.  Its catalog description carries the damage
+        # in a specialised "Persistent Erosion" form that the generic resolver does not expose as a
+        # DotForm yet, so identify this active skill directly for its own Affliction mechanics.
+        _is_black_hole_dot = resolved.skill_id == "black_hole"
+        if _is_black_hole_dot:
+            _affliction_aps += 100.0
+        _affliction_aps += eff.total("cataclysm_affliction_per_second_flat")
+        if _affliction_aps:
+            from engine.models import SourceEntry as _AfflictionRateEntry
+            _rate_name = "Black Hole" if resolved.skill_id == "black_hole" else "Terra"
+            source.add_slotted("affliction_per_second_flat", _affliction_aps, slot, None, _AfflictionRateEntry(
+                stat="affliction_per_second_flat", amount=_affliction_aps, source_type="skill",
+                label=_rate_name, source_name=_rate_name,
+                text=f"+{_affliction_aps:.2f} Affliction per second", points=1,
+            ))
+        if _affliction_aps:
+            eff = source.materialize_for_skill(_mt, slot)
         # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
         # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
         tangle = None
@@ -1899,6 +1981,31 @@ def compute(
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
             demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
+        # This belongs to EACH offense result: Cataclysm and the Affliction application rate are scoped to
+        # the skill slot the user is inspecting in the left-side calculation panels.
+        from engine.offense import (
+            _additional_global_product as _offense_affliction_global_product,
+            additional_total_product as _offense_affliction_add_product,
+        )
+        _affliction_additional_product = _offense_affliction_add_product(eff, "affliction_effect_additional")
+        _true_flame_base = eff.total("true_flame_fire_hit_taken")
+        _true_flame_global_product = _offense_affliction_global_product(eff, "affliction_effect_additional")
+        _true_flame_taken = _true_flame_base * (
+            _affliction_additional_product / _true_flame_global_product
+            if _true_flame_global_product else 1.0
+        )
+        _res["affliction"] = {
+            "stacks": float(condition_state.get("affliction_stacks", 100.0) or 0.0),
+            "max_stacks": float(maxes.get("affliction_stacks", 100.0)),
+            "base_per_stack": 0.01,
+            "effect_inc": eff.total("affliction_effect_inc"),
+            "effect_additional": _affliction_additional_product - 1.0,
+            "dot_taken": eff.total("affliction_dot_taken"),
+            "initial": eff.total("affliction_initial_flat"),
+            "per_second": eff.total("affliction_per_second_flat"),
+            "true_flame_conversion": eff.total("affliction_dot_to_fire_hit"),
+            "true_flame_fire_taken": _true_flame_taken,
+        }
         _res["level_summary"] = skill_level_summary(
             eff, list(resolved.tags) + sorted(add_mod_tags or ()), level, is_main, resolved.max_level)
         if terra_charge is not None:
@@ -1961,9 +2068,12 @@ def compute(
                         if _s == "dmg_additional" and abs(_a - _exclude_amt) < 1e-9:
                             del _spirit_entries[_i]
                             break
+                # Spirit hits the same calc target as the player, so carry the editable dummy / enemy
+                # configs too; without them Spirit's vs-target DPS stayed on the Lv85 constants (bug-305).
                 _spirit_source = BuildSource(
                     _entries=_spirit_entries, source_log=_spirit_log,
-                    consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording)
+                    consumed_stats=_spirit_eff.consumed_stats, _recording=_spirit_eff._recording,
+                    target_config=_spirit_eff.target_config, enemy_config=_spirit_eff.enemy_config)
                 # Tracked via add_with_source (not the untracked .add() this used before) so these show up
                 # as real, labelled rows in Spirit's OWN breakdown (see `_spirit_result["stat_map"]` below) —
                 # untracked contributions still apply correctly to the pool MATH (offense.py's per-pool

@@ -258,6 +258,10 @@ def consumable_universe() -> frozenset[str]:
     # support_resolver folds these skill-level sources into a support's effective level (+4 Support Skill
     # Level from Off the Beaten Track, tag-matched levels like +Attack Skill Level for an Attack support).
     consumed |= {"support_skill_level"}
+    # Affliction/True Flame: Effect and dynamic-cap reads are direct engine consumers; ramp-only
+    # intermediates remain internal and have no catalog modifier badge.
+    consumed |= {"affliction_effect_inc", "affliction_effect_additional", "max_affliction_flat",
+                 "affliction_dot_to_fire_hit"}
     # Tangle mode (offense.calculate_offense / compute._offense_for_slot) reads these outside the synthetic
     # passes: the Tangle Damage Enhancement multiplier, and the count stats that size attached/placeable tangles.
     # (tangle_dmg_inc / tangle_dmg_additional / tangle_crit_rating_flat are already covered — the synthetic skill

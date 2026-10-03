@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { iconUrl, TreeSlot } from '../api/client'
+import { iconUrl, PlacedPrism, TreeSlot } from '../api/client'
 import { MAX_TALENT_POINTS, slotPointTotal, totalAllocatedPoints } from '../utils/talentPoints'
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
   activeSlot: number
   treeColors: Record<string, string>
   treeIcons?: Record<string, string | null>
+  prisms?: PlacedPrism[]
   onOverview: () => void
   onSlotClick: (slotIndex: number) => void
   onPreview?: () => void
@@ -17,11 +18,11 @@ interface Props {
 }
 
 export default function SlotSidebar({
-  slots, activeSlot, treeColors, treeIcons = {}, onOverview, onSlotClick,
+  slots, activeSlot, treeColors, treeIcons = {}, prisms = [], onOverview, onSlotClick,
   onPreview, inPreview = false, viewerMode = false, dragDropEnabled = false, onSlotReorder,
 }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
-  const totalPoints = totalAllocatedPoints(slots)
+  const totalPoints = totalAllocatedPoints(slots, prisms)
   const overBudget = totalPoints > MAX_TALENT_POINTS
 
   return (
@@ -42,6 +43,7 @@ export default function SlotSidebar({
         const isDragOver = dragOverSlot === i
         const color = slot ? (treeColors[slot.treeName] ?? null) : null
         const icon = slot ? iconUrl('talent_tree_selector', treeIcons[slot.treeName]) : null
+        const slotPrism = slot ? prisms.find(p => p.treeName === slot.treeName) : undefined
 
         let btnStyle: React.CSSProperties = {}
         let nameColor = '#555566'
@@ -104,7 +106,7 @@ export default function SlotSidebar({
                 {slot?.treeName ?? (inPreview ? 'Preview Mode' : 'Empty')}
               </span>
               {slot && (
-                <span className="slot-sidebar-points">{slotPointTotal(slot)} pts</span>
+                <span className="slot-sidebar-points">{slotPointTotal(slot, slotPrism)} pts</span>
               )}
             </div>
           </button>

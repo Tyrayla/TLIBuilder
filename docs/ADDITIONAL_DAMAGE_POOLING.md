@@ -109,6 +109,29 @@ nothing). So the engine never reaches the compounding path today, and there is n
 such an affix is modelled it needs: a stat for the scoped additional damage, a per-stack count
 condition (e.g. jumps), and the compounding mode `(1+per)^stacks − 1`.
 
+## 5d. Custom mods are the one exception to text-identity pooling (SHIPPED 2026-09-17)
+
+Everything above pools by the wording of the affix — deliberately, because two real gear/talent lines
+with identical text really are the same in-game affix. Hand-typed custom mods (the config-tab freeform
+editor, `CustomModsPanel`) are NOT catalog affixes, so that assumption doesn't hold: a user typing the
+same line twice means two independent hypothetical sources, and each must multiply on its own
+(`+50%` + `+50%` on separate lines → `1.5 × 1.5 = 2.25`, not `1.5 + 1.5 - 1 = 2.0`). Wanting the summed
+result is still reachable — type it as one combined line (`+100%`) instead of two `+50%` lines.
+
+`engine/modifier_lines.pool_identity` checks `entry.source_type == "custom"` *before* any index/text
+lookup and keys on `entry.pooling_uuid` directly. The aggregator (`engine/aggregator.py`, custom-mod
+loop) stamps that uuid from the mod's **textarea line index** (`pooling_uuid=f"custom-line:{i}"`,
+tagged onto each contribution by `backend/server.py`'s `enumerate(req.custom_mods)` loop) — unique per
+line even when two lines are byte-identical. Contributions with no line index (hand-built dicts that
+bypass `server.py`, e.g. some test fixtures) fall back to `affix_identity(text)`, preserving the old
+sum-by-wording behavior for that path. Nothing else changes: gear/talent/support affixes still pool by
+identical affix-text identity exactly as in §5b/§5c.
+
+Precedent for this kind of source-type-scoped split: `bug-234` (2026-07-02) made the analogous call for
+*defensive* additional stats (life/mana/ES/attributes/armor) — those already multiply per-source
+regardless of text, for ALL sources including gear, which is a different (and intentionally separate)
+rule from this one. Tests: `TestCustomModPoolingIndependence` in `tests/test_engine_offense.py`.
+
 ## 6. Immunity tripwire (SHIPPED)
 
 `engine/guards.py::check_damage_taken_immunity`, called at the end of `compute.py`'s fixed-point

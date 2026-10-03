@@ -348,9 +348,23 @@ def aggregate(
     # consumed in the node-contributions loop below — no more precomputed recipes.
 
     # ── Equipped gear affixes ──────────────────────────────────────────────────
+    _magmaskull_raw_lines: list[tuple[str, str | None, str | None]] = []
+    _magmaskull_inputs_seen = False
+    _torturers_touch_raw_lines: list[tuple[str, str | None, str | None]] = []
+    _torturers_touch_inputs_seen = False
     for item in build.gear:
       for contrib in item.get("contributions", []):
         stat = contrib.get("stat")
+        _item_name = contrib.get("item_name") or item.get("name")
+        _raw_text = contrib.get("text") or ""
+        if str(_item_name or "").lower() == "magmaskull" and _raw_text:
+            _magmaskull_raw_lines.append((_raw_text, contrib.get("slot") or item.get("slot"), _item_name))
+        if str(_item_name or "").lower() == "torturer's touch" and _raw_text:
+            _torturers_touch_raw_lines.append((_raw_text, contrib.get("slot") or item.get("slot"), _item_name))
+        if str(stat or "").startswith("magmaskull_"):
+            _magmaskull_inputs_seen = True
+        if str(stat or "").startswith("torturers_touch_"):
+            _torturers_touch_inputs_seen = True
         if not stat:
             continue
         cond = contrib.get("condition")
@@ -389,6 +403,41 @@ def aggregate(
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
+    # The compound Magmaskull affix is not a normal catalog stat and older renderer payloads can carry it as an
+    # unresolved gear line.  Recover it here from the authoritative equipped-line text, but only when the client
+    # did not already supply its structured components (so current payloads never double-count).
+    if _magmaskull_raw_lines and not _magmaskull_inputs_seen:
+        from engine.mod_parser import _parse_custom_mod_text
+        for _raw_text, _slot, _item_name in _magmaskull_raw_lines:
+            for _parsed in _parse_custom_mod_text(_raw_text):
+                _stat = _parsed.get("stat_key")
+                if not str(_stat or "").startswith("magmaskull_"):
+                    continue
+                _amount = float(_parsed.get("amount", 0.0))
+                source.add_with_source(_stat, _amount, SourceEntry(
+                    stat=_stat, amount=_amount, source_type="gear",
+                    label=f"Gear Â· {(_slot or 'item').title()}", text=_raw_text,
+                    source_name=_item_name or "Magmaskull", gear_slot=_slot,
+                    pooling_uuid=_stamp(_raw_text),
+                ))
+
+    # Like Magmaskull, older equipped-item payloads can retain Torturer's Touch only as its raw
+    # legendary line. Recover its structured step inputs without double-counting modern payloads.
+    if _torturers_touch_raw_lines and not _torturers_touch_inputs_seen:
+        from engine.mod_parser import _parse_custom_mod_text
+        for _raw_text, _slot, _item_name in _torturers_touch_raw_lines:
+            for _parsed in _parse_custom_mod_text(_raw_text):
+                _stat = _parsed.get("stat_key")
+                if not str(_stat or "").startswith("torturers_touch_"):
+                    continue
+                _amount = float(_parsed.get("amount", 0.0))
+                source.add_with_source(_stat, _amount, SourceEntry(
+                    stat=_stat, amount=_amount, source_type="gear",
+                    label=f"Gear · {(_slot or 'item').title()}", text=_raw_text,
+                    source_name=_item_name or "Torturer's Touch", gear_slot=_slot,
+                    pooling_uuid=_stamp(_raw_text),
+                ))
+
     # ── Character contributions (energy base/gear/level/prism) ─────────────────
     for contrib in build.character:
         stat = contrib.get("stat")
@@ -419,6 +468,13 @@ def aggregate(
                            "hero_trait", "Hero Trait", active_booleans, numeric_vals, stamp=_stamp)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
+    # pooling_uuid is keyed on the textarea LINE INDEX, not `_stamp(text)` like every other loop here.
+    # Custom mods aren't real catalog affixes, so two hand-typed lines with identical wording must each
+    # multiply independently (never sum just because the text matches) — modifier_lines.pool_identity
+    # special-cases source_type == "custom" to key on this uuid directly, bypassing the season identity
+    # index entirely. See that function's docstring, docs/ADDITIONAL_DAMAGE_POOLING.md, and bug-234 for
+    # the full rationale. Real gear/talent/support affixes are untouched by this and keep pooling by
+    # identical affix-text identity.
     for contrib in build.custom_contributions:
         stat = contrib.get("stat_key")
         if not stat:
@@ -436,6 +492,7 @@ def aggregate(
                 continue
             if isinstance(cond, dict) and "cap" in cond:
                 amount = min(amount, float(cond["cap"]))
+        _line_idx = contrib.get("line_index")
         entry = SourceEntry(
             stat=stat,
             amount=amount,
@@ -443,7 +500,7 @@ def aggregate(
             label="Custom Config",
             text=contrib.get("text", ""),
             points=1,
-            pooling_uuid=_stamp(contrib.get("text")),
+            pooling_uuid=f"custom-line:{_line_idx}" if _line_idx is not None else None,
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
@@ -631,6 +688,91 @@ def aggregate(
                          + (f" +{over * 100:.1f}% (Condensed Frost)" if over else ""),
                     points=1,
                 ))
+
+    # ── Affliction (enemy vulnerability) ─────────────────────────────────────
+    # Affliction is a persistent, user-configured target snapshot.  One point grants +1% DoT taken;
+    # increased Effect scales that base and each additional-Effect source is a separate factor.  Keep the
+    # base separately: slot-local sources such as Cataclysm's "to the supported skill" additional Effect
+    # are folded only when that skill's offense source is materialized.
+    affliction_stacks = max(0.0, float((numeric_vals or {}).get("affliction_stacks", 0.0) or 0.0))
+    if affliction_stacks > 0.0:
+        affliction_base = affliction_stacks * 0.01 * (1.0 + source.total("affliction_effect_inc"))
+        if affliction_base:
+            source.add_with_source("affliction_dot_taken_base", affliction_base, SourceEntry(
+                stat="affliction_dot_taken_base", amount=affliction_base, source_type="condition",
+                label="Enemy Affliction",
+                text=(f"+{affliction_base * 100:.1f}% Damage over Time taken "
+                      f"(Affliction {affliction_stacks:.0f}; before additional Effect)"),
+                points=1,
+            ))
+
+            # True Flame reads the target's global Affliction bonus and only turns it into Fire-HIT taken
+            # while the target is Ignited.  A support-local additional Effect cannot affect unrelated Fire hits.
+            if ("enemy_ignited" in (active_booleans or frozenset())
+                    and source.total("affliction_dot_to_fire_hit")):
+                from engine.offense import additional_total_product
+                global_dot_taken = affliction_base * additional_total_product(
+                    source, "affliction_effect_additional")
+                true_flame = global_dot_taken * source.total("affliction_dot_to_fire_hit")
+                if true_flame:
+                    source.add_with_source("true_flame_fire_hit_taken", true_flame, SourceEntry(
+                        stat="true_flame_fire_hit_taken", amount=true_flame, source_type="condition",
+                        label="True Flame",
+                        text=(f"+{true_flame * 100:.1f}% Fire Hit Damage taken from True Flame "
+                              f"(Affliction DoT bonus {global_dot_taken * 100:.1f}%)"),
+                        points=1,
+                    ))
+
+    # Magmaskull's compound affix is resolved after every global Effect source has pooled.  Its initial
+    # Affliction is report-only (the selected snapshot remains authoritative).  Its negative APS advances in
+    # whole +10%-Effect steps, while the Fire-hit vulnerability scales continuously with normal Affliction
+    # Effect and caps at the item's stated maximum.
+    _mag_step = source.total("magmaskull_affliction_effect_step")
+    if _mag_step > 0.0:
+        import math
+        from engine.offense import additional_total_product
+        _mag_effect_mult = ((1.0 + source.total("affliction_effect_inc"))
+                            * additional_total_product(source, "affliction_effect_additional"))
+        _mag_effect_bonus = _mag_effect_mult - 1.0
+        _mag_steps = max(0, math.floor((_mag_effect_bonus + 1e-9) / _mag_step))
+        _initial = source.total("magmaskull_initial_affliction_flat")
+        if _initial:
+            source.add_with_source("affliction_initial_flat", _initial, SourceEntry(
+                stat="affliction_initial_flat", amount=_initial, source_type="gear", label="Magmaskull",
+                source_name="Magmaskull", text=f"Initially inflicts {_initial:.0f} Affliction", points=1,
+            ))
+        _aps = source.total("magmaskull_affliction_per_second_per_effect") * _mag_steps
+        if _aps:
+            source.add_with_source("affliction_per_second_flat", _aps, SourceEntry(
+                stat="affliction_per_second_flat", amount=_aps, source_type="gear", label="Magmaskull",
+                source_name="Magmaskull", text=f"{_aps:+.0f} Affliction per second ({_mag_steps} Effect steps)", points=1,
+            ))
+        _fire = min(source.total("magmaskull_fire_hit_taken_per_effect") * _mag_effect_mult,
+                    source.total("magmaskull_fire_hit_taken_cap"))
+        if _fire:
+            source.add_with_source("magmaskull_fire_hit_taken", _fire, SourceEntry(
+                stat="magmaskull_fire_hit_taken", amount=_fire, source_type="gear", label="Magmaskull",
+                source_name="Magmaskull", text=(f"+{_fire * 100:.1f}% Fire Hit Damage taken "
+                                                   f"(Affliction Effect {_mag_effect_bonus * 100:+.1f}%)"), points=1,
+            ))
+
+    # Torturer's Touch uses the same final Affliction Effect quantity, but its tooltip grants a
+    # positive continuous APS rate for every completed Effect step.  Reaping/reset behaviour is
+    # intentionally outside this model; this is solely the ordinary rate contribution.
+    _touch_step = source.total("torturers_touch_affliction_effect_step")
+    if _touch_step > 0.0:
+        import math
+        from engine.offense import additional_total_product
+        _touch_bonus = ((1.0 + source.total("affliction_effect_inc"))
+                        * additional_total_product(source, "affliction_effect_additional")) - 1.0
+        _touch_steps = max(0, math.floor((_touch_bonus + 1e-9) / _touch_step))
+        _touch_aps = source.total("torturers_touch_affliction_per_second_per_effect") * _touch_steps
+        if _touch_aps:
+            source.add_with_source("affliction_per_second_flat", _touch_aps, SourceEntry(
+                stat="affliction_per_second_flat", amount=_touch_aps, source_type="gear",
+                label="Torturer's Touch", source_name="Torturer's Touch",
+                text=f"+{_touch_aps:.0f} Affliction per second ({_touch_steps} Effect steps)", points=1,
+            ))
 
     # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
     # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed

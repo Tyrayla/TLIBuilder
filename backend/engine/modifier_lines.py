@@ -79,8 +79,21 @@ def pool_identity(entry, index: dict[str, str] | None = None) -> str:
     `|core|<name>`) miss the index and keep their per-instance identity — they still multiply.
 
     Without an index (tests/legacy callers): the entry's stamped pooling_uuid if any, else the text
-    identity. Same partition either way — proven by tests/test_pooling_partition.py."""
+    identity. Same partition either way — proven by tests/test_pooling_partition.py.
+
+    CUSTOM MODS ARE THE ONE EXCEPTION, checked before any index lookup: a hand-typed custom-mod line is
+    not a real catalog affix, so two lines with identical wording are two independent hypothetical
+    sources, not "the same affix from two items" — each must multiply on its own, never sum with a
+    sibling line just because the text matches. The aggregator stamps each custom contribution's
+    `pooling_uuid` from its textarea line index (unique per line, even for identical text) specifically
+    so this branch can key on it directly. Real gear/talent/support affixes are NOT touched — they keep
+    pooling by identical affix-text identity below, matching verified in-game stacking of duplicate
+    affixes (docs/ADDITIONAL_DAMAGE_POOLING.md, "SHIPPED for hit damage 2026-06-09"; see also bug-234 for
+    the analogous, deliberately separate per-source-multiply rule on defensive additional stats)."""
     from engine.affix_identity import affix_identity  # deferred: avoid import cycles
+
+    if getattr(entry, "source_type", None) == "custom":
+        return getattr(entry, "pooling_uuid", None) or affix_identity(getattr(entry, "text", "") or "")
 
     ident = affix_identity(getattr(entry, "text", "") or "")
     if index:

@@ -24,9 +24,6 @@ import HeroTraitTree from './HeroTraitTree'
 
 interface Props {
   onBack: () => void
-  // Called right after a brand-new build's DEFAULT trait is auto-selected (a default, not a user edit) so the
-  // dirty tracker can re-baseline — otherwise the auto-select's buildVersion bump marks the fresh build dirty.
-  onDefaultTraitApplied?: () => void
 }
 
 // A contiguous segment of the unified slider mapped to one tier's value range
@@ -852,7 +849,7 @@ function MemoryInventoryTile({ memory, equippedSlot, icon, onEquip, onUnequip, o
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HeroTraitScreen({ onBack: _onBack, onDefaultTraitApplied }: Props) {
+export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const traitId = useBuildStore(s => s.traitId)
   const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
   const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
@@ -905,19 +902,9 @@ export default function HeroTraitScreen({ onBack: _onBack, onDefaultTraitApplied
 
   const loading = !referenceResolved && allTraits.length === 0
 
-  // Auto-select the first trait only for a brand-new (never-saved) build. Builds now LAND on
-  // this screen when opened, so an unconditional auto-select would silently write a trait into
-  // an opened trait-less build — marking it dirty and clearing tree allocations for a
-  // DPS-affecting change the user never made.
-  const buildId = useBuildStore(s => s.buildId)
-  useEffect(() => {
-    if (!loading && traitId === null && buildId === null && allTraits.length > 0) {
-      setTraitData(allTraits[0].trait_id, [1, 1, 1, 1], [])
-      // This is a DEFAULT, not a user edit — let App re-baseline the dirty tracker so the fresh build
-      // isn't flagged dirty by the auto-select's buildVersion bump.
-      onDefaultTraitApplied?.()
-    }
-  }, [loading, traitId, buildId, allTraits, setTraitData, onDefaultTraitApplied])
+  // Default-trait auto-select moved to useDefaultHeroTrait (bug-291) — it now applies wherever/whenever
+  // the catalog resolves, independent of whether this screen is mounted, instead of only while the
+  // player happens to be looking at it.
 
   const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
 

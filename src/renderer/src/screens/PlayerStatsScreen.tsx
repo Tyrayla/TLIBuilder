@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary, WarcrySummary, LevelSummary } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary, WarcrySummary, LevelSummary, AfflictionInfo } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from '../components/HeroTraitShared'
@@ -509,7 +509,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
   label: string; children: React.ReactNode; labelColor?: string;
   onClick?: (e: React.MouseEvent) => void;
   expandable?: boolean; expanded?: boolean;
-  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
+  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; displaySources?: Collected[]; localGearSources?: LocalGearDefenseSource[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
 }) {
   const ctx = useContext(BreakdownCtx)
   // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
@@ -532,7 +532,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} localGearSources={breakdown!.localGearSources} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} displaySources={breakdown!.displaySources} localGearSources={breakdown!.localGearSources} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -958,10 +958,19 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                 // own armour/resist half (target_mitigation_by_type), not m ÷ Π(vuln).
                 const vk = offense.enemy_vuln_sources_by_type?.[d] ?? []
                 const mitigation = offense.target_mitigation_by_type?.[d] ?? m
+                const afflictionTaken = vk.includes('affliction_dot_taken') ? (offense.affliction?.dot_taken ?? 0) : 0
+                const multiplierKeys = afflictionTaken > 0 ? vk.filter(k => k !== 'affliction_dot_taken') : vk
+                const multiplierSources: Collected[] | undefined = afflictionTaken > 0 ? [{
+                  statKey: 'affliction_dot_taken', statName: 'Affliction DoT Damage Taken', unit: '×',
+                  source_type: 'condition', label: 'Enemy', text: 'Enemy Affliction', source_name: 'Affliction',
+                  amount: afflictionTaken, points: 1, slot: null, scope: null,
+                  displayValue: `×${dec(1 + afflictionTaken)}`,
+                }] : undefined
                 return <td key={d} style={td}>
-                  <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={vk} total={m} totalUnit="×"
+                  <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={multiplierKeys} total={m} totalUnit="×"
                     formula="Target Mitigation × Π(1 + enemy vulnerability)"
-                    extra={[{ value: `×${dec(mitigation)}`, stat: 'Target Mitigation', source: 'Target', sourceName: '(1 − armour) × (1 − resistance)' }]}>
+                    extra={[{ value: `×${dec(mitigation)}`, stat: 'Target Mitigation', source: 'Target', sourceName: '(1 − armour) × (1 − resistance)' }]}
+                    displaySources={multiplierSources}>
                     ×{dec(m)}
                   </Breakdown>
                 </td>
@@ -2792,6 +2801,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           (or Show-all). Per-skill scoping + "cannot inflict" override chains in the breakdown are Phase-2. */}
       {/* Minions don't model ailments/CC and have no minion-scoped ailment pools, so these player-mechanic
           boxes are hidden in minion mode (only minion sources belong in a minion's view). */}
+      {!minion && (hasDot || (dealsType('fire') && (offense.affliction?.true_flame_fire_taken ?? 0) > 0) || showAll) && offense.affliction && (
+        <GridBox><AfflictionPanel affliction={offense.affliction} /></GridBox>
+      )}
+
       {!minion && AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
         const chance = stat(a.chanceKey)
         return (
@@ -3500,18 +3513,87 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
       })}
       {(details.length > 0 || target.debuffs.length > 0) && (
         <>
-          {/* Names-only list of the debuffs currently on the target — the exact amplification values live in the
-              per-type resistance rows above (and their breakdowns), so they're not repeated here. */}
+          {/* Target debuffs that do not change resistance (such as Affliction) need their exact scope and
+              amplification shown here; resistance-changing debuffs remain explained by the rows above. */}
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#9a6a9a', margin: '6px 0 2px' }}>
             Active Debuffs
           </div>
           <div style={{ fontSize: 12, color: '#d0a0e0', lineHeight: 1.5 }}>
             {details.length > 0
-              ? details.map(d => `${d.name}${d.stacks ? ` ×${Math.round(d.stacks)}` : ''}`).join(', ')
+              ? details.map(d => `${d.name}${d.stacks ? ` ×${Math.round(d.stacks)}` : ''}: +${dec(d.taken_inc * 100)}% ${d.scope} taken`).join(', ')
               : target.debuffs.join(', ')}
           </div>
         </>
       )}
+    </StatPanel>
+  )
+}
+
+// Affliction is a configurable target snapshot with both global and skill-local scaling. Keep its full formula
+// in a dedicated calculation box so it is as inspectable as other modeled mechanics (e.g. Channeled), rather
+// than burying the final vulnerability inside a generic target-debuff label.
+function AfflictionPanel({ affliction }: { affliction: AfflictionInfo | null | undefined }) {
+  if (!affliction) return null
+  const pct = (value: number) => `${value >= 0 ? '+' : ''}${dec(value * 100)}%`
+  const trueFlameActive = (affliction.true_flame_conversion ?? 0) > 0 && (affliction.true_flame_fire_taken ?? 0) > 0
+  return (
+    <StatPanel title="Affliction" accent="#d06a9a"
+      info="Enemy Affliction is a configured snapshot. Increased Effect adds together; every Additional Effect source multiplies separately. The displayed values are materialized for the headline skill, so a linked Cataclysm only appears where it applies.">
+      <Row label="Current Affliction" breakdown={{
+        title: 'Current Affliction', keys: ['max_affliction_flat'], total: affliction.stacks, totalUnit: '',
+        formula: 'Configured target snapshot, capped by Maximum Affliction',
+        extra: [{ value: '100', stat: 'Maximum Affliction', source: 'Baseline', sourceName: 'Base cap' }],
+      }}>{dec(affliction.stacks)} / {dec(affliction.max_stacks)}</Row>
+      <Row label="Base Effect" breakdown={{
+        title: 'Affliction Base Effect', keys: [], total: affliction.base_per_stack, totalUnit: '%',
+        formula: '1% Damage over Time taken per Affliction',
+        extra: [{ value: `${dec(affliction.base_per_stack * 100)}%`, stat: 'Base Affliction Effect', source: 'Baseline', sourceName: 'Damage over Time taken per Affliction' }],
+      }}>{dec(affliction.base_per_stack * 100)}% / stack</Row>
+      <Row label="Increased Effect" breakdown={{
+        title: 'Increased Affliction Effect', keys: ['affliction_effect_inc'], total: affliction.effect_inc, totalUnit: '%',
+        formula: 'sum of increased Affliction Effect',
+      }}>{pct(affliction.effect_inc)}</Row>
+      <Row label="Additional Effect" breakdown={{
+        title: 'Additional Affliction Effect', keys: ['affliction_effect_additional'], total: affliction.effect_additional, totalUnit: '%',
+        formula: 'product of (1 + each Additional Affliction Effect source) - 1',
+      }}>{pct(affliction.effect_additional)}</Row>
+      <Row label="DoT Damage Taken" breakdown={{
+        title: 'Affliction DoT Damage Taken', keys: [], total: affliction.dot_taken, totalUnit: '%',
+        formula: 'Affliction × 1% × (1 + Increased Effect) × product(1 + Additional Effect)',
+        displaySources: [{
+          statKey: 'affliction_dot_taken', statName: 'Affliction DoT Damage Taken', unit: '×',
+          source_type: 'condition', label: 'Enemy', text: 'Enemy Affliction', source_name: 'Affliction',
+          amount: affliction.dot_taken, points: 1, slot: null, scope: null,
+          displayValue: `×${dec(1 + affliction.dot_taken)}`,
+        }],
+      }}>{pct(affliction.dot_taken)}</Row>
+      {affliction.initial > 0 && <Row label="Inflicted Initially" breakdown={{
+        title: 'Affliction Inflicted Initially', keys: ['affliction_initial_flat'], total: affliction.initial, totalUnit: '',
+        formula: 'sum of initial Affliction sources when the target is first afflicted',
+      }}>+{dec(affliction.initial)}</Row>}
+      <Row label="Affliction per Second" breakdown={{
+        title: 'Affliction per Second', keys: ['affliction_per_second_flat'], total: affliction.per_second, totalUnit: ' /s',
+        formula: 'net positive Affliction rate for the headline skill; the configured snapshot does not decay by itself',
+      }}>{affliction.per_second >= 0 ? '+' : ''}{dec(affliction.per_second)} /s</Row>
+      {trueFlameActive && <>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#e87030', margin: '6px 0 2px' }}>
+          True Flame
+        </div>
+        <Row label="Fire Hit Damage Taken" breakdown={{
+          title: 'True Flame Fire Hit Damage Taken', keys: [], total: affliction.true_flame_fire_taken, totalUnit: '%',
+          formula: 'final Affliction DoT bonus × True Flame Conversion',
+          extra: [
+            { value: `+${dec(affliction.dot_taken * 100)}%`, stat: 'Final Affliction DoT Bonus', source: 'Calculated', sourceName: 'Affliction' },
+            { value: `×${dec(affliction.true_flame_conversion)}`, stat: 'True Flame Conversion', source: 'True Flame', sourceName: `${dec(affliction.true_flame_conversion * 100)}% of the final Affliction DoT bonus` },
+          ],
+          displaySources: [{
+            statKey: 'true_flame_fire_hit_taken', statName: 'True Flame Fire Hit Damage Taken', unit: '×',
+            source_type: 'condition', label: 'Enemy', text: 'True Flame', source_name: 'True Flame',
+            amount: affliction.true_flame_fire_taken, points: 1, slot: null, scope: null,
+            displayValue: `×${dec(1 + affliction.true_flame_fire_taken)}`,
+          }],
+        }}>{pct(affliction.true_flame_fire_taken)}</Row>
+      </>}
     </StatPanel>
   )
 }

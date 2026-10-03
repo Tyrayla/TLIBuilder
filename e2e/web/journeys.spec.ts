@@ -1,4 +1,5 @@
 import { test, expect, webApi } from '../fixtures/web'
+import { ensureAtBuildSelect } from '../fixtures/mainSkillDps'
 import type { Page } from '@playwright/test'
 
 // Real click-driven user journeys (TEST_EXPANSION_PLAN Phase 3). Ground rule: assert structure
@@ -20,13 +21,10 @@ async function deleteBuildByName(page: Page, name: string): Promise<void> {
   }
 }
 
-// Journeys share one booted page across the whole worker — normalize to the build-select screen
-// no matter what state an earlier spec left the page in.
-async function ensureAtBuildSelect(page: Page): Promise<void> {
-  const inBuild = await page.getByRole('button', { name: '← Back to Builds' }).isVisible().catch(() => false)
-  if (inBuild) await backToBuilds(page)
-  await expect(page.getByRole('button', { name: '+ New Build' })).toBeVisible()
-}
+// Journeys share one booted page across the whole worker — normalize to the build-select screen no
+// matter what state an earlier spec left the page in. `ensureAtBuildSelect` (shared with the
+// main-skill-dps specs) does this; keep `backToBuilds` below for the mid-journey navigations that
+// also need to assert the guard-modal/Discard flow, not just land back on build-select.
 
 // Navigate back to the build-select screen, discarding through the unsaved guard if it fires.
 async function backToBuilds(page: Page): Promise<void> {
@@ -66,9 +64,12 @@ test('build-code round trip: create → save → export → reimport', async ({ 
   await backToBuilds(page)
   await expect(page.locator('.build-card', { hasText: NAME })).toBeVisible()
 
-  // Reimport through the Import Code modal — crosses the frozen codec + resolver + store.
+  // Reimport through the Import Code modal — crosses the frozen codec + resolver + store. Scope by
+  // the "TLI Builder Code" tab's placeholder (its default-active tab), not the modal's own heading —
+  // that heading retitled from "Import Build Code" to "Import Build" when ImportPanel gained the
+  // Compendium-import tab (commit 6950459) and broke a hasText-on-heading locator here before.
   await page.getByRole('button', { name: 'Import Code' }).click()
-  const importModal = page.locator('.modal-card', { hasText: 'Import Build' })
+  const importModal = page.locator('.modal-card').filter({ has: page.getByPlaceholder('Paste a tli1_… code or share link…') })
   await importModal.getByPlaceholder('Paste a tli1_… code or share link…').fill(code)
   await importModal.getByRole('button', { name: 'Import', exact: true }).click()
   // An empty build trips the compat warning ("no tree slots selected") — confirm through it.

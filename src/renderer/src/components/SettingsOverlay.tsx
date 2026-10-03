@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { IS_WEB } from '../api/client'
 import { useUiPrefs, UI_SCALE_MIN, UI_SCALE_MAX } from '../store/uiPrefsStore'
 import { CoverageLegend } from './CoverageLegend'
+import { useEscapeToClose } from './useEscapeToClose'
 
 type Channel = 'stable' | 'nightly'
 
@@ -31,6 +32,9 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     window.api?.getSettings?.().then((s: AppSettings) => setChannel(s.updateChannel)).catch(() => {})
   }, [])
+
+  // Escape closes, like the backdrop click and the Close button (unless a modal opened on top has it).
+  useEscapeToClose(onClose)
 
   const switchChannel = async (ch: Channel) => {
     if (ch === channel || saving) return

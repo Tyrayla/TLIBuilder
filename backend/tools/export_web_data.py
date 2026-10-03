@@ -5,12 +5,13 @@ files are byte-for-byte what the app expects — the web build fetches these fro
 Python backend, removing ~16 MB + the catalog endpoints from the server (Phase 1 of the web-hosting plan).
 
 Output layout (cache-busted by season):
-    <out>/manifest.json                  -> {"season": "SS12"}
+    <out>/manifest.json                  -> {"season": "SS12", "content": "<sha256 of catalogs + icons>"}
     <out>/<season>/<catalog>.json        -> e.g. SS12/skills.json
 
 Usage:  python backend/tools/export_web_data.py [--out DIR]   (default: <repo>/web-data)
 """
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -122,6 +123,29 @@ def _jsonable(v):
     return v.model_dump() if hasattr(v, "model_dump") else v
 
 
+def content_digest(out: str, season: str) -> str:
+    """SHA-256 over every file under <out>/<season>/ and <out>/icons/, plus <out>/_worker.js and
+    <out>/_headers (relative path + bytes, sorted).
+
+    Written into manifest.json so the post-deploy check (scripts/verify-web-deploy.mjs) can confirm the
+    live CDN serves this exact export by comparing manifest.json alone — including the ~1000 icons it
+    doesn't fetch and the Worker, which can't be fetched at all. Paths are POSIX-style so the digest is
+    the same on every OS.
+    """
+    rels = [f for f in ("_worker.js", "_headers") if os.path.isfile(os.path.join(out, f))]
+    for top in (season, "icons"):
+        for dirpath, _, files in os.walk(os.path.join(out, top)):
+            for name in files:
+                rels.append(os.path.relpath(os.path.join(dirpath, name), out).replace(os.sep, "/"))
+    h = hashlib.sha256()
+    for rel in sorted(rels):
+        h.update(rel.encode("utf-8") + b"\0")
+        with open(os.path.join(out, *rel.split("/")), "rb") as f:
+            h.update(f.read())
+        h.update(b"\0")
+    return h.hexdigest()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(os.path.dirname(_BACKEND), "web-data"))
@@ -154,9 +178,6 @@ def main() -> None:
         n_icons = sum(len(fs) for _, _, fs in os.walk(icons_dst))
         print(f"  icons                  {n_icons} files copied")
 
-    with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as f:
-        json.dump({"season": season}, f)
-
     # Cloudflare Pages _headers: caching only (ignored under advanced mode, but harmless — the
     # Worker sets Cache-Control itself). CORS is owned by _worker.js below, not here: a static
     # header can only emit one allowed origin (breaking previews/www/local dev) and can't remove
@@ -172,6 +193,11 @@ def main() -> None:
         shutil.rmtree(stale_fns, ignore_errors=True)
     with open(os.path.join(args.out, "_worker.js"), "w", encoding="utf-8", newline="\n") as f:
         f.write(_CORS_WORKER_JS)
+
+    # Written after everything it fingerprints. `content` covers the catalogs, icons, _worker.js and
+    # _headers (see content_digest); the app reads only `season`.
+    with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump({"season": season, "content": content_digest(args.out, season)}, f)
 
     # Ship the data terms at the CDN root, so anyone who takes the served files also takes the
     # notice (the terms travel with the data instead of living only in the repo).

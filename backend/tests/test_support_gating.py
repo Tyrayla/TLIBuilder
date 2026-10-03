@@ -41,7 +41,8 @@ class TestNoRegression:
         only intended change)."""
         bad = []
         for sid, base in _BASELINE.items():
-            ungated = [(c["stat_key"], round(c["amount"], 6)) for c in _resolve(sid) if not c.get("condition")]
+            ungated = [(c["stat_key"], round(c["amount"], 6)) for c in _resolve(sid)
+                       if not c.get("condition") and c["stat_key"] != "terra_affliction_per_second_base"]
             old = [tuple(x) for x in base["contribs"]]
             # ungated must be old minus any dropped-conditional tail entries → ungated is a prefix of old
             if ungated != old[:len(ungated)]:

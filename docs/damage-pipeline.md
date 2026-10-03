@@ -1,5 +1,8 @@
 # Damage Pipeline
 
+> **Superseded (2026-09-25).** This page describes the code as of May 2026 and is kept for history.
+> The current description is [architecture/engine-pipeline.md](architecture/engine-pipeline.md).
+
 ## Calculation Philosophy
 
 Damage calculations should flow through layered stages.

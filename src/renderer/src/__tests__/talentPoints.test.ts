@@ -51,6 +51,23 @@ describe('slotPointTotal', () => {
     const slot: TreeSlot = { treeName: 'tree_a', nodeStates: {} }
     expect(slotPointTotal(slot)).toBe(0)
   })
+
+  it('adds an Inverse Image prism boxAllocations sum on top of nodeStates', () => {
+    const slot: TreeSlot = { treeName: 'tree_a', nodeStates: { node_1: 4 } }
+    const prism = { kind: 'inverse_image' as const, boxAllocations: { '2,1': 3, '2,2': 5 } }
+    expect(slotPointTotal(slot, prism)).toBe(12)
+  })
+
+  it('ignores box allocations on an Ethereal prism (only Inverse Image cells cost points)', () => {
+    const slot: TreeSlot = { treeName: 'tree_a', nodeStates: { node_1: 4 } }
+    const prism = { kind: 'ethereal_prism' as const, boxAllocations: { '2,1': 3 } }
+    expect(slotPointTotal(slot, prism)).toBe(4)
+  })
+
+  it('ignores an undefined prism', () => {
+    const slot: TreeSlot = { treeName: 'tree_a', nodeStates: { node_1: 4 } }
+    expect(slotPointTotal(slot, undefined)).toBe(4)
+  })
 })
 
 describe('totalAllocatedPoints', () => {
@@ -80,5 +97,31 @@ describe('totalAllocatedPoints', () => {
     const total = totalAllocatedPoints(slots)
     expect(total).toBe(130)
     expect(total).toBeGreaterThan(MAX_TALENT_POINTS)
+  })
+
+  it('includes a placed Inverse Image prism boxAllocations, matched by treeName', () => {
+    const slots: TreeSlot[] = [
+      { treeName: 'tree_a', nodeStates: { node_1: 10 } },
+      { treeName: 'tree_b', nodeStates: { node_1: 5 } },
+    ]
+    const prisms = [{ treeName: 'tree_a', kind: 'inverse_image' as const, boxAllocations: { '2,1': 3, '2,2': 4 } }]
+    expect(totalAllocatedPoints(slots, prisms)).toBe(22)
+  })
+
+  it('does not add a prism whose treeName matches no slot', () => {
+    const slots: TreeSlot[] = [{ treeName: 'tree_a', nodeStates: { node_1: 10 } }]
+    const prisms = [{ treeName: 'tree_c', kind: 'inverse_image' as const, boxAllocations: { '2,1': 3 } }]
+    expect(totalAllocatedPoints(slots, prisms)).toBe(10)
+  })
+
+  it('does not count stray box allocations on an Ethereal prism in the global total', () => {
+    const slots: TreeSlot[] = [{ treeName: 'tree_a', nodeStates: { node_1: 10 } }]
+    const prisms = [{ treeName: 'tree_a', kind: 'ethereal_prism' as const, boxAllocations: { '2,1': 3 } }]
+    expect(totalAllocatedPoints(slots, prisms)).toBe(10)
+  })
+
+  it('is unaffected when prisms is omitted entirely', () => {
+    const slots: TreeSlot[] = [{ treeName: 'tree_a', nodeStates: { node_1: 10 } }]
+    expect(totalAllocatedPoints(slots)).toBe(10)
   })
 })

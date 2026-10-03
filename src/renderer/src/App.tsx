@@ -10,6 +10,7 @@ import { getBuildPayload } from './utils/buildPayload'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
+import { useDefaultHeroTrait } from './store/useDefaultHeroTrait'
 import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
@@ -251,8 +252,14 @@ function App() {
   useEffect(() => { window.api?.notifyDirty?.(isDirty && screen !== 'build-select') }, [isDirty, screen])
 
   // Global UI zoom (Settings → Display). Applied as CSS zoom on the document root so the whole interface scales.
+  // Also exposed as --ui-zoom: vh units are not scaled by this zoom, so a height capped to the window must
+  // divide by it (e.g. the Settings modal).
   const uiScale = useUiPrefs(s => s.uiScale)
-  useEffect(() => { document.documentElement.style.zoom = String(uiScale || 1) }, [uiScale])
+  useEffect(() => {
+    const zoom = String(uiScale || 1)
+    document.documentElement.style.zoom = zoom
+    document.documentElement.style.setProperty('--ui-zoom', zoom)
+  }, [uiScale])
 
   // When condition definitions load, fill any empty conditionState with defaults.
   // This covers new builds and imported builds that predate the conditions system.
@@ -356,6 +363,11 @@ function App() {
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
   }, [])
+
+  // bug-291: applies a brand-new build's default hero trait as soon as the catalog resolves, regardless
+  // of which screen is showing — replaces HeroTraitScreen's old auto-select effect, which only ran while
+  // that screen happened to be mounted.
+  useDefaultHeroTrait(rebaselineForDefault)
 
 
   if (!appReady) {
@@ -912,7 +924,7 @@ function App() {
       case 'build-overview': return <BuildOverviewScreen />
       case 'gear': return <GearScreen onBack={() => setScreen('build-overview')} />
       case 'skills': return <SkillsScreen onBack={() => setScreen('build-overview')} />
-      case 'hero-traits': return <HeroTraitScreen onBack={() => setScreen('build-overview')} onDefaultTraitApplied={rebaselineForDefault} />
+      case 'hero-traits': return <HeroTraitScreen onBack={() => setScreen('build-overview')} />
       case 'pact-spirits': return <PactSpiritScreen onBack={() => setScreen('build-overview')} />
       case 'slate-board': return <SlateScreen treeColors={treeColors} onBack={() => setScreen('build-overview')} />
       case 'notes': return <NotesScreen />

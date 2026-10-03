@@ -493,6 +493,17 @@ def additional_total_product(source: BuildSource, key: str) -> float:
     entries = [e for e in source.source_log if e.stat == key]
     if not entries:
         return 1.0 + source.total(key)
+    # Affliction Effect's "additional" wording is an explicit per-source multiplier: even two catalog
+    # sources with the same normalized text remain independent factors (e.g. +20% and +30% = 1.2 × 1.3).
+    # Do not route this key through the normal affix-identity collapse used by ordinary additional pools.
+    if key == "affliction_effect_additional":
+        p = 1.0
+        tracked = 0.0
+        for entry in entries:
+            p *= 1.0 + entry.amount
+            tracked += entry.amount
+        remainder = source.total(key) - tracked
+        return p * (1.0 + remainder) if abs(remainder) > 1e-12 else p
     pos: dict[str, float] = defaultdict(float)
     _idx = getattr(source, "identity_index", None)
     for e in entries:
@@ -500,6 +511,26 @@ def additional_total_product(source: BuildSource, key: str) -> float:
     p = 1.0
     for amt in pos.values():
         p *= (1.0 + amt)
+    return p
+
+
+def _additional_global_product(source: BuildSource, key: str) -> float:
+    """The additional-effect product before slot-local support factors are folded in."""
+    entries = [e for e in source.source_log if e.stat == key and e.slot is None]
+    if not entries:
+        return 1.0
+    if key == "affliction_effect_additional":
+        p = 1.0
+        for entry in entries:
+            p *= 1.0 + entry.amount
+        return p
+    pos: dict[str, float] = defaultdict(float)
+    idx = getattr(source, "identity_index", None)
+    for entry in entries:
+        pos[pool_identity(entry, idx)] += entry.amount
+    p = 1.0
+    for amount in pos.values():
+        p *= 1.0 + amount
     return p
 
 
@@ -737,7 +768,7 @@ def target_profile(source: BuildSource) -> dict:
     }
 
 
-def _enemy_vuln_source_keys(dtype: str, is_spell: bool = False) -> list[str]:
+def _enemy_vuln_source_keys(dtype: str, is_spell: bool = False, is_dot: bool = False) -> list[str]:
     """The ordered stat keys `_enemy_vuln_mult` actually consults for `dtype`/`is_spell` — the SINGLE source
     of truth for both computing the vulnerability multiplier and reporting which stats produced it (surfaced
     via `OffenseResult.enemy_vuln_sources_by_type` for the frontend's Breakdown popover). `_enemy_vuln_mult`
@@ -754,6 +785,13 @@ def _enemy_vuln_source_keys(dtype: str, is_spell: bool = False) -> list[str]:
         keys.append("frostbite_cold_taken")   # Frostbite (+Condensed Frost) — baked in aggregator
     if dtype == "lightning":
         keys.append("numbed_lightning_taken")
+    if is_dot:
+        # The numeric amount is resolved from affliction_dot_taken_base and the (possibly slot-local)
+        # additional Affliction Effect factors in _enemy_vuln_mult.
+        keys.append("affliction_dot_taken")
+    elif dtype == "fire":
+        keys.extend(("true_flame_fire_hit_taken", "magmaskull_fire_hit_taken",
+                     "magmaskull_cataclysm_fire_hit_taken"))
     if dtype in ("fire", "cold", "lightning"):
         keys.append(f"{dtype}_infiltration_taken")  # Infiltration — element-typed
     if is_spell:
@@ -766,7 +804,7 @@ def _enemy_vuln_source_keys(dtype: str, is_spell: bool = False) -> list[str]:
     return keys
 
 
-def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) -> float:
+def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False, is_dot: bool = False) -> float:
     """Enemy-vulnerability stage: 'the enemy takes more <type> damage' effects, applied as a final
     per-type multiplier on OUTGOING damage — deliberately NOT in the attacker's additional pool, so
     distinct vulnerability sources combine on their own rule and type-scoping stays honest.
@@ -783,8 +821,21 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     stats again, so this multiplier and the reported source list can never drift apart.
     """
     mult = 1.0
-    for key in _enemy_vuln_source_keys(dtype, is_spell):
-        mult *= 1.0 + source.total(key)
+    for key in _enemy_vuln_source_keys(dtype, is_spell, is_dot):
+        if key == "affliction_dot_taken":
+            amount = source.total(key)
+            if not amount:
+                amount = source.total("affliction_dot_taken_base") * additional_total_product(
+                    source, "affliction_effect_additional")
+        elif key == "true_flame_fire_hit_taken":
+            # Aggregator records the global True Flame value.  A Cataclysm attached to THIS skill adds a
+            # slot-local Affliction-Effect factor, so scale only this materialized skill's value by its delta.
+            global_factor = _additional_global_product(source, "affliction_effect_additional")
+            full_factor = additional_total_product(source, "affliction_effect_additional")
+            amount = source.total(key) * (full_factor / global_factor if global_factor else 1.0)
+        else:
+            amount = source.total(key)
+        mult *= 1.0 + amount
     return mult
 
 
@@ -1251,6 +1302,11 @@ class OffenseResult:
     # Breakdown popover list the real sources without the frontend hand-copying the engine's vuln-key list.
     # Invariant: Π(1 + source.total(k) for k in enemy_vuln_sources_by_type[d]) == enemy_vuln_by_type[d].
     enemy_vuln_sources_by_type: dict[str, list[str]] = field(default_factory=dict)
+    # Authoritative per-form vulnerability contract.  A single damage type can carry both a Hit and a DoT
+    # (notably Fire), whose target-vulnerability sources differ; the legacy per-type maps cannot represent
+    # both without ambiguity.
+    enemy_vuln_by_form: dict[str, float] = field(default_factory=dict)
+    enemy_vuln_sources_by_form: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _build_hit_damage_rows(hit_forms: list[HitFormResult], *, delivery: float,
@@ -1423,7 +1479,8 @@ def compute_dot(
         # a 2s instance applied every 1s → 2.0; owner-ruled Mind-Control-like stacking ramp). 1.0 default →
         # byte-identical for every existing DoT skill.
         dps = form.base_per_second * form.stacked_instances * (1.0 + increased) * additional_product * above_mult
-        dps_vt = dps * _target_mitigation_dot(source, form.dtype)
+        dps_vt = dps * _target_mitigation_dot(source, form.dtype) * _enemy_vuln_mult(
+            source, form.dtype, is_spell, is_dot=True)
         total += dps
         total_vt += dps_vt
         rows.append(DamageRow(
@@ -2856,18 +2913,28 @@ def calculate_offense(
 
     # target_mitigation_by_type × enemy_vuln_by_type == enemy_mult_by_type — derived from the SAME two calls
     # enemy_mult_by_type is built from below, so the identity is exact (not just float-close).
+    dot_types = {form.dtype for form in skill.dot_forms_by_level.get(lookup_level, [])}
     target_mitigation_by_type = {
         dt: _target_mitigation(source, dt)
         for dt in DAMAGE_TYPES
-        if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
+        if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms) or dt in dot_types
     }
     enemy_vuln_by_type = {
-        dt: _enemy_vuln_mult(source, dt, is_spell)
+        dt: _enemy_vuln_mult(source, dt, is_spell, is_dot=dt in dot_types)
         for dt in target_mitigation_by_type
     }
     enemy_vuln_sources_by_type = {
-        dt: _enemy_vuln_source_keys(dt, is_spell)
+        dt: _enemy_vuln_source_keys(dt, is_spell, is_dot=dt in dot_types)
         for dt in target_mitigation_by_type
+    }
+    hit_types = {dt for dt in DAMAGE_TYPES if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)}
+    enemy_vuln_by_form = {
+        **{f"hit:{dt}": _enemy_vuln_mult(source, dt, is_spell) for dt in hit_types},
+        **{f"dot:{dt}": _enemy_vuln_mult(source, dt, is_spell, is_dot=True) for dt in dot_types},
+    }
+    enemy_vuln_sources_by_form = {
+        **{f"hit:{dt}": _enemy_vuln_source_keys(dt, is_spell) for dt in hit_types},
+        **{f"dot:{dt}": _enemy_vuln_source_keys(dt, is_spell, is_dot=True) for dt in dot_types},
     }
     _finalize_damage_row_pcts(damage_rows, total_dps_vs_target)
 
@@ -2993,6 +3060,8 @@ def calculate_offense(
         target_mitigation_by_type=target_mitigation_by_type,
         enemy_vuln_by_type=enemy_vuln_by_type,
         enemy_vuln_sources_by_type=enemy_vuln_sources_by_type,
+        enemy_vuln_by_form=enemy_vuln_by_form,
+        enemy_vuln_sources_by_form=enemy_vuln_sources_by_form,
         multistrike_chance=multistrike_chance,
         multistrike_avg_count=multistrike_avg_count,
         multistrike_increment=multistrike_increment,

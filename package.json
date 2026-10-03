@@ -15,13 +15,17 @@
     "build:web": "python backend/tools/export_backend_bundle.py && vite build --config vite.web.config.mts --mode web && node -e \"require('fs').renameSync('dist-web/index.web.html','dist-web/index.html')\"",
     "build:web:data": "python backend/tools/export_web_data.py && python backend/tools/export_engine_bundle.py",
     "fetch:data": "node scripts/fetch-data.mjs",
-    "deploy:web": "npm run fetch:data && npm run build:web && wrangler pages deploy dist-web --project-name=tlibuilder && node scripts/verify-web-deploy.mjs",
-    "deploy:web:data": "npm run fetch:data && npm run build:web:data && wrangler pages deploy web-data --project-name=tlibuilder-data && node scripts/verify-web-deploy.mjs --url=https://tlibuilder-data.pages.dev --dist=web-data --check=manifest.json",
+    "deploy:web": "npm run fetch:data && npm run build:web && wrangler pages deploy dist-web --project-name=tlibuilder --branch=main && node scripts/verify-web-deploy.mjs",
+    "deploy:web:data": "npm run fetch:data && npm run build:web:data && wrangler pages deploy web-data --project-name=tlibuilder-data --branch=main && node scripts/verify-web-deploy.mjs --url=https://tlibuilder-data.pages.dev --dist=web-data --check=manifest.json",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
     "test:e2e": "npm run build && npm run build:web && playwright test -c e2e",
     "test:e2e:web": "npm run build:web && playwright test -c e2e --project=web",
-    "test:e2e:electron": "npm run build && set PW_NO_WEBSERVER=1&& playwright test -c e2e --project=electron"
+    "test:e2e:electron": "npm run build && set PW_NO_WEBSERVER=1&& playwright test -c e2e --project=electron",
+    "slot:info": "node scripts/dev-slot.mjs info",
+    "dev:slot": "node scripts/dev-slot.mjs electron",
+    "web:slot": "node scripts/dev-slot.mjs web",
+    "test:e2e:slot": "node scripts/dev-slot.mjs e2e"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
