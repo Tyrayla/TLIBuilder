@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-10-03
+
+### Engine & DPS
+- **Affliction and True Flame are now modeled.** Set the enemy's Affliction on the Config tab (it defaults to the full 100 stacks; anything raising your maximum Affliction raises the cap). Each stack makes the enemy take 1% more damage over time, scaled by your Affliction effect. True Flame turns 65% of that bonus into extra Fire hit damage taken by an Ignited enemy, and Black Hole instantly applies 100 Affliction, then adds 100 per second while its damage over time is active. The skill calculations show an Affliction breakdown, including True Flame's share. Confirmed in-game.
+- **The training dummy settings now apply everywhere.** Changing the dummy's level, armor, or resistances on the Config tab was ignored for some skills (any skill with a skill-specific modifier) and for Seething Silhouette's Seething Spirit, which kept using the default Lv 85 dummy. Damage against the target now uses your dummy settings in every case.
+- **Custom mod lines each count as their own source.** Two lines with the same wording in the Custom Mods box (for example two "+50% additional attack damage" lines) used to add together; each line now multiplies separately, the same as two separate sources in-game. A custom line also multiplies separately from a gear affix with the same wording. To get the added-together result, type it as one combined line.
+
+### Bug fixes
+- **The desktop app recovers from a slow start.** On a slow or busy computer, a reference list could fail to load for the whole session ("restart to retry"), Full DPS could stay on "—" until you changed something, and a new build could miss its default hero trait. The app now retries failed loads and calculations on its own, shows "Error" (with the reason on hover) instead of a blank dash when a calculation can't finish, and gives a new build its default hero trait from any screen.
+- **Folders show up before you have any saved builds.** A folder created while the build list was empty was saved but never shown.
+- **Settings fits short windows.** The Settings window now fits the window at any UI scale and scrolls inside, so Close is always reachable. Escape closes it, and with the bug-report form open on top, Escape closes only the form.
+- **The talent point total counts Inverse Image points.** The sidebar's total talent points now includes points spent in an Inverse Image prism's reflected cells, matching the tree's own counter.
+
 ## [0.6.8] - 2026-09-17
 
 ### Sharing & reporting
