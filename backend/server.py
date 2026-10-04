@@ -1797,6 +1797,30 @@ _MIXED_STAT_OVERRIDES: dict[str, list[dict]] = {
         {"value_index": 1, "stat_keys": ["elemental_dmg_gear_flat_max"], "unit": ""},
         {"value_index": 2, "stat_keys": ["physical_dmg_gear_inc"], "unit": "%"},
     ],
+    "+(#) to max tenacity blessing stacks +(#) % additional damage": [
+        {"value_index": 0, "stat_keys": ["max_tenacity_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["dmg_additional"], "unit": "%"},
+    ],
+    "+(#) to max agility blessing stacks +(#) % additional damage": [
+        {"value_index": 0, "stat_keys": ["max_agility_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["dmg_additional"], "unit": "%"},
+    ],
+    "+(#) to max focus blessing stacks +(#) % additional damage": [
+        {"value_index": 0, "stat_keys": ["max_focus_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["dmg_additional"], "unit": "%"},
+    ],
+    "+(#) to max tenacity blessing stacks +(#) % additional minion damage": [
+        {"value_index": 0, "stat_keys": ["max_tenacity_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["minion_dmg_additional"], "unit": "%"},
+    ],
+    "+(#) to max agility blessing stacks +(#) % additional minion damage": [
+        {"value_index": 0, "stat_keys": ["max_agility_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["minion_dmg_additional"], "unit": "%"},
+    ],
+    "+(#) to max focus blessing stacks +(#) % additional minion damage": [
+        {"value_index": 0, "stat_keys": ["max_focus_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["minion_dmg_additional"], "unit": "%"},
+    ],
 }
 
 _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
@@ -1836,18 +1860,6 @@ _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
         (["knockback_distance_inc"], ["dmg_additional"]),
     "+(#) to max summonable synthetic troops +(#) % additional minion damage":
         (["max_synth_troops_flat"], ["minion_dmg_additional"]),
-    "+(#) to max tenacity blessing stacks +(#) % additional damage":
-        (["max_tenacity_blessing_stacks_flat"], ["dmg_additional"]),
-    "+(#) to max agility blessing stacks +(#) % additional damage":
-        (["max_agility_blessing_stacks_flat"], ["dmg_additional"]),
-    "+(#) to max focus blessing stacks +(#) % additional damage":
-        (["max_focus_blessing_stacks_flat"], ["dmg_additional"]),
-    "+(#) to max tenacity blessing stacks +(#) % additional minion damage":
-        (["max_tenacity_blessing_stacks_flat"], ["minion_dmg_additional"]),
-    "+(#) to max agility blessing stacks +(#) % additional minion damage":
-        (["max_agility_blessing_stacks_flat"], ["minion_dmg_additional"]),
-    "+(#) to max focus blessing stacks +(#) % additional minion damage":
-        (["max_focus_blessing_stacks_flat"], ["minion_dmg_additional"]),
     "+(#) % elemental resistance +(#) % erosion resistance":
         (["elemental_resistance"], ["erosion_resistance"]),
     "+(#) % elemental resistance +(#) % chance to avoid elemental ailment":
