@@ -19,7 +19,9 @@ def test_willpower_has_only_its_compounded_stack_bonus(level, stacks, factor):
     assert supported['offense']['total_dps'] / base['offense']['total_dps'] == pytest.approx(factor)
 
 
-def test_willpower_is_inert_while_moving():
+def test_willpower_has_no_steady_state_moving_bonus():
+    # Canonical buff persists for 0.5s after movement starts. This request represents
+    # steady movement after that grace period; the engine has no transition clock.
     base = engine_stats(EngineStatsRequest(**make_request('thunder_spike', 20,
                        extra_conditions={'standing_still': False})))
     supported = engine_stats(EngineStatsRequest(**make_request('thunder_spike', 20,

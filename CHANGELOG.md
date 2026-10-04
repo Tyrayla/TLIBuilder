@@ -4,7 +4,7 @@
 
 ### Bug fixes
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
-- Willpower no longer adds an extra unconditional damage bonus. Its damage bonus now comes only from its stacks while standing still.
+- Willpower no longer adds an extra unconditional damage multiplier on top of its stack bonus.
 
 ## [0.6.9] - 2026-10-03
 
