@@ -581,6 +581,10 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
             continue
 
         for line in parsed.lines:
+            # Willpower's per-stack clause is handled below using the gem's actual level
+            # and stack count. Mapping it here also adds a second, unconditional MORE group.
+            if item_id == "willpower" and _WILLPOWER_RE.search(line.text):
+                continue
             for c in map_line(line, level, cat, conds):
                 if c.stat_key == "cataclysm_affliction_per_second_flat" and not _host_has_dot:
                     continue
