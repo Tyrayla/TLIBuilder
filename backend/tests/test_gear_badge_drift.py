@@ -17,6 +17,26 @@ from server import (engine_stats, EngineStatsRequest, map_modifiers, MapModifier
 _SEASON_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12")
 
 
+@pytest.mark.parametrize("blessing", ["Focus", "Tenacity", "Agility"])
+@pytest.mark.parametrize("damage,damage_key", [
+    ("damage", "dmg_additional"),
+    ("minion damage", "minion_dmg_additional"),
+])
+def test_combined_blessing_affix_preserves_flat_count(blessing, damage, damage_key):
+    # Craft catalog: +1 maximum blessing and +13% additional damage.
+    # The renderer uses each group's unit, falling back to the affix unit.
+    resolved = _resolve_affix({
+        "raw_text": f"+1 to Max {blessing} Blessing Stacks +13 % additional {damage}",
+        "affix_kind": "numeric",
+    })
+    groups = resolved["dual_stat_groups"]
+    assert [group.get("unit", resolved["unit"]) for group in groups] == ["", "%"]
+    assert groups == [
+        {"value_index": 0, "stat_keys": [f"max_{blessing.lower()}_blessing_stacks_flat"], "unit": ""},
+        {"value_index": 1, "stat_keys": [damage_key], "unit": "%"},
+    ]
+
+
 def _badge_keys(text: str) -> list[str]:
     """Stat keys the badge endpoint reports for a raw gear line (what drives Consumed/Unconsumed vs NYI)."""
     r = map_modifiers(MapModifiersRequest(items=[{"key": "k", "text": text, "source": "gear"}]))
