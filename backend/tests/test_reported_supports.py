@@ -1,4 +1,4 @@
-"""Canonical SS13 Willpower behavior through the player's engine request."""
+"""Canonical SS13 reported supports through the player's engine request."""
 import pytest
 
 from server import EngineStatsRequest, engine_stats
@@ -42,3 +42,33 @@ def test_willpower_on_second_slot_does_not_change_main_spell(enabled, factor):
           'slot': 2, 'enabled': enabled}], skills=skills, extra_conditions=conditions)))
     assert supported['slot_offense']['1']['total_dps'] / base['slot_offense']['1']['total_dps'] == pytest.approx(1.0)
     assert supported['slot_offense']['2']['total_dps'] / base['slot_offense']['2']['total_dps'] == pytest.approx(factor)
+
+
+@pytest.mark.parametrize('enabled,factor', [(True, 1.0683333333333334), (False, 1.0)])
+def test_periodic_burst_averages_speed_for_all_skills_from_second_slot(enabled, factor):
+    # SS13: +20.5% increased Attack/Cast Speed for 2 seconds every 6 seconds.
+    # Owner confirms player-wide buff; regular use averages to +6.833333333%.
+    skills = [{'slot': 1, 'skill_id': 'chain_lightning', 'level': 20},
+              {'slot': 2, 'skill_id': 'spiral_strike', 'level': 20},
+              {'slot': 3, 'skill_id': 'thunder_spike', 'level': 20}]
+    base = engine_stats(EngineStatsRequest(**make_request('chain_lightning', 20, skills=skills)))
+    supported = engine_stats(EngineStatsRequest(**make_request('chain_lightning', 20,
+        [{'item_id': 'periodic_burst', 'skill_type': 'support_skill', 'level': 20,
+          'slot': 2, 'enabled': enabled}], skills=skills)))
+    # Spell, supported Mobility attack, and another attack observe global speed.
+    # Thunder Spike damage also depends on Numbed uptime, so assert rate directly.
+    for slot in ('1', '2', '3'):
+        assert supported['slot_offense'][slot]['skills_per_second'] / base['slot_offense'][slot]['skills_per_second'] == pytest.approx(factor)
+
+
+def test_periodic_burst_speed_adds_to_existing_increased_speed():
+    # 20% existing increased cast speed + 20.5% * 2/6, not a separate MORE factor.
+    skills = [{'slot': 1, 'skill_id': 'chain_lightning', 'level': 20},
+              {'slot': 2, 'skill_id': 'spiral_strike', 'level': 20}]
+    mods = ['+20% Cast Speed']
+    base = engine_stats(EngineStatsRequest(**make_request('chain_lightning', 20,
+                        skills=skills, custom_mods=mods)))
+    supported = engine_stats(EngineStatsRequest(**make_request('chain_lightning', 20,
+        [{'item_id': 'periodic_burst', 'skill_type': 'support_skill', 'level': 20, 'slot': 2}],
+        skills=skills, custom_mods=mods)))
+    assert supported['offense']['total_dps'] / base['offense']['total_dps'] == pytest.approx(1.0569444444444445)

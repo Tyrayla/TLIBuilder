@@ -525,6 +525,17 @@ def _willpower_per_stack(data: dict, level: int) -> float | None:
     return float(m.group(1)) / 100.0 if m else None
 
 
+def _periodic_burst_uptime(data: dict) -> float:
+    """Steady use at each opportunity; timing comes from canonical duration metadata."""
+    durations = data.get("durations") or []
+    interval = next((d.get("seconds") for d in durations if d.get("kind") == "interval"), None)
+    duration = next((d.get("seconds") for d in durations
+                     if d.get("kind") == "entity" and d.get("subject") == "buff"), None)
+    if interval is None or duration is None or float(interval) <= 0:
+        return 0.0
+    return max(0.0, min(1.0, float(duration) / float(interval)))
+
+
 def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None,
                               source=None, curse_slots=None, empower_slots=None, slot_skill=None):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
@@ -570,6 +581,11 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
             from engine.skill_resolver import resolve_skill
             _host_has_dot = bool(resolve_skill(skills_by_id[_host_id]).dot_forms_by_level)
 
+        if item_id == "periodic_burst":
+            host_tags = (skills_by_id.get(_host_id) or {}).get("skill_tags") or []
+            if "mobility" not in {str(tag).lower() for tag in host_tags}:
+                continue
+
         # Empower-effect supports (bespoke): contribute slot-local Empower Skill Effect scaled by the host skill's
         # charges (Mass Effect) or a user-set cast count (Well-Fought Battle, default max). Their lines don't map
         # via the generic rules, so handle here. Level-scaling of the per-unit value is approximate (uses the
@@ -588,13 +604,19 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
             for c in map_line(line, level, cat, conds):
                 if c.stat_key == "cataclysm_affliction_per_second_flat" and not _host_has_dot:
                     continue
+                # Periodic Burst grants the player a timed buff, rather than a permanent
+                # supported-skill modifier. Average its increased speed over the cycle.
+                periodic_speed = item_id == "periodic_burst" and c.stat_key in {
+                    "attack_speed_inc", "cast_speed_inc"}
+                uptime = _periodic_burst_uptime(data) if periodic_speed else 1.0
                 contribs.append({
                     "stat_key": c.stat_key,
-                    "amount": c.amount,
+                    "amount": c.amount * uptime,
                     # unique pooling identity per support line (multiplies, like Noble/Mag)
-                    "text": f"{c.text} |{item_id}|{line.template[:24]}",
+                    "text": (f"{c.text} (averaged, {uptime:.1%} uptime)" if periodic_speed else c.text)
+                            + f" |{item_id}|{line.template[:24]}",
                     "label": name,
-                    "slot": sup.get("slot", 1),
+                    "slot": None if periodic_speed else sup.get("slot", 1),
                 })
             effects.extend(map_autoderive_line(line, item_id))
 
