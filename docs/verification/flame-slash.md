@@ -9,7 +9,7 @@
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Full research/design trail (including the exact owner quotes behind every design decision) is in .wolf/plans/flame-slash.md (private planning artifact, not in this repo). Needs the two new conditions (`enemy_distance_m`, `inverted_blaze_returns`) pushed to the canonical `tli-data` repo's data/conditions.json before this is correct in a fresh checkout / CI — a local copy was added to this worktree's gitignored data/ for testing only.
+Shipped in the engine; not yet verified in-game. Full research/design trail (including the exact owner quotes behind every design decision) is in .wolf/plans/flame-slash.md (private planning artifact, not in this repo). Needs the two new conditions pushed to the canonical `tli-data` repo's data/conditions.json before this is correct in a fresh checkout / CI — a local copy was added to this worktree's gitignored data/ for testing only. IMPORTANT when pushing: `enemy_distance_m` is `"source": "user"` (0m point-blank is a universal, non-build-dependent default). `inverted_blaze_returns` MUST be `"source": "auto"`, not "user" — its intended default is this slot's own Area-bonus-scaled torrent count (build-dependent), and the frontend's buildDefaultConditionState pre-bakes every "user" condition's static default_value into every new build, which would silently defeat the dynamic default and cap every build at a flat 3 return hits (accuracy-council finding, 2026-10-04).
 
 ## Implementation (engine model)
 

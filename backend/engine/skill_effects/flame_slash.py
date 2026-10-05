@@ -83,6 +83,15 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
         points=1))
 
     for sup in (attached_supports or []):
+        # attached_supports is the BUILD-WIDE list (every skill slot's supports, flat) — scope to
+        # THIS slot only, same convention every other bespoke module uses (e.g. icebound_beam.py,
+        # howling_gale.py, focused_slash.py's `_cfg_for_slot`). Cross-model review (2026-10-04)
+        # caught this missing filter: without it, Immediate Threat/Inverted Blaze attached to a
+        # DIFFERENT Flame Slash slot (a build can equip Flame Slash in more than one slot with
+        # different support loadouts — see test_per_slot_foundation.py) would incorrectly apply
+        # here too. Also respects a disabled support (sup.get("enabled", True)).
+        if sup.get("slot", 1) != slot or not sup.get("enabled", True):
+            continue
         iid = sup.get("item_id")
         data = skills_by_id.get(iid) if skills_by_id else None
         if not data:

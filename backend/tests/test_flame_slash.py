@@ -189,6 +189,54 @@ class TestApplySlotEffectsTorrentCount:
         eff = s.materialize_for_skill({"attack"}, 1)
         assert eff.total("flame_slash_torrent_count_flat") == pytest.approx(5.0)
 
+    @pytest.mark.parametrize("parts", [
+        (0.60, 0.55), (0.45, 0.40, 0.30), (0.23,) * 5, (0.575, 0.575),
+    ])
+    def test_multi_source_accumulation_still_hits_115_pct_threshold(self, parts):
+        """A real build sums the 115% Area-bonus threshold from SEVERAL gear/talent sources, not
+        one literal 1.15 — correctness-council finding (2026-10-04) that this could, in principle,
+        float-point-drift a few ulps below the threshold and silently undercount by one step. Locks
+        in that the realistic (2-decimal-affix) accumulation patterns do NOT lose the step."""
+        s = BuildSource()
+        for p in parts:
+            s.add("skill_area_inc", p)
+        fs.apply_slot_effects(source=s, resolved=self._resolved(), slot=1, condition_state={},
+                              mod_tags={"attack"}, attached_supports=[], skills_by_id={})
+        eff = s.materialize_for_skill({"attack"}, 1)
+        assert eff.total("flame_slash_torrent_count_flat") == pytest.approx(5.0)
+
+    def test_negative_area_bonus_never_drops_below_base(self):
+        """No tooltip clause reduces torrent count below the base 3 — a negative aggregated Area
+        bonus (e.g. a 'reduced Skill Area' source) must floor at the base, not go negative or
+        below 3."""
+        s = BuildSource()
+        s.add("skill_area_inc", -0.50)
+        fs.apply_slot_effects(source=s, resolved=self._resolved(), slot=1, condition_state={},
+                              mod_tags={"attack"}, attached_supports=[], skills_by_id={})
+        eff = s.materialize_for_skill({"attack"}, 1)
+        assert eff.total("flame_slash_torrent_count_flat") == pytest.approx(3.0)
+
+
+class TestBothSupportsSameSlot:
+    """Immediate Threat (slot 3) and Inverted Blaze (slot 5) are mutually compatible — a real build
+    can socket both into the SAME Flame Slash slot's 5 support sockets. Neither branch in
+    apply_slot_effects' per-support loop should affect the other."""
+
+    def _skills_by_id(self):
+        return {fs.IMMEDIATE_THREAT: _immediate_threat_data(), fs.INVERTED_BLAZE: _inverted_blaze_data()}
+
+    def test_both_attached_both_contribute(self):
+        s = BuildSource()
+        fs.apply_slot_effects(
+            source=s, resolved=resolve_skill(_fss_data()), slot=1, condition_state={},
+            mod_tags={"attack"},
+            attached_supports=[{"item_id": fs.IMMEDIATE_THREAT, "level": 1},
+                                {"item_id": fs.INVERTED_BLAZE, "level": 1}],
+            skills_by_id=self._skills_by_id())
+        eff = s.materialize_for_skill({"attack"}, 1)
+        assert eff.total("dmg_additional") == pytest.approx(0.39)  # Immediate Threat, point-blank
+        assert eff.total("flame_slash_return_hits_flat") == pytest.approx(3.0)  # Inverted Blaze default
+
 
 class TestImmediateThreat:
     def _skills_by_id(self):
@@ -216,6 +264,28 @@ class TestImmediateThreat:
     def test_midpoint_is_half_roll(self):
         assert self._run(5.5) == pytest.approx(0.39 * 0.5)
 
+    def test_wrong_slot_does_not_leak(self):
+        """attached_supports is the BUILD-WIDE list (every skill slot's supports). A support
+        attached to a DIFFERENT slot must not contribute to this slot (cross-model review finding,
+        2026-10-04) — a build can equip Flame Slash in more than one slot with different support
+        loadouts (test_per_slot_foundation.py)."""
+        s = BuildSource()
+        fs.apply_slot_effects(
+            source=s, resolved=resolve_skill(_fss_data()), slot=1, condition_state={},
+            mod_tags={"attack"},
+            attached_supports=[{"item_id": fs.IMMEDIATE_THREAT, "level": 1, "slot": 2}],
+            skills_by_id=self._skills_by_id())
+        assert s.materialize_for_skill({"attack"}, 1).total("dmg_additional") == 0.0
+
+    def test_disabled_support_does_not_contribute(self):
+        s = BuildSource()
+        fs.apply_slot_effects(
+            source=s, resolved=resolve_skill(_fss_data()), slot=1, condition_state={},
+            mod_tags={"attack"},
+            attached_supports=[{"item_id": fs.IMMEDIATE_THREAT, "level": 1, "enabled": False}],
+            skills_by_id=self._skills_by_id())
+        assert s.materialize_for_skill({"attack"}, 1).total("dmg_additional") == 0.0
+
     def test_explicit_roll_override(self):
         from engine.affix_identity import affix_identity
         s = BuildSource()
@@ -227,6 +297,22 @@ class TestImmediateThreat:
                               condition_state={}, mod_tags={"attack"}, attached_supports=[sup],
                               skills_by_id=self._skills_by_id())
         assert s.materialize_for_skill({"attack"}, 1).total("dmg_additional") == pytest.approx(0.50)
+
+    def test_explicit_roll_still_scales_with_distance(self):
+        """A regression that made an explicit user-rolled value bypass the distance clamp entirely
+        (returning the raw roll regardless of enemy_distance_m) would NOT be caught by
+        test_explicit_roll_override alone, since that test only checks the override at the
+        implicit default distance (0m, frac=1.0) — correctness-council finding, 2026-10-04."""
+        from engine.affix_identity import affix_identity
+        s = BuildSource()
+        line = ("The supported skill deals more damage to enemies that are closer within 8 m, "
+                "dealing up to +(38–40) % additional damage to enemies within 3 m")
+        sup = {"item_id": fs.IMMEDIATE_THREAT, "level": 1,
+               "specific_rolls": {affix_identity(line): 0.50}}
+        fs.apply_slot_effects(source=s, resolved=resolve_skill(_fss_data()), slot=1,
+                              condition_state={"enemy_distance_m": 5.5}, mod_tags={"attack"},
+                              attached_supports=[sup], skills_by_id=self._skills_by_id())
+        assert s.materialize_for_skill({"attack"}, 1).total("dmg_additional") == pytest.approx(0.25)
 
 
 class TestInvertedBlaze:
@@ -254,6 +340,15 @@ class TestInvertedBlaze:
 
     def test_explicit_zero_means_no_returns_land(self):
         assert self._run({"inverted_blaze_returns": 0}) == pytest.approx(0.0)
+
+    def test_wrong_slot_does_not_leak(self):
+        s = BuildSource()
+        fs.apply_slot_effects(
+            source=s, resolved=resolve_skill(_fss_data()), slot=1, condition_state={},
+            mod_tags={"attack"},
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "level": 1, "slot": 2}],
+            skills_by_id=self._skills_by_id())
+        assert s.materialize_for_skill({"attack"}, 1).total("flame_slash_return_hits_flat") == 0.0
 
     def test_not_attached_emits_nothing(self):
         s = BuildSource()
