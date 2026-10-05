@@ -102,6 +102,15 @@ _FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg", "
 # matching how tangle_dmg_enhancement_additional's *_enhancement_additional identity sums its sources.
 _SHADOW_SCOPED_ADDITIONAL: frozenset = frozenset({"shadow_dmg_additional"})
 
+# These modifiers change one endpoint, rather than multiplying the entire hit.
+_ENDPOINT_ADDITIONAL_STATS = [
+    ("dmg_min_additional", frozenset()),
+    ("dmg_max_additional", frozenset()),
+    ("physical_dmg_min_additional", frozenset({"physical"})),
+    ("physical_dmg_max_additional", frozenset({"physical"})),
+]
+_ENDPOINT_ADDITIONAL_KEYS = frozenset(k for k, _ in _ENDPOINT_ADDITIONAL_STATS)
+
 # Hit damage additional multiplier stats — each is an independent multiplicative pool.
 # Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
 _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -112,6 +121,7 @@ _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     and stat.value not in _DEFERRED_ADDITIONAL
     and stat.value not in _FORM_SCOPED_ADDITIONAL
     and stat.value not in _SHADOW_SCOPED_ADDITIONAL
+    and stat.value not in _ENDPOINT_ADDITIONAL_KEYS
 ]
 
 # DoT (Damage over Time) additional-damage pool — the whitelisted keys per dot-model.json's audit (only
@@ -882,7 +892,7 @@ def _conversion_fracs(
 
 def _apply_conversion(eff_flat: dict, path_inc, path_add,
                       generic_inc: float, generic_add: float,
-                      convert: dict, adds: dict) -> dict:
+                      convert: dict, adds: dict, endpoint_mult=None) -> dict:
     """Cascade post-effectiveness flat (per type) through the conversion chain in priority order. Each
     packet records the UNION of dtype-tags of every type it has been; at finalization its type-specific
     bonuses are path_inc(path_tags) (sum) and path_add(path_tags) (product), each modifier counted ONCE.
@@ -909,8 +919,10 @@ def _apply_conversion(eff_flat: dict, path_inc, path_add,
                 packets[d].append([p[0] * frac, p[1] * frac, p[2]])
             if stay > 1e-12:
                 f = (1.0 + generic_inc + path_inc(p[2])) * generic_add * path_add(p[2])
+                min_mult, max_mult = endpoint_mult(p[2]) if endpoint_mult else (1.0, 1.0)
                 cur = final.get(t, (0.0, 0.0))
-                final[t] = (cur[0] + p[0] * stay * f, cur[1] + p[1] * stay * f)
+                final[t] = (cur[0] + p[0] * stay * f * min_mult,
+                            cur[1] + p[1] * stay * f * max_mult)
     return final
 
 
@@ -1840,7 +1852,7 @@ def calculate_offense(
         # Spell flat pool — see _spell_flat. Verified in-game (docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §1).
         # For multi-form spells (Icebound Beam) this is the HEADLINE (continuous) form's flat; each form
         # recomputes its own flat from form.base_dmg + form.added_eff inside the hit-form loop below.
-        # DEFERRED: min/max-damage reshaping (Phase 3, with Lucky); elemental-gear-flat→spell (flagged).
+        # Endpoint reshaping applies at conversion finalization below.
         flat_dmg, skill_base_dmg = _spell_flat(
             source, skill.base_dmg_by_level.get(lookup_level, {}), skill.added_dmg_effectiveness)
     else:
@@ -2059,6 +2071,22 @@ def calculate_offense(
             source, add_factors,
             lambda tags: bool(tags & _DTYPE_TAG_SET & path_tags) and _skill_gate(tags, mod_tags))
 
+    endpoint_factors = _build_additional_factors(source, _ENDPOINT_ADDITIONAL_STATS)
+
+    def _endpoint_mult(path_tags):
+        # Converted Physical packets keep Physical endpoint bonuses. Native elemental
+        # packets receive only the generic factors. Reuse the ordinary source identities.
+        applies = lambda tags: not tags or bool(tags & path_tags)
+        _record_applicable_keys(source, _ENDPOINT_ADDITIONAL_STATS, applies)
+        mn = mx = 1.0
+        for amount, tags, key in endpoint_factors:
+            if applies(tags):
+                if key.endswith("min_additional"):
+                    mn *= 1.0 + amount
+                else:
+                    mx *= 1.0 + amount
+        return mn, mx
+
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
     # Additional Steep Strike Damage applies ONLY to the steep-strike hit form (the high-damage proc). It's
@@ -2229,7 +2257,8 @@ def calculate_offense(
             tot = (b_min + add_min * em, b_max + add_max * em)
             elems = skill.compulsory_elements
             for e in elems:
-                conv_e = _apply_conversion({e: tot}, _path_spec_inc, _path_spec_add, generic_inc, generic_add, {}, {})
+                conv_e = _apply_conversion({e: tot}, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
+                                           {}, {}, _endpoint_mult)
                 smin, smax = conv_e.get(e, (0.0, 0.0))
                 vuln = _enemy_vuln_mult(source, e, is_spell)
                 e_min = smin * above_mult * vuln * aug_factor * form_add_mult
@@ -2259,7 +2288,7 @@ def calculate_offense(
             # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
             eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in form_flat.items()}
             converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
-                                          convert_fracs, adds_fracs)
+                                          convert_fracs, adds_fracs, _endpoint_mult)
             for dtype, (smin, smax) in converted.items():
                 # "You can only deal <Type>" — a FINAL packet left as a non-allowed type deals zero (applied AFTER
                 # conversion, so damage that converted INTO an allowed type still counts).

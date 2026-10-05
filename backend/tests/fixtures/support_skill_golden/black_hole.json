@@ -63,8 +63,6 @@
     "dmg_additional_per_life_consumed",
     "dmg_avoid_chance",
     "dmg_inc",
-    "dmg_max_additional",
-    "dmg_min_additional",
     "dmg_taken_additional",
     "dot_dmg_additional",
     "dot_dmg_inc",
@@ -220,8 +218,6 @@
     "physical_convert_to_lightning",
     "physical_dmg_additional",
     "physical_dmg_inc",
-    "physical_dmg_max_additional",
-    "physical_dmg_min_additional",
     "physical_dmg_taken_additional",
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
@@ -428,8 +424,6 @@
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
-      "dmg_max_additional",
-      "dmg_min_additional",
       "spell_dmg_additional",
       "area_dmg_additional",
       "at_center_dmg_additional"
@@ -553,8 +547,6 @@
       "fire": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "fire_dmg_additional",
@@ -564,8 +556,6 @@
       "lightning": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "lightning_dmg_additional",
@@ -575,13 +565,9 @@
       "physical": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "physical_dmg_additional",
-        "physical_dmg_min_additional",
-        "physical_dmg_max_additional",
         "at_center_dmg_additional"
       ]
     },
@@ -789,8 +775,6 @@
       "generic_add_keys": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "at_center_dmg_additional"
@@ -914,8 +898,6 @@
         "fire": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "area_dmg_additional",
           "fire_dmg_additional",
@@ -925,8 +907,6 @@
         "lightning": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "area_dmg_additional",
           "lightning_dmg_additional",
@@ -936,13 +916,9 @@
         "physical": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "area_dmg_additional",
           "physical_dmg_additional",
-          "physical_dmg_min_additional",
-          "physical_dmg_max_additional",
           "at_center_dmg_additional"
         ]
       },

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Fixed Impermanence lowering Thunder Spike DPS by applying minimum and maximum damage bonuses to the entire hit. These bonuses now change their respective damage endpoints and follow Physical damage through conversion. In-game verification of Impermanence remains open.
+
 ## [0.6.9] - 2026-10-03
 
 ### Engine & DPS
