@@ -26,6 +26,11 @@ class SkillHitForm:
     hit_count: int = 1                # BASE projectiles/blades fired per occurrence (Icy Blade base = 2)
     shotgun_falloff: float = 0.0      # same-target Shotgun Effect falloff coefficient (0.65 = each subsequent hit −65%)
     scales_with_projectiles: bool = False  # if True, hit_count += projectile_quantity_flat (the blades shotgun a target)
+    # Flame Slash's Steep Strike only: hit_count is resolved per-SLOT by skill_effects/flame_slash.py
+    # (reads flame_slash_torrent_count_flat + flame_slash_return_hits_flat instead of this dataclass's
+    # static `hit_count`) — the resolver has no access to a build's Area bonus, only the per-slot
+    # aggregation does (same reason Rampage's Skill-Area read also happens in skill_effects, not here).
+    scales_with_skill_area: bool = False
 
 
 @dataclass
@@ -271,6 +276,45 @@ def _resolve_moon_strike(skill_data: dict) -> ResolvedSkill:
         )],
         extra_damage_mod_tags=["spell"],
     )
+
+
+# ── Flame Slash — Tags: Attack, Melee, Area, Fire, Slash-Strike. See .wolf/plans/flame-slash.md for
+# the full research/design (owner-reviewed 2026-10-04). Differs from the three Slash-Strike skills
+# above: Steep Strike is a 3-flame MULTI-hit (not a single bigger hit), whose torrent count scales
+# off the skill's own aggregated Area bonus ("For every 115% Area bonus, +2 fire torrents") —
+# resolved per-SLOT by skill_effects/flame_slash.py (this resolver has no access to a build's Area
+# bonus; `scales_with_skill_area` just flags the form so offense.py reads the per-slot stat instead
+# of the dataclass's static `hit_count`). The skill also overrides the global Shotgun Effect default
+# to its own 50% falloff, and converts 100% of its own Physical Damage to Fire (same mechanism as
+# Thunder Spike's `intrinsic_convert`). Main stat Strength.
+_FLAME_SLASH_BASE_TORRENTS = 3    # Steep Strike's base fire-torrent count at 0% Area bonus
+_FLAME_SLASH_AREA_STEP = 1.15     # "For every 115% Area bonus for this skill..."
+_FLAME_SLASH_AREA_STEP_HITS = 2   # "...the number of fire torrents +2"
+
+
+def flame_slash_torrent_count(area_bonus: float) -> int:
+    """Steep Strike's fire-torrent count at this slot's own aggregated Area bonus (owner-approved
+    floor-step formula, 2026-10-04). Single source of truth — skill_effects/flame_slash.py imports
+    this rather than re-deriving the constants."""
+    steps = int(area_bonus // _FLAME_SLASH_AREA_STEP) if area_bonus > 0 else 0
+    return _FLAME_SLASH_BASE_TORRENTS + _FLAME_SLASH_AREA_STEP_HITS * steps
+
+
+@_register("flame_slash")
+def _resolve_flame_slash(skill_data: dict) -> ResolvedSkill:
+    resolved = _resolve_slash_skill(skill_data)
+    for forms in resolved.hit_forms_by_level.values():
+        for form in forms:
+            if form.proc_stat_key == "steep_strike_chance":
+                # hit_count is a fallback only (used if skill_effects/flame_slash.py's apply_slot_effects
+                # didn't run, e.g. a test constructing offense inputs directly) — the real, Area-bonus-
+                # scaled count is read from flame_slash_torrent_count_flat at offense time.
+                form.hit_count = _FLAME_SLASH_BASE_TORRENTS
+                form.shotgun_falloff = 0.50
+                form.scales_with_skill_area = True
+    resolved.main_stat = ["strength"]
+    resolved.intrinsic_convert = {"physical": {"fire": 1.0}}
+    return resolved
 
 
 # ── Groundshaker (Demolisher attack) ─────────────────────────────────────────────

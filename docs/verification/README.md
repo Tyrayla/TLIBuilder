@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**96 entries** — ✅ Confirmed: 18 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 56
+**97 entries** — ✅ Confirmed: 18 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 57
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -64,6 +64,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Elixir system | — | buff, uptime | ⚠️ Unverified | — | [elixir-system.md](elixir-system.md) |
 | Extreme Coldness (only Cold Damage) | — | conversion, damage-pool | ⚠️ Unverified | — | [extreme-coldness.md](extreme-coldness.md) |
 | Fervor Rating | — | crit, buff | ⚠️ Unverified | — | [fervor.md](fervor.md) |
+| Flame Slash (+ supports) | Flame Slash | skill, slash-strike, shotgun, conversion, per-slot | ⚠️ Unverified | — | [flame-slash.md](flame-slash.md) |
 | Focused Slash / Moon Strike | Focused Slash, Moon Strike | skill, attack | ⚠️ Unverified | — | [focused-slash-moon-strike.md](focused-slash-moon-strike.md) |
 | Frail + Infiltration | — | enemy-vulnerability, ailment | ⚠️ Unverified | — | [frail-infiltration.md](frail-infiltration.md) |
 | Frost Terra (skill DoT + Terra damage pools) | Frost Terra | dot, stacking, damage-pool, terra | ⚠️ Unverified | — | [frost-terra.md](frost-terra.md) |
