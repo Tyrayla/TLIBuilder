@@ -319,3 +319,11 @@ export function createAccountsApi(transport: AccountTransport) {
 }
 
 export type AccountsApi = ReturnType<typeof createAccountsApi>
+
+let defaultApi: AccountsApi | null = null
+
+/** The shared accounts client for the running shell. */
+export function getAccountsApi(): AccountsApi {
+  if (!defaultApi) defaultApi = createAccountsApi(defaultAccountTransport())
+  return defaultApi
+}

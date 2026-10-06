@@ -5,8 +5,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import {
   AccountApiError,
-  createAccountsApi,
-  defaultAccountTransport,
+  getAccountsApi,
   webSignInUrl,
   type Account,
   type AccountsApi,
@@ -141,7 +140,7 @@ let singleton: StoreApi<AccountState> | null = null
 export function getAccountStore(): StoreApi<AccountState> {
   if (!singleton) {
     singleton = createAccountStore({
-      api: createAccountsApi(defaultAccountTransport()),
+      api: getAccountsApi(),
       shell: defaultShell(),
       records: defaultSyncRecordStore(),
     })
