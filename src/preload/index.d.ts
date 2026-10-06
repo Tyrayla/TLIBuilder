@@ -4,6 +4,12 @@ declare global {
       getPythonPort: () => Promise<number>
       apiRequest: (method: string, path: string, body?: unknown) => Promise<{ ok: boolean; status: number; data: unknown }>
       reportRequest: (body: unknown) => Promise<{ ok: boolean; status: number; data: unknown }>
+      // Hosted-account bridge. The main process owns the session token (Electron safeStorage); the
+      // renderer only ever sees request results.
+      accountRequest: (method: string, path: string, body?: unknown) => Promise<{ ok: boolean; status: number; data: unknown }>
+      accountSignIn: () => Promise<{ ok: boolean; error?: string }>
+      accountSignOut: () => Promise<void>
+      accountReauth: (authorizeUrl: string) => Promise<{ ok: boolean; error?: string }>
       getIsDev: () => Promise<boolean>
       isVerbose: boolean
       notifyDirty: (dirty: boolean) => void
