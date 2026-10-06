@@ -1,10 +1,10 @@
 # Hosted accounts, storage, and analytics plan
 
-> Status: in progress. Migration steps 1–7 are complete (see [Progress](#progress)). Steps 8–11 are partly built on the app side (see [Implementation progress, steps 8–11](#implementation-progress-steps-811)); nothing is deployed and sign-up is closed. This document records product decisions. Deployment runbooks live in the `tlibuilder-code-share` repository (`deployment/DOKPLOY.md`, `deployment/RESTORE.md`).
+> Status: in progress. Migration steps 1–7 are complete (see [Progress](#progress)). Steps 8–11 have app and service candidates (see [Implementation progress, steps 8–11](#implementation-progress-steps-811)); nothing is deployed and sign-up is closed. Four owner launch decisions remain pending. The service requires `HOSTED_ACCOUNT_LAUNCH_APPROVED=true` before the account API or production analytics can start. Deployment runbooks live in the `tlibuilder-code-share` repository (`deployment/DOKPLOY.md`, `deployment/RESTORE.md`, and `deployment/ACCOUNTS.md`).
 
 ## Progress
 
-Last updated 2026-10-04.
+Last updated 2026-10-06.
 
 | Step | Status | Notes |
 | --- | --- | --- |
@@ -15,11 +15,11 @@ Last updated 2026-10-04.
 | 5. Encrypted R2 backup | Done | `pg_dump` every 15 minutes → `age` (public key only on the server) → R2 bucket `tlibuilder-backups`; tiered prefixes with matching lifecycle rules and bucket locks; failure alerts to Discord. A delete attempt by the server's own credential is refused. Restore-tested twice with the owner's key. |
 | 6. Migrate share and report records | Done | 54 shares and 7 reports imported with IDs preserved and every row verified by hash; all 54 live links match the pre-migration copy. |
 | 7. Ship the PostgreSQL service | Done | Live since 2026-10-04 (code-share `prod` `ab7a91c`). The SQLite files stay in the `tli-data` volume for the rollback window; then remove the one-time import bridge and delete the volume. |
-| 8–11. Accounts, sync flows, analytics, privacy | In progress (app side) | Audited 2026-10-05: the service had no account, cloud, or analytics code and the app had none either. App-side work is on `Tyrayla/hosted-account-platform` (draft PR #9); the service side is a paired task. See below. |
+| 8–11. Accounts, sync flows, analytics, privacy | In progress | App candidate is on `Tyrayla/hosted-account-platform` (draft PR #9). Service candidate is pushed at `98c27207ff8ca0ee425d3a3f12d316e1cd27d030`. Neither is deployed. See the implementation progress and launch gates below. |
 
 ### Implementation progress, steps 8–11
 
-Last updated 2026-10-05. "Built" means code and tests exist on the task branch. It does not mean deployed, reviewed by the owner, or proven against the live service.
+Last updated 2026-10-06. "Built" means code and tests exist on a task branch. It does not mean deployed, reviewed by the owner, or proven against the live service.
 
 | Area | State | Proof so far | Remaining |
 | --- | --- | --- | --- |
@@ -32,10 +32,10 @@ Last updated 2026-10-05. "Built" means code and tests exist on the task branch. 
 | Guest privacy | Built | A browser or desktop install that never signed in sends no account request. Playwright asserts no request to the service when Settings opens; the desktop bridge answers `401` itself. | Live-service run. |
 | Named-link import and data-version warning | Built | Named-link URLs import without a sync record; imports and cloud downloads name the saved game data version; a removed link says it was removed by its owner. Unit tests. | Live-service run. |
 | 50-character build names | Built | The save inputs stop at 50; the upload flow asks before shortening an older longer name. | |
-| Anonymous composition statistics (app side) | Built | Extractor and reporter tests: canonical IDs only, no user text, opt-out stops all network calls, reports only after a changed successful calculation. | The service counters and the separate `analytics` database, with `memory_base_stat` and `memory_revival` added to its entity allowlist. Mechanic flags now come only from the engine result (the plan's eight baseline flags; derivation in the API contract). Hero Memory base stat (catalog uuid) and named revival mods (catalog name) are reported; tiered revival mods have no catalog identifier, and damage over time covers skill DoT rows only, so collection is **incomplete** for those two. Opting out aborts in-flight reports. |
+| Anonymous composition statistics (app side) | Built | Extractor and reporter tests: canonical app IDs only, no user text, opt-out stops all network calls, reports only after a changed successful calculation. | The service accepts IDs by format and allowlisted type, including well-formed unknown IDs. The owner has not chosen between format-only validation and a versioned canonical-ID allowlist. Coverage is partial: tiered Hero Memory revival rows have no catalog IDs, and ailment damage over time has no engine result. The app reports only the eight engine-backed baseline flags. |
 | Account service metrics | Not started | | Service side. |
-| Privacy notice | Not started | The Privacy settings section carries plain-language copy for the owner to review. | The owner writes the notice from a template. No legal sign-off is claimed. |
-| Service: accounts, sessions, cloud builds, named links, analytics, export and delete | Not started | A service worker has a paired branch and proved that its validator accepts schema v2 codes without codec edits. | Everything in steps 8–11 on the service. |
+| Privacy notice | Draft only | The service repository has an editable draft at `tlibuilder-code-share/docs/PRIVACY_NOTICE_DRAFT.md`. The app Privacy settings section has plain-language copy for the owner to review. | The owner must write and publish the final notice. No legal approval is claimed. |
+| Service: accounts, sessions, cloud builds, named links, analytics, export and delete | Built on task branch | Service candidate is pushed at `98c27207ff8ca0ee425d3a3f12d316e1cd27d030`. Its launch-approval flag defaults to false and independently blocks enabled account API and production analytics startup. | Owner review, four pending launch decisions, and launch checks. Local stand-in and explicitly injected tests opt in without production launch approval. |
 
 Open limits of the app side:
 
@@ -453,7 +453,16 @@ Steps 1–7 are complete; see [Progress](#progress).
 
 ## Launch checks
 
-Do not open account registration until all checks pass:
+Code-review readiness does not approve launch. Four owner decisions must be recorded, and any implementation changes they require must be reviewed, before production launch. The service requires `HOSTED_ACCOUNT_LAUNCH_APPROVED=true` to start the account API or production analytics. This flag defaults to `false`; enabling `ACCOUNTS_ENABLED` or selecting the analytics Compose profile alone does not bypass it. Keep `HOSTED_ACCOUNT_LAUNCH_APPROVED`, `ACCOUNTS_ENABLED`, and `ACCOUNT_SIGNUP_OPEN` false while decisions remain pending. Open sign-up only after the final privacy notice is published and the launch checks pass. See `tlibuilder-code-share/deployment/ACCOUNTS.md` for the runbook.
+
+The four pending owner decisions are:
+
+- **Consent-only Discord reauthentication.** Decide whether a session-bound ticket and matching Discord identity are sufficient for export and deletion. This does not prove password or MFA entry. A person with a stolen TLI session could phish the owner into completing the initiating session's ticket.
+- **Analytics identifier validation.** Choose format-only IDs or a versioned canonical-ID membership allowlist. The candidate accepts well-formed unknown IDs.
+- **Partial analytics coverage.** Decide whether to launch with current gaps. Tiered Hero Memory revival rows have no catalog IDs, and ailment damage over time has no engine result. The app reports only the eight engine-backed baseline mechanic flags.
+- **Final privacy notice.** The owner must write the final notice from the editable service draft at `docs/PRIVACY_NOTICE_DRAFT.md`. No legal approval is claimed.
+
+Complete the applicable checks before opening account registration:
 
 - The service works as a guest without sign-in.
 - The service rejects a 21st cloud build and an 11th public profile build in concurrent requests.
@@ -492,7 +501,7 @@ Do not open account registration until all checks pass:
 
 ## Open decisions
 
-None. Every decision in this plan is recorded in its section.
+The four owner launch decisions listed in [Launch checks](#launch-checks) remain pending. The code-review gate and these launch decisions are separate.
 
 ## References
 
