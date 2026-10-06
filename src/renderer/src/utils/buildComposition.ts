@@ -12,12 +12,12 @@ export interface CompositionBuild {
     item_id: string
     skill_tags?: string[]
     enabled?: boolean
-    supports?: { item_id: string; enabled?: boolean; [extra: string]: unknown }[]
+    supports?: { item_id: string; enabled?: boolean; skill_tags?: string[] }[]
   }[]
   gear?: { item_id: string; slot?: string | string[] | null; is_crafted?: boolean; base_type?: string }[]
-  pactSpirits?: ({ itemId: string; [extra: string]: unknown } | null)[]
+  pactSpirits?: ({ itemId: string; rank?: number } | null)[]
   heroMemories?: ({ memoryType?: string; rarity?: string } | null)[]
-  slots?: { coreTalentSelections?: Record<string, string>; [extra: string]: unknown }[]
+  slots?: ({ coreTalentSelections?: Record<string, string>; treeName?: string; nodeStates?: Record<string, number> } | null)[]
   slates?: { kind: string }[]
   prisms?: { kind: string }[]
 }

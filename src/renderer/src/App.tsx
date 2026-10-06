@@ -15,6 +15,8 @@ import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
+import { getAccountStore } from './store/accountStore'
+import { isReportingRuntime, startCompositionReporting } from './utils/compositionReporting'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import ErrorBoundary from './components/ErrorBoundary'
 import PerfProfiler, { PERF_ENABLED } from './components/PerfProfiler'
@@ -178,6 +180,15 @@ function App() {
   useEffect(() => {
     window.api?.onDeepLinkShare?.(shareId => setPendingShareId(shareId))
   }, [])
+  // Hosted accounts and anonymous composition counts. Both are optional: a guest or an unreachable
+  // service changes nothing locally. Reporting only starts in a production build driven by a person.
+  useEffect(() => {
+    if (!appReady) return
+    if (isReportingRuntime({ prod: import.meta.env.PROD, webdriver: navigator.webdriver === true })) {
+      startCompositionReporting()
+    }
+    void getAccountStore().getState().refresh()
+  }, [appReady])
   // NOTE: these effects MUST stay above the `if (!appReady)` early return below — a hook placed after it
   // is conditional and crashes with React #310 ("more hooks than previous render") once appReady flips.
   // Track visited keep-alive screens so each mounts once on first visit and then persists (hidden).

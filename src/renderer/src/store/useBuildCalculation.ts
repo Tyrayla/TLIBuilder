@@ -5,6 +5,7 @@ import { api, backoffDelayMs } from '../api/client'
 import { buildEngineStatsPayload } from '../utils/statsPayload'
 import { loadoutKeyFromState } from '../utils/loadoutAreas'
 import { normalizeError } from '../errors/tliError'
+import { reportAfterCalculation } from '../utils/compositionReporting'
 
 // bug-289: a compute that fails with a retryable error (e.g. TLI-NET-001) retries itself a bounded
 // number of times instead of waiting for the next unrelated edit to bump buildVersion. Reuses the api
@@ -37,6 +38,8 @@ export function useBuildCalculation() {
         }
         if (version >= useBuildStore.getState().computedVersion) {
           useBuildStore.getState().setComputedStats(result, version)
+          // Anonymous composition counts (Privacy setting; a no-op unless the app started reporting).
+          reportAfterCalculation()
           // Cache against the active loadout so swapping back is instant — but only if no edit landed mid-flight,
           // so the cached fingerprint (computed from current state) matches the state this result came from.
           if (version === useBuildStore.getState().buildVersion) {
