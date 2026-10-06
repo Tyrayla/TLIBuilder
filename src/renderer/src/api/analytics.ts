@@ -12,7 +12,9 @@ export function createAnalyticsClient(opts: { base?: string; fetchImpl?: typeof 
   const doFetch = opts.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
 
   return {
-    async sendComposition(composition: Composition): Promise<void> {
+    async sendComposition(composition: Composition, signal?: AbortSignal): Promise<void> {
+      const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      const combined = signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([timeout, signal]) : (signal ?? timeout)
       const res = await doFetch(`${base}/v1/stats/composition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,7 +26,7 @@ export function createAnalyticsClient(opts: { base?: string; fetchImpl?: typeof 
           relations: composition.relations.map((r) => ({ skill_id: r.skillId, support_id: r.supportId })),
           mechanics: composition.mechanics,
         }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: combined,
       })
       if (!res.ok) throw new Error(`Composition report rejected (${res.status}).`)
     },

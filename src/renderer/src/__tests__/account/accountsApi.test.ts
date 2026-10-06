@@ -218,6 +218,20 @@ describe('analytics client', () => {
     expect(calls[0].init.keepalive).toBeUndefined()
   })
 
+  it('passes the caller\'s abort signal to the request so opting out cancels it', async () => {
+    const controller = new AbortController()
+    let received: AbortSignal | undefined
+    const impl = vi.fn(async (_url: string, init: RequestInit) => {
+      received = init.signal as AbortSignal
+      return new Promise<Response>((_res, rej) => received!.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))))
+    }) as unknown as typeof fetch
+    const client = createAnalyticsClient({ base: BASE, fetchImpl: impl })
+    const pending = client.sendComposition({ dataVersion: 's', entities: [], relations: [], mechanics: [] }, controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    expect(received?.aborted).toBe(true)
+  })
+
   it('rejects when the service answers an error so the reporter can retry later', async () => {
     const { impl } = fakeFetch(() => ({ status: 500, body: {} }))
     const client = createAnalyticsClient({ base: BASE, fetchImpl: impl })

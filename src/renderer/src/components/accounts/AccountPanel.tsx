@@ -174,7 +174,7 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
       <div className="settings-row">
         <div className="settings-row-label">
           <span>Your data</span>
-          <span className="settings-row-hint">Export or delete your account. Both ask you to sign in with Discord again first.</span>
+          <span className="settings-row-hint">Export or delete your account. Both ask you to confirm with Discord again first.</span>
         </div>
         <div className="settings-segmented">
           <button className="settings-seg-btn" disabled={busy} onClick={() => runGated('export')}>Export my data</button>
@@ -205,7 +205,7 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
       {gate && (
         <div className="settings-row-hint" style={{ marginTop: 8 }}>
           <p style={{ margin: '0 0 8px' }}>
-            To {gate.kind === 'export' ? 'export your data' : 'delete your account'}, sign in with Discord again. Finish in your
+            To {gate.kind === 'export' ? 'export your data' : 'delete your account'}, confirm with Discord again. Finish in your
             browser, then come back and continue.
           </p>
           <div className="settings-segmented">

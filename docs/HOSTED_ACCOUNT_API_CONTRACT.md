@@ -25,7 +25,7 @@ The product decisions are in [HOSTED_ACCOUNT_PLATFORM_PLAN.md](HOSTED_ACCOUNT_PL
 | 409 | `cloud_quota_reached` | The account already has 20 cloud builds. |
 | 409 | `profile_quota_reached` | The profile already shows 10 builds. |
 | 409 | `slug_taken` | The handle and slug pair is in use or permanently retired. |
-| 413 | `code_too_large` | Over 100 KiB encoded or 1 MiB decoded. |
+| 413 | `code_too_large` | Over 100 KiB encoded or 1,000,000 bytes decoded (owner decision 2026-10-05). |
 | 422 | `invalid_code` | Not a valid `tli1_` code. |
 | 422 | `name_too_long` | Build name over 50 characters. |
 | 422 | `invalid_handle` / `invalid_slug` | Fails the documented character rules or is reserved. |
@@ -42,7 +42,7 @@ The service branch (`tlibuilder-code-share` draft PR 1, `docs/ACCOUNT_API.md`) i
 - More codes: `invalid_name` 422, `name_unavailable` 409, `handle_limit_reached` 409, `already_registered` 409, `invalid_grant` 400, `invalid_state` 400, `invalid_request` 400 (unknown or malformed field), `busy` 503.
 - `data_version` and `app_version` must match `[A-Za-z0-9._+-]{1,64}`. The app sends a cleaned form (`toWireVersion`) of the season name and app version, and applies the same cleaning to both sides of a data-version comparison.
 - `GET /u/{name}-{tag}` returns the public profile `{owner, builds[]}`. The app does not use it yet. `/u` redirects are `301` with a relative `Location`. Removed links answer `410 removed_by_owner`.
-- The service accepts at most 1,000,000 decoded bytes (the frozen codec port's guard), not the plan's 1 MiB. This needs an owner decision.
+- The service accepts at most 1,000,000 decoded bytes (the frozen codec port's guard). The owner accepted this on 2026-10-05 and the plan now says so.
 - Composition reports: at most 300 entities, 200 relations, and 32 mechanics; an `Authorization` header answers `400`.
 
 ## Sign-in
@@ -159,12 +159,12 @@ GET    /u/{handle}/{slug}               public read, direct-link only
 ## Privacy
 
 ```text
-POST   /v1/account/reauth                start a fresh Discord sign-in for export or delete
+POST   /v1/account/reauth                start a fresh Discord confirmation for export or delete
 GET    /v1/account/export                full export (requires reauth within 10 minutes)
 DELETE /v1/account                       delete the account (requires reauth within 10 minutes)
 ```
 
-`POST /v1/account/reauth` (no body) returns `{"authorize_url": "<start URL>"}`, bound to the current session through the OAuth `state`. The app opens it (system browser on desktop). After the Discord callback the service sets the session's `reauth_at` and redirects the browser to the web app origin with `?reauth=ok`, for web and desktop alike (there is no loopback step). The desktop app cannot observe that redirect, so it shows a "Continue" button that retries the export or delete once the user has finished in the browser. Export and delete answer `403 reauth_required` outside the 10-minute window. Deletion revokes every session, removes the account, builds and links from production, and keeps only content-free handle and slug records.
+`POST /v1/account/reauth` (no body) returns `{"authorize_url": "<start URL>"}`, bound to the current session through the OAuth `state`. The app opens it (system browser on desktop). Open question for the owner: Discord cannot force a password or second-factor prompt, so what this step proves (a fresh interaction by the account's own Discord identity) must be explained plainly and security-reviewed. The app copy says "confirm with Discord" and makes no claim about a password or MFA. After the Discord callback the service sets the session's `reauth_at` and redirects the browser to the web app origin with `?reauth=ok`, for web and desktop alike (there is no loopback step). The desktop app cannot observe that redirect, so it shows a "Continue" button that retries the export or delete once the user has finished in the browser. Export and delete answer `403 reauth_required` outside the 10-minute window. Deletion revokes every session, removes the account, builds and links from production, and keeps only content-free handle and slug records.
 
 ## Anonymous build-composition statistics
 
@@ -184,3 +184,22 @@ Sent with `credentials: omit` and no `Authorization` header. The body is exactly
 ```
 
 The service validates every ID against a catalog-ID pattern and a per-request count, increments daily aggregate counters in the `analytics` database only, and answers `204`. It stores no raw event, no request IP, and no identifier. The analytics writer role has no access to `core`.
+
+### How the app derives each field
+
+The app sends the report after a successful, changed calculation, once per distinct composition per session. Turning the Privacy switch off stops new reports and aborts any report still in flight. Nothing is queued on disk.
+
+| Field | Source |
+| --- | --- |
+| `entities` | Catalog item IDs in the saved build: hero trait, active and passive skills, supports, legendary items and slots, crafted base types, pact spirits, core talents, slates, prisms. Each ID must match the catalog-ID pattern or it is dropped. A crafted item's own ID is never sent, only its base type. |
+| `relations` | Each enabled skill with each enabled support socketed in it. |
+| `mechanics` | Only these eight flags, each proven by a field of the engine's calculation result for any equipped active skill: `spell_burst` (`spell_burst_count > 0`), `tangle` (`tangle_count > 0`), `shadow_strike` (`shadow_count > 0`), `channeling` (`channeled_max_stacks > 0`), `trigger` (`trigger_interval > 0`, an activation medium), `damage_over_time` (a damage row of kind `dot`), `minion` (a modeled minion owner), `reservation` (a skill sealing mana or life). No tag guessing and no text matching. |
+| Hero Memory | `hero_memory` is `<type>_<rarity>`. `memory_base_stat` is the catalog `uuid` of the base stat; the memory creator rewrites the stat's value for the memory level, so the app matches the stat's name within the memory's own type and requires exactly one catalog uuid. `memory_revival` is the catalog name of a named (tier 0) revival mod, lower-cased with non-alphanumerics replaced by `_` (for example `furious_roar`). The modifier text, rolled value, and description are never sent. |
+
+Limits that mean the data is incomplete, not wrong:
+
+- `damage_over_time` covers skill damage-over-time rows only. Ailment damage over time (for example Ignite) has no engine field the app reads for this flag, so it is not counted.
+- A tiered revival mod has no catalog identifier (80 revival rows: 44 named tier-0 mods and 36 tiered effect-text rows, none with a `uuid`). The app does not report tiered revival choices.
+- Fixed and random memory affixes are not reported; the plan names base and revival choices only.
+
+New entity types `memory_base_stat` and `memory_revival` must be in the service's allowlist before a build that reports them ships, because an unknown type answers `400` and drops the whole report.
