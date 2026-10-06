@@ -82,6 +82,7 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
         text=f"{tc} fire torrents at {area_bonus * 100:.0f}% Area bonus |flame_slash|torrent_count",
         points=1))
 
+    auto_conditions = {}
     for sup in (attached_supports or []):
         # attached_supports is the BUILD-WIDE list (every skill slot's supports, flat) — scope to
         # THIS slot only, same convention every other bespoke module uses (e.g. icebound_beam.py,
@@ -118,6 +119,7 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
                     points=1))
             source.referenced_conditions.add("enemy_distance_m")
         elif iid == INVERTED_BLAZE:
+            auto_conditions["inverted_blaze_returns"] = tc
             raw = condition_state.get("inverted_blaze_returns")
             return_count = float(tc) if raw is None else max(0.0, float(raw))
             if return_count:
@@ -129,7 +131,7 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
                           f"outbound torrents) |flame_slash|inverted_blaze"),
                     points=1))
             source.referenced_conditions.add("inverted_blaze_returns")
-    return {}
+    return {"auto_conditions": auto_conditions}
 
 
 # ── Modeled-line specs (badge stat-keys + roll ranges) — see skill_effects/howling_gale.py for the

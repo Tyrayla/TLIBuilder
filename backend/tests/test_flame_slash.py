@@ -174,6 +174,29 @@ class TestApplySlotEffectsTorrentCount:
     def _resolved(self):
         return resolve_skill(_fss_data())
 
+    @pytest.mark.parametrize("parts, expected", [
+        ((0.30, 0.85), 5), ((0.30, 2.00), 7), ((0.30, 3.15), 9),
+        ((0.30, 4.30), 11), ((0.30, 3.14999999), 7),
+        ((0.30, 0.84999999), 3),
+    ])
+    def test_accumulated_thresholds_through_returns_and_offense(self, parts, expected):
+        # Tooltip: 3 + 2 per full 115% Area. Returns equal outbound torrents;
+        # both trips share the 50% shotgun group. A real shortfall stays below.
+        s = TestOffenseHitCount()._src()
+        for part in parts:
+            s.add("skill_area_inc", part)
+        sk = self._resolved()
+        fs.apply_slot_effects(
+            source=s, resolved=sk, slot=1, condition_state={}, mod_tags={"attack"},
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "level": 1}],
+            skills_by_id={fs.INVERTED_BLAZE: _inverted_blaze_data()})
+        eff = s.materialize_for_skill({"attack"}, 1)
+        assert eff.total("flame_slash_torrent_count_flat") == expected
+        assert eff.total("flame_slash_return_hits_flat") == expected
+        steep = calculate_offense(eff, sk, 20).hit_forms[1]
+        assert steep.hits_per_fire == 2 * expected
+        assert steep.shotgun_mult == 1 + (2 * expected - 1) * 0.5
+
     def test_no_area_source_gives_base_three(self):
         s = BuildSource()
         fs.apply_slot_effects(source=s, resolved=self._resolved(), slot=1, condition_state={},
@@ -331,6 +354,42 @@ class TestInvertedBlaze:
 
     def test_default_returns_equal_torrent_count(self):
         assert self._run({}) == pytest.approx(3.0)
+
+    @pytest.mark.parametrize("area, expected", [(115, 5), (230, 7)])
+    @pytest.mark.parametrize("manual", [None, 0, 2])
+    def test_endpoint_reports_auto_intent_even_with_global_override(self, area, expected, manual):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        req = make_request("flame_slash", 20, attached_supports=[{
+            "item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+            "rank": 5, "level": 1, "slot": 1}], custom_mods=[f"+{area}% Skill Area"],
+            extra_conditions={} if manual is None else {"inverted_blaze_returns": manual})
+        result = engine_stats(EngineStatsRequest(**req))
+        steep = result["offense"]["hit_forms"][1]
+        assert steep["hits_per_fire"] == expected + (expected if manual is None else manual)
+        assert result["auto_conditions"]["inverted_blaze_returns"] == {
+            "value": expected, "source": "Inverted Blaze (returning torrents)",
+            "slot_values": {"1": expected}}
+
+    @pytest.mark.parametrize("manual, hits", [(None, (6, 10)), (0, (3, 5)), (2, (5, 7))])
+    def test_two_slots_report_distinct_auto_counts_and_global_override(self, manual, hits):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        supports = [{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                     "rank": 5, "level": 1, "slot": slot} for slot in (1, 2)]
+        # Increased Area grants 20% to slot 2 only: 100% < 115%, 120% >= 115%.
+        supports.append({"item_id": "increased_area", "skill_type": "support_skill",
+                         "rank": 1, "level": 1, "slot": 2})
+        req = make_request("flame_slash", 20, attached_supports=supports,
+            custom_mods=["+100% Skill Area"],
+            skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
+            extra_conditions={} if manual is None else {"inverted_blaze_returns": manual})
+        result = engine_stats(EngineStatsRequest(**req))
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == hits
+        assert result["auto_conditions"]["inverted_blaze_returns"] == {
+            "value": None, "source": "Inverted Blaze (returning torrents)",
+            "slot_values": {"1": 3, "2": 5}}
 
     def test_default_scales_with_area_bonus(self):
         assert self._run({}, area_inc=1.15) == pytest.approx(5.0)

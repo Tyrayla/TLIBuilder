@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 import re
+import math
 
 from engine.constants import DAMAGE_TYPES
 
@@ -296,7 +297,14 @@ def flame_slash_torrent_count(area_bonus: float) -> int:
     """Steep Strike's fire-torrent count at this slot's own aggregated Area bonus (owner-approved
     floor-step formula, 2026-10-04). Single source of truth — skill_effects/flame_slash.py imports
     this rather than re-deriving the constants."""
-    steps = int(area_bonus // _FLAME_SLASH_AREA_STEP) if area_bonus > 0 else 0
+    ratio = max(0.0, area_bonus) / _FLAME_SLASH_AREA_STEP
+    nearest = round(ratio)
+    # Summing Area sources and applying (1 + inc) * more - 1 can lose a few
+    # floating-point units at an exact threshold. Snap only within eight ULPs
+    # of an integer step; genuine fractional shortfalls still floor down.
+    if abs(ratio - nearest) <= 8 * math.ulp(ratio):
+        ratio = float(nearest)
+    steps = math.floor(ratio)
     return _FLAME_SLASH_BASE_TORRENTS + _FLAME_SLASH_AREA_STEP_HITS * steps
 
 
