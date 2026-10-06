@@ -1,13 +1,15 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme } =
+const { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, safeStorage } =
   require('electron') as typeof import('electron')
 // Force dark mode so the native window title bar / frame renders dark (not the OS-default white).
 nativeTheme.themeSource = 'dark'
 import { join, relative, resolve, sep } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
-import { existsSync, cpSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, cpSync, readFileSync, writeFileSync, renameSync, rmSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
+import { createAccountAuth, createTokenVault } from './accountAuth'
+import { createSyncRecordsFile } from './syncRecordsFile'
 
 // Prevent Chromium GPU shader cache conflicts when multiple instances run
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
@@ -566,6 +568,41 @@ app.whenReady().then(async () => {
       }
     }
   })
+
+  // ── Hosted accounts ────────────────────────────────────────────────────────
+  // The session token lives only here (safeStorage). The renderer sends requests through
+  // 'account-request', which allows only the service's /v1 API and attaches the bearer token itself.
+  const accountAuth = createAccountAuth({
+    apiBase: REPORT_SERVICE_URL,
+    vault: createTokenVault({
+      isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+      encryptString: (plain) => safeStorage.encryptString(plain),
+      decryptString: (cipher) => safeStorage.decryptString(cipher),
+      readFile: (path) => readFileSync(path),
+      writeFile: (path, data) => writeFileSync(path, data, { mode: 0o600 }),
+      removeFile: (path) => rmSync(path, { force: true }),
+      path: join(app.getPath('userData'), 'account-session.bin'),
+    }),
+    fetchImpl: (input, init) => fetch(input, init),
+    openBrowser: async (url) => { await shell.openExternal(url) },
+  })
+  const syncRecordsPath = join(app.getPath('userData'), 'sync-records.json')
+  const syncRecords = createSyncRecordsFile({
+    read: () => readFileSync(syncRecordsPath, 'utf-8'),
+    write: (text) => {
+      const tmp = `${syncRecordsPath}.tmp`
+      writeFileSync(tmp, text, 'utf-8')
+      renameSync(tmp, syncRecordsPath)
+    },
+  })
+  ipcMain.handle('account-request', (_event, method: unknown, path: unknown, body: unknown) =>
+    accountAuth.request(String(method), String(path), body))
+  ipcMain.handle('account-sign-in', () => accountAuth.signIn())
+  ipcMain.handle('account-sign-out', () => accountAuth.signOut())
+  ipcMain.handle('account-reauth', (_event, url: unknown) => accountAuth.reauth(String(url)))
+  ipcMain.handle('sync-records-read', () => syncRecords.read())
+  ipcMain.handle('sync-records-put', (_event, record: unknown) => syncRecords.put(record))
+  ipcMain.handle('sync-records-remove', (_event, localBuildId: unknown) => syncRecords.remove(localBuildId))
 
   ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
   // isSilent=true → the NSIS update installs without the wizard/UAC (per-user install); isForceRunAfter=true relaunches.
