@@ -242,7 +242,7 @@ describe('shared semantic-hash vectors (docs/HOSTED_ACCOUNT_HASH_VECTORS.json)',
   const file = fileURLToPath(new URL('../../../../docs/HOSTED_ACCOUNT_HASH_VECTORS.json', import.meta.url))
   const doc = JSON.parse(readFileSync(file, 'utf-8')) as { vectors: { name: string; input_json: string; sha256: string }[] }
 
-  it('has vectors', () => expect(doc.vectors.length).toBeGreaterThanOrEqual(9))
+  it('has vectors', () => expect(doc.vectors.length).toBeGreaterThanOrEqual(19))
 
   for (const vector of doc.vectors) {
     it(`matches the committed hash for ${vector.name}`, async () => {

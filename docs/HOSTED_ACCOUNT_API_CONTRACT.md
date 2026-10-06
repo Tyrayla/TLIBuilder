@@ -18,6 +18,7 @@ The product decisions are in [HOSTED_ACCOUNT_PLATFORM_PLAN.md](HOSTED_ACCOUNT_PL
 | --- | --- | --- |
 | 401 | `unauthenticated` | Missing, expired, revoked or rotated-out session. |
 | 403 | `csrf_failed` | Cookie session without a valid `X-CSRF-Token`. |
+| 403 | `signup_required` | The session exists but sign-up is not complete. Every other `/v1` route refuses until `POST /v1/account/signup`. |
 | 403 | `reauth_required` | Export or delete without a Discord sign-in in the last 10 minutes. |
 | 404 | `not_found` | Unknown, or owned by another account. |
 | 409 | `stale_revision` | `base_revision_id` is no longer current. Body carries `current_revision_id`. |
@@ -149,7 +150,7 @@ GET    /v1/account/export                full export (requires reauth within 10 
 DELETE /v1/account                       delete the account (requires reauth within 10 minutes)
 ```
 
-`POST /v1/account/reauth` returns `{"authorize_url": "<start URL>"}`. The app opens it (system browser on desktop). After the callback the session's `reauth_at` is set. Export and delete answer `403 reauth_required` outside the 10-minute window. Deletion revokes every session, removes the account, builds and links from production, and keeps only content-free handle and slug records.
+`POST /v1/account/reauth` (no body) returns `{"authorize_url": "<start URL>"}`, bound to the current session through the OAuth `state`. The app opens it (system browser on desktop). After the Discord callback the service sets the session's `reauth_at` and redirects the browser to the web app origin with `?reauth=ok`, for web and desktop alike (there is no loopback step). The desktop app cannot observe that redirect, so it shows a "Continue" button that retries the export or delete once the user has finished in the browser. Export and delete answer `403 reauth_required` outside the 10-minute window. Deletion revokes every session, removes the account, builds and links from production, and keeps only content-free handle and slug records.
 
 ## Anonymous build-composition statistics
 

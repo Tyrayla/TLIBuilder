@@ -200,6 +200,8 @@ export function createAccountsApi(transport: AccountTransport) {
     async getAccount(): Promise<Account | null> {
       const result = await call('GET', '/v1/account')
       if (result.status === 401) return null
+      // A session whose sign-up has not been completed answers 403 signup_required on every /v1 route.
+      if (result.status === 403 && toError(result).code === 'signup_required') return null
       if (!result.ok) throw toError(result)
       const r = asRaw(result.data)
       const name = asRaw(r.public_name)

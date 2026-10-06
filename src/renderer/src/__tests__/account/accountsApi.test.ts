@@ -103,6 +103,11 @@ describe('accounts api', () => {
     expect(await api.getAccount()).toBeNull()
   })
 
+  it('treats a pending signup (403 signup_required) as no account yet, not an error', async () => {
+    const api = createAccountsApi(transportReturning(403, { error: { code: 'signup_required', message: 'x' } }))
+    expect(await api.getAccount()).toBeNull()
+  })
+
   it('maps the cloud list', async () => {
     const api = createAccountsApi(transportReturning(200, {
       builds: [{
