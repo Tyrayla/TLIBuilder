@@ -173,7 +173,7 @@ export function mechanicsFromStats(stats: StatsLike): string[] {
     if ((o.trigger_interval ?? 0) > 0) found.add('trigger')
     if ((o.damage_rows ?? []).some((r) => r.kind === 'dot')) found.add('damage_over_time')
   }
-  if (Object.values(stats.minion_offense ?? {}).some((o) => o && o.supported !== false)) found.add('minion')
+  if (Object.values(stats.minion_offense ?? {}).some((o) => o && o.supported === true)) found.add('minion')
   if ((stats.reservation?.per_skill?.length ?? 0) > 0) found.add('reservation')
   return [...found].sort()
 }

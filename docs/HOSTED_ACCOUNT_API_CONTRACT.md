@@ -66,7 +66,7 @@ The service rejects a desktop start request whose port is below 1024 or whose ho
 
 ### Sessions
 
-`GET /v1/account` returns the current account or `401`. `POST /v1/account/sessions/refresh` is not needed: the service rotates the token after 24 hours of use and answers with a replacement in `X-TLI-Session-Token` (desktop) or a new cookie (web). The previous token works for a short grace period.
+`GET /v1/account` returns the current account or `401`. `POST /v1/account/sessions/refresh` is not needed: the service rotates the token after 24 hours of use and answers with a replacement in `X-TLI-Session-Token` (desktop) or a new cookie (web). The previous token works for a short grace period. A replacement token or cookie is returned only with a successful 2xx response. Clients must keep the current credential when a request returns an error.
 
 - `POST /v1/account/signout` revokes the current session.
 - `POST /v1/account/signout-everywhere` revokes every session for the account.
@@ -193,7 +193,7 @@ The app sends the report after a successful, changed calculation, once per disti
 | --- | --- |
 | `entities` | Catalog item IDs in the saved build: hero trait, active and passive skills, supports, legendary items and slots, crafted base types, pact spirits, core talents, slates, prisms. Each ID must match the catalog-ID pattern or it is dropped. A crafted item's own ID is never sent, only its base type. |
 | `relations` | Each enabled skill with each enabled support socketed in it. |
-| `mechanics` | Only these eight flags, each proven by a field of the engine's calculation result for any equipped active skill: `spell_burst` (`spell_burst_count > 0`), `tangle` (`tangle_count > 0`), `shadow_strike` (`shadow_count > 0`), `channeling` (`channeled_max_stacks > 0`), `trigger` (`trigger_interval > 0`, an activation medium), `damage_over_time` (a damage row of kind `dot`), `minion` (a modeled minion owner), `reservation` (a skill sealing mana or life). No tag guessing and no text matching. |
+| `mechanics` | Only the eight flags below. Each flag comes from the named engine output field. No tag guessing and no text matching. |
 | Hero Memory | `hero_memory` is `<type>_<rarity>`. `memory_base_stat` is the catalog `uuid` of the base stat; the memory creator rewrites the stat's value for the memory level, so the app matches the stat's name within the memory's own type and requires exactly one catalog uuid. `memory_revival` is the catalog name of a named (tier 0) revival mod, lower-cased with non-alphanumerics replaced by `_` (for example `furious_roar`). The modifier text, rolled value, and description are never sent. |
 
 Limits that mean the data is incomplete, not wrong:
@@ -203,3 +203,18 @@ Limits that mean the data is incomplete, not wrong:
 - Fixed and random memory affixes are not reported; the plan names base and revival choices only.
 
 New entity types `memory_base_stat` and `memory_revival` must be in the service's allowlist before a build that reports them ships, because an unknown type answers `400` and drops the whole report.
+
+### Mechanics source trace
+
+`POST /api/engine/stats` in `backend/server.py::engine_stats` returns `offense`, `slot_offense`, `minion_offense`, and `reservation`. `backend/engine/compute.py::compute` builds these fields into `StatResult` from `backend/engine/models.py`. The app's `reportAfterCalculation` in `src/renderer/src/utils/compositionReporting.ts` passes `computedStats` through `mechanicsFromStats` in `src/renderer/src/utils/buildComposition.ts`, then gives the resulting list to `createCompositionReporter.onCalculated`.
+
+| Reported flag | App predicate | Engine output path and source |
+| --- | --- | --- |
+| `spell_burst` | `spell_burst_count > 0` | `offense.spell_burst_count` or `slot_offense[slot].spell_burst_count`; `backend/engine/offense.py::OffenseResult.spell_burst_count` |
+| `tangle` | `tangle_count > 0` | `offense.tangle_count` or `slot_offense[slot].tangle_count`; `backend/engine/offense.py::OffenseResult.tangle_count` |
+| `shadow_strike` | `shadow_count > 0` | `offense.shadow_count` or `slot_offense[slot].shadow_count`; `backend/engine/offense.py::OffenseResult.shadow_count` |
+| `channeling` | `channeled_max_stacks > 0` | `offense.channeled_max_stacks` or `slot_offense[slot].channeled_max_stacks`; `backend/engine/offense.py::OffenseResult.channeled_max_stacks` |
+| `trigger` | `trigger_interval > 0` | `offense.trigger_interval` or `slot_offense[slot].trigger_interval`; `backend/engine/offense.py::OffenseResult.trigger_interval` |
+| `damage_over_time` | Any `damage_rows[]` entry has `kind === 'dot'` | `offense.damage_rows[].kind` or `slot_offense[slot].damage_rows[].kind`; `backend/engine/offense.py::OffenseResult.damage_rows` |
+| `minion` | A minion owner has `supported === true` | `minion_offense[owner_id].supported`; `backend/engine/compute.py::compute` serializes each owner result, and `backend/engine/offense.py::OffenseResult.supported` records whether that result is modeled |
+| `reservation` | `reservation.per_skill.length > 0` | `reservation.per_skill`; `backend/engine/utility.py::apply_reservation` returns this list, which `backend/engine/compute.py::compute` puts in `StatResult.reservation` |

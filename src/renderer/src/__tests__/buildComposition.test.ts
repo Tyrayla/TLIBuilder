@@ -204,6 +204,59 @@ describe('mechanicsFromStats (derived from the engine result, never guessed)', (
     expect(mechanicsFromStats({ minion_offense: { owner: off() } })).toEqual(['minion'])
   })
 
+  const reportFullMechanics = async (minionSupported?: boolean) => {
+    const send = vi.fn().mockResolvedValue(undefined)
+    const reporter = createCompositionReporter({ send, isEnabled: () => true })
+    const offense = off({
+      spell_burst_count: 1,
+      tangle_count: 1,
+      shadow_count: 1,
+      channeled_max_stacks: 1,
+      trigger_interval: 1,
+      damage_rows: [{ kind: 'dot' }],
+    })
+    const minionOwner = minionSupported === undefined ? {} : off({ supported: minionSupported })
+    await reporter.onCalculated({
+      ok: true,
+      build: { traitId: 'trait_berserker' },
+      dataVersion: 'season-9',
+      mechanics: mechanicsFromStats({
+        offense,
+        reservation: { per_skill: [{}] },
+        minion_offense: { owner: minionOwner },
+      }),
+    })
+    expect(send).toHaveBeenCalledTimes(1)
+    return send.mock.calls[0][0]
+  }
+
+  it('does not report minion when the minion owner has no supported flag', async () => {
+    expect(await reportFullMechanics()).toEqual({
+      dataVersion: 'season-9',
+      entities: [{ type: 'hero_trait', id: 'trait_berserker' }],
+      relations: [],
+      mechanics: ['channeling', 'damage_over_time', 'reservation', 'shadow_strike', 'spell_burst', 'tangle', 'trigger'],
+    })
+  })
+
+  it('does not report minion when the minion owner is unsupported', async () => {
+    expect(await reportFullMechanics(false)).toEqual({
+      dataVersion: 'season-9',
+      entities: [{ type: 'hero_trait', id: 'trait_berserker' }],
+      relations: [],
+      mechanics: ['channeling', 'damage_over_time', 'reservation', 'shadow_strike', 'spell_burst', 'tangle', 'trigger'],
+    })
+  })
+
+  it('reports minion when the minion owner is supported', async () => {
+    expect(await reportFullMechanics(true)).toEqual({
+      dataVersion: 'season-9',
+      entities: [{ type: 'hero_trait', id: 'trait_berserker' }],
+      relations: [],
+      mechanics: ['channeling', 'damage_over_time', 'minion', 'reservation', 'shadow_strike', 'spell_burst', 'tangle', 'trigger'],
+    })
+  })
+
   it('looks across every equipped skill slot, not only the main skill', () => {
     expect(mechanicsFromStats({ offense: off(), slot_offense: { '1': off(), '2': off({ tangle_count: 2 }) } })).toEqual(['tangle'])
   })
