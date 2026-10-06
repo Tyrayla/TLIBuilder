@@ -66,15 +66,15 @@ export type DownloadOutcome =
   | { kind: 'not-linked' }
   | { kind: 'up-to-date' }
   | { kind: 'cloud-missing' }
-  | { kind: 'downloaded' }
-  | { kind: 'downloaded-new'; localBuildId: string }
+  | { kind: 'downloaded'; dataVersion: string }
+  | { kind: 'downloaded-new'; localBuildId: string; dataVersion: string }
   | { kind: 'error'; code: string; message: string }
   | ConflictOutcome
 
 export type ResolveOutcome =
-  | { kind: 'kept-both'; newLocalBuildId: string }
+  | { kind: 'kept-both'; newLocalBuildId: string; dataVersion: string }
   | { kind: 'needs-confirmation'; replaces: 'cloud' | 'local' }
-  | { kind: 'replaced-local' }
+  | { kind: 'replaced-local'; dataVersion: string }
   | Extract<UploadOutcome, { kind: 'uploaded' | 'shorten-name' | 'error' | 'quota-reached' }>
   | ConflictOutcome
 
@@ -195,13 +195,13 @@ export function createCloudSync(deps: CloudSyncDeps) {
           return decision
         case 'save-cloud-as-new-local': {
           const newLocalBuildId = await deps.local.createFromCloud(conflict.cloud.code, conflict.cloud.build.name)
-          return { kind: 'kept-both', newLocalBuildId }
+          return { kind: 'kept-both', newLocalBuildId, dataVersion: conflict.cloud.build.dataVersion }
         }
         case 'replace-local': {
           const hash = await deps.hashOf(conflict.cloud.code)
           await deps.local.replaceFromCloud(localBuildId, conflict.cloud.code, conflict.cloud.build.name)
           await writeRecord(localBuildId, userId, conflict.cloud.build, hash)
-          return { kind: 'replaced-local' }
+          return { kind: 'replaced-local', dataVersion: conflict.cloud.build.dataVersion }
         }
         case 'upload-conditional': {
           const local = await deps.local.read(localBuildId)
@@ -249,7 +249,7 @@ export function createCloudSync(deps: CloudSyncDeps) {
           const hash = await deps.hashOf(fetched.code)
           await deps.local.replaceFromCloud(localBuildId, fetched.code, fetched.build.name)
           await writeRecord(localBuildId, userId, fetched.build, hash)
-          return { kind: 'downloaded' }
+          return { kind: 'downloaded', dataVersion: fetched.build.dataVersion }
         }
       }
     } catch (error) {
@@ -266,7 +266,7 @@ export function createCloudSync(deps: CloudSyncDeps) {
       const hash = await deps.hashOf(fetched.code)
       const localBuildId = await deps.local.createFromCloud(fetched.code, fetched.build.name)
       await writeRecord(localBuildId, userId, fetched.build, hash)
-      return { kind: 'downloaded-new', localBuildId }
+      return { kind: 'downloaded-new', localBuildId, dataVersion: fetched.build.dataVersion }
     } catch (error) {
       return asError(error)
     }

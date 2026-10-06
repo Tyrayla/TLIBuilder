@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react'
 import type { HeroTrait } from '../../api/client'
 import type { CloudSync, ConflictOutcome, DownloadOutcome, ResolveOutcome, UploadOutcome } from '../../utils/cloudSync'
 import { summarizeCode } from '../../utils/buildSummary'
+import { dataVersionWarning } from '../../utils/dataVersion'
 import ConflictDialog, { type ConflictSide } from './ConflictDialog'
 import { LinkPromptDialog, LinkUpdateDialog, NoticeDialog, ShortenNameDialog } from './CloudDialogs'
 
@@ -22,10 +23,12 @@ interface Options {
   heroTraits: HeroTrait[] | null
   /** Unix seconds a local build was last saved, for the conflict screen. */
   localSavedAtFor?: (localId: string) => number | null
+  /** The game data version the app is running with, to compare against a build's saved version. */
+  currentDataVersion?: () => string | null
 }
 
 export function useCloudActions(opts: Options) {
-  const { sync, onChanged, requestSignIn, linkPathFor, heroTraits, localSavedAtFor } = opts
+  const { sync, onChanged, requestSignIn, linkPathFor, heroTraits, localSavedAtFor, currentDataVersion } = opts
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -33,6 +36,12 @@ export function useCloudActions(opts: Options) {
   const notice = useCallback((title: string, body: string, actions?: { label: string; onClick: () => void }[]) => {
     setDialog({ kind: 'notice', title, body, actions })
   }, [])
+
+  /** The plain message plus, when the saved game data version differs, the warning that names it. */
+  const withVersion = useCallback((body: string, saved: string | undefined): string => {
+    const warning = dataVersionWarning(saved, currentDataVersion?.() ?? null)
+    return warning ? `${body} ${warning}` : body
+  }, [currentDataVersion])
 
   const openConflict = useCallback(async (localId: string, conflict: ConflictOutcome, error: string | null) => {
     const [localSummary, cloudSummary] = await Promise.all([
@@ -66,13 +75,13 @@ export function useCloudActions(opts: Options) {
         notice('Cloud library is full', 'Your account can keep up to 20 cloud builds. Delete one from the cloud library to make room.'); return
       case 'conflict': await openConflict(localId, outcome, null); return
       case 'kept-both':
-        notice('Saved as a new local build', 'The cloud version is now a separate local build. Your build was left as it is.'); onChanged(); return
+        notice('Saved as a new local build', withVersion('The cloud version is now a separate local build. Your build was left as it is.', outcome.dataVersion)); onChanged(); return
       case 'replaced-local':
-        notice('Local build replaced', 'This build now matches the cloud version.'); onChanged(); return
+        notice('Local build replaced', withVersion('This build now matches the cloud version.', outcome.dataVersion)); onChanged(); return
       case 'needs-confirmation': return
       case 'error': notice('Something went wrong', outcome.message); return
     }
-  }, [notice, onChanged, openConflict, requestSignIn, sync])
+  }, [notice, onChanged, openConflict, requestSignIn, sync, withVersion])
 
   const startUploadRef = React.useRef<((localId: string) => Promise<void>) | null>(null)
 
@@ -85,15 +94,15 @@ export function useCloudActions(opts: Options) {
     const outcome: DownloadOutcome = await sync.download(localId)
     switch (outcome.kind) {
       case 'sign-in-required': requestSignIn(); return
-      case 'downloaded': notice('Downloaded', 'This build now matches the cloud version.'); onChanged(); return
-      case 'downloaded-new': notice('Downloaded', 'The cloud build was saved as a local build.'); onChanged(); return
+      case 'downloaded': notice('Downloaded', withVersion('This build now matches the cloud version.', outcome.dataVersion)); onChanged(); return
+      case 'downloaded-new': notice('Downloaded', withVersion('The cloud build was saved as a local build.', outcome.dataVersion)); onChanged(); return
       case 'up-to-date': notice('Already up to date', 'This build matches the cloud version.'); return
       case 'not-linked': notice('Not uploaded yet', 'This build has no cloud copy for this account. Upload it first.'); return
       case 'cloud-missing': notice('The cloud copy was deleted', 'Upload this build again to create a new cloud build.'); return
       case 'conflict': await openConflict(localId, outcome, null); return
       case 'error': notice('Something went wrong', outcome.message); return
     }
-  }, [notice, onChanged, openConflict, requestSignIn, sync])
+  }, [notice, onChanged, openConflict, requestSignIn, sync, withVersion])
 
   const startLinkUpdate = useCallback(async (localId: string) => {
     const plan = await sync.planSharedLinkUpdate(localId)

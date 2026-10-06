@@ -194,6 +194,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
     linkPathFor: (cloudBuildId) =>
       [...cloudStatuses.values()].find(s => s.cloud?.cloudBuildId === cloudBuildId)?.cloud?.namedLink?.urlPath ?? null,
     heroTraits,
+    currentDataVersion: () => useReferenceStore.getState().season,
     localSavedAtFor: (id) => {
       const updated = builds.find(b => b.id === id)?.updatedAt
       return typeof updated === 'number' ? updated : null

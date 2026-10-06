@@ -372,6 +372,22 @@ describe('download', () => {
   })
 })
 
+describe('data version of downloaded content', () => {
+  it('reports the version a cloud build was saved under on every path that opens it', async () => {
+    const t = setup()
+    t.addLocal('L0', 'Fire', 'c1')
+    await t.sync.upload('L0')
+    const cb = [...t.service.builds.values()][0]
+    cb.summary = { ...cb.summary, dataVersion: 'OLD-SEASON' }
+    await t.service.api.uploadRevision(cb.summary.cloudBuildId, { baseRevisionId: cb.summary.currentRevisionId, name: 'Fire', code: 'cloud2', dataVersion: 'OLD-SEASON', appVersion: 'x' })
+    cb.summary = { ...cb.summary, dataVersion: 'OLD-SEASON' }
+    const down = await t.sync.download('L0')
+    expect(down).toEqual({ kind: 'downloaded', dataVersion: 'OLD-SEASON' })
+    const asNew = await t.sync.downloadCloudBuild('cb1')
+    expect(asNew).toMatchObject({ kind: 'downloaded-new', dataVersion: 'OLD-SEASON' })
+  })
+})
+
 describe('shared link update', () => {
   it('waits for confirmation and then moves the link to the chosen revision only', async () => {
     const t = setup()

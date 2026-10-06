@@ -250,6 +250,19 @@ describe('useCloudActions', () => {
     expect(sync.confirmSharedLinkUpdate).toHaveBeenCalledWith({ cloudBuildId: 'cb1', revisionId: 'r1' })
   })
 
+  it('a download of content saved under another data version names that version', async () => {
+    const sync = fakeSync({ download: vi.fn().mockResolvedValue({ kind: 'downloaded', dataVersion: 'SS12' }) })
+    const onChanged = vi.fn()
+    function VersionHarness() {
+      const cloud = useCloudActions({ sync, onChanged, requestSignIn: vi.fn(), linkPathFor: () => null, heroTraits: null, currentDataVersion: () => 'SS13' })
+      return <div><button onClick={() => cloud.startDownload('L1')}>download</button>{cloud.dialog}</div>
+    }
+    act(() => { renderer = TestRenderer.create(<VersionHarness />) })
+    await click('download')
+    expect(text()).toContain('SS12')
+    expect(text()).toContain('SS13')
+  })
+
   it('reports the 20-build limit in plain words', async () => {
     mountHarness(fakeSync({ upload: vi.fn().mockResolvedValue({ kind: 'quota-reached' }) }))
     await click('upload')

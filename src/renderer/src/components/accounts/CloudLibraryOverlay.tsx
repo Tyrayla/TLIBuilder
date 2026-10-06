@@ -3,9 +3,12 @@ import { AccountApiError, getAccountsApi, type CloudBuild } from '../../api/acco
 import { getAccountStore, useAccountStore } from '../../store/accountStore'
 import { getCloudSync } from '../../utils/cloudSyncRuntime'
 import { defaultSyncRecordStore } from '../../utils/syncRecords'
+import { dataVersionWarning } from '../../utils/dataVersion'
+import { useReferenceStore } from '../../store/referenceStore'
 
 export interface CloudLibraryActions {
-  saveToDevice: (cloudBuildId: string) => Promise<void>
+  /** Resolves with a warning to show (for example a different game data version), or null. */
+  saveToDevice: (cloudBuildId: string) => Promise<string | null | void>
   deleteBuild: (cloudBuildId: string) => Promise<void>
   createLink: (cloudBuildId: string, slug: string | undefined) => Promise<void>
   setListed: (cloudBuildId: string, listed: boolean) => Promise<void>
@@ -38,6 +41,7 @@ export function CloudLibraryView({ builds, loading, loadError, usage, actions }:
   const [slugs, setSlugs] = useState<Record<string, string>>({})
   const [deleteTarget, setDeleteTarget] = useState<CloudBuild | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
   const attempt = async (key: string, fn: () => Promise<void>): Promise<void> => {
@@ -86,7 +90,10 @@ export function CloudLibraryView({ builds, loading, loadError, usage, actions }:
               )}
 
               <div className="settings-segmented" style={{ flexWrap: 'wrap' }}>
-                <button className="settings-seg-btn" disabled={busy} onClick={() => attempt(b.cloudBuildId, () => actions.saveToDevice(b.cloudBuildId))}>Save to this device</button>
+                <button className="settings-seg-btn" disabled={busy} onClick={() => attempt(b.cloudBuildId, async () => {
+                  const warning = await actions.saveToDevice(b.cloudBuildId)
+                  setNotes((n) => ({ ...n, [b.cloudBuildId]: warning ? `Saved to this device. ${warning}` : 'Saved to this device.' }))
+                })}>Save to this device</button>
                 {b.namedLink ? (
                   <>
                     <button className="settings-seg-btn" disabled={busy} onClick={() => attempt(b.cloudBuildId, () => actions.setListed(b.cloudBuildId, !b.namedLink!.listed))}>
@@ -107,6 +114,7 @@ export function CloudLibraryView({ builds, loading, loadError, usage, actions }:
                 )}
                 <button className="settings-seg-btn" disabled={busy} onClick={() => setDeleteTarget(b)}>Delete from cloud</button>
               </div>
+              {notes[b.cloudBuildId] && <p style={{ fontSize: 13, margin: '6px 0 0' }}>{notes[b.cloudBuildId]}</p>}
               {errors[b.cloudBuildId] && <p role="alert" style={{ color: 'var(--err)', fontSize: 13, margin: '6px 0 0' }}>{errors[b.cloudBuildId]}</p>}
             </div>
           ))}
@@ -169,6 +177,9 @@ export default function CloudLibraryOverlay({ onClose, onChanged }: { onClose: (
       const outcome = await getCloudSync().downloadCloudBuild(cloudBuildId)
       if (outcome.kind === 'error') throw new Error(outcome.message)
       onChanged()
+      return outcome.kind === 'downloaded-new'
+        ? dataVersionWarning(outcome.dataVersion, useReferenceStore.getState().season)
+        : null
     },
     async deleteBuild(cloudBuildId) {
       await getAccountsApi().deleteCloudBuild(cloudBuildId)

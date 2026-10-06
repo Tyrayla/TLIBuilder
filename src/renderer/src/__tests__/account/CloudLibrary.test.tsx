@@ -63,6 +63,14 @@ describe('CloudLibraryView', () => {
     expect(a.saveToDevice).toHaveBeenCalledWith('cb1')
   })
 
+  it('shows the data-version warning returned when saving a cloud build to this device', async () => {
+    const a = actions({ saveToDevice: vi.fn().mockResolvedValue('This build was saved under game data version SS12.') })
+    mount([plain], a)
+    await click('Save to this device')
+    expect(text()).toContain('Saved to this device.')
+    expect(text()).toContain('SS12')
+  })
+
   it('delete asks first and names the link that will stop working', async () => {
     const a = actions()
     mount([linked], a)

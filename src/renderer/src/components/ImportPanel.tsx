@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { api, Build } from '../api/client'
-import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
+import { resolveImportSource, ShareFetchError } from '../utils/resolveImportInput'
+import { dataVersionWarning } from '../utils/dataVersion'
 import { checkBuildCompatibility } from '../utils/buildCompat'
 import { useReferenceStore } from '../store/referenceStore'
 import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/context'
@@ -28,6 +29,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const [importing, setImporting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const season = useReferenceStore(s => s.season)
   const refLegendary = useReferenceStore(s => s.legendaryCatalog)
   const refSkills = useReferenceStore(s => s.skills)
   const refCraftBaseTypes = useReferenceStore(s => s.craftBaseTypes)
@@ -48,9 +50,14 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     if (!code) return
     setImporting(true); reset()
     try {
-      const resolved = await resolveImportInput(code)          // tli1_ code OR share link → raw code
+      // tli1_ code, anonymous share link, or named link → raw code (+ the data version a named link was saved under)
+      const { code: resolved, dataVersion } = await resolveImportSource(code)
       const { build } = await api.decodeBuildCode(resolved)
-      ready({ ...(build as unknown as Build), name: 'New Build' }, checkBuildCompatibility(build))
+      const versionWarning = dataVersionWarning(dataVersion, season)
+      ready(
+        { ...(build as unknown as Build), name: 'New Build' },
+        [...checkBuildCompatibility(build), ...(versionWarning ? [versionWarning] : [])],
+      )
     } catch (e: unknown) {
       setStructuredError(normalizeError(
         e,
@@ -115,7 +122,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
 
       {mode === 'builder' && (
         <>
-          <p className="share-modal-hint">Paste a TLI Builder code (<code>tli1_…</code>) or an <b>api.tlibuilder.com</b> share link to load a build. This replaces your current build. In-game build codes from Torchlight: Infinite aren’t supported.</p>
+          <p className="share-modal-hint">Paste a TLI Builder code (<code>tli1_…</code>), an <b>api.tlibuilder.com</b> share link, or a named link to load a build. This replaces your current build. In-game build codes from Torchlight: Infinite aren’t supported.</p>
           <textarea
             autoFocus={autoFocus}
             className="share-code-area share-code-area--input"

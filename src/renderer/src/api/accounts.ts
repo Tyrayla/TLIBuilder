@@ -320,6 +320,35 @@ export function createAccountsApi(transport: AccountTransport) {
 
 export type AccountsApi = ReturnType<typeof createAccountsApi>
 
+/** A public named link (/u/<handle>/<slug>). Anonymous read: no cookies, no session. */
+export async function fetchNamedLink(
+  handle: string,
+  slug: string,
+  opts: { base?: string; fetchImpl?: typeof fetch } = {},
+): Promise<{ name: string; code: string; dataVersion: string | null }> {
+  const base = (opts.base ?? getShareBase()).replace(/\/+$/, '')
+  const doFetch = opts.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
+  let res: Response
+  try {
+    res = await doFetch(`${base}/u/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}`, {
+      method: 'GET',
+      credentials: 'omit',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch {
+    throw new AccountApiError(0, 'network_error', 'The link could not be loaded. Check your connection and try again.')
+  }
+  let data: unknown = null
+  try { data = await res.json() } catch { /* not JSON */ }
+  if (res.status === 410) throw new AccountApiError(410, 'removed_by_owner', 'This build was removed by its owner.')
+  if (!res.ok) throw toError({ ok: false, status: res.status, data })
+  const r = asRaw(data)
+  if (typeof r.code !== 'string' || !r.code.startsWith('tli1_')) {
+    throw new AccountApiError(res.status, 'invalid_response', 'The link did not return a build code.')
+  }
+  return { name: String(r.name ?? ''), code: r.code, dataVersion: typeof r.data_version === 'string' && r.data_version ? r.data_version : null }
+}
+
 let defaultApi: AccountsApi | null = null
 
 /** The shared accounts client for the running shell. */
