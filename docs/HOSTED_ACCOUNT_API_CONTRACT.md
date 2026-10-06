@@ -187,7 +187,7 @@ The service validates every ID against a catalog-ID pattern and a per-request co
 
 ### How the app derives each field
 
-The app sends the report after a successful, changed calculation, once per distinct composition per session. Turning the Privacy switch off stops new reports and aborts any report still in flight. Nothing is queued on disk.
+The app sends the report after a successful, changed calculation, once per distinct composition per session. Turning the Privacy switch off stops new reports and aborts any report still in flight. Nothing is queued on disk. A report the service already accepted is not recalled: it was only added to a daily total, and the service keeps no record of which device sent it.
 
 | Field | Source |
 | --- | --- |
