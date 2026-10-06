@@ -3,6 +3,8 @@ import { IS_WEB } from '../api/client'
 import { useUiPrefs, UI_SCALE_MIN, UI_SCALE_MAX } from '../store/uiPrefsStore'
 import { CoverageLegend } from './CoverageLegend'
 import { useEscapeToClose } from './useEscapeToClose'
+import AccountPanel from './accounts/AccountPanel'
+import PrivacySection from './accounts/PrivacySection'
 
 type Channel = 'stable' | 'nightly'
 
@@ -17,7 +19,7 @@ interface AppSettings {
  * wired (it round-trips through the main process via the settings IPC so the updater can read it before the
  * renderer loads). The display rows are intentionally rendered disabled — scaffolding for a later pass.
  */
-export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
+export default function SettingsOverlay({ onClose, onOpenCloudLibrary }: { onClose: () => void; onOpenCloudLibrary?: () => void }) {
   const [channel, setChannel] = useState<Channel>('stable')
   const [saving, setSaving] = useState(false)
   const collapsiblePanels = useUiPrefs(s => s.collapsiblePanels)
@@ -168,6 +170,8 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           </section>
+          <AccountPanel onOpenCloudLibrary={() => onOpenCloudLibrary?.()} />
+          <PrivacySection />
           <section className="settings-section">
             <h4 className="settings-section-title">Help</h4>
             <div className="settings-row">
