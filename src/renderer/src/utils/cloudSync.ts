@@ -51,7 +51,7 @@ export interface ConflictOutcome {
 
 export type UploadOutcome =
   | { kind: 'sign-in-required' }
-  | { kind: 'shorten-name'; suggestedName: string }
+  | { kind: 'shorten-name'; suggestedName: string; currentName: string }
   | { kind: 'uploaded'; build: CloudBuild }
   | { kind: 'unchanged' }
   | { kind: 'link-prompt'; cloudBuildId: string; cloudBuildName: string }
@@ -127,7 +127,7 @@ export function createCloudSync(deps: CloudSyncDeps) {
     try {
       if (opts.confirmedName !== undefined) {
         if (opts.confirmedName.length > MAX_BUILD_NAME_LENGTH) {
-          return { kind: 'shorten-name', suggestedName: shortenBuildName(opts.confirmedName) }
+          return { kind: 'shorten-name', suggestedName: shortenBuildName(opts.confirmedName), currentName: opts.confirmedName }
         }
         await deps.local.rename(localBuildId, opts.confirmedName)
       }
@@ -139,7 +139,7 @@ export function createCloudSync(deps: CloudSyncDeps) {
 
       switch (plan.kind) {
         case 'sign-in-required': return { kind: 'sign-in-required' }
-        case 'shorten-name': return { kind: 'shorten-name', suggestedName: plan.suggestedName }
+        case 'shorten-name': return { kind: 'shorten-name', suggestedName: plan.suggestedName, currentName: local.name }
         case 'nothing-to-upload': return { kind: 'unchanged' }
         case 'cloud-newer': return { kind: 'cloud-newer' }
         case 'cloud-missing': return { kind: 'cloud-missing' }
@@ -206,7 +206,7 @@ export function createCloudSync(deps: CloudSyncDeps) {
         case 'upload-conditional': {
           const local = await deps.local.read(localBuildId)
           if (local.name.length > MAX_BUILD_NAME_LENGTH) {
-            return { kind: 'shorten-name', suggestedName: shortenBuildName(local.name) }
+            return { kind: 'shorten-name', suggestedName: shortenBuildName(local.name), currentName: local.name }
           }
           try {
             // Still conditional: the base is the revision the user was shown, so a cloud change that
@@ -292,7 +292,13 @@ export function createCloudSync(deps: CloudSyncDeps) {
     await deps.records.removeForLocalBuild(localBuildId)
   }
 
+  /** Forget the link to a cloud build (for example one that was deleted) so the next upload is a new build. */
+  async function unlink(localBuildId: string): Promise<void> {
+    await deps.records.removeForLocalBuild(localBuildId)
+  }
+
   return {
+    unlink,
     upload,
     linkExisting,
     resolveConflict,

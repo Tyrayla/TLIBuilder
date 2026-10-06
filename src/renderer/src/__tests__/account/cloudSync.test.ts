@@ -136,7 +136,7 @@ describe('upload', () => {
   it('asks for a shorter name over 50 characters and uploads nothing until confirmed', async () => {
     const t = setup()
     t.addLocal('L0', 'n'.repeat(60), 'c1')
-    expect(await t.sync.upload('L0')).toEqual({ kind: 'shorten-name', suggestedName: 'n'.repeat(50) })
+    expect(await t.sync.upload('L0')).toEqual({ kind: 'shorten-name', suggestedName: 'n'.repeat(50), currentName: 'n'.repeat(60) })
     expect(t.service.builds.size).toBe(0)
     expect(t.library.get('L0')!.name).toBe('n'.repeat(60))
   })
@@ -395,6 +395,20 @@ describe('shared link update', () => {
     t.library.get('L0')!.code = 'c2'
     await t.sync.upload('L0')
     expect([...t.service.builds.values()][0].summary.namedLink!.revisionId).toBe(pinned)
+  })
+})
+
+describe('cloud copy deleted elsewhere', () => {
+  it('reports it, and after unlinking the next upload creates a new cloud build', async () => {
+    const t = setup()
+    t.addLocal('L0', 'Fire', 'c1')
+    await t.sync.upload('L0')
+    t.service.builds.clear()
+    t.library.get('L0')!.code = 'c2'
+    expect((await t.sync.upload('L0')).kind).toBe('cloud-missing')
+    await t.sync.unlink('L0')
+    expect((await t.sync.upload('L0')).kind).toBe('uploaded')
+    expect(t.service.builds.size).toBe(1)
   })
 })
 
