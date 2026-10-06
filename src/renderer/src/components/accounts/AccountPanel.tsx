@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { AccountApiError, type Account, type SignupOffer } from '../../api/accounts'
+import { AccountApiError, friendlyAccountError, type Account, type SignupOffer } from '../../api/accounts'
 import { getAccountStore, useAccountStore, type AccountStatus } from '../../store/accountStore'
 
 export interface AccountPanelActions {
@@ -28,8 +28,7 @@ const NAME_RULE = /^[A-Za-z0-9_.]{2,24}$/
 const NAME_RULE_TEXT = 'Names use 2–24 letters, numbers, underscores, or dots.'
 
 function messageOf(error: unknown): string {
-  if (error instanceof AccountApiError) return error.message
-  return error instanceof Error ? error.message : 'Something went wrong.'
+  return friendlyAccountError(error)
 }
 
 type Gate = { kind: 'export' | 'delete'; started: boolean } | null

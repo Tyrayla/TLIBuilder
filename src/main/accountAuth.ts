@@ -65,6 +65,11 @@ const CLOSE_PAGE = '<!doctype html><meta charset="utf-8"><title>TLI Builder</tit
   + '<body style="font-family:system-ui;background:#111;color:#eee;padding:2rem">'
   + '<h1>Signed in</h1><p>You can close this tab and return to TLI Builder.</p></body>'
 
+const FAILURE_REASON = /^[a-z_]{1,32}$/
+const FAILURE_PAGE = '<!doctype html><meta charset="utf-8"><title>TLI Builder</title>'
+  + '<body style="font-family:system-ui;background:#111;color:#eee;padding:2rem">'
+  + '<h1>Sign-in did not complete</h1><p>You can close this tab and try again in TLI Builder.</p></body>'
+
 export interface LoopbackListener {
   port: number
   code: Promise<string>
@@ -93,6 +98,17 @@ export function startLoopbackListener(opts: { timeoutMs: number }): Promise<Loop
       let url: URL
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1') } catch { reply(400, 'Bad request'); return }
       if (req.method !== 'GET' || url.pathname !== '/callback') { reply(404, 'Not found'); return }
+      // The service reports a failed sign-in as ?error=<reason> instead of a login code.
+      const failure = url.searchParams.get('error')
+      if (failure !== null) {
+        if (!FAILURE_REASON.test(failure)) { reply(400, 'Bad request'); return }
+        if (settled) { reply(404, 'Not found'); return }
+        settled = true
+        res.once('finish', () => finish())
+        reply(200, FAILURE_PAGE)
+        rejectCode(new Error(`Sign-in did not complete (${failure}).`))
+        return
+      }
       const loginCode = url.searchParams.get('login_code') ?? ''
       if (!LOGIN_CODE.test(loginCode)) { reply(400, 'Bad request'); return }
       if (settled) { reply(404, 'Not found'); return }

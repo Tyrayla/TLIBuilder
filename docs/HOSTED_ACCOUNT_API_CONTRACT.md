@@ -31,6 +31,20 @@ The product decisions are in [HOSTED_ACCOUNT_PLATFORM_PLAN.md](HOSTED_ACCOUNT_PL
 | 422 | `invalid_handle` / `invalid_slug` | Fails the documented character rules or is reserved. |
 | 429 | `rate_limited` | Per-IP, per-account or global limit. |
 
+## Additions confirmed by the service
+
+The service branch (`tlibuilder-code-share` draft PR 1, `docs/ACCOUNT_API.md`) implements this contract and adds the following. The app mirrors each point.
+
+- `GET /v1/csrf` needs a live session (pending or complete); without one it answers `401`.
+- A pending session gets `403 signup_required` on every other `/v1` route. `POST /v1/account/signup` answers `201 {user_id, public_name}`, or `403 signup_closed` while sign-up is closed.
+- Sign-out, sign-out everywhere, and every `DELETE` answer `204` with no body.
+- Web sign-in failures redirect to the web app with `?auth_error=<cancelled|discord_failed|signup_closed|reauth_failed>`. Desktop failures go to `http://127.0.0.1:<port>/callback?error=<reason>`. The app's listener accepts that form and ends the wait.
+- More codes: `invalid_name` 422, `name_unavailable` 409, `handle_limit_reached` 409, `already_registered` 409, `invalid_grant` 400, `invalid_state` 400, `invalid_request` 400 (unknown or malformed field), `busy` 503.
+- `data_version` and `app_version` must match `[A-Za-z0-9._+-]{1,64}`. The app sends a cleaned form (`toWireVersion`) of the season name and app version, and applies the same cleaning to both sides of a data-version comparison.
+- `GET /u/{name}-{tag}` returns the public profile `{owner, builds[]}`. The app does not use it yet. `/u` redirects are `301` with a relative `Location`. Removed links answer `410 removed_by_owner`.
+- The service accepts at most 1,000,000 decoded bytes (the frozen codec port's guard), not the plan's 1 MiB. This needs an owner decision.
+- Composition reports: at most 300 entities, 200 relations, and 32 mechanics; an `Authorization` header answers `400`.
+
 ## Sign-in
 
 ### Web

@@ -16,6 +16,7 @@ import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
 import { getAccountStore } from './store/accountStore'
+import { AUTH_ERROR_MESSAGE, consumeAuthReturn } from './utils/authReturn'
 import { isReportingRuntime, startCompositionReporting } from './utils/compositionReporting'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -187,6 +188,10 @@ function App() {
     if (isReportingRuntime({ prod: import.meta.env.PROD, webdriver: navigator.webdriver === true })) {
       startCompositionReporting()
     }
+    // Back from Discord on web: show a failed sign-in plainly and clean the URL.
+    const back = consumeAuthReturn(window.location.href)
+    if (back.cleanedHref) window.history.replaceState(null, '', back.cleanedHref)
+    if (back.authError) getAccountStore().getState().reportError(AUTH_ERROR_MESSAGE[back.authError])
     void getAccountStore().getState().refresh()
   }, [appReady])
   // NOTE: these effects MUST stay above the `if (!appReady)` early return below — a hook placed after it
@@ -1091,7 +1096,7 @@ function App() {
               <input
                 className="modal-input"
                 type="text"
-                placeholder="Build name…"
+                placeholder="Build name…" maxLength={50}
                 value={unsavedSaveName}
                 onChange={e => setUnsavedSaveName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleUnsavedSave()}
@@ -1116,7 +1121,7 @@ function App() {
             <input
               className="modal-input"
               type="text"
-              placeholder="Build name…"
+              placeholder="Build name…" maxLength={50}
               value={saveModalName}
               onChange={e => setSaveModalName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSaveModalConfirm()}

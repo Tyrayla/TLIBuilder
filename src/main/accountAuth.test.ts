@@ -96,6 +96,22 @@ describe('loopback listener', () => {
     await expect(listener.code).resolves.toBe('goodcode1')
   })
 
+  it('a failure redirect from the service ends the wait with its reason, without a code', async () => {
+    const listener = await startLoopbackListener({ timeoutMs: 5000 })
+    const res = await fetch(`http://127.0.0.1:${listener.port}/callback?error=cancelled`)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('did not complete')
+    await expect(listener.code).rejects.toThrow(/cancelled/)
+  })
+
+  it('ignores a malformed error reason', async () => {
+    const listener = await startLoopbackListener({ timeoutMs: 5000 })
+    const bad = await fetch(`http://127.0.0.1:${listener.port}/callback?error=<script>alert(1)</script>`)
+    expect(bad.status).toBe(400)
+    listener.close()
+    await expect(listener.code).rejects.toThrow()
+  })
+
   it('stops listening after the code arrives', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
     await fetch(`http://127.0.0.1:${listener.port}/callback?login_code=goodcode1`)

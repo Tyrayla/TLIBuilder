@@ -18,6 +18,21 @@ export interface AccountTransport {
   request(method: string, path: string, body?: unknown): Promise<TransportResult>
 }
 
+/** Plain-language text for an account-service failure. */
+export function friendlyAccountError(error: unknown): string {
+  if (!(error instanceof AccountApiError)) return error instanceof Error ? error.message : 'Something went wrong.'
+  switch (error.code) {
+    case 'signup_closed': return 'Sign-up is not open yet.'
+    case 'name_unavailable': return 'That name is taken. Choose another.'
+    case 'invalid_name': return 'Names use 2–24 letters, numbers, underscores, or dots.'
+    case 'handle_limit_reached': return 'You have changed your public name too many times. Try a different name later.'
+    case 'already_registered': return 'This Discord account already has an account.'
+    case 'busy': return 'The service is busy. Try again in a moment.'
+    case 'rate_limited': return 'You are making too many requests. Wait a moment and try again.'
+    default: return error.message
+  }
+}
+
 export class AccountApiError extends Error {
   readonly status: number
   readonly code: string
@@ -52,6 +67,7 @@ export function createWebTransport(opts: { base?: string; fetchImpl?: typeof fet
     if (csrfToken && !force) return csrfToken
     const res = await doFetch(`${base}/v1/csrf`, { method: 'GET', credentials: 'include', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
     const data = (await readJson(res)) as { csrf_token?: string } | null
+    if (res.status === 401) throw new AccountApiError(401, 'unauthenticated', 'Not signed in.')
     if (!res.ok || !data?.csrf_token) throw new AccountApiError(res.status, 'csrf_unavailable', 'Could not obtain a CSRF token.')
     csrfToken = data.csrf_token
     return csrfToken

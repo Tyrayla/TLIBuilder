@@ -3,6 +3,7 @@
 // account, session, or installation identifier. See docs/HOSTED_ACCOUNT_API_CONTRACT.md.
 import { getShareBase } from './share'
 import type { Composition } from '../utils/buildComposition'
+import { toWireVersion } from '../utils/dataVersion'
 
 const REQUEST_TIMEOUT_MS = 10_000
 
@@ -18,7 +19,7 @@ export function createAnalyticsClient(opts: { base?: string; fetchImpl?: typeof 
         credentials: 'omit',
         referrerPolicy: 'no-referrer',
         body: JSON.stringify({
-          data_version: composition.dataVersion,
+          data_version: toWireVersion(composition.dataVersion),
           entities: composition.entities,
           relations: composition.relations.map((r) => ({ skill_id: r.skillId, support_id: r.supportId })),
           mechanics: composition.mechanics,

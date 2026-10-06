@@ -20,6 +20,8 @@ export interface AccountState {
   account: Account | null
   signupOffer: SignupOffer | null
   error: string | null
+  /** Show a sign-in problem reported on return from the browser (web). */
+  reportError: (message: string) => void
   refresh: () => Promise<void>
   signIn: () => Promise<void>
   completeSignup: (name: string) => Promise<void>
@@ -50,6 +52,10 @@ export function createAccountStore(deps: {
     account: null,
     signupOffer: null,
     error: null,
+
+    reportError(message) {
+      set({ error: message })
+    },
 
     async refresh() {
       try {

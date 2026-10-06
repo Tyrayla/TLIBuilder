@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { dataVersionWarning } from '../../utils/dataVersion'
+import { dataVersionWarning, toWireVersion } from '../../utils/dataVersion'
 import { parseNamedLinkUrl, resolveImportSource } from '../../utils/resolveImportInput'
 import { fetchNamedLink, AccountApiError } from '../../api/accounts'
 
@@ -20,6 +20,25 @@ describe('dataVersionWarning', () => {
 
   it('still names the saved version when the current one is not loaded yet', () => {
     expect(dataVersionWarning('SS12', null)).toContain('SS12')
+  })
+})
+
+describe('toWireVersion', () => {
+  it('keeps a plain version as is', () => {
+    expect(toWireVersion('SS13')).toBe('SS13')
+    expect(toWireVersion('0.6.9')).toBe('0.6.9')
+  })
+
+  it('turns anything the service would refuse into a safe value', () => {
+    expect(toWireVersion('SS12 Lunaria')).toBe('SS12_Lunaria')
+    expect(toWireVersion('')).toBe('unknown')
+    expect(toWireVersion(null)).toBe('unknown')
+    expect(toWireVersion('x'.repeat(100))).toHaveLength(64)
+    expect(toWireVersion('a/b?c')).toMatch(/^[A-Za-z0-9._+-]{1,64}$/)
+  })
+
+  it('does not raise a false warning when only the wire form differs', () => {
+    expect(dataVersionWarning(toWireVersion('SS12 Lunaria'), 'SS12 Lunaria')).toBeNull()
   })
 })
 

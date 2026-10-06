@@ -7,6 +7,7 @@ import { createCloudSync, type CloudSync } from './cloudSync'
 import { createLocalBuildAccess } from './localBuildAccess'
 import { defaultSyncRecordStore } from './syncRecords'
 import { semanticBuildHash } from './sync'
+import { toWireVersion } from './dataVersion'
 
 declare const __APP_VERSION__: string | undefined
 
@@ -18,8 +19,8 @@ export function getCloudSync(): CloudSync {
       accounts: getAccountsApi(),
       records: defaultSyncRecordStore(),
       activeUserId: () => getAccountStore().getState().account?.userId ?? null,
-      dataVersion: () => useReferenceStore.getState().season ?? '',
-      appVersion: () => (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''),
+      dataVersion: () => toWireVersion(useReferenceStore.getState().season),
+      appVersion: () => toWireVersion(typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null),
       local: createLocalBuildAccess({
         getBuilds: () => api.getBuilds(),
         postBuild: (build) => api.postBuild(build),

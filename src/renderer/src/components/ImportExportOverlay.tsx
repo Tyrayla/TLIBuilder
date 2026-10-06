@@ -233,7 +233,7 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
           <input
             className="modal-input"
             type="text"
-            placeholder="Build name…"
+            placeholder="Build name…" maxLength={50}
             value={dirtySaveName}
             onChange={e => setDirtySaveName(e.target.value)}
             autoFocus

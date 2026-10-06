@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { AccountApiError, getAccountsApi, type CloudBuild } from '../../api/accounts'
+import { AccountApiError, friendlyAccountError, getAccountsApi, type CloudBuild } from '../../api/accounts'
 import { getAccountStore, useAccountStore } from '../../store/accountStore'
 import { getCloudSync } from '../../utils/cloudSyncRuntime'
 import { defaultSyncRecordStore } from '../../utils/syncRecords'
@@ -32,7 +32,7 @@ function describeError(error: unknown): string {
     if (error.code === 'profile_quota_reached') return 'Your profile already shows 10 builds. Hide one first.'
     if (error.code === 'slug_taken') return 'That link name is already used. Choose another.'
     if (error.code === 'invalid_slug') return SLUG_RULE_TEXT
-    return error.message
+    return friendlyAccountError(error)
   }
   return error instanceof Error ? error.message : 'Something went wrong.'
 }
