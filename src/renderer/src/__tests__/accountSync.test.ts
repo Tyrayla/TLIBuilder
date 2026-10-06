@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import zlib from 'node:zlib'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import {
   semanticBuildHash,
   syncStatus,
@@ -234,4 +236,19 @@ describe('shortenBuildName', () => {
   it('cuts to the first 50 characters', () => {
     expect(shortenBuildName('y'.repeat(51))).toBe('y'.repeat(50))
   })
+})
+
+describe('shared semantic-hash vectors (docs/HOSTED_ACCOUNT_HASH_VECTORS.json)', () => {
+  const file = fileURLToPath(new URL('../../../../docs/HOSTED_ACCOUNT_HASH_VECTORS.json', import.meta.url))
+  const doc = JSON.parse(readFileSync(file, 'utf-8')) as { vectors: { name: string; input_json: string; sha256: string }[] }
+
+  it('has vectors', () => expect(doc.vectors.length).toBeGreaterThanOrEqual(9))
+
+  for (const vector of doc.vectors) {
+    it(`matches the committed hash for ${vector.name}`, async () => {
+      const deflated = zlib.deflateSync(Buffer.from(vector.input_json, 'utf-8'), { level: 9 })
+      const code = `tli1_${deflated.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
+      expect(await semanticBuildHash(code)).toBe(vector.sha256)
+    })
+  }
 })
