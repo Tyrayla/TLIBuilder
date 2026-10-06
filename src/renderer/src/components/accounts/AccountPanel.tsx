@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { AccountApiError, type Account, type SignupOffer } from '../../api/accounts'
 import { getAccountStore, useAccountStore, type AccountStatus } from '../../store/accountStore'
 
@@ -13,6 +13,7 @@ export interface AccountPanelActions {
   deleteAccount: () => Promise<void>
   openCloudLibrary: () => void
   saveExport: (data: unknown) => void
+  refresh: () => Promise<void>
 }
 
 interface ViewProps {
@@ -72,6 +73,9 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
         <h4 className="settings-section-title">Account</h4>
         <div className="settings-row-hint">
           The account service could not be reached. Everything on this device still works, and local builds are not affected.
+        </div>
+        <div className="settings-segmented" style={{ marginTop: 8 }}>
+          <button className="settings-seg-btn" disabled={busy} onClick={() => guard(actions.refresh)}>Try again</button>
         </div>
       </section>
     )
@@ -254,6 +258,12 @@ export default function AccountPanel({ onOpenCloudLibrary }: { onOpenCloudLibrar
     deleteAccount: () => getAccountStore().getState().deleteAccount(),
     openCloudLibrary: onOpenCloudLibrary,
     saveExport: downloadJson,
+    refresh: () => getAccountStore().getState().refresh(),
   }
+  // Opening Settings rechecks once if the first check failed; nothing polls in the background.
+  useEffect(() => {
+    if (status === 'unavailable' || status === 'unknown') void getAccountStore().getState().refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   return <AccountPanelView status={status} account={account} signupOffer={signupOffer} error={error} actions={actions} />
 }

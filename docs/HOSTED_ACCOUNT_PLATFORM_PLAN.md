@@ -1,6 +1,6 @@
 # Hosted accounts, storage, and analytics plan
 
-> Status: in progress. Migration steps 1–7 are complete (see [Progress](#progress)); accounts (step 8 onward) have not started. This document records product decisions. Deployment runbooks live in the `tlibuilder-code-share` repository (`deployment/DOKPLOY.md`, `deployment/RESTORE.md`).
+> Status: in progress. Migration steps 1–7 are complete (see [Progress](#progress)). Steps 8–11 are partly built on the app side (see [Implementation progress, steps 8–11](#implementation-progress-steps-811)); nothing is deployed and sign-up is closed. This document records product decisions. Deployment runbooks live in the `tlibuilder-code-share` repository (`deployment/DOKPLOY.md`, `deployment/RESTORE.md`).
 
 ## Progress
 
@@ -15,7 +15,29 @@ Last updated 2026-10-04.
 | 5. Encrypted R2 backup | Done | `pg_dump` every 15 minutes → `age` (public key only on the server) → R2 bucket `tlibuilder-backups`; tiered prefixes with matching lifecycle rules and bucket locks; failure alerts to Discord. A delete attempt by the server's own credential is refused. Restore-tested twice with the owner's key. |
 | 6. Migrate share and report records | Done | 54 shares and 7 reports imported with IDs preserved and every row verified by hash; all 54 live links match the pre-migration copy. |
 | 7. Ship the PostgreSQL service | Done | Live since 2026-10-04 (code-share `prod` `ab7a91c`). The SQLite files stay in the `tli-data` volume for the rollback window; then remove the one-time import bridge and delete the volume. |
-| 8–11. Accounts, sync flows, analytics, privacy | Not started | |
+| 8–11. Accounts, sync flows, analytics, privacy | In progress (app side) | Audited 2026-10-05: the service had no account, cloud, or analytics code and the app had none either. App-side work is on `Tyrayla/hosted-account-platform` (draft PR #9); the service side is a paired task. See below. |
+
+### Implementation progress, steps 8–11
+
+Last updated 2026-10-05. "Built" means code and tests exist on the task branch. It does not mean deployed, reviewed by the owner, or proven against the live service.
+
+| Area | State | Proof so far | Remaining |
+| --- | --- | --- | --- |
+| Wire contract | Proposed, [API contract](HOSTED_ACCOUNT_API_CONTRACT.md) and [hash vectors](HOSTED_ACCOUNT_HASH_VECTORS.json) | The service worker confirmed the contract points and wrote 19 vectors; the app canonicalizer passes all 19. | Owner review; the service implements it. |
+| Sync decisions (status, upload, download, link, conflict, 50-character name) | Built | Unit tests against an in-memory service that follows the contract: no silent overwrite, conditional writes after confirmation, unchanged upload makes no revision, link-or-new prompt, other-account records unusable. | Live-service run. |
+| Sync records | Built | Desktop file in the main process and a separate IndexedDB database on web; records hold only the five sync fields. | A desktop app-harness run. |
+| Desktop sign-in | Built, **not proven against Discord** | Loopback listener, PKCE, `safeStorage` vault with no plaintext fallback, and an allow-listed request bridge, all tested with fakes. | Real Discord OAuth on a staging service; security review. |
+| Web sign-in | Built, **not proven against Discord** | Cookie plus CSRF client tested with fakes; a Playwright journey drives the UI against a mock service. | Real OAuth; exact-origin CORS and cookie behavior on the live origin. |
+| Account, cloud library, named-link, export and delete screens | Built | Component tests; delete and export retry after a fresh Discord sign-in. | Owner copy review; profile page and public named-link page (these belong to the service). |
+| Anonymous composition statistics (app side) | Built | Extractor and reporter tests: canonical IDs only, no user text, opt-out stops all network calls, reports only after a changed successful calculation. | The service counters and the separate `analytics` database. Curated mechanic-flag list and Hero Memory base and revival choices need owner input. |
+| Account service metrics | Not started | | Service side. |
+| Privacy notice | Not started | The Privacy settings section carries plain-language copy for the owner to review. | The owner writes the notice from a template. No legal sign-off is claimed. |
+| Service: accounts, sessions, cloud builds, named links, analytics, export and delete | Not started | A service worker has a paired branch and proved that its validator accepts schema v2 codes without codec edits. | Everything in steps 8–11 on the service. |
+
+Open limits of the app side:
+
+- A local build linked under one account that is uploaded by another account on the same device replaces the first account's link record for that build. The cloud builds are untouched.
+- The semantic hash is computed on the client from the decoded code, so a hash mismatch between app and service would show as a false "Local changes" status. The shared vectors guard against this.
 
 Decisions and findings during implementation:
 

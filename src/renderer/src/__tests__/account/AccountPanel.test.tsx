@@ -36,6 +36,7 @@ function actions(over: Partial<AccountPanelActions> = {}): AccountPanelActions {
     deleteAccount: vi.fn().mockResolvedValue(undefined),
     openCloudLibrary: vi.fn(),
     saveExport: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
     ...over,
   }
 }
@@ -66,6 +67,13 @@ describe('AccountPanel — guest', () => {
     mount({ status: 'unavailable', account: null, actions: actions() })
     expect(text()).toContain('could not be reached')
     expect(text()).toContain('local')
+  })
+
+  it('lets the user try again instead of staying on the failure', async () => {
+    const a = actions()
+    mount({ status: 'unavailable', account: null, actions: a })
+    await click('Try again')
+    expect(a.refresh).toHaveBeenCalledTimes(1)
   })
 })
 

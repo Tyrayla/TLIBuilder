@@ -137,7 +137,8 @@ const ALLOWED_PATH = /^\/v1\/[A-Za-z0-9_\-./%?=&]*$/
 
 /** The renderer may only reach the service's /v1 API: never an arbitrary URL, host, or traversal path. */
 export function isAllowedAccountPath(path: string): boolean {
-  return typeof path === 'string' && ALLOWED_PATH.test(path) && !path.includes('..') && !path.includes('//')
+  return typeof path === 'string' && ALLOWED_PATH.test(path)
+    && !path.includes('..') && !path.includes('//') && !/%2e/i.test(path)
 }
 
 export interface BridgeResult {
