@@ -33,6 +33,12 @@ describe('sync records file', () => {
     expect(file.read().map((r) => r.localBuildId)).toEqual(['b'])
   })
 
+  it('removing a build that has no record writes nothing (a guest never creates the file)', () => {
+    const { file, text } = setup()
+    file.remove('nobody')
+    expect(text()).toBeNull()
+  })
+
   it('rejects records from the renderer that are malformed or carry extra fields', () => {
     const { file, text } = setup()
     expect(() => file.put({ localBuildId: 'a' } as never)).toThrow()

@@ -35,6 +35,9 @@ export interface AccountState {
 
 /** What differs between desktop and web. */
 export interface AccountShell {
+  /** Whether this device has ever signed in. A device that has not never asks the service anything. */
+  hasSessionHint: () => boolean
+  setSessionHint: (on: boolean) => void
   /** Desktop: the loopback flow, resolved when finished. Web: navigates away to Discord. */
   beginSignIn: () => Promise<{ ok: boolean; error?: string }>
   /** Forget the local session (desktop token, web nothing extra). */
@@ -58,6 +61,10 @@ export function createAccountStore(deps: {
     },
 
     async refresh() {
+      if (!deps.shell.hasSessionHint()) {
+        set({ status: 'signed-out', account: null, signupOffer: null })
+        return
+      }
       try {
         const account = await deps.api.getAccount()
         if (account) { set({ status: 'signed-in', account, signupOffer: null, error: null }); return }
@@ -72,8 +79,14 @@ export function createAccountStore(deps: {
 
     async signIn() {
       set({ error: null })
+      // Remember before leaving: on web the sign-in navigates away and the next load must check the session.
+      deps.shell.setSessionHint(true)
       const result = await deps.shell.beginSignIn()
-      if (!result.ok) { set({ error: result.error ?? 'Sign-in did not complete.' }); return }
+      if (!result.ok) {
+        deps.shell.setSessionHint(false)
+        set({ error: result.error ?? 'Sign-in did not complete.' })
+        return
+      }
       await get().refresh()
     },
 
@@ -91,12 +104,14 @@ export function createAccountStore(deps: {
     async signOut() {
       try { await deps.api.signOut() } catch { /* the local session is dropped regardless */ }
       await deps.shell.endSession()
+      deps.shell.setSessionHint(false)
       set({ status: 'signed-out', account: null, signupOffer: null })
     },
 
     async signOutEverywhere() {
       await deps.api.signOutEverywhere()
       await deps.shell.endSession()
+      deps.shell.setSessionHint(false)
       set({ status: 'signed-out', account: null, signupOffer: null })
     },
 
@@ -114,6 +129,7 @@ export function createAccountStore(deps: {
       await deps.api.deleteAccount()
       if (userId) await deps.records.removeForAccount(userId)
       await deps.shell.endSession()
+      deps.shell.setSessionHint(false)
       set({ status: 'signed-out', account: null, signupOffer: null })
     },
   }))
@@ -122,13 +138,24 @@ export function createAccountStore(deps: {
 function defaultShell(): AccountShell {
   const bridge = typeof window !== 'undefined' ? window.api : undefined
   if (bridge?.accountSignIn) {
+    // The desktop bridge answers 401 locally when there is no token, so it never needs a hint.
     return {
+      hasSessionHint: () => true,
+      setSessionHint: () => undefined,
       beginSignIn: () => bridge.accountSignIn(),
       endSession: () => bridge.accountSignOut(),
       openReauth: (url) => bridge.accountReauth(url),
     }
   }
+  // The web session cookie is HttpOnly, so a plain flag records that this browser has signed in.
+  const HINT_KEY = 'tli-account-hint'
   return {
+    hasSessionHint: () => {
+      try { return window.localStorage.getItem(HINT_KEY) === '1' } catch { return false }
+    },
+    setSessionHint: (on) => {
+      try { if (on) window.localStorage.setItem(HINT_KEY, '1'); else window.localStorage.removeItem(HINT_KEY) } catch { /* private mode */ }
+    },
     beginSignIn: async () => {
       window.location.assign(webSignInUrl())
       return { ok: true }

@@ -51,7 +51,9 @@ export function createSyncRecordsFile(io: { read: () => string; write: (text: st
     },
     remove(localBuildId: unknown): void {
       if (typeof localBuildId !== 'string') throw new Error('Invalid build id.')
-      save(load().filter((r) => r.localBuildId !== localBuildId))
+      const before = load()
+      const after = before.filter((r) => r.localBuildId !== localBuildId)
+      if (after.length !== before.length) save(after)
     },
   }
 }

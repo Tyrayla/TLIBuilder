@@ -9,7 +9,7 @@ const ACCOUNT: Account = {
   usage: { cloudBuilds: 0, profileBuilds: 0 },
 }
 
-function setup(over: Partial<Record<string, unknown>> = {}) {
+function setup(over: Partial<Record<string, unknown>> = {}, hint = true) {
   const api = {
     getAccount: vi.fn().mockResolvedValue(null),
     getSignupOffer: vi.fn().mockResolvedValue(null),
@@ -22,7 +22,10 @@ function setup(over: Partial<Record<string, unknown>> = {}) {
     deleteAccount: vi.fn().mockResolvedValue(undefined),
     ...over,
   }
+  let hasHint = hint
   const shell = {
+    hasSessionHint: vi.fn(() => hasHint),
+    setSessionHint: vi.fn((on: boolean) => { hasHint = on }),
     beginSignIn: vi.fn().mockResolvedValue({ ok: true }),
     endSession: vi.fn().mockResolvedValue(undefined),
     openReauth: vi.fn().mockResolvedValue({ ok: true }),
@@ -31,6 +34,38 @@ function setup(over: Partial<Record<string, unknown>> = {}) {
   const store = createAccountStore({ api: api as never, shell, records })
   return { store, api, shell, records }
 }
+
+describe('account store — guests make no account request', () => {
+  it('a device that never signed in does not contact the service at all', async () => {
+    const { store, api } = setup({}, false)
+    await store.getState().refresh()
+    expect(api.getAccount).not.toHaveBeenCalled()
+    expect(api.getSignupOffer).not.toHaveBeenCalled()
+    expect(store.getState().status).toBe('signed-out')
+  })
+
+  it('signing in remembers the device, signing out forgets it', async () => {
+    const { store, shell } = setup({ getAccount: vi.fn().mockResolvedValue(ACCOUNT) }, false)
+    await store.getState().signIn()
+    expect(shell.setSessionHint).toHaveBeenCalledWith(true)
+    await store.getState().signOut()
+    expect(shell.setSessionHint).toHaveBeenLastCalledWith(false)
+  })
+
+  it('a failed sign-in does not leave the device marked', async () => {
+    const { store, shell } = setup({}, false)
+    shell.beginSignIn.mockResolvedValue({ ok: false, error: 'cancelled' })
+    await store.getState().signIn()
+    expect(shell.setSessionHint).toHaveBeenLastCalledWith(false)
+  })
+
+  it('deleting the account forgets the device', async () => {
+    const { store, shell } = setup({ getAccount: vi.fn().mockResolvedValue(ACCOUNT) })
+    await store.getState().refresh()
+    await store.getState().deleteAccount()
+    expect(shell.setSessionHint).toHaveBeenLastCalledWith(false)
+  })
+})
 
 describe('account store', () => {
   it('starts unknown and treats a guest as signed out', async () => {

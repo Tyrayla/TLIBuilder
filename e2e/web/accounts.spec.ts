@@ -167,9 +167,15 @@ test('guest: sign-in is optional, no cloud controls, and the privacy switch work
   await ensureAtBuildSelect(page)
   await expect(page.locator('.build-card-cloud')).toHaveCount(0)
 
+  // A device that never signed in never contacts the hosted service, not even to check for a session.
+  const apiRequests: string[] = []
+  const onRequest = (req: { url: () => string }) => { if (API.test(req.url())) apiRequests.push(req.url()) }
+  page.on('request', onRequest)
   await page.getByRole('button', { name: '⚙ Settings' }).click()
   const settings = page.locator('.modal-card.settings-modal-card')
   await expect(settings).toContainText('Signing in is optional')
+  page.off('request', onRequest)
+  expect(apiRequests).toEqual([])
   await expect(settings.getByRole('button', { name: 'Continue with Discord' })).toBeVisible()
   await expect(settings).toContainText('Anonymous build statistics')
   await shot(page, '01-guest-settings')
