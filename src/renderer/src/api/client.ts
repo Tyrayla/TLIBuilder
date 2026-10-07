@@ -1841,6 +1841,7 @@ export function fateEffectWithValues(effectText: string, rolledValues?: (number 
   })
 }
 
+// Round each numeric modifier independently with exact decimal arithmetic; half values round away from zero.
 const MICRO_FATE_VALUE_RE = /([+-]?\d+(?:\.\d+)?)(?=\s*(?:%|Strength\b|Dexterity\b|Intelligence\b|Command\b|initial Growth\b))/g
 function scaleMicroFateEffectText(text: string, multiplierPercent: number): string {
   if (multiplierPercent === 100) return text
@@ -1849,12 +1850,11 @@ function scaleMicroFateEffectText(text: string, multiplierPercent: number): stri
     const unsigned = value.replace(/^[+-]/, '')
     const [whole, fraction = ''] = unsigned.split('.')
     const numerator = BigInt(whole + fraction) * BigInt(multiplierPercent)
-    const fractionalDigits = fraction.length + 2
-    const divisor = 10n ** BigInt(fractionalDigits)
+    const divisor = 10n ** BigInt(fraction.length + 2)
     const scaledWhole = numerator / divisor
     const remainder = numerator % divisor
-    const scaledFraction = remainder.toString().padStart(fractionalDigits, '0').replace(/0+$/, '')
-    return (negative ? '-' : value.startsWith('+') ? '+' : '') + scaledWhole + (scaledFraction ? '.' + scaledFraction : '')
+    const rounded = scaledWhole + (remainder * 2n >= divisor ? 1n : 0n)
+    return (negative ? '-' : value.startsWith('+') ? '+' : '') + rounded
   })
 }
 

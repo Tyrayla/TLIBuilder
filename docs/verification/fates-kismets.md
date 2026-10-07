@@ -8,14 +8,17 @@
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Fates/Kismets/Dual/Undetermined install onto spirit ring nodes (replace effect); 9 micro / 4 medium limit; buildSpiritEffects substitution.
+Shipped in the engine; not yet verified in-game. Fates/Kismets/Dual/Undetermined install onto spirit ring nodes (replace effect); 9 micro / 4 medium limit; buildSpiritEffects substitution. Star Trail effectiveness and per-source rounding are modeled but unverified in-game. Per-source half-up rounding is an owner-approved safe assumption, not an in-game measurement.
 
 ## Implementation (engine model)
 
-`tools/destiny_catalog.py::categorize_destiny` is a pure transform from the imported `_destiny.json` into installable fate items, run at serve time by `GET /api/destiny` (mirrors `prism_catalog.categorize_prism_catalog`). `_kind` classifies each by name prefix → `micro_fate` / `medium_fate` / `dual_kismet` / `kismet` / `undetermined`. `node_tier` (micro|medium) is read from the `detail[]` line `Install to replace a Micro/Medium Talent Node` via `_TIER_RE`, falling back to kind. `effect_text` joins the clean `implicit[]` lines; for `dual_kismet` the `Activates … when there are 2 of this Kismet …:` intro is stripped by `_DUAL_INTRO_RE` (the 2-of-a-kind gating is enforced in the UI/engine, not here). Output pools items into `micro` (micro nodes) and `medium` (Medium Fates + Kismets), plus the single `undetermined` expansion item. This module only builds the catalog; installation onto spirit-ring nodes and the 9-micro / 4-medium slot limits + `buildSpiritEffects` substitution are handled renderer-side. Verified via `test_destiny_catalog.py` (SS12: 50 micro_fate, 41 medium_fate, 46 kismet, 54 dual_kismet).
+`tools/destiny_catalog.py::categorize_destiny` is a pure transform from the imported `_destiny.json` into installable fate items, run at serve time by `GET /api/destiny` (mirrors `prism_catalog.categorize_prism_catalog`). `_kind` classifies each by name prefix → `micro_fate` / `medium_fate` / `dual_kismet` / `kismet` / `undetermined`. `node_tier` (micro|medium) is read from the `detail[]` line `Install to replace a Micro/Medium Talent Node` via `_TIER_RE`, falling back to kind. `effect_text` joins the clean `implicit[]` lines; for `dual_kismet` the `Activates … when there are 2 of this Kismet …:` intro is stripped by `_DUAL_INTRO_RE` (the 2-of-a-kind gating is enforced in the UI/engine, not here). Output pools items into `micro` (micro nodes) and `medium` (Medium Fates + Kismets), plus the single `undetermined` expansion item. This module only builds the catalog; installation onto spirit-ring nodes and the 9-micro / 4-medium slot limits + `buildSpiritEffects` substitution are handled renderer-side. Verified via `test_destiny_catalog.py` (SS12: 50 micro_fate, 41 medium_fate, 46 kismet, 54 dual_kismet). Star Trail is modeled by renderer path src/renderer/src/api/client.ts::buildSpiritEffects: each same-tree Star Trail adds 45 percentage points of effectiveness to each Micro Fate, additive and capped at three (factor 1 + 0.45 * count). Each numeric value from each Micro Fate source is multiplied and rounded once to the nearest integer using half-up rounding; for example, 2% * 1.45 = 2.9 rounds to 3. A Star Trail in an Undetermined medium slot counts for that tree, and an Undetermined Micro Fate is affected only in the same tree. The per-source half-up rounding is an owner-approved safe assumption, not in-game verified.
 
 ## Sources
 
 - backend/tools/destiny_catalog.py
 - backend/tests/test_destiny_catalog.py
 - memory: project_fates
+- src/renderer/src/api/client.ts::buildSpiritEffects - Star Trail Micro Fate scaling and per-source rounding
+- src/renderer/src/__tests__/buildSpiritEffects.starTrail.test.ts - literal behavior coverage
+- canonical SS12/SS13 Destiny data - Kismet: Star Trail (+45 % for Micro Fates in the same Pact Branch)

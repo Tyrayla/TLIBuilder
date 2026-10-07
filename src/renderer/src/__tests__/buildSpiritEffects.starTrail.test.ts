@@ -57,18 +57,18 @@ describe('Star Trail Micro Fate effectiveness', () => {
   })
 
   it('adds 45 percentage points for one Star Trail', () => {
-    // Owner-confirmed factor is 1 + 0.45 * 1 = 1.45; canonical roll 7 * 1.45 = 10.15.
-    expect(fateTexts(oneTreeEffects(1), 'Fire Resistance')).toEqual(['+10.15 % Fire Resistance'])
+    // Owner-confirmed factor is 1 + 0.45 * 1 = 1.45; canonical roll 7 * 1.45 = 10.15, rounded to 10.
+    expect(fateTexts(oneTreeEffects(1), 'Fire Resistance')).toEqual(['+10 % Fire Resistance'])
   })
 
   it('stacks three Star Trails additively', () => {
-    // Owner-confirmed factor is 1 + 0.45 * 3 = 2.35; canonical roll 7 * 2.35 = 16.45.
-    expect(fateTexts(oneTreeEffects(3), 'Fire Resistance')).toEqual(['+16.45 % Fire Resistance'])
+    // Owner-confirmed factor is 1 + 0.45 * 3 = 2.35; canonical roll 7 * 2.35 = 16.45, rounded to 16.
+    expect(fateTexts(oneTreeEffects(3), 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
 
   it('caps effectiveness at three Star Trails', () => {
-    // A fourth Star Trail is above the confirmed cap, so 7 * 2.35 remains 16.45.
-    expect(fateTexts(oneTreeEffects(4), 'Fire Resistance')).toEqual(['+16.45 % Fire Resistance'])
+    // A fourth Star Trail is above the confirmed cap, so 7 * 2.35 = 16.45, still rounded to 16.
+    expect(fateTexts(oneTreeEffects(4), 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
 
   it('does not scale a Medium Fate alongside the Micro Fates', () => {
@@ -92,8 +92,8 @@ describe('Star Trail Micro Fate effectiveness', () => {
   it('scales both modifiers on a Micro Fate', () => {
     const effects = oneTreeEffects(1, microFate('Spell Damage', '+(14–18) % Spell Damage +(14–18) % Minion Damage'))
 
-    // The selected 18% roll is scaled for each modifier: 18 * 1.45 = 26.1.
-    expect(fateTexts(effects, 'Spell Damage')).toEqual(['+26.1 % Spell Damage +26.1 % Minion Damage'])
+    // The selected 18% roll is scaled for each modifier: 18 * 1.45 = 26.1, rounded to 26.
+    expect(fateTexts(effects, 'Spell Damage')).toEqual(['+26 % Spell Damage +26 % Minion Damage'])
   })
   it('counts a Star Trail in a same-tree Undetermined medium slot', () => {
     const undetermined: (UndeterminedFate | null)[] = [
@@ -107,8 +107,8 @@ describe('Star Trail Micro Fate effectiveness', () => {
       undetermined,
     )
 
-    // Tree A's Undetermined medium slot supplies one Trail: 7 * 1.45 = 10.15; tree B stays at 7.
-    expect(fateTexts(effects, 'Fire Resistance')).toEqual(['+10.15 % Fire Resistance', '+7 % Fire Resistance'])
+    // Tree A's Undetermined medium slot supplies one Trail: 7 * 1.45 = 10.15, rounded to 10; tree B stays at 7.
+    expect(fateTexts(effects, 'Fire Resistance')).toEqual(['+10 % Fire Resistance', '+7 % Fire Resistance'])
   })
 
   it('scales an Undetermined Micro Fate only in the tree with Star Trail', () => {
@@ -123,23 +123,53 @@ describe('Star Trail Micro Fate effectiveness', () => {
       undetermined,
     )
 
-    // Same-tree: 18 * 1.45 = 26.1. Different-tree: no Star Trail there, so the 18% roll stays 18.
-    expect(fateTexts(effects, 'Attack Damage')).toEqual(['+26.1 % Attack Damage', '+18 % Attack Damage'])
+    // Same-tree: 18 * 1.45 = 26.1, rounded to 26. Different-tree: no Star Trail there, so the 18% roll stays 18.
+    expect(fateTexts(effects, 'Attack Damage')).toEqual(['+26 % Attack Damage', '+18 % Attack Damage'])
   })
 
-  it('keeps the exact decimal product without adding a rounding step', () => {
+  it('rounds a two-percent Micro Fate result of 2.9 up to 3', () => {
+    // Owner-approved factor gives 2 * 1.45 = 2.9, which rounds to 3.
+    expect(fateTexts(oneTreeEffects(1, microFate('Two Percent', '+2 % Damage')), 'Two Percent')).toEqual(['+3 % Damage'])
+  })
+
+  it('rounds a half value up to the next integer', () => {
+    // Owner-approved factor gives 10 * 1.45 = 14.5, which rounds half up to 15.
+    expect(fateTexts(oneTreeEffects(1, microFate('Ten Percent', '+10 % Damage')), 'Ten Percent')).toEqual(['+15 % Damage'])
+  })
+
+  it('rounds each Micro Fate source before summing their results', () => {
+    const effects = buildSpiritEffects(
+      selected('tree'),
+      [spirit('tree')],
+      { '0:1': STAR_TRAIL },
+      [{
+        extraMicro: 2,
+        extraMedium: 0,
+        slots: [
+          microFate('First One Percent', '+1 % Damage'),
+          microFate('Second One Percent', '+1 % Minion Damage'),
+        ],
+      }],
+    )
+
+    // Each source gives 1 * 1.45 = 1.45, rounded down to 1: total 2. Aggregate rounding would give 2.9, rounded to 3.
+    expect(fateTexts(effects, 'First One Percent')).toEqual(['+1 % Damage'])
+    expect(fateTexts(effects, 'Second One Percent')).toEqual(['+1 % Minion Damage'])
+  })
+
+  it('rounds the exact decimal product once to the nearest integer', () => {
     const micro = microFate('Life Restored on Defeat', 'Restores (0.1–0.2) % of Life on defeat', [0.13])
     const effects = oneTreeEffects(1, micro)
 
-    // Existing fate roll is 0.13; owner-confirmed factor is 1.45, so the exact decimal product is 0.1885.
-    expect(fateTexts(effects, 'Life Restored on Defeat')).toEqual(['Restores 0.1885 % of Life on defeat'])
+    // Existing fate roll is 0.13; owner-confirmed factor is 1.45, so the 0.1885 rounds down to 0.
+    expect(fateTexts(effects, 'Life Restored on Defeat')).toEqual(['Restores 0 % of Life on defeat'])
   })
 
   it('scales the selected negative Micro Fate roll without losing its sign', () => {
     const effects = oneTreeEffects(1, microFate('Ignite Damage Mitigation', '(-36–-30) % additional Ignite Damage taken'))
 
-    // Existing best-roll behavior selects -30; applying 1.45 gives -43.5.
-    expect(fateTexts(effects, 'Ignite Damage Mitigation')).toEqual(['-43.5 % additional Ignite Damage taken'])
+    // Existing best-roll behavior selects -30; applying 1.45 gives -43.5, rounded half up to -44.
+    expect(fateTexts(effects, 'Ignite Damage Mitigation')).toEqual(['-44 % additional Ignite Damage taken'])
   })
 })
 
