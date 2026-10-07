@@ -5,6 +5,7 @@ import { getCloudSync } from '../../utils/cloudSyncRuntime'
 import { defaultSyncRecordStore } from '../../utils/syncRecords'
 import { dataVersionWarning } from '../../utils/dataVersion'
 import { useReferenceStore } from '../../store/referenceStore'
+import OutsideDismissBackdrop from '../OutsideDismissBackdrop'
 
 export interface CloudLibraryActions {
   /** Resolves with a warning to show (for example a different game data version), or null. */
@@ -51,10 +52,9 @@ export function CloudLibraryView({ builds, loading, loadError, usage, actions }:
   }
 
   return (
-    <div className="modal-backdrop" onClick={actions.close}>
-      <div className="modal-card" style={{ width: 640, maxWidth: '94vw', maxHeight: '86vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-accent" />
-        <h3 className="modal-title">Cloud library</h3>
+    <OutsideDismissBackdrop className="modal-backdrop" onDismiss={actions.close}>
+      <div className="modal-card account-modal-card" role="dialog" aria-modal="true" aria-labelledby="cloud-library-title" style={{ width: 640, maxWidth: '94vw', maxHeight: '86vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal-title" id="cloud-library-title">Cloud library</h3>
         <p style={{ padding: '0 20px 8px', margin: 0, fontSize: 13, color: 'var(--fg-faint)' }}>
           {`${usage.cloudBuilds} of ${usage.limit} cloud builds used. `}Cloud builds are private until you create a named link.
         </p>
@@ -146,7 +146,7 @@ export function CloudLibraryView({ builds, loading, loadError, usage, actions }:
           <button className="btn btn-secondary" onClick={actions.close}>Close</button>
         </div>
       </div>
-    </div>
+    </OutsideDismissBackdrop>
   )
 }
 

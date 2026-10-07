@@ -173,11 +173,14 @@ test('guest: sign-in is optional, no cloud controls, and the privacy switch work
   page.on('request', onRequest)
   await page.getByRole('button', { name: '⚙ Settings' }).click()
   const settings = page.locator('.modal-card.settings-modal-card')
-  await expect(settings).toContainText('Signing in is optional')
+  await expect(settings.getByRole('button', { name: 'Continue with Discord' })).toHaveCount(0)
   page.off('request', onRequest)
   expect(apiRequests).toEqual([])
-  await expect(settings.getByRole('button', { name: 'Continue with Discord' })).toBeVisible()
   await expect(settings).toContainText('Anonymous build statistics')
+  await expect(settings.locator('details')).not.toHaveAttribute('open', '')
+  await expect(settings.getByText(/A report contains only catalog/)).toBeHidden()
+  await settings.locator('summary').click()
+  await expect(settings.getByText(/A report contains only catalog/)).toBeVisible()
   await shot(page, '01-guest-settings')
 
   const readPref = () => page.evaluate(() => JSON.parse(localStorage.getItem('tli-ui-prefs') || '{}').state?.shareCompositionStats)
@@ -187,6 +190,9 @@ test('guest: sign-in is optional, no cloud controls, and the privacy switch work
   await row.getByRole('button', { name: 'On', exact: true }).click()
   expect(await readPref()).toBe(true)
   await settings.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Sign in' })).toContainText('Signing in is optional')
+  await page.getByRole('dialog', { name: 'Sign in' }).getByRole('button', { name: 'Close' }).click()
 })
 
 test('signed in: upload, passive status, no prompt while editing, conflict only on an explicit action', async ({ webPage: page }) => {
@@ -200,13 +206,14 @@ test('signed in: upload, passive status, no prompt while editing, conflict only 
   await expect(card().locator('.build-card-cloud')).toHaveCount(0)
 
   // Sign in through the mock (a redirect that flips a flag), which reloads the app.
-  await page.getByRole('button', { name: '⚙ Settings' }).click()
-  await page.locator('.modal-card.settings-modal-card').getByRole('button', { name: 'Continue with Discord' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Sign in' }).getByRole('button', { name: 'Continue with Discord' }).click()
   await page.waitForURL(WEB_URL)
   await waitForEngine(page)
-  await page.getByRole('button', { name: '⚙ Settings' }).click()
-  await expect(page.locator('.modal-card.settings-modal-card')).toContainText('Tyra#4472')
-  await page.locator('.modal-card.settings-modal-card').getByRole('button', { name: 'Close' }).click()
+  await page.locator('.account-menu > button').click()
+  await page.getByRole('menuitem', { name: 'Profile settings' }).click()
+  await expect(page.getByRole('dialog', { name: 'Profile settings' })).toContainText('Tyra#4472')
+  await page.getByRole('dialog', { name: 'Profile settings' }).getByRole('button', { name: 'Close' }).click()
 
   // Passive status: not uploaded; nothing was uploaded by merely opening the library.
   await expect(card().locator('.build-card-cloud')).toContainText('Not uploaded')
@@ -266,10 +273,9 @@ test('signed in: upload, passive status, no prompt while editing, conflict only 
   await expect(page.locator('.build-card', { hasText: NAME }).first().locator('.build-card-cloud')).toBeVisible()
 
   // Sign out: cloud controls disappear but every local build stays.
-  await page.getByRole('button', { name: '⚙ Settings' }).click()
-  await page.locator('.modal-card.settings-modal-card').getByRole('button', { name: 'Sign out', exact: true }).click()
-  await expect(page.locator('.modal-card.settings-modal-card').getByRole('button', { name: 'Continue with Discord' })).toBeVisible()
-  await page.locator('.modal-card.settings-modal-card').getByRole('button', { name: 'Close' }).click()
+  await page.locator('.account-menu > button').click()
+  await page.getByRole('menuitem', { name: 'Sign out', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
   await expect(page.locator('.build-card-cloud')).toHaveCount(0)
   await expect(page.locator('.build-card', { hasText: NAME }).first()).toBeVisible()
 })

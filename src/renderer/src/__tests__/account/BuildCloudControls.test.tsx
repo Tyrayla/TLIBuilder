@@ -10,12 +10,19 @@ let renderer: TestRenderer.ReactTestRenderer | null = null
 afterEach(() => { act(() => { renderer?.unmount() }); renderer = null })
 
 const cloud = (link: boolean): CloudBuild => ({
-  cloudBuildId: 'cb', name: 'n', currentRevisionId: 'r', semanticHash: 'h', updatedAt: 1, dataVersion: 's',
+  cloudBuildId: 'cb', name: 'n', currentRevisionId: 'rev_internal_123', semanticHash: 'h',
+  updatedAt: Date.UTC(2026, 9, 6) / 1000, dataVersion: 'SS13',
   namedLink: link ? { urlPath: '/u/t-1/x', slug: 'x', listed: false, revisionId: 'r' } : null,
 })
 
-const text = () => JSON.stringify(renderer!.toJSON())
-const labels = () => renderer!.root.findAllByType('button').map((b) => b.children.join(''))
+function renderedText(node: unknown): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(renderedText).join('')
+  if (node && typeof node === 'object' && 'children' in node) return renderedText((node as { children?: unknown }).children)
+  return ''
+}
+const text = () => renderedText(renderer!.toJSON())
+const labels = () => renderer!.root.findAllByType('button').map((b) => renderedText(b.children))
 
 function mount(status: string | undefined, link = false) {
   const h = { onUpload: vi.fn(), onDownload: vi.fn(), onLinkUpdate: vi.fn() }
@@ -39,18 +46,33 @@ describe('BuildCloudControls', () => {
     expect(labels()).toEqual(['Upload to cloud'])
   })
 
-  it('synced: indicator, Download available, Upload hidden', () => {
+  it('synced: readable status with one date and no internal identifiers or duplicate local date', () => {
     mount('synced')
-    expect(text()).toContain('Synced')
-    expect(labels()).toEqual(['Download from cloud'])
+    const date = new Date(cloud(false).updatedAt * 1000).toLocaleDateString()
+    const status = renderer!.root.findByProps({ className: 'build-cloud-status' })
+    expect(status.children.join('')).toBe(`Synced - ${date}`)
+    expect(text().match(new RegExp(date, 'g'))).toHaveLength(1)
+    expect(text()).not.toContain('rev_internal_123')
+    expect(text()).not.toContain('SS13')
+    expect(text()).not.toContain('Local ')
+    expect(labels()).toEqual([])
   })
 
-  it('local changes, newer cloud, and diverged use the plain-language indicators', () => {
-    for (const [status, label] of [['local-changes', 'Local changes'], ['cloud-newer', 'Newer version in cloud'], ['diverged', 'Diverged']] as const) {
+  it('offers the action for each actionable cloud status', () => {
+    for (const [status, label] of [
+      ['local-changes', 'Sync'], ['cloud-newer', 'Update from cloud'], ['diverged', 'Review conflict'],
+    ] as const) {
       mount(status)
-      expect(text()).toContain(label)
+      expect(labels()).toEqual([label])
       act(() => { renderer!.unmount() }); renderer = null
     }
+  })
+
+  it('keeps a useful cloud update detail and the explicit update action', () => {
+    mount('cloud-newer')
+    const date = new Date(cloud(false).updatedAt * 1000).toLocaleDateString()
+    expect(text()).toContain(`Cloud copy updated ${date}`)
+    expect(labels()).toContain('Update from cloud')
   })
 
   it('offers Update shared link only when the cloud build has a named link', () => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { AccountApiError, friendlyAccountError, type Account, type SignupOffer } from '../../api/accounts'
+import { AccountApiError, accountTimestamp, friendlyAccountError, type Account, type SignupOffer } from '../../api/accounts'
 import { getAccountStore, useAccountStore, type AccountStatus } from '../../store/accountStore'
 
 export interface AccountPanelActions {
@@ -31,6 +31,17 @@ function messageOf(error: unknown): string {
   return friendlyAccountError(error)
 }
 
+function DiscordSignInButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <button className="discord-sign-in" disabled={disabled} onClick={onClick}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19.7 5.1a17 17 0 0 0-4.2-1.3l-.6 1.2a15.5 15.5 0 0 0-5.8 0l-.6-1.2a17 17 0 0 0-4.2 1.3C1.7 9 1 12.8 1.4 16.6a17 17 0 0 0 5.2 2.7l1.1-1.8-1.7-.8.4-.3c3.6 1.7 7.6 1.7 11.2 0l.4.3-1.7.8 1.1 1.8a17 17 0 0 0 5.2-2.7c.5-4.4-.8-8.1-3.2-11.5ZM8.8 14.2c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
+      </svg>
+      Continue with Discord
+    </button>
+  )
+}
+
 type Gate = { kind: 'export' | 'delete'; started: boolean } | null
 
 export function AccountPanelView({ status, account, signupOffer, error, actions }: ViewProps) {
@@ -41,11 +52,33 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
   const [confirmText, setConfirmText] = useState('')
   const [gate, setGate] = useState<Gate>(null)
   const [busy, setBusy] = useState(false)
+  const [retryAt, setRetryAt] = useState<number | undefined>()
+  const [now, setNow] = useState(() => Date.now())
+  const availableAt = retryAt ?? accountTimestamp(account?.nameChangeAvailableAt)
+  const renameLocked = availableAt !== undefined && now < availableAt * 1000
+
+  useEffect(() => {
+    setRetryAt(undefined)
+  }, [account?.userId, account?.nameChangeAvailableAt])
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const update = () => {
+      setNow(Date.now())
+      if (availableAt === undefined || availableAt * 1000 <= Date.now()) return
+      // Thirty days exceeds the browser's largest timeout. Schedule the remaining time again.
+      timer = setTimeout(update, Math.min(availableAt * 1000 - Date.now(), 2_147_483_647))
+    }
+    update()
+    return () => clearTimeout(timer)
+  }, [availableAt])
 
   const guard = async (fn: () => Promise<void>): Promise<void> => {
     setBusy(true)
     setLocalError(null)
-    try { await fn() } catch (e) { setLocalError(messageOf(e)) } finally { setBusy(false) }
+    try { await fn() } catch (e) {
+      if (e instanceof AccountApiError && e.code === 'name_change_cooldown') setRetryAt(accountTimestamp(e.details.retryAt))
+      setLocalError(messageOf(e))
+    } finally { setBusy(false) }
   }
 
   // Export and delete need a Discord sign-in from the last 10 minutes. The service answers
@@ -64,15 +97,13 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
   const shownError = localError ?? error
   const errorLine = shownError ? <p role="alert" style={{ color: 'var(--err)', fontSize: 13, margin: '8px 0 0' }}>{shownError}</p> : null
 
-  if (status === 'unknown') return <section className="settings-section"><h4 className="settings-section-title">Account</h4><div className="settings-row-hint">Checking sign-in…</div></section>
+  if (status === 'unknown') return <section className="settings-section account-section"><h4 className="account-section-heading">Account</h4><div className="account-copy">Checking sign-in…</div></section>
 
   if (status === 'unavailable') {
     return (
-      <section className="settings-section">
-        <h4 className="settings-section-title">Account</h4>
-        <div className="settings-row-hint">
-          The account service could not be reached. Everything on this device still works, and local builds are not affected.
-        </div>
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Account</h4>
+        <p className="account-copy">The account service is unavailable. Local builds still work.</p>
         <div className="settings-segmented" style={{ marginTop: 8 }}>
           <button className="settings-seg-btn" disabled={busy} onClick={() => guard(actions.refresh)}>Try again</button>
         </div>
@@ -82,17 +113,13 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
 
   if (status === 'signed-out') {
     return (
-      <section className="settings-section">
-        <h4 className="settings-section-title">Account</h4>
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Account</h4>
         <div className="settings-row">
           <div className="settings-row-label">
-            <span>Cloud builds and a public name</span>
-            <span className="settings-row-hint">
-              Signing in is optional. Calculating, importing, exporting, and sharing links work without an account.
-              Signing in with Discord only reads your Discord user ID and username; it does not request your email or servers.
-            </span>
+            <span>Discord sign-in is optional. Local builds and sharing work without an account.</span>
           </div>
-          <button className="settings-seg-btn" disabled={busy} onClick={() => guard(actions.signIn)}>Continue with Discord</button>
+          <DiscordSignInButton disabled={busy} onClick={() => void guard(actions.signIn)} />
         </div>
         {errorLine}
       </section>
@@ -102,12 +129,9 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
   if (status === 'signup') {
     const value = nameTouched ? name : (signupOffer?.suggestedName ?? '')
     return (
-      <section className="settings-section">
-        <h4 className="settings-section-title">Choose your public name</h4>
-        <div className="settings-row-hint" style={{ marginBottom: 8 }}>
-          Your public name is visible to anyone who opens one of your shared builds or your profile. It does not need to
-          match your Discord username. The service adds a four-digit tag, for example Tyra#4472.
-        </div>
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Public name</h4>
+        <p className="account-copy">Choose the name shown on your profile and shared builds.</p>
         <div className="settings-row">
           <input
             className="settings-select"
@@ -126,7 +150,7 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
           >Create account</button>
         </div>
         {signupOffer?.preview && !nameTouched && (
-          <div className="settings-row-hint">You would appear as {signupOffer.preview.name}#{signupOffer.preview.tag}.</div>
+          <div className="account-copy">Your public name will be {signupOffer.preview.name}#{signupOffer.preview.tag}.</div>
         )}
         {errorLine}
       </section>
@@ -135,21 +159,23 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
 
   // signed-in
   const publicName = account ? `${account.publicName.name}#${account.publicName.tag}` : ''
+  const eligibilityMessage = availableAt === undefined
+    ? null
+    : renameLocked
+      ? `Name change available ${new Date(availableAt * 1000).toLocaleDateString()}.`
+      : 'Name change available now.'
   return (
-    <section className="settings-section">
-      <h4 className="settings-section-title">Account</h4>
-      <div className="settings-row">
-        <div className="settings-row-label">
-          <span>{publicName}</span>
-          <span className="settings-row-hint">
-            {account ? `${account.usage.cloudBuilds} of ${account.limits.cloudBuilds} cloud builds, ${account.usage.profileBuilds} of ${account.limits.profileBuilds} on your profile` : ''}
-          </span>
-        </div>
-        <button className="settings-seg-btn" onClick={actions.openCloudLibrary}>Cloud library</button>
-      </div>
-      <div className="settings-row">
+    <div className="account-sections">
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Public name</h4>
+        <div className="account-public-name">{publicName}</div>
+        {eligibilityMessage && <p className="account-eligibility">{eligibilityMessage}</p>}
+      <details className="privacy-disclosure">
+        <summary>Change public name</summary>
+        <div className="settings-row">
         <input
           className="settings-select"
+          disabled={busy || renameLocked}
           value={nameTouched ? name : (account?.publicName.name ?? '')}
           maxLength={24}
           aria-label="Change public name"
@@ -157,38 +183,48 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
         />
         <button
           className="settings-seg-btn"
-          disabled={busy || !nameTouched}
+          disabled={busy || !nameTouched || renameLocked}
           onClick={() => guard(async () => {
+            if (availableAt !== undefined && Date.now() < availableAt * 1000) return
             if (!NAME_RULE.test(name)) throw new Error(NAME_RULE_TEXT)
             await actions.rename(name)
             setNameTouched(false)
           })}
         >Save name</button>
       </div>
+      </details>
+      </section>
+
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Storage</h4>
+        <div className="account-storage-row">
+          <p className="account-copy">Cloud {account?.usage.cloudBuilds ?? 0} of {account?.limits.cloudBuilds ?? 20} · Profile {account?.usage.profileBuilds ?? 0} of {account?.limits.profileBuilds ?? 10}</p>
+          <button className="settings-seg-btn" onClick={actions.openCloudLibrary}>Cloud library</button>
+        </div>
+      </section>
+
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Sessions</h4>
       <div className="settings-row">
         <div className="settings-segmented">
           <button className="settings-seg-btn" disabled={busy} onClick={() => guard(actions.signOut)}>Sign out</button>
           <button className="settings-seg-btn" disabled={busy} onClick={() => guard(actions.signOutEverywhere)}>Sign out everywhere</button>
         </div>
       </div>
-      <div className="settings-row">
-        <div className="settings-row-label">
-          <span>Your data</span>
-          <span className="settings-row-hint">Export or delete your account. Both ask you to confirm with Discord again first.</span>
-        </div>
+      </section>
+
+      <section className="settings-section account-section">
+        <h4 className="account-section-heading">Your data</h4>
+        <p className="account-copy">Export account data or permanently delete it.</p>
         <div className="settings-segmented">
           <button className="settings-seg-btn" disabled={busy} onClick={() => runGated('export')}>Export my data</button>
           <button className="settings-seg-btn" disabled={busy} onClick={() => { setDeleting(true); setConfirmText('') }}>Delete account</button>
         </div>
-      </div>
+      </section>
 
       {deleting && (
-        <div className="settings-row-hint" style={{ border: '1px solid var(--err)', borderRadius: 6, padding: 10, marginTop: 8 }}>
-          <p style={{ margin: '0 0 8px' }}>
-            Deleting your account removes it, your sessions, your cloud builds, and your named links from the live service.
-            Backups keep deleted data until they expire, at most 6 months. Anonymous share links have no owner and stay
-            available. Your handle and link names stay reserved so they never point at someone else.
-          </p>
+        <div className="account-delete-confirmation">
+          <p>Deletion removes your account, sessions, cloud builds, and named links. Backups expire within six months. Anonymous share links remain available, and public names stay reserved.</p>
           <input
             className="settings-select"
             aria-label="Type DELETE to confirm"
@@ -204,10 +240,7 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
 
       {gate && (
         <div className="settings-row-hint" style={{ marginTop: 8 }}>
-          <p style={{ margin: '0 0 8px' }}>
-            To {gate.kind === 'export' ? 'export your data' : 'delete your account'}, confirm with Discord again. Finish in your
-            browser, then come back and continue.
-          </p>
+          <p>Confirm with Discord to {gate.kind === 'export' ? 'export your data' : 'delete your account'}, then return here to continue.</p>
           <div className="settings-segmented">
             {!gate.started ? (
               <button
@@ -226,7 +259,7 @@ export function AccountPanelView({ status, account, signupOffer, error, actions 
         </div>
       )}
       {errorLine}
-    </section>
+    </div>
   )
 }
 
@@ -240,7 +273,7 @@ function downloadJson(data: unknown): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/** Connected panel for the Settings overlay. */
+/** Account controls in the dedicated profile dialog. */
 export default function AccountPanel({ onOpenCloudLibrary }: { onOpenCloudLibrary: () => void }) {
   const status = useAccountStore((s) => s.status)
   const account = useAccountStore((s) => s.account)
@@ -259,7 +292,7 @@ export default function AccountPanel({ onOpenCloudLibrary }: { onOpenCloudLibrar
     saveExport: downloadJson,
     refresh: () => getAccountStore().getState().refresh(),
   }
-  // Opening Settings rechecks once if the first check failed; nothing polls in the background.
+  // Opening Profile rechecks once if the first check failed; nothing polls in the background.
   useEffect(() => {
     if (status === 'unavailable' || status === 'unknown') void getAccountStore().getState().refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -70,6 +70,9 @@ export function createAccountStore(deps: {
         if (account) { set({ status: 'signed-in', account, signupOffer: null, error: null }); return }
         const offer = await deps.api.getSignupOffer()
         if (offer) { set({ status: 'signup', account: null, signupOffer: offer, error: null }); return }
+        // The web OAuth return may have ended without a session (for example, Discord consent was
+        // cancelled). A stale hint would make every later load retry the same signed-out check.
+        deps.shell.setSessionHint(false)
         set({ status: 'signed-out', account: null, signupOffer: null, error: null })
       } catch {
         // Offline or the service is down: carry on as a guest without an error banner.
@@ -96,9 +99,17 @@ export function createAccountStore(deps: {
     },
 
     async rename(name) {
-      const publicName = await deps.api.renameHandle(name)
-      const current = get().account
-      if (current) set({ account: { ...current, publicName } })
+      try {
+        const { name: renamed, tag, nameChangeAvailableAt } = await deps.api.renameHandle(name)
+        const current = get().account
+        if (current) set({ account: { ...current, publicName: { name: renamed, tag }, nameChangeAvailableAt } })
+      } catch (e) {
+        const current = get().account
+        if (current && e instanceof AccountApiError && e.code === 'name_change_cooldown' && typeof e.details.retryAt === 'number') {
+          set({ account: { ...current, nameChangeAvailableAt: e.details.retryAt } })
+        }
+        throw e
+      }
     },
 
     async signOut() {

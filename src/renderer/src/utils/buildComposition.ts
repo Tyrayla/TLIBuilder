@@ -163,7 +163,7 @@ export interface StatsLike {
 export function mechanicsFromStats(stats: StatsLike): string[] {
   const found = new Set<string>()
   const offenses = [stats.offense, ...Object.values(stats.slot_offense ?? {})].filter(
-    (o): o is OffenseLike => !!o && o.supported !== false,
+    (o): o is OffenseLike => !!o && o.supported === true,
   )
   for (const o of offenses) {
     if ((o.spell_burst_count ?? 0) > 0) found.add('spell_burst')

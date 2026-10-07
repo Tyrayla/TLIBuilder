@@ -31,12 +31,19 @@ test('signed out: the bridge answers 401 locally and refuses paths outside /v1',
   expect(badMethod.status).toBe(400)
 })
 
-test('settings show the optional account section and the privacy switch for a guest', async ({ appWindow }) => {
+test('guest account entry opens Profile while Settings keeps the collapsed privacy disclosure', async ({ appWindow }) => {
+  await appWindow.getByRole('button', { name: 'Sign in', exact: true }).click()
+  const profile = appWindow.getByRole('dialog', { name: 'Sign in' })
+  await expect(profile).toContainText('Discord sign-in is optional')
+  await expect(profile.getByRole('button', { name: 'Continue with Discord' })).toBeVisible()
+  await profile.getByRole('button', { name: 'Close' }).click()
   await appWindow.getByRole('button', { name: '⚙ Settings' }).click()
   const settings = appWindow.locator('.modal-card.settings-modal-card')
-  await expect(settings).toContainText('Signing in is optional')
-  await expect(settings.getByRole('button', { name: 'Continue with Discord' })).toBeVisible()
+  await expect(settings.getByRole('button', { name: 'Continue with Discord' })).toHaveCount(0)
   await expect(settings).toContainText('Anonymous build statistics')
+  await expect(settings.getByText(/A report contains only catalog/)).toBeHidden()
+  await settings.locator('summary').click()
+  await expect(settings.getByText(/A report contains only catalog/)).toBeVisible()
   if (process.env.TLI_EVIDENCE_DIR) await appWindow.screenshot({ path: `${process.env.TLI_EVIDENCE_DIR}/electron-01-guest-settings.png` })
   await settings.getByRole('button', { name: 'Close' }).click()
   await expect(appWindow.getByRole('button', { name: '+ New Build' })).toBeVisible()

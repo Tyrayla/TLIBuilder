@@ -193,6 +193,19 @@ describe('mechanicsFromStats (derived from the engine result, never guessed)', (
     expect(mechanicsFromStats({ offense: off({ spell_burst_count: 3, supported: false }) })).toEqual([])
   })
 
+  it('requires explicit support on both main and slot offense results', () => {
+    // Deliberately omit supported, rather than using the off() fixture's true default.
+    const missing = { spell_burst_count: 2, tangle_count: 3, shadow_count: 1, channeled_max_stacks: 4, trigger_interval: 1, damage_rows: [{ kind: 'dot' }] }
+    expect(mechanicsFromStats({ offense: missing, reservation: { per_skill: [{}] } })).toEqual(['reservation'])
+    expect(mechanicsFromStats({ slot_offense: { '2': missing }, reservation: { per_skill: [{}] } })).toEqual(['reservation'])
+    expect(mechanicsFromStats({ offense: { ...missing, supported: true } })).toEqual([
+      'channeling', 'damage_over_time', 'shadow_strike', 'spell_burst', 'tangle', 'trigger',
+    ])
+    expect(mechanicsFromStats({ slot_offense: { '2': { ...missing, supported: true } } })).toEqual([
+      'channeling', 'damage_over_time', 'shadow_strike', 'spell_burst', 'tangle', 'trigger',
+    ])
+  })
+
   it('maps each baseline flag to the engine field that proves it', () => {
     expect(mechanicsFromStats({ offense: off({ spell_burst_count: 2 }) })).toEqual(['spell_burst'])
     expect(mechanicsFromStats({ offense: off({ tangle_count: 3 }) })).toEqual(['tangle'])

@@ -79,6 +79,7 @@ The service rejects a desktop start request whose port is below 1024 or whose ho
 {
   "user_id": "usr_...",
   "public_name": {"name": "Tyra", "tag": "4472"},
+  "name_change_available_at": 1800000000,
   "limits": {"cloud_builds": 20, "profile_builds": 10},
   "usage": {"cloud_builds": 3, "profile_builds": 1}
 }
@@ -89,6 +90,15 @@ Sign-up creates the account only after the user confirms the public name:
 - `GET /v1/account/signup` (session in a `pending` state) returns `{"suggested_name": "<discord username>"}` and the resulting public name preview.
 - `POST /v1/account/signup` with `{"name": "Tyra"}` creates the account and assigns the tag.
 - `POST /v1/account/handle` with `{"name": "NewName"}` renames. The previous handle keeps redirecting to the current one and is never reassigned.
+
+The service permits a public-name change once every 30 days, measured from the initial choice or the last successful rename.
+`name_change_available_at` is the next eligible time in Unix seconds. A successful rename returns this field alongside `public_name`.
+An early rename answers `409 name_change_cooldown` with `error.retry_at`, also in Unix seconds.
+The service enforces the cooldown. Profile settings display the date and disable early edits. If an older service omits the date, the app reports that eligibility is unknown and lets the service decide when the user saves.
+
+The build library has a top-right Sign in button for guests. Signed-in users have a Cloud library button and a public-name dropdown with Profile settings and Sign out.
+The profile dialog owns signup, public-name changes, quotas, account export and deletion, and Sign out everywhere.
+General Settings contains the anonymous build statistics preference. Its explanatory disclosure starts collapsed without changing the preference or reporting behavior.
 
 ## Cloud builds
 
@@ -207,6 +217,8 @@ New entity types `memory_base_stat` and `memory_revival` must be in the service'
 ### Mechanics source trace
 
 `POST /api/engine/stats` in `backend/server.py::engine_stats` returns `offense`, `slot_offense`, `minion_offense`, and `reservation`. `backend/engine/compute.py::compute` builds these fields into `StatResult` from `backend/engine/models.py`. The app's `reportAfterCalculation` in `src/renderer/src/utils/compositionReporting.ts` passes `computedStats` through `mechanicsFromStats` in `src/renderer/src/utils/buildComposition.ts`, then gives the resulting list to `createCompositionReporter.onCalculated`.
+
+Main and slot offense results must have `supported === true` before their mechanics count. An absent support flag does not prove that an offense is modeled.
 
 | Reported flag | App predicate | Engine output path and source |
 | --- | --- | --- |

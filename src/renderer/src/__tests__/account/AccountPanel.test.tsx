@@ -14,12 +14,18 @@ const ACCOUNT: Account = {
 }
 
 let renderer: TestRenderer.ReactTestRenderer | null = null
-afterEach(() => { act(() => { renderer?.unmount() }); renderer = null })
+afterEach(() => { act(() => { renderer?.unmount() }); renderer = null; vi.useRealTimers() })
 
-const text = () => JSON.stringify(renderer!.toJSON())
-const labels = () => renderer!.root.findAllByType('button').map((b) => b.children.join(''))
+function renderedText(node: unknown): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(renderedText).join('')
+  if (node && typeof node === 'object' && 'children' in node) return renderedText((node as { children?: unknown }).children)
+  return ''
+}
+const text = () => renderedText(renderer!.toJSON())
+const labels = () => renderer!.root.findAllByType('button').map((b) => renderedText(b.children))
 function click(label: string) {
-  const b = renderer!.root.findAllByType('button').find((x) => x.children.join('') === label)
+  const b = renderer!.root.findAllByType('button').find((x) => renderedText(x.children) === label)
   if (!b) throw new Error(`no button "${label}"; have ${labels().join(' | ')}`)
   return act(async () => { await b.props.onClick() })
 }
@@ -65,8 +71,8 @@ describe('AccountPanel — guest', () => {
 
   it('says plainly when the service is unreachable and keeps local use unaffected', () => {
     mount({ status: 'unavailable', account: null, actions: actions() })
-    expect(text()).toContain('could not be reached')
-    expect(text()).toContain('local')
+    expect(text()).toContain('service is unavailable')
+    expect(text()).toContain('Local')
   })
 
   it('lets the user try again instead of staying on the failure', async () => {
@@ -143,7 +149,7 @@ describe('AccountPanel — signed in', () => {
     await click('Delete account')
     expect(a.deleteAccount).not.toHaveBeenCalled()
     const t = text()
-    expect(t).toContain('6 months')
+    expect(t).toContain('six months')
     expect(t).toContain('Anonymous share links')
     const confirm = renderer!.root.findAllByType('button').find((b) => b.children.join('') === 'Permanently delete')!
     expect(confirm.props.disabled).toBe(true)
@@ -200,8 +206,56 @@ describe('PrivacySection', () => {
     expect(useUiPrefs.getState().shareCompositionStats).toBe(true)
   })
 
-  it('states that guest use creates no account record', () => {
+  it('starts the explanation collapsed without changing the reporting preference', () => {
+    useUiPrefs.setState({ shareCompositionStats: false })
     act(() => { renderer = TestRenderer.create(<PrivacySection />) })
-    expect(text()).toContain('Guest use')
+    expect(renderer!.root.findByType('details').props.open).toBeUndefined()
+    expect(renderer!.root.findByType('summary').children).toEqual(['What is shared?'])
+    expect(text()).toContain('creates no account record')
+    expect(useUiPrefs.getState().shareCompositionStats).toBe(false)
+  })
+})
+
+describe('public name cooldown', () => {
+  const edit = (name: string) => act(() => {
+    renderer!.root.findByProps({ 'aria-label': 'Change public name' }).props.onChange({ target: { value: name } })
+  })
+  const save = () => renderer!.root.findAllByType('button').find(b => b.children.join('') === 'Save name')!
+
+  it('unlocks at the service date even when the full 30-day wait exceeds one browser timeout', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000_000_000)
+    mount({ account: { ...ACCOUNT, nameChangeAvailableAt: 1_002_592_000 }, actions: actions() })
+    edit('NewName')
+    expect(save().props.disabled).toBe(true)
+    act(() => { vi.advanceTimersByTime(2_147_483_647) })
+    expect(save().props.disabled).toBe(true)
+    act(() => { vi.advanceTimersByTime(444_516_353) })
+    expect(save().props.disabled).toBe(false)
+    expect(text()).toContain('Name change available now.')
+  })
+
+  it('disables early rename with the service date and permits an eligible rename', async () => {
+    const a = actions()
+    mount({ account: { ...ACCOUNT, nameChangeAvailableAt: 4_000_000_000 }, actions: a })
+    edit('NewName')
+    expect(save().props.disabled).toBe(true)
+    expect(text()).toContain(`Name change available ${new Date(4_000_000_000_000).toLocaleDateString()}.`)
+    act(() => { renderer!.update(<AccountPanelView status="signed-in" account={{ ...ACCOUNT, nameChangeAvailableAt: 1 }} signupOffer={null} error={null} actions={a} />) })
+    expect(save().props.disabled).toBe(false)
+    await click('Save name')
+    expect(a.rename).toHaveBeenCalledWith('NewName')
+    expect(save().props.disabled).toBe(true)
+  })
+
+  it('does not infer eligibility from missing metadata and handles a cooldown rejection', async () => {
+    const a = actions({ rename: vi.fn().mockRejectedValue(new AccountApiError(409, 'name_change_cooldown', 'too early', { retryAt: 4_000_000_000 })) })
+    mount({ actions: a })
+    edit('NewName')
+    expect(text()).not.toContain('Name change available')
+    expect(save().props.disabled).toBe(false)
+    await click('Save name')
+    expect(save().props.disabled).toBe(true)
+    expect(renderer!.root.findByProps({ role: 'alert' }).children.join('')).toBe(`You can change your public name again on ${new Date(4_000_000_000_000).toLocaleString()}.`)
   })
 })

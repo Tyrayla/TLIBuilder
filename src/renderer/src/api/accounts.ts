@@ -25,6 +25,12 @@ export function friendlyAccountError(error: unknown): string {
     case 'signup_closed': return 'Sign-up is not open yet.'
     case 'name_unavailable': return 'That name is taken. Choose another.'
     case 'invalid_name': return 'Names use 2–24 letters, numbers, underscores, or dots.'
+    case 'name_change_cooldown': {
+      const retryAt = accountTimestamp(error.details.retryAt)
+      return retryAt === undefined
+        ? 'You can change your public name once every 30 days. Try again later.'
+        : `You can change your public name again on ${new Date(retryAt * 1000).toLocaleString()}.`
+    }
     case 'handle_limit_reached': return 'You have changed your public name too many times. Try a different name later.'
     case 'already_registered': return 'This Discord account already has an account.'
     case 'busy': return 'The service is busy. Try again in a moment.'
@@ -118,6 +124,13 @@ export interface Account {
   publicName: { name: string; tag: string }
   limits: { cloudBuilds: number; profileBuilds: number }
   usage: { cloudBuilds: number; profileBuilds: number }
+  /** Service-provided Unix seconds. Older services may omit this field. */
+  nameChangeAvailableAt?: number
+}
+
+export function accountTimestamp(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 8.64e12
+    ? value : undefined
 }
 
 export interface NamedLink {
@@ -185,6 +198,8 @@ function toError(result: TransportResult): AccountApiError {
   const message = typeof err.message === 'string' ? err.message : `Request failed (${result.status}).`
   const details: Record<string, unknown> = {}
   if (typeof err.current_revision_id === 'string') details.currentRevisionId = err.current_revision_id
+  const retryAt = accountTimestamp(err.retry_at ?? asRaw(err.details).retry_at)
+  if (retryAt !== undefined) details.retryAt = retryAt
   return new AccountApiError(result.status, code, message, details)
 }
 
@@ -228,6 +243,7 @@ export function createAccountsApi(transport: AccountTransport) {
         publicName: { name: String(name.name), tag: String(name.tag) },
         limits: { cloudBuilds: Number(limits.cloud_builds), profileBuilds: Number(limits.profile_builds) },
         usage: { cloudBuilds: Number(usage.cloud_builds), profileBuilds: Number(usage.profile_builds) },
+        ...(accountTimestamp(r.name_change_available_at) !== undefined ? { nameChangeAvailableAt: accountTimestamp(r.name_change_available_at) } : {}),
       }
     },
 
@@ -247,10 +263,11 @@ export function createAccountsApi(transport: AccountTransport) {
       await ok('POST', '/v1/account/signup', { name })
     },
 
-    async renameHandle(name: string): Promise<{ name: string; tag: string }> {
+    async renameHandle(name: string): Promise<{ name: string; tag: string; nameChangeAvailableAt?: number }> {
       const result = await ok('POST', '/v1/account/handle', { name })
       const r = asRaw(asRaw(result.data).public_name)
-      return { name: String(r.name), tag: String(r.tag) }
+      const availableAt = accountTimestamp(asRaw(result.data).name_change_available_at)
+      return { name: String(r.name), tag: String(r.tag), ...(availableAt !== undefined ? { nameChangeAvailableAt: availableAt } : {}) }
     },
 
     async signOut(): Promise<void> {

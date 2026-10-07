@@ -15,7 +15,11 @@ import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
-import { getAccountStore } from './store/accountStore'
+import { getAccountStore, useAccountStore } from './store/accountStore'
+import { getCloudSync } from './utils/cloudSyncRuntime'
+import { defaultSyncRecordStore } from './utils/syncRecords'
+import { saveLocalThenMaybeUpload, shouldDismissSaveDialog, type SaveDestination } from './utils/saveAndSync'
+import type { UploadOutcome } from './utils/cloudSync'
 import { AUTH_ERROR_MESSAGE, consumeAuthReturn } from './utils/authReturn'
 import { isReportingRuntime, startCompositionReporting } from './utils/compositionReporting'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
@@ -57,6 +61,21 @@ function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
     if (!slots[i]) return i
   }
   return 0
+}
+
+function uploadMessage(outcome: UploadOutcome): string {
+  switch (outcome.kind) {
+    case 'uploaded': return 'Cloud upload complete.'
+    case 'unchanged': return 'Your cloud copy is already up to date.'
+    case 'link-prompt': return `A cloud build named “${outcome.cloudBuildName}” already exists. Open Cloud Library to link it.`
+    case 'shorten-name': return 'Shorten the build name before uploading.'
+    case 'quota-reached': return 'Your cloud storage is full. The local save is safe.'
+    case 'cloud-newer': return 'A newer cloud version exists. Review it in Cloud Library.'
+    case 'cloud-missing': return 'The cloud copy is missing. Upload it again from Cloud Library.'
+    case 'sign-in-required': return 'Sign in before uploading.'
+    case 'conflict': return 'The local and cloud versions differ. Review the conflict in Cloud Library.'
+    case 'error': return outcome.message || 'Cloud upload failed. The local save is safe.'
+  }
 }
 
 const genLoadoutId = (): string =>
@@ -235,6 +254,9 @@ function App() {
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
   const [unsavedSaving, setUnsavedSaving] = useState(false)
+  const [unsavedSaveDestination, setUnsavedSaveDestination] = useState<SaveDestination>('local-only')
+  const [unsavedSaveFeedback, setUnsavedSaveFeedback] = useState('')
+  const [unsavedSaveCloudOffer, setUnsavedSaveCloudOffer] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateDownloading, setUpdateDownloading] = useState(false)
   const [updateProgress, setUpdateProgress] = useState(0)
@@ -244,6 +266,10 @@ function App() {
   const [saveModalMode, setSaveModalMode] = useState<'save' | 'save-as'>('save')
   const [saveModalName, setSaveModalName] = useState('')
   const [saveModalSaving, setSaveModalSaving] = useState(false)
+  const [saveDestination, setSaveDestination] = useState<SaveDestination>('local-only')
+  const [saveCloudOffer, setSaveCloudOffer] = useState(false)
+  const [saveFeedback, setSaveFeedback] = useState('')
+  const accountUserId = useAccountStore(s => s.account?.userId ?? null)
   const loadedVersionRef = useRef(0)
   // Build-folders: which folder a NEW build (started via BuildSelectScreen's "+ New Build" from inside a
   // folder) should be assigned into on its first successful save. Cleared once consumed (or on opening an
@@ -424,6 +450,16 @@ function App() {
       if (unsavedPromptOpen) return
       pendingUnsavedActionRef.current = action
       setUnsavedSaveName(useBuildStore.getState().buildName)
+      setUnsavedSaveDestination('local-only')
+      setUnsavedSaveFeedback('')
+      setUnsavedSaveCloudOffer(false)
+      const currentBuildId = useBuildStore.getState().buildId
+      if (accountUserId) {
+        if (!currentBuildId) setUnsavedSaveCloudOffer(true)
+        else void defaultSyncRecordStore().find(currentBuildId, accountUserId)
+          .then(record => setUnsavedSaveCloudOffer(!record))
+          .catch(() => setUnsavedSaveCloudOffer(false))
+      }
       setUnsavedPromptOpen(true)
     } else {
       action()
@@ -435,16 +471,27 @@ function App() {
 
   const goToBuildSelect = () => requireSavePrompt(() => setScreen('build-select'))
 
+  const finishUnsavedSave = () => {
+    setUnsavedPromptOpen(false)
+    const action = pendingUnsavedActionRef.current
+    pendingUnsavedActionRef.current = null
+    action?.()
+  }
+
   const handleUnsavedSave = async () => {
     const s = useBuildStore.getState()
     const name = s.buildId ? s.buildName : (unsavedSaveName.trim() || 'Untitled')
     setUnsavedSaving(true)
     try {
-      await saveBuild(name)
-      setUnsavedPromptOpen(false)
-      const action = pendingUnsavedActionRef.current
-      pendingUnsavedActionRef.current = null
-      action?.()
+      const saved = await saveBuild(name)
+      if (unsavedSaveDestination === 'local-and-cloud' && saved.id) {
+        const outcome = await getCloudSync().upload(saved.id)
+        if (outcome.kind !== 'uploaded' && outcome.kind !== 'unchanged') {
+          setUnsavedSaveFeedback(`Saved locally. ${uploadMessage(outcome)}`)
+          return
+        }
+      }
+      finishUnsavedSave()
     } catch { /* save failed — leave prompt open */ }
     finally { setUnsavedSaving(false) }
   }
@@ -814,6 +861,7 @@ function App() {
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     if (!build.id && saved.id) await assignNewBuildToFolder(saved.id)
+    return saved
   }
 
   const saveAsBuild = async (name: string) => {
@@ -826,35 +874,61 @@ function App() {
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     if (saved.id) await assignNewBuildToFolder(saved.id)
+    return saved
+  }
+
+  const openSaveModal = async (mode: 'save' | 'save-as') => {
+    const current = useBuildStore.getState()
+    setSaveModalName(current.buildName)
+    setSaveModalMode(mode)
+    setSaveDestination('local-only')
+    setSaveFeedback('')
+    setSaveCloudOffer(false)
+    if (accountUserId) {
+      if (mode === 'save-as' || !current.buildId) setSaveCloudOffer(true)
+      else {
+        try {
+          const record = await defaultSyncRecordStore().find(current.buildId, accountUserId)
+          setSaveCloudOffer(!record)
+        } catch { /* Avoid creating a second cloud copy when local sync metadata is unavailable. */ }
+      }
+    }
+    setSaveModalOpen(true)
   }
 
   const handleSidebarSave = () => {
     const s = useBuildStore.getState()
     if (s.buildId) {
-      saveBuild(s.buildName).catch(() => {})
+      if (accountUserId) {
+        void defaultSyncRecordStore().find(s.buildId, accountUserId).then(record => {
+          if (record) saveBuild(s.buildName).catch(() => {})
+          else void openSaveModal('save')
+        }).catch(() => { void openSaveModal('save') })
+      } else saveBuild(s.buildName).catch(() => {})
     } else {
-      setSaveModalName(s.buildName)
-      setSaveModalMode('save')
-      setSaveModalOpen(true)
+      void openSaveModal('save')
     }
   }
 
   const handleSidebarSaveAs = () => {
-    setSaveModalName(useBuildStore.getState().buildName)
-    setSaveModalMode('save-as')
-    setSaveModalOpen(true)
+    void openSaveModal('save-as')
   }
 
   const handleSaveModalConfirm = async () => {
     const name = saveModalName.trim() || 'Untitled'
     setSaveModalSaving(true)
     try {
-      if (saveModalMode === 'save-as') {
-        await saveAsBuild(name)
-      } else {
-        await saveBuild(name)
+      const result = await saveLocalThenMaybeUpload(
+        () => saveModalMode === 'save-as' ? saveAsBuild(name) : saveBuild(name),
+        saveDestination,
+        id => getCloudSync().upload(id),
+      )
+      if (shouldDismissSaveDialog(saveDestination, result.upload)) {
+        setSaveModalOpen(false)
+        setSaveFeedback('')
+      } else if (result.upload) {
+        setSaveFeedback(`Saved locally. ${uploadMessage(result.upload)}`)
       }
-      setSaveModalOpen(false)
     } catch { /* leave modal open */ }
     finally { setSaveModalSaving(false) }
   }
@@ -951,7 +1025,7 @@ function App() {
           buildName={buildName}
           getBuildPayload={getBuildPayload}
           onImport={openBuild}
-          onSaveFirst={saveBuild}
+          onSaveFirst={async name => { await saveBuild(name) }}
           onClose={() => setScreen('build-overview')}
           asScreen
         />
@@ -1103,9 +1177,17 @@ function App() {
                 autoFocus
               />
             )}
+            {unsavedSaveCloudOffer && accountUserId && (
+              <fieldset className="save-destination-options">
+                <legend>Save destination</legend>
+                <label><input type="radio" checked={unsavedSaveDestination === 'local-only'} onChange={() => setUnsavedSaveDestination('local-only')} /> Local only</label>
+                <label><input type="radio" checked={unsavedSaveDestination === 'local-and-cloud'} onChange={() => setUnsavedSaveDestination('local-and-cloud')} /> Local and cloud</label>
+              </fieldset>
+            )}
+            {unsavedSaveFeedback && <p role="status" className="save-feedback">{unsavedSaveFeedback}</p>}
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={handleUnsavedSave} disabled={unsavedSaving}>
-                {unsavedSaving ? 'Saving…' : 'Save'}
+              <button className="btn btn-primary" onClick={unsavedSaveFeedback ? finishUnsavedSave : handleUnsavedSave} disabled={unsavedSaving}>
+                {unsavedSaving ? 'Saving…' : unsavedSaveFeedback ? 'Continue' : 'Save'}
               </button>
               <button className="btn btn-danger" onClick={handleUnsavedDiscard}>Discard</button>
               <button className="btn btn-secondary" onClick={() => { setUnsavedPromptOpen(false); pendingUnsavedActionRef.current = null }}>Cancel</button>
@@ -1127,9 +1209,17 @@ function App() {
               onKeyDown={e => e.key === 'Enter' && handleSaveModalConfirm()}
               autoFocus
             />
+            {saveCloudOffer && accountUserId && (
+              <fieldset className="save-destination-options">
+                <legend>Save destination</legend>
+                <label><input type="radio" checked={saveDestination === 'local-only'} onChange={() => setSaveDestination('local-only')} /> Local only</label>
+                <label><input type="radio" checked={saveDestination === 'local-and-cloud'} onChange={() => setSaveDestination('local-and-cloud')} /> Local and cloud</label>
+              </fieldset>
+            )}
+            {saveFeedback && <p role="status" className="save-feedback">{saveFeedback}</p>}
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={handleSaveModalConfirm} disabled={saveModalSaving}>
-                {saveModalSaving ? 'Saving…' : 'Save'}
+                {saveModalSaving ? 'Saving…' : saveFeedback ? 'Retry upload' : 'Save'}
               </button>
               <button className="btn btn-secondary" onClick={() => setSaveModalOpen(false)}>Cancel</button>
             </div>

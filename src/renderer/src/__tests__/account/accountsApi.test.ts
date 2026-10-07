@@ -82,6 +82,28 @@ const transportReturning = (status: number, data: unknown): AccountTransport => 
 })
 
 describe('accounts api', () => {
+  it('maps service cooldown metadata on account reads and successful rename', async () => {
+    const api = createAccountsApi(transportReturning(200, {
+      user_id: 'u', public_name: { name: 'New', tag: '1234' }, name_change_available_at: 1_800_000_000,
+      limits: { cloud_builds: 20, profile_builds: 10 }, usage: { cloud_builds: 2, profile_builds: 1 },
+    }))
+    expect(await api.getAccount()).toEqual({
+      userId: 'u', publicName: { name: 'New', tag: '1234' }, nameChangeAvailableAt: 1_800_000_000,
+      limits: { cloudBuilds: 20, profileBuilds: 10 }, usage: { cloudBuilds: 2, profileBuilds: 1 },
+    })
+    expect(await api.renameHandle('New')).toEqual({ name: 'New', tag: '1234', nameChangeAvailableAt: 1_800_000_000 })
+  })
+
+  it('preserves retry_at from a service error and tolerates missing or malformed timestamps', async () => {
+    for (const fields of [{ retry_at: 1_800_000_000 }, { details: { retry_at: 1_800_000_000 } }]) {
+      const api = createAccountsApi(transportReturning(409, { error: { code: 'name_change_cooldown', message: 'early', ...fields } }))
+      await expect(api.renameHandle('New')).rejects.toMatchObject({ code: 'name_change_cooldown', details: { retryAt: 1_800_000_000 } })
+    }
+    for (const timestamp of [undefined, null, '1800000000', -1, Infinity]) {
+      const older = createAccountsApi(transportReturning(200, { public_name: { name: 'New', tag: '1234' }, name_change_available_at: timestamp }))
+      expect(await older.renameHandle('New')).toEqual({ name: 'New', tag: '1234' })
+    }
+  })
   it('maps an account response', async () => {
     const api = createAccountsApi(transportReturning(200, {
       user_id: 'usr_1',

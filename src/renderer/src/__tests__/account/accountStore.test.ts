@@ -68,6 +68,15 @@ describe('account store — guests make no account request', () => {
 })
 
 describe('account store', () => {
+  it('stores cooldown dates after successful rename and server rejection', async () => {
+    const { store, api } = setup({ getAccount: vi.fn().mockResolvedValue(ACCOUNT), renameHandle: vi.fn().mockResolvedValue({ name: 'New', tag: '4472', nameChangeAvailableAt: 1_800_000_000 }) })
+    await store.getState().refresh()
+    await store.getState().rename('New')
+    expect(store.getState().account).toEqual({ ...ACCOUNT, publicName: { name: 'New', tag: '4472' }, nameChangeAvailableAt: 1_800_000_000 })
+    api.renameHandle.mockRejectedValue(new AccountApiError(409, 'name_change_cooldown', 'early', { retryAt: 1_900_000_000 }))
+    await expect(store.getState().rename('Later')).rejects.toMatchObject({ code: 'name_change_cooldown' })
+    expect(store.getState().account).toEqual({ ...ACCOUNT, publicName: { name: 'New', tag: '4472' }, nameChangeAvailableAt: 1_900_000_000 })
+  })
   it('starts unknown and treats a guest as signed out', async () => {
     const { store } = setup()
     expect(store.getState().status).toBe('unknown')
@@ -88,6 +97,13 @@ describe('account store', () => {
     await store.getState().refresh()
     expect(store.getState().status).toBe('signup')
     expect(store.getState().signupOffer?.suggestedName).toBe('tyra_d')
+  })
+
+  it('clears a stale web session hint when OAuth returns without an account or signup offer', async () => {
+    const { store, shell } = setup()
+    await store.getState().refresh()
+    expect(store.getState().status).toBe('signed-out')
+    expect(shell.setSessionHint).toHaveBeenLastCalledWith(false)
   })
 
   it('stays usable as a guest when the service is unreachable', async () => {
