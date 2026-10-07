@@ -15,6 +15,29 @@ import { describe, it, expect } from 'vitest'
 import { isSupportCompatible, registerSkillTagVocabulary } from '../api/client'
 import type { SkillItem, EquippedSkill } from '../api/client'
 
+describe('SS13 reported support pairings', () => {
+  // Canonical SS13 _skills.json restrictions and tags.
+  const willpower = skillItem({ item_id: 'willpower', name: 'Willpower', skill_tags: ['Support'],
+    description_lines: ['Supports Attack and Spell Skills.'] })
+  const periodic = skillItem({ item_id: 'periodic_burst', name: 'Periodic Burst', skill_tags: ['Support', 'Mobility'],
+    description_lines: ['Support Mobility Skills.'] })
+  const spiral = skillItem({ item_id: 'spiral_strike', name: 'Spiral Strike',
+    skill_tags: ['Attack', 'Erosion', 'Area', 'Melee', 'Mobility'] })
+
+  it('allows Willpower on attacks and spells, but not a pure buff', () => {
+    registerSkillTagVocabulary([...REAL_SKILLS, spiral, willpower, periodic])
+    expect(isSupportCompatible(willpower, asParent(THUNDER_SPIKE), false, 1)).toBe(true)
+    expect(isSupportCompatible(willpower, asParent(AEGIS_OF_FIRE), false, 1)).toBe(true)
+    expect(isSupportCompatible(willpower, asParent(FIRE_LIZARD_DISTILLATE), true, 1)).toBe(false)
+  })
+
+  it('accepts singular Support and still requires Mobility', () => {
+    registerSkillTagVocabulary([...REAL_SKILLS, spiral, willpower, periodic])
+    expect(isSupportCompatible(periodic, asParent(spiral), false, 1)).toBe(true)
+    expect(isSupportCompatible(periodic, asParent(THUNDER_SPIKE), false, 1)).toBe(false)
+  })
+})
+
 function skillItem(partial: Pick<SkillItem, 'item_id' | 'name' | 'skill_tags'> & { description_lines?: string[] }): SkillItem {
   const description_lines = partial.description_lines ?? []
   return {
