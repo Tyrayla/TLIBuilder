@@ -16,6 +16,7 @@ describe('dataVersionWarning', () => {
     expect(dataVersionWarning(null, 'SS13')).toBeNull()
     expect(dataVersionWarning('', 'SS13')).toBeNull()
     expect(dataVersionWarning(undefined, 'SS13')).toBeNull()
+    expect(dataVersionWarning('unknown', 'SS13')).toBeNull()
   })
 
   it('still names the saved version when the current one is not loaded yet', () => {

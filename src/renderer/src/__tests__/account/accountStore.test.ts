@@ -31,7 +31,7 @@ function setup(over: Partial<Record<string, unknown>> = {}, hint = true) {
     openReauth: vi.fn().mockResolvedValue({ ok: true }),
   }
   const records = { removeForAccount: vi.fn().mockResolvedValue(undefined) }
-  const store = createAccountStore({ api: api as never, shell, records })
+  const store = createAccountStore({ api: api as never, shell, records, serviceBase: 'https://api.example.test' })
   return { store, api, shell, records }
 }
 
@@ -188,6 +188,21 @@ describe('account store', () => {
     await store.getState().refresh()
     expect((await store.getState().reauth()).ok).toBe(true)
     expect(shell.openReauth).toHaveBeenCalledWith('https://api.example.test/auth/discord/start?ticket=1')
+  })
+
+  it.each([
+    ['https://evil.example/auth/discord/start?ticket=1', 'different origin'],
+    ['http://api.example.test/auth/discord/start?ticket=1', 'different protocol'],
+    ['javascript:alert(1)', 'non-HTTP URL'],
+  ])('refuses a reauth URL with a %s', async (url) => {
+    const { store, api, shell } = setup({
+      getAccount: vi.fn().mockResolvedValue(ACCOUNT),
+      startReauth: vi.fn().mockResolvedValue(url),
+    })
+    await store.getState().refresh()
+    expect(await store.getState().reauth()).toEqual({ ok: false, error: 'The service returned an invalid reauthentication URL.' })
+    expect(api.startReauth).toHaveBeenCalledTimes(1)
+    expect(shell.openReauth).not.toHaveBeenCalled()
   })
 
   it('exports through the service and returns its data untouched', async () => {

@@ -12,7 +12,7 @@ export function toWireVersion(version: string | null | undefined): string {
 }
 
 export function dataVersionWarning(saved: string | null | undefined, current: string | null): string | null {
-  if (!saved) return null
+  if (!saved || saved === 'unknown') return null
   if (current && toWireVersion(saved) === toWireVersion(current)) return null
   const have = current ? `This app has ${current}. ` : ''
   return `This build was saved under game data version ${saved}. ${have}Some items, talents, or effects may have changed, and anything that no longer exists is handled as an unknown item.`

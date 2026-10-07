@@ -72,17 +72,16 @@ const FAILURE_PAGE = '<!doctype html><meta charset="utf-8"><title>TLI Builder</t
 
 export interface LoopbackListener {
   port: number
-  code: Promise<string>
+  nextCode(): Promise<{ loginCode: string; accept(): void; reject(): void }>
   close(): void
 }
 
 export function startLoopbackListener(opts: { timeoutMs: number }): Promise<LoopbackListener> {
   return new Promise((resolveStart, rejectStart) => {
     let settled = false
-    let resolveCode!: (code: string) => void
+    let waiting = false
+    let resolveCode!: (candidate: { loginCode: string; accept(): void; reject(): void }) => void
     let rejectCode!: (error: Error) => void
-    const code = new Promise<string>((res, rej) => { resolveCode = res; rejectCode = rej })
-    code.catch(() => { /* surfaced to the awaiting caller */ })
 
     const server: Server = createServer((req, res) => {
       const reply = (status: number, body: string): void => {
@@ -104,18 +103,32 @@ export function startLoopbackListener(opts: { timeoutMs: number }): Promise<Loop
         if (!FAILURE_REASON.test(failure)) { reply(400, 'Bad request'); return }
         if (settled) { reply(404, 'Not found'); return }
         settled = true
-        res.once('finish', () => finish())
         reply(200, FAILURE_PAGE)
         rejectCode(new Error(`Sign-in did not complete (${failure}).`))
+        finish()
         return
       }
       const loginCode = url.searchParams.get('login_code') ?? ''
       if (!LOGIN_CODE.test(loginCode)) { reply(400, 'Bad request'); return }
       if (settled) { reply(404, 'Not found'); return }
-      settled = true
-      res.once('finish', () => finish())
-      reply(200, CLOSE_PAGE)
-      resolveCode(loginCode)
+      if (!waiting) { reply(409, 'Sign-in callback was not expected'); return }
+      waiting = false
+      let handled = false
+      resolveCode({
+        loginCode,
+        accept() {
+          if (handled || settled) return
+          handled = true
+          settled = true
+          reply(200, CLOSE_PAGE)
+          finish()
+        },
+        reject() {
+          if (handled || settled) return
+          handled = true
+          reply(400, FAILURE_PAGE)
+        },
+      })
     })
 
     const timer = setTimeout(() => {
@@ -137,9 +150,19 @@ export function startLoopbackListener(opts: { timeoutMs: number }): Promise<Loop
       if (!address || typeof address === 'string') { rejectStart(new Error('Could not open a loopback port.')); return }
       resolveStart({
         port: address.port,
-        code,
+        nextCode() {
+          if (settled) return Promise.reject(new Error('Sign-in listener is closed.'))
+          if (waiting) return Promise.reject(new Error('Already waiting for a sign-in callback.'))
+          waiting = true
+          const result = new Promise<{ loginCode: string; accept(): void; reject(): void }>((resolveCodeResult, rejectCodeResult) => {
+            resolveCode = resolveCodeResult
+            rejectCode = rejectCodeResult
+          })
+          result.catch(() => { /* surfaced to the awaiting caller */ })
+          return result
+        },
         close() {
-          if (!settled) { settled = true; rejectCode(new Error('Sign-in cancelled.')) }
+          if (!settled) { settled = true; if (waiting) rejectCode(new Error('Sign-in cancelled.')) }
           finish()
         },
       })
@@ -195,21 +218,38 @@ export function createAccountAuth(deps: {
       start.searchParams.set('client', 'desktop')
       start.searchParams.set('port', String(listener.port))
       start.searchParams.set('code_challenge', challenge)
+      let nextCode = listener.nextCode()
       await deps.openBrowser(start.toString())
-      const loginCode = await listener.code
-      const res = await deps.fetchImpl(`${apiBase}/auth/desktop/exchange`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'omit',
-        body: JSON.stringify({ login_code: loginCode, code_verifier: verifier }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      })
-      const data = (await readJson(res)) as { session_token?: unknown } | null
-      if (!res.ok || typeof data?.session_token !== 'string' || !data.session_token) {
-        return { ok: false, error: 'Sign-in could not be completed.' }
+      while (true) {
+        const candidate = await nextCode
+        let data: { session_token?: unknown; error?: { code?: unknown } } | null = null
+        let res: Response
+        try {
+          res = await deps.fetchImpl(`${apiBase}/auth/desktop/exchange`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'omit',
+            body: JSON.stringify({ login_code: candidate.loginCode, code_verifier: verifier }),
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          })
+          data = (await readJson(res)) as { session_token?: unknown; error?: { code?: unknown } } | null
+        } catch {
+          candidate.reject()
+          return { ok: false, error: 'Sign-in could not be completed.' }
+        }
+        if (!res.ok || typeof data?.session_token !== 'string' || !data.session_token) {
+          if (data?.error?.code === 'invalid_login_code') {
+            nextCode = listener.nextCode()
+            candidate.reject()
+            continue
+          }
+          candidate.reject()
+          return { ok: false, error: 'Sign-in could not be completed.' }
+        }
+        deps.vault.save(data.session_token)
+        candidate.accept()
+        return { ok: true }
       }
-      deps.vault.save(data.session_token)
-      return { ok: true }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : 'Sign-in failed.' }
     } finally {
@@ -231,6 +271,7 @@ export function createAccountAuth(deps: {
         method: verb,
         headers,
         credentials: 'omit',
+        redirect: 'error',
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })

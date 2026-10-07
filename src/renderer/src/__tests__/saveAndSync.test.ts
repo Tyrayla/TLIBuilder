@@ -24,6 +24,31 @@ describe('saveLocalThenMaybeUpload', () => {
     expect(upload).toHaveBeenCalledWith('local-1')
   })
 
+  it('retries the saved build upload without running the local Save As again', async () => {
+    const events: string[] = []
+    let localSaves = 0
+    const saveLocal = async () => {
+      localSaves += 1
+      events.push('save:local-1')
+      return { id: 'local-1', name: 'A Build' }
+    }
+    const upload = vi.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ kind: 'uploaded', build: { cloudBuildId: 'cloud-1' } })
+    const first = await saveLocalThenMaybeUpload(saveLocal, 'local-and-cloud', async (id) => {
+      events.push(`upload:${id}`)
+      return upload(id)
+    })
+    const retry = await saveLocalThenMaybeUpload(saveLocal, 'local-and-cloud', async (id) => {
+      events.push(`upload:${id}`)
+      return upload(id)
+    }, first.saved)
+
+    expect(events).toEqual(['save:local-1', 'upload:local-1', 'upload:local-1'])
+    expect(localSaves).toBe(1)
+    expect(retry).toEqual({ saved: { id: 'local-1', name: 'A Build' }, upload: { kind: 'uploaded', build: { cloudBuildId: 'cloud-1' } } })
+  })
+
   it('does not upload when the local-only option is selected', async () => {
     const upload = vi.fn()
     const result = await saveLocalThenMaybeUpload(

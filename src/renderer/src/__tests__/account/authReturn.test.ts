@@ -22,6 +22,12 @@ describe('consumeAuthReturn', () => {
     expect(r.cleanedHref).toBe('https://app.example.test/')
   })
 
+  it('treats inherited object properties as unknown auth errors', () => {
+    const r = consumeAuthReturn('https://app.example.test/?auth_error=constructor')
+    expect(r.authError).toBe('unknown')
+    expect(AUTH_ERROR_MESSAGE[r.authError!]).toBe('Sign-in did not complete. Try again.')
+  })
+
   it('leaves an unrelated URL alone', () => {
     const r = consumeAuthReturn('https://app.example.test/?share=abc')
     expect(r).toEqual({ authError: null, reauthOk: false, cleanedHref: null })

@@ -16,7 +16,7 @@ export function consumeAuthReturn(href: string): { authError: string | null; rea
   const rawReauth = url.searchParams.get('reauth')
   if (rawError === null && rawReauth === null) return { authError: null, reauthOk: false, cleanedHref: null }
 
-  const authError = rawError === null ? null : (rawError in AUTH_ERROR_MESSAGE && rawError !== 'unknown' ? rawError : 'unknown')
+  const authError = rawError === null ? null : (Object.hasOwn(AUTH_ERROR_MESSAGE, rawError) && rawError !== 'unknown' ? rawError : 'unknown')
   url.searchParams.delete('auth_error')
   url.searchParams.delete('reauth')
   return { authError, reauthOk: rawReauth === 'ok', cleanedHref: url.toString() }

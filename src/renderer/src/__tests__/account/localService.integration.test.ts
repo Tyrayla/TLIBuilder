@@ -72,14 +72,20 @@ class Device implements AccountTransport {
 
   /** Stand-in Discord sign-in, exactly the browser's redirects. */
   async signIn(username: string, opts: { reauth?: boolean } = {}): Promise<string> {
-    const start = await patient(() => this.raw('/auth/discord/start?client=web', { origin: null }))
-    expect(start.status).toBe(302)
-    const authorize = new URL(start.headers.get('location')!)
+    let authorize: URL
+    if (opts.reauth) {
+      const started = await this.request('POST', '/v1/account/reauth')
+      expect(started.ok).toBe(true)
+      authorize = new URL(String((started.data as { authorize_url: string }).authorize_url))
+    } else {
+      const start = await patient(() => this.raw('/auth/discord/start?client=web', { origin: null }))
+      expect(start.status).toBe(302)
+      authorize = new URL(start.headers.get('location')!)
+    }
     const approve = await fetch(`${SERVICE}/dev/discord/approve?state=${encodeURIComponent(authorize.searchParams.get('state')!)}&username=${username}`, { redirect: 'manual' })
     const callback = new URL(approve.headers.get('location')!)
     const done = await patient(() => this.raw(`${callback.pathname}${callback.search}`, { origin: null }))
     expect(done.status).toBe(302)
-    void opts
     this.csrf = null
     return done.headers.get('location') ?? ''
   }
@@ -222,9 +228,15 @@ run('app clients against the real local account service', () => {
     // A client-supplied user id is never read: the owner still sees its build after B's attempts.
     expect((await a.api.listCloudBuilds())).toHaveLength(1)
 
-    await b.api.createCloudBuild({ ...upload('Private B', codeOf({ notes: 'b-secret' })), allowDuplicate: false })
-    const exportB = JSON.stringify(await error(b.api.exportAccount()).catch(() => null))
-    void exportB
+    const bBuild = await b.api.createCloudBuild({ ...upload('Private B', codeOf({ notes: 'b-secret' })), allowDuplicate: false })
+    if (bBuild.kind !== 'created') throw new Error('expected B build to be created')
+    await b.device.signIn(b.username, { reauth: true })
+    const exported = await b.api.exportAccount()
+    const exportText = JSON.stringify(exported)
+    expect(exportText).toContain('Private B')
+    expect(exportText).toContain(bBuild.build.currentRevisionId)
+    expect(exportText).not.toContain('Private A')
+    expect(exportText).not.toContain(created.build.currentRevisionId)
   })
 
   it('a handle with the same name gets a different tag and a renamed handle redirects', async () => {

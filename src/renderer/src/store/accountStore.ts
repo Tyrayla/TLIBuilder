@@ -12,6 +12,7 @@ import {
   type SignupOffer,
 } from '../api/accounts'
 import { defaultSyncRecordStore } from '../utils/syncRecords'
+import { getShareBase } from '../api/share'
 
 export type AccountStatus = 'unknown' | 'signed-out' | 'signup' | 'signed-in' | 'unavailable'
 
@@ -49,6 +50,7 @@ export function createAccountStore(deps: {
   api: AccountsApi
   shell: AccountShell
   records: { removeForAccount: (userId: string) => Promise<void> }
+  serviceBase?: string
 }): StoreApi<AccountState> {
   return createStore<AccountState>((set, get) => ({
     status: 'unknown',
@@ -127,7 +129,17 @@ export function createAccountStore(deps: {
     },
 
     async reauth() {
-      const url = await deps.api.startReauth()
+      let url: string
+      try {
+        url = await deps.api.startReauth()
+        const target = new URL(url)
+        const base = new URL(deps.serviceBase ?? getShareBase())
+        if (target.origin !== base.origin || target.protocol !== base.protocol || target.username || target.password) {
+          return { ok: false, error: 'The service returned an invalid reauthentication URL.' }
+        }
+      } catch {
+        return { ok: false, error: 'The service returned an invalid reauthentication URL.' }
+      }
       return deps.shell.openReauth(url)
     },
 

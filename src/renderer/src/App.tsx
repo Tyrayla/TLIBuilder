@@ -269,6 +269,7 @@ function App() {
   const [saveDestination, setSaveDestination] = useState<SaveDestination>('local-only')
   const [saveCloudOffer, setSaveCloudOffer] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState('')
+  const [retrySavedBuild, setRetrySavedBuild] = useState<Awaited<ReturnType<typeof saveBuild>> | null>(null)
   const accountUserId = useAccountStore(s => s.account?.userId ?? null)
   const loadedVersionRef = useRef(0)
   // Build-folders: which folder a NEW build (started via BuildSelectScreen's "+ New Build" from inside a
@@ -879,6 +880,7 @@ function App() {
 
   const openSaveModal = async (mode: 'save' | 'save-as') => {
     const current = useBuildStore.getState()
+    setRetrySavedBuild(null)
     setSaveModalName(current.buildName)
     setSaveModalMode(mode)
     setSaveDestination('local-only')
@@ -922,11 +924,14 @@ function App() {
         () => saveModalMode === 'save-as' ? saveAsBuild(name) : saveBuild(name),
         saveDestination,
         id => getCloudSync().upload(id),
+        retrySavedBuild ?? undefined,
       )
       if (shouldDismissSaveDialog(saveDestination, result.upload)) {
         setSaveModalOpen(false)
         setSaveFeedback('')
+        setRetrySavedBuild(null)
       } else if (result.upload) {
+        setRetrySavedBuild(result.saved)
         setSaveFeedback(`Saved locally. ${uploadMessage(result.upload)}`)
       }
     } catch { /* leave modal open */ }
@@ -1205,7 +1210,7 @@ function App() {
               type="text"
               placeholder="Build name…" maxLength={50}
               value={saveModalName}
-              onChange={e => setSaveModalName(e.target.value)}
+              onChange={e => { setSaveModalName(e.target.value); setRetrySavedBuild(null); setSaveFeedback('') }}
               onKeyDown={e => e.key === 'Enter' && handleSaveModalConfirm()}
               autoFocus
             />

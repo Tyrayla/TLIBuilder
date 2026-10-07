@@ -7,6 +7,7 @@ import { join, relative, resolve, sep } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
 import { existsSync, cpSync, readFileSync, writeFileSync, renameSync, rmSync } from 'fs'
+import { fileURLToPath } from 'url'
 import { autoUpdater } from 'electron-updater'
 import { createAccountAuth, createTokenVault } from './accountAuth'
 import { createSyncRecordsFile } from './syncRecordsFile'
@@ -396,6 +397,19 @@ function safeOpenExternal(url: string): void {
   if (/^https?:\/\//i.test(url)) shell.openExternal(url)
 }
 
+function isTrustedRendererUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw)
+    const devUrl = process.env['ELECTRON_RENDERER_URL']
+    if (isDev && devUrl) return url.origin === new URL(devUrl).origin
+    if (url.protocol !== 'file:') return false
+    const expected = resolve(join(__dirname, '../renderer/index.html')).toLowerCase()
+    return resolve(fileURLToPath(url)).toLowerCase() === expected
+  } catch {
+    return false
+  }
+}
+
 function createWindow(): void {
   log('createWindow — creating BrowserWindow')
   const mainWindow = new BrowserWindow({
@@ -473,6 +487,9 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     safeOpenExternal(details.url)
     return { action: 'deny' }
+  })
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedRendererUrl(url)) event.preventDefault()
   })
 
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
@@ -595,14 +612,22 @@ app.whenReady().then(async () => {
       renameSync(tmp, syncRecordsPath)
     },
   })
-  ipcMain.handle('account-request', (_event, method: unknown, path: unknown, body: unknown) =>
-    accountAuth.request(String(method), String(path), body))
-  ipcMain.handle('account-sign-in', () => accountAuth.signIn())
-  ipcMain.handle('account-sign-out', () => accountAuth.signOut())
-  ipcMain.handle('account-reauth', (_event, url: unknown) => accountAuth.reauth(String(url)))
-  ipcMain.handle('sync-records-read', () => syncRecords.read())
-  ipcMain.handle('sync-records-put', (_event, record: unknown) => syncRecords.put(record))
-  ipcMain.handle('sync-records-remove', (_event, localBuildId: unknown) => syncRecords.remove(localBuildId))
+  const isTrustedAccountFrame = (event: Electron.IpcMainInvokeEvent) =>
+    event.senderFrame === event.sender.mainFrame && isTrustedRendererUrl(event.senderFrame.url)
+  ipcMain.handle('account-request', (event, method: unknown, path: unknown, body: unknown) =>
+    isTrustedAccountFrame(event)
+      ? accountAuth.request(String(method), String(path), body)
+      : { ok: false, status: 403, data: { error: { code: 'not_allowed', message: 'Request not allowed.' } } })
+  ipcMain.handle('account-sign-in', (event) => isTrustedAccountFrame(event)
+    ? accountAuth.signIn()
+    : { ok: false, error: 'Request not allowed.' })
+  ipcMain.handle('account-sign-out', (event) => isTrustedAccountFrame(event) ? accountAuth.signOut() : undefined)
+  ipcMain.handle('account-reauth', (event, url: unknown) => isTrustedAccountFrame(event)
+    ? accountAuth.reauth(String(url))
+    : { ok: false, error: 'Request not allowed.' })
+  ipcMain.handle('sync-records-read', (event) => isTrustedAccountFrame(event) ? syncRecords.read() : [])
+  ipcMain.handle('sync-records-put', (event, record: unknown) => isTrustedAccountFrame(event) ? syncRecords.put(record) : undefined)
+  ipcMain.handle('sync-records-remove', (event, localBuildId: unknown) => isTrustedAccountFrame(event) ? syncRecords.remove(localBuildId) : undefined)
 
   ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
   // isSilent=true → the NSIS update installs without the wizard/UAC (per-user install); isForceRunAfter=true relaunches.

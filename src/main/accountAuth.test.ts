@@ -79,55 +79,69 @@ describe('loopback listener', () => {
   it('binds 127.0.0.1 on an unprivileged port and delivers the login code once', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
     expect(listener.port).toBeGreaterThanOrEqual(1024)
-    const res = await fetch(`http://127.0.0.1:${listener.port}/callback?login_code=abcDEF123_-xyz`)
+    const candidatePromise = listener.nextCode()
+    const response = fetch(`http://127.0.0.1:${listener.port}/callback?login_code=abcDEF123_-xyz`)
+    const candidate = await candidatePromise
+    expect(candidate.loginCode).toBe('abcDEF123_-xyz')
+    candidate.accept()
+    const res = await response
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('You can close this tab')
-    await expect(listener.code).resolves.toBe('abcDEF123_-xyz')
   })
 
   it('ignores requests that are not the callback or carry a malformed code', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
+    const candidatePromise = listener.nextCode()
     const other = await fetch(`http://127.0.0.1:${listener.port}/other?login_code=abc`)
     expect(other.status).toBe(404)
     const bad = await fetch(`http://127.0.0.1:${listener.port}/callback?login_code=<script>`)
     expect(bad.status).toBe(400)
-    const good = await fetch(`http://127.0.0.1:${listener.port}/callback?login_code=goodcode1`)
+    const goodResponse = fetch(`http://127.0.0.1:${listener.port}/callback?login_code=goodcode1`)
+    const candidate = await candidatePromise
+    expect(candidate.loginCode).toBe('goodcode1')
+    candidate.accept()
+    const good = await goodResponse
     expect(good.status).toBe(200)
-    await expect(listener.code).resolves.toBe('goodcode1')
   })
 
   it('a failure redirect from the service ends the wait with its reason, without a code', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
+    const candidate = listener.nextCode()
     const res = await fetch(`http://127.0.0.1:${listener.port}/callback?error=cancelled`)
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('did not complete')
-    await expect(listener.code).rejects.toThrow(/cancelled/)
+    await expect(candidate).rejects.toThrow(/cancelled/)
   })
 
   it('ignores a malformed error reason', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
+    const candidate = listener.nextCode()
     const bad = await fetch(`http://127.0.0.1:${listener.port}/callback?error=<script>alert(1)</script>`)
     expect(bad.status).toBe(400)
     listener.close()
-    await expect(listener.code).rejects.toThrow()
+    await expect(candidate).rejects.toThrow()
   })
 
-  it('stops listening after the code arrives', async () => {
+  it('stops listening after the code is accepted', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
-    await fetch(`http://127.0.0.1:${listener.port}/callback?login_code=goodcode1`)
-    await listener.code
+    const candidatePromise = listener.nextCode()
+    const response = fetch(`http://127.0.0.1:${listener.port}/callback?login_code=goodcode1`)
+    const candidate = await candidatePromise
+    candidate.accept()
+    await response
     await expect(fetch(`http://127.0.0.1:${listener.port}/callback?login_code=another1`)).rejects.toThrow()
   })
 
   it('rejects and closes when the user never finishes', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 50 })
-    await expect(listener.code).rejects.toThrow(/timed out/i)
+    await expect(listener.nextCode()).rejects.toThrow(/timed out/i)
   })
 
   it('can be cancelled', async () => {
     const listener = await startLoopbackListener({ timeoutMs: 5000 })
+    const candidate = listener.nextCode()
     listener.close()
-    await expect(listener.code).rejects.toThrow(/cancel/i)
+    await expect(candidate).rejects.toThrow(/cancel/i)
   })
 })
 
@@ -196,7 +210,7 @@ describe('desktop sign-in', () => {
   })
 
   it('reports a failed exchange and stores no token', async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: { code: 'invalid_login_code' } }), { status: 400 })) as unknown as typeof fetch
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: { code: 'exchange_failed' } }), { status: 400 })) as unknown as typeof fetch
     const { auth, vault, opened } = setupAuth({ fetchImpl })
     const pending = auth.signIn()
     await vi.waitFor(() => expect(opened).toHaveLength(1))
@@ -204,6 +218,29 @@ describe('desktop sign-in', () => {
     await fetch(`http://127.0.0.1:${port}/callback?login_code=login123`)
     expect((await pending).ok).toBe(false)
     expect(vault.load()).toBeNull()
+  })
+
+  it('keeps the listener open when a junk callback code fails exchange', async () => {
+    const exchanged: string[] = []
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      const { login_code } = JSON.parse(String(init.body)) as { login_code: string }
+      exchanged.push(login_code)
+      if (login_code === 'junkcode1') {
+        return new Response(JSON.stringify({ error: { code: 'invalid_login_code' } }), { status: 400 })
+      }
+      return new Response(JSON.stringify({ session_token: 'sess-1', expires_at: 9 }), { status: 200 })
+    }) as unknown as typeof fetch
+    const { auth, opened, vault } = setupAuth({ fetchImpl })
+    const pending = auth.signIn()
+    await vi.waitFor(() => expect(opened).toHaveLength(1))
+    const port = new URL(opened[0]).searchParams.get('port')
+    const rejected = await fetch(`http://127.0.0.1:${port}/callback?login_code=junkcode1`)
+    expect(rejected.status).toBe(400)
+    const accepted = await fetch(`http://127.0.0.1:${port}/callback?login_code=realcode1`)
+    expect(accepted.status).toBe(200)
+    expect(await pending).toEqual({ ok: true })
+    expect(exchanged).toEqual(['junkcode1', 'realcode1'])
+    expect(vault.load()).toBe('sess-1')
   })
 })
 
@@ -220,6 +257,7 @@ describe('authenticated requests', () => {
     const init = calls[0].init
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sess-1')
     expect(init.credentials).toBe('omit')
+    expect(init.redirect).toBe('error')
   })
 
   it('refuses a path outside the service API without a network call', async () => {

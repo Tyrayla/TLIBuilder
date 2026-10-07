@@ -1,7 +1,8 @@
 # Hosted account API contract (proposal)
 
 Status: proposal for review. The app code in this branch targets this contract. The hosted service
-(`tlibuilder-code-share`) does not implement it yet. Nothing here claims a live endpoint.
+has a candidate implementation at `98c27207ff8ca0ee425d3a3f12d316e1cd27d030`; neither candidate is
+deployed, and the contract is not authoritative until the app and service changes receive owner review.
 
 The product decisions are in [HOSTED_ACCOUNT_PLATFORM_PLAN.md](HOSTED_ACCOUNT_PLATFORM_PLAN.md). This file only fixes the wire shape so the app and the service can be built and tested separately.
 

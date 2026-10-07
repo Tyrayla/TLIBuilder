@@ -17,8 +17,9 @@ export async function saveLocalThenMaybeUpload<T extends { id?: string }>(
   saveLocal: () => Promise<T>,
   destination: SaveDestination,
   upload: (localBuildId: string) => Promise<UploadOutcome>,
+  alreadySaved?: T,
 ): Promise<SaveAndSyncResult<T>> {
-  const saved = await saveLocal()
+  const saved = alreadySaved ?? await saveLocal()
   if (destination !== 'local-and-cloud' || !saved.id) return { saved, upload: null }
 
   try {
