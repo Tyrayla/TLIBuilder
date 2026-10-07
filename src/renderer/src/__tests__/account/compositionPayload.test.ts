@@ -58,6 +58,27 @@ describe('literal composition payload', () => {
     for (const leak of ['My Secret Build', 'private notes', 'custom text']) expect(raw).not.toContain(leak)
   })
 
+  it('reports saved Vorax graft catalog IDs and omits unsupported graft identifiers', async () => {
+    useBuildStore.setState({ gear: [
+      { item_id: 'vorax_aberrant_limb_digits', is_vorax: true, name: 'Private display name' },
+      { item_id: 'Typed graft name / not an ID', is_vorax: true, name: 'Another private name' },
+      { item_id: '', is_vorax: true, name: 'Missing ID' },
+      { item_id: 'vorax_aberrant_limb_digits', is_vorax: true, name: 'Duplicate' },
+      { item_id: 'some_legendary', is_vorax: false, name: 'Ordinary gear' },
+    ] } as never)
+    const { sent } = start()
+    reportAfterCalculation()
+    await flush()
+    expect(sent[0].body.entities).toEqual([
+      { type: 'hero_trait', id: 'trait_x' },
+      { type: 'graft', id: 'vorax_aberrant_limb_digits' },
+      { type: 'legendary_item', id: 'some_legendary' },
+    ])
+    const raw = String(sent[0].init.body)
+    expect(raw).not.toContain('Private display name')
+    expect(raw).not.toContain('Typed graft name')
+  })
+
   it('reports a base stat only when exactly one catalog uuid matches its family in the memory type', async () => {
     useReferenceStore.setState({
       heroMemories: { base_stats: [

@@ -21,7 +21,7 @@ export interface CompositionBuild {
     enabled?: boolean
     supports?: { item_id: string; enabled?: boolean; skill_tags?: string[] }[]
   }[]
-  gear?: { item_id: string; slot?: string | string[] | null; is_crafted?: boolean; base_type?: string }[]
+  gear?: { item_id: string; slot?: string | string[] | null; is_crafted?: boolean; is_vorax?: boolean; base_type?: string }[]
   pactSpirits?: ({ itemId: string; rank?: number } | null)[]
   heroMemories?: (MemoryLike | null)[]
   /** The Base/Special-slot memory. */
@@ -52,7 +52,7 @@ export interface MemoryResolver {
 
 export type EntityType =
   | 'hero_trait' | 'active_skill' | 'passive_skill' | 'support'
-  | 'legendary_item' | 'legendary_slot' | 'crafted_base'
+  | 'legendary_item' | 'legendary_slot' | 'crafted_base' | 'graft'
   | 'pact_spirit' | 'hero_memory' | 'memory_base_stat' | 'memory_revival'
   | 'core_talent' | 'slate' | 'prism'
 
@@ -103,6 +103,10 @@ export function extractComposition(build: CompositionBuild, dataVersion: string,
   }
 
   for (const item of build.gear ?? []) {
+    if (item.is_vorax) {
+      add('graft', item.item_id)
+      continue
+    }
     if (item.is_crafted) {
       // A crafted item's own id is generated per craft; only its base type is a catalog value.
       add('crafted_base', item.base_type)
