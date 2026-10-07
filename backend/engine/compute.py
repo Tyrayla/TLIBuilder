@@ -1788,6 +1788,7 @@ def compute(
 
     # Per-slot granted Tags (add_mod_tags), recorded by _offense_for_slot for the skill-slot summary below.
     _granted_tags_by_slot: dict[int, set] = {}
+    _auto_conditions_by_slot: dict[str, dict[str, float]] = {}
 
     def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
@@ -1804,6 +1805,8 @@ def compute(
             resolved.skill_id, source=source, resolved=resolved, slot=slot,
             condition_state=condition_state, mod_tags=_mt,
             attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+        for key, value in overrides.get("auto_conditions", {}).items():
+            _auto_conditions_by_slot.setdefault(key, {})[str(slot)] = value
         eff = source.materialize_for_skill(_mt, slot)
         # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
         # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
@@ -2537,6 +2540,13 @@ def compute(
         for k, v in auto_values.items()
         if _is_active(v)
     }
+    for key, slot_values in _auto_conditions_by_slot.items():
+        values = set(slot_values.values())
+        auto_conditions[key] = {
+            "value": next(iter(values)) if len(values) == 1 else None,
+            "source": "Inverted Blaze (returning torrents)",
+            "slot_values": slot_values,
+        }
 
     from engine.warcry import summarize_warcries
     warcry_summaries = summarize_warcries(

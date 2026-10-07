@@ -2335,6 +2335,15 @@ def calculate_offense(
         # Non-scaling forms always fire (≥1 hit).
         if form.scales_with_projectiles:
             n_proj = max(0, form.hit_count + int(source.total("projectile_quantity_flat")))
+        elif form.scales_with_skill_area:
+            # Flame Slash's Steep Strike: torrent count is resolved per-slot by
+            # skill_effects/flame_slash.py (reads the slot's own Area bonus — see
+            # engine.skill_resolver.flame_slash_torrent_count); `or form.hit_count` is a safety-net
+            # fallback (the skill's own base torrent count) if that emission didn't run. Inverted
+            # Blaze's returning torrents land as EXTRA hits in the SAME same-target shotgun group
+            # (flame_slash_return_hits_flat, 0 when that support isn't attached).
+            _torrents = int(source.total("flame_slash_torrent_count_flat")) or form.hit_count
+            n_proj = max(0, _torrents + int(source.total("flame_slash_return_hits_flat")))
         else:
             n_proj = max(1, form.hit_count)
         # Shots-on-target shotgun cap (Chromatic Shot): only the projectiles that LAND on the target shotgun. Cap

@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 - Fixed Impermanence lowering Thunder Spike DPS by applying minimum and maximum damage bonuses to the entire hit. These bonuses now change their respective damage endpoints and follow Physical damage through conversion. In-game verification of Impermanence remains open.
+### Bug fixes
+- Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
+- Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
+- Willpower no longer adds an extra unconditional damage multiplier on top of its stack bonus.
+-
+- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Config shows each slot's automatic return count; enter a global override or choose Auto to restore per-slot counts. This model awaits in-game verification.
 
 ## [0.6.9] - 2026-10-03
 
