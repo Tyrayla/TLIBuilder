@@ -184,7 +184,7 @@ export default function BuildOverviewScreen() {
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
   // Conditions the engine auto-activated (e.g. Splendor → Numbed/Frostbite/Ignite) → {value, source}.
   const autoConditions = useBuildStore(
-    s => (s.computedStats as { auto_conditions?: Record<string, { value: number | boolean; source: string }> }).auto_conditions) ?? {}
+    s => s.computedStats.auto_conditions) ?? {}
   const lockAutoConditions = useUiPrefs(s => s.lockAutoConditions)
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
@@ -273,6 +273,12 @@ export default function BuildOverviewScreen() {
   const setNumeric = (key: string, value: number) =>
     setConditionState({ ...conditionState, [key]: value })
 
+  const clearOverride = (key: string) => {
+    const next = { ...conditionState }
+    delete next[key]
+    setConditionState(next)
+  }
+
   const setEnum = (key: string, value: string) =>
     setConditionState({ ...conditionState, [key]: value })
 
@@ -318,6 +324,9 @@ export default function BuildOverviewScreen() {
         // field can fall back to it. A manual value (in conditionState) always wins over the auto value, and
         // overriding releases the lock — so the auto badge/lock only apply while the user hasn't set it.
         const auto = autoConditions[cond.key]
+        const slotHint = auto?.slot_values
+          ? Object.entries(auto.slot_values).map(([slot, value]) => `Slot ${slot}: ${value}`).join(' · ')
+          : undefined
         const isOverridden = conditionState[cond.key] !== undefined
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
@@ -350,7 +359,7 @@ export default function BuildOverviewScreen() {
             return (
               <div key={cond.key} className="cond-item cond-item--derived" title={t}>
                 <span className="cond-label">{cond.label}</span>
-                <span className="cond-derived-hint">{Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
+                <span className="cond-derived-hint">{slotHint ?? Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
                 <AutoBadge source={auto.source} />
               </div>
             )
@@ -359,10 +368,12 @@ export default function BuildOverviewScreen() {
             key={cond.key}
             cond={cond}
             // User value wins; otherwise the engine auto value; otherwise the catalog default.
-            value={(conditionState[cond.key] as number) ?? (auto ? Number(auto.value) : undefined) ?? cond.default_value ?? 0}
+            value={(conditionState[cond.key] as number) ?? (auto?.value != null ? Number(auto.value) : undefined) ?? (auto?.slot_values ? undefined : cond.default_value ?? 0)}
             // Clearing the field falls back to the auto value when one exists (so an overridden auto-set
             // condition returns to its engine default, not the catalog default of 0).
-            defaultOverride={auto ? Number(auto.value) : undefined}
+            defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
+            onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
+            autoHint={slotHint}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
@@ -563,31 +574,36 @@ function AutoBadge({ source }: { source: string }) {
 
 interface NumericRowProps {
   cond: ConditionDef
-  value: number
+  value: number | undefined
   max: number | null
   clamp: { requested: number; applied: number } | undefined
   onChange: (v: number) => void
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
+  onReset?: () => void
+  autoHint?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
   // resolved cap as a placeholder/hint instead of a bare confusing 0.
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint }: NumericRowProps) {
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
   const def = defaultOverride ?? cond.default_value ?? min
   // A "0 = max" sentinel shows blank when at 0, so the resolved cap (placeholder) reads instead of a bare 0.
-  const blankForSentinel = (v: number) => (zeroMeansMax && v === 0 ? '' : String(v))
+  const blankForSentinel = (v: number | undefined) => (v === undefined || (zeroMeansMax && v === 0) ? '' : String(v))
   const [raw, setRaw] = useState(blankForSentinel(value))
 
   useEffect(() => { setRaw(blankForSentinel(value)) }, [value, zeroMeansMax])
 
   const commit = (str: string) => {
     // Cleared input → reset to the condition's default value, not the previous value or a hardcoded 0.
-    if (str.trim() === '') { onChange(def); setRaw(blankForSentinel(def)); return }
+    if (str.trim() === '') {
+      if (onReset) { onReset(); setRaw(blankForSentinel(defaultOverride)); return }
+      onChange(def); setRaw(blankForSentinel(def)); return
+    }
     const n = parseFloat(str)
     if (isNaN(n)) { setRaw(blankForSentinel(value)); return }
     const clamped = max !== null ? Math.min(Math.max(n, min), max) : Math.max(n, min)
@@ -613,7 +629,7 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
           value={raw}
           min={min}
           max={max ?? undefined}
-          placeholder={zeroMeansMax && max != null ? String(max) : undefined}
+          placeholder={autoHint && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
           onChange={e => setRaw(e.target.value)}
           onBlur={e => commit(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
@@ -624,7 +640,9 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
           </span>
         )}
         {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
+        {onReset && <button type="button" className="cond-stack-input" onClick={onReset}>Auto</button>}
       </div>
+      {autoHint && <span className="cond-derived-hint">{autoHint}</span>}
       {clamp && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
           ⚠ capped at {clamp.applied}
