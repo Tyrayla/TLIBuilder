@@ -16,8 +16,9 @@ The registry below aggregates these so the engine dispatches generically (no per
 from engine.skill_effects import berserking_blade as _bb, focused_slash as _fs, moon_strike as _ms
 from engine.skill_effects import howling_gale as _hg, icebound_beam as _ib, chromatic_shot as _cs
 from engine.skill_effects import groundshaker as _gs, activation_medium as _am, split_shot as _ss
+from engine.skill_effects import flame_slash as _fl
 
-_MODULES = (_bb, _fs, _ms, _hg, _ib, _cs, _gs, _am, _ss)
+_MODULES = (_bb, _fs, _ms, _hg, _ib, _cs, _gs, _am, _ss, _fl)
 
 # Support ids handled bespoke/deferred — their specific line is skipped by the generic resolver (the
 # universal +20% rank line still applies).
