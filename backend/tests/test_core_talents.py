@@ -7,6 +7,7 @@ import pytest
 from engine.core_talent_resolver import resolve_core_talents, _classify_effect, _split_condition
 from engine.aggregator import aggregate
 from engine.models import BuildInput
+from engine.mod_parser import _parse_custom_mod_text
 
 
 # ── Lightweight injected resolvers (mirror the server's _parse_custom_mod_text / _translate_condition_expr
@@ -92,6 +93,13 @@ class TestEffectClassify:
 
 
 class TestResolveSources:
+    def test_safeguard_field_mixed_damage_taken_line_stays_unresolved(self):
+        # SS12/SS13 season data line also limits the second modifier to enemies outside the field.
+        # origin/dev leaves this compound phrase unresolved rather than discarding its first clause and gate.
+        text = "-8% additional damage taken and -10.5% additional damage taken from enemies outside the Safeguard Field."
+
+        assert _parse_custom_mod_text(text) == []
+
     def test_tree_override(self):
         slots = [{"treeName": "Onslaughter", "nodeStates": {}, "coreTalentSelections": {"12": "onslaughter_sacrifice"}}]
         _c, flags, _s = _resolve(slots=slots)

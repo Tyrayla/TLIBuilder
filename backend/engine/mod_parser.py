@@ -690,9 +690,10 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": "crit_rating_inc", "amount": _v, "text": t},
                 {"stat_key": "crit_dmg_inc", "amount": _v, "text": t}]
 
-    # Well Matched says the player takes less damage "from enemies". Resolve this before the enemy-vulnerability
-    # fallback so the modifier enters the player's incoming-damage pool, not outgoing damage dealt to enemies.
-    m = re.search(r'(-?[\d.]+)\s*%\s*additional\s+damage\s+taken\s+from\s+enemies\b', _tc, re.I)
+    # Well Matched says the player takes less damage "from enemies". The core-talent resolver peels its proximity
+    # condition before parsing, leaving this exact residual phrase. Anchor it so compound season skill text cannot
+    # lose another modifier or its scope. Resolve it before the enemy-vulnerability fallback.
+    m = re.match(r'^(-?[\d.]+)\s*%\s*additional\s+damage\s+taken\s+from\s+enemies$', _tc, re.I)
     if m:
         return [{"stat_key": "dmg_taken_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
