@@ -1807,6 +1807,8 @@ def compute(
             attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
         for key, value in overrides.get("auto_conditions", {}).items():
             _auto_conditions_by_slot.setdefault(key, {})[str(slot)] = value
+        for key, value in overrides.get("condition_maximums", {}).items():
+            maxes[key] = max(maxes.get(key, 0.0), value)
         eff = source.materialize_for_skill(_mt, slot)
         # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
         # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
@@ -2544,7 +2546,8 @@ def compute(
         values = set(slot_values.values())
         auto_conditions[key] = {
             "value": next(iter(values)) if len(values) == 1 else None,
-            "source": "Inverted Blaze (returning torrents)",
+            "source": ("Flame Slash (all fire torrents land)" if key == "flame_slash_torrent_hits"
+                       else "Inverted Blaze (returning torrents)"),
             "slot_values": slot_values,
         }
 
