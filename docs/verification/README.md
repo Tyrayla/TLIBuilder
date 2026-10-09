@@ -10,7 +10,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
 | Additional attack/cast speed pooling | — | damage-pool, speed | ✅ Confirmed | 2026-06-10 | [additional-speed-pooling.md](additional-speed-pooling.md) |
-| Affliction and True Flame | Cataclysm, True Flame, Black Hole | dot, stacking, damage-pool, uptime | ✅ Confirmed | 2026-09-25 | [affliction-true-flame.md](affliction-true-flame.md) |
+| Affliction and True Flame | Cataclysm, True Flame | dot, stacking, damage-pool, trigger, uptime | ✅ Confirmed | 2026-09-18 | [affliction-true-flame.md](affliction-true-flame.md) |
 | Armor does not mitigate Damage over Time | Mind Control, Path of Flames | dot, mitigation | ✅ Confirmed | 2026-07-10 | [dot-armor-exclusion.md](dot-armor-exclusion.md) |
 | Chain Lightning (baseline) | Chain Lightning | baseline, damage-pool | ✅ Confirmed | 2026-06-10 | [chain-lightning.md](chain-lightning.md) |
 | Channeled / Icebound Beam | Icebound Beam | channeled, redistribution | ✅ Confirmed | 2026-06-14 | [channeled.md](channeled.md) |
