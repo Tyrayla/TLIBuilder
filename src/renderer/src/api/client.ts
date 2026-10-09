@@ -1816,12 +1816,17 @@ export const FATE_MICRO_LIMIT = 9
 export const FATE_MEDIUM_LIMIT = 4
 
 // The "(lo–hi)" roll-range pattern shared by the fate helpers below.
-const FATE_RANGE_RE = /\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g
+const FATE_RANGE_RE = /\(([+-]?\d+(?:\.\d+)?)\s*(?:\u2013|-)\s*([+-]?\d+(?:\.\d+)?)\)/g
+
+// A fresh global copy of the roll-range pattern, for callers that walk matches (keeps lastIndex private).
+export function fateRangeRegex(): RegExp {
+  return new RegExp(FATE_RANGE_RE.source, 'g')
+}
 
 // Each "(lo–hi)" roll range in a fate effect, in order, with the decimal precision of its bounds.
 export function fateRanges(effectText: string): { lo: number; hi: number; dp: number }[] {
   const out: { lo: number; hi: number; dp: number }[] = []
-  const re = new RegExp(FATE_RANGE_RE.source, 'g')
+  const re = fateRangeRegex()
   let m: RegExpExecArray | null
   while ((m = re.exec(effectText || ''))) {
     const dp = Math.max((m[1].split('.')[1] || '').length, (m[2].split('.')[1] || '').length)
@@ -1838,6 +1843,23 @@ export function fateEffectWithValues(effectText: string, rolledValues?: (number 
     const chosen = rolledValues?.[i++]
     const val = (chosen === null || chosen === undefined) ? parseFloat(b) : chosen
     return String(Number.isInteger(val) ? val : Math.round(val * 100) / 100)
+  })
+}
+
+// Round each numeric modifier independently with exact decimal arithmetic; half values round away from zero.
+const MICRO_FATE_VALUE_RE = /([+-]?\d+(?:\.\d+)?)(?=\s*(?:%|Strength\b|Dexterity\b|Intelligence\b|Command\b|initial Growth\b))/g
+function scaleMicroFateEffectText(text: string, multiplierPercent: number): string {
+  if (multiplierPercent === 100) return text
+  return text.replace(MICRO_FATE_VALUE_RE, (value) => {
+    const negative = value.startsWith('-')
+    const unsigned = value.replace(/^[+-]/, '')
+    const [whole, fraction = ''] = unsigned.split('.')
+    const numerator = BigInt(whole + fraction) * BigInt(multiplierPercent)
+    const divisor = 10n ** BigInt(fraction.length + 2)
+    const scaledWhole = numerator / divisor
+    const remainder = numerator % divisor
+    const rounded = scaledWhole + (remainder * 2n >= divisor ? 1n : 0n)
+    return (negative ? '-' : value.startsWith('+') ? '+' : '') + rounded
   })
 }
 
@@ -1859,9 +1881,12 @@ export function buildSpiritEffects(
   const dualCount: Record<string, number> = {}
   for (const f of allInstalled) if (f.kind === 'dual_kismet') dualCount[f.shortName] = (dualCount[f.shortName] || 0) + 1
 
-  const emitFate = (f: InstalledFate) => {
-    if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired → no effect
-    effects.push({ text: fateEffectWithValues(f.effectText, f.rolledValues), source: `Fate: ${f.shortName}` })
+  const emitFate = (f: InstalledFate, microFateMultiplierPercent = 100) => {
+    if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired fate has no effect
+    if (f.kind === 'kismet' && f.shortName === 'Star Trail') return
+    const resolvedText = fateEffectWithValues(f.effectText, f.rolledValues)
+    const text = f.kind === 'micro_fate' ? scaleMicroFateEffectText(resolvedText, microFateMultiplierPercent) : resolvedText
+    effects.push({ text, source: `Fate: ${f.shortName}` })
   }
 
   selected.forEach((sel, si) => {
@@ -1869,11 +1894,24 @@ export function buildSpiritEffects(
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) return
     const src = spirit.name
+    const nativeStarTrails = Object.entries(fates).filter(([key, fate]) => {
+      if (!key.startsWith(String(si) + ':') || fate.kind !== 'kismet' || fate.shortName !== 'Star Trail') return false
+      const slotIndex = Number(key.slice(String(si).length + 1))
+      return Number.isInteger(slotIndex) && spirit.slots[slotIndex]?.ring === 'mid'
+    }).length
+    const undeterminedFate = undetermined[si]
+    const undeterminedStarTrails = undeterminedFate?.slots.reduce((count, fate, slotIndex) =>
+      count + (slotIndex >= undeterminedFate.extraMicro && fate?.kind === 'kismet' && fate.shortName === 'Star Trail' ? 1 : 0), 0) ?? 0
+    // +45 % per Star Trail comes from game text. The cap of three is an assumed working value
+    // (unverified; no source states a limit; owner has never seen more than three used).
+    // Additive stacking (1 + 0.45n) is modeled, not measured. Rounding to whole numbers is likewise an assumption
+    // (half values round away from zero). See data/verification/fates-kismets.json.
+    const microFateMultiplierPercent = 100 + 45 * Math.min(nativeStarTrails + undeterminedStarTrails, 3)
     // Inner/mid nodes: emit the installed fate's effect, else the node's own effect lines. Outer = rank modifiers.
     spirit.slots.forEach((slot, i) => {
       if (slot.ring === 'outer') return
       const f = fates[`${si}:${i}`]
-      if (f) emitFate(f)
+      if (f) emitFate(f, microFateMultiplierPercent)
       else for (const t of slot.effect) effects.push({ text: t, source: src })
     })
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
@@ -1889,7 +1927,7 @@ export function buildSpiritEffects(
       // Every empty extra slot grants the same generic +6% Damage / +6% Minion Damage regardless of micro/medium
       // (tier only governs size + what can be socketed, per Tyra).
       u.slots.forEach(f => {
-        if (f) emitFate(f)
+        if (f) emitFate(f, microFateMultiplierPercent)
         else {
           effects.push({ text: '+6 % Damage', source: 'Pact: Undetermined' })
           effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })
