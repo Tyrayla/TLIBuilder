@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**99 entries** — ✅ Confirmed: 18 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 58
+**97 entries** — ✅ Confirmed: 18 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 56
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -73,7 +73,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Ill Omen (Ominous curse) + Reap Purification conversion (Psychic) | Ominous, Reap Purification | curse, stacking, conversion, trigger, damage-pool, true-damage | ⚠️ Unverified | — | [ill-omen.md](ill-omen.md) |
-| Impermanence damage endpoints | Thunder Spike | damage-pool, conversion, methodology | ⚠️ Unverified | — | [impermanence.md](impermanence.md) |
 | Incoming Damage / Max Hit / Static EHP | — | defense, ehp, max-hit, mitigation, conversion, dot | ⚠️ Unverified | — | [incoming-mitigation-model.md](incoming-mitigation-model.md) |
 | Iris "Merged Spirit Magi" — Spirit Magus skills in Active Skill slots (soft-invalidation gating) | Spirit Magus skills (Spirit Magus-tagged) | hero-trait, slot-gating, soft-invalidation, trigger | ⚠️ Unverified | — | [merged-spirit-magi-active-slots.md](merged-spirit-magi-active-slots.md) |
 | Iris "Vigilant" — second-skill-slot restriction while Merged (SHELVED, not modeled) | Merged Spirit Magi (Iris "Vigilant" state) | hero-trait, slot-gating, methodology | ⚠️ Unverified | — | [iris-second-skill-slot-restriction.md](iris-second-skill-slot-restriction.md) |
@@ -92,7 +91,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Origin-effect scalar supports (Precise: Superpower / Friend of Spirit Magi) | Precise: Superpower, Friend of Spirit Magi, Precise: Friend of Spirit Magi | minion, spirit-magus, support | ⚠️ Unverified | — | [origin-effect-scalar-supports.md](origin-effect-scalar-supports.md) |
 | Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
 | Per-Attribute Scaling ("+X per N Strength/Dexterity/Intelligence") | — | breakpoint, condition, step-function | ⚠️ Unverified | — | [attribute-scaling-condition.md](attribute-scaling-condition.md) |
-| Periodic Burst averaged player buff | Periodic Burst, Spiral Strike | supports, uptime | ⚠️ Unverified | — | [periodic-burst.md](periodic-burst.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |

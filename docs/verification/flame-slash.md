@@ -9,11 +9,11 @@
 
 ## Setup
 
-SS13. Flame Slash with Steep Strike; compare point-blank full torrent hits and a ranged single-torrent hit against the standard training dummy.
+SS13. Lv90 Selena, Flame Slash level 16, Hollow Rift axe with 7% Armor DMG Mitigation Penetration, against the Lv85 Boss dummy. Run a 2-minute point-blank test with all 3 torrents hitting, then a ranged test with 1 torrent hitting.
 
 ## Raw data points
 
-Owner in-game 2-minute dummy test: with all 3 torrents hitting point blank, measured 533 DPS vs builder 532. From range with 1 torrent hitting, measured approximately 448 DPS vs builder approximately 442.
+Owner in-game results: 3 torrents hitting point blank for 2 minutes = 533 DPS vs builder 532; 1 torrent hitting from range = approximately 448 DPS vs builder approximately 442.
 
 ## Derived / confirmed formula
 
@@ -21,11 +21,11 @@ Steep Strike torrent hits = the Flame Slash slot's automatic torrent count (3 + 
 
 ## Notes / caveats / open questions
 
-The two owner dummy comparisons support the Steep Strike hit-count and shotgun model. The point-blank result is within 1 DPS of the builder; the ranged single-hit result is within approximately 6 DPS.
+UNVERIFIED in game: Immediate Threat proximity scaling; Inverted Blaze return shotgunning; and the landed-return cap where `inverted_blaze_returns` defaults to and is capped by `flame_slash_torrent_hits`. The cap is an owner design decision (2026-10-09), not an in-game measurement. The owner dummy comparisons exercise Steep Strike torrent-hit counts: the point-blank result is within 1 DPS of the builder; the ranged single-hit result is within approximately 6 DPS.
 
 ## Implementation (engine model)
 
-`flame_slash_torrent_hits` is an auto condition surfaced by Flame Slash and resolved per slot; its default and maximum are that slot's automatic torrent count. Inverted Blaze returns default to, and are capped by, the selected torrent-hit count. `enemy_distance_m` drives Immediate Threat's proximity scaling.
+`flame_slash_torrent_hits` is an auto condition surfaced by Flame Slash and resolved per slot; its default and maximum are that slot's automatic torrent count. Immediate Threat proximity scaling uses `enemy_distance_m`. Inverted Blaze return hits are grouped with outbound hits for same-target shotgunning; `inverted_blaze_returns` defaults to and is capped by `flame_slash_torrent_hits`.
 
 ## Sources
 
