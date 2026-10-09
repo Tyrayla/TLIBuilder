@@ -1156,12 +1156,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 8px;
 }
 
-.cond-stack-row--with-auto {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 3px;
-}
-
 .cond-stack-main {
   display: flex;
   align-items: center;
@@ -1181,13 +1175,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
-}
-
-.cond-derived-hint--auto {
-  padding-left: 0;
-  padding-right: 0;
-  font-style: italic;
-  cursor: help;
 }
 
 .cond-stack-btn {
