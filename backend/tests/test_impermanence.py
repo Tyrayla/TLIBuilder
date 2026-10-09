@@ -192,11 +192,22 @@ def test_inverted_endpoint_range_is_swapped_before_luck(luck, expected_dps):
 
 
 def test_negative_endpoint_result_is_clamped_to_zero():
-    # The generic -150% and Physical -50% Min factors multiply to -25 before clamping.
+    # A generic -150% factor clamps to zero; the Physical -50% factor cannot make it negative.
     offense = _simple_hit({"physical_dmg_gear_flat_min": 100,
                            "physical_dmg_gear_flat_max": 200, "weapon_attack_speed": 1,
                            "dmg_min_additional": -1.5,
                            "physical_dmg_min_additional": -.5})
+    assert offense.hit_forms[0].hit_min_by_type["physical"] == 0
+    assert offense.hit_forms[0].hit_max_by_type["physical"] == 200
+    assert offense.total_dps == 100
+
+
+def test_each_negative_endpoint_factor_is_clamped_before_multiplication():
+    # Two distinct -150% Min factors must not multiply back into a positive endpoint.
+    offense = _simple_hit({"physical_dmg_gear_flat_min": 100,
+                           "physical_dmg_gear_flat_max": 200, "weapon_attack_speed": 1,
+                           "dmg_min_additional": -1.5,
+                           "physical_dmg_min_additional": -1.5})
     assert offense.hit_forms[0].hit_min_by_type["physical"] == 0
     assert offense.hit_forms[0].hit_max_by_type["physical"] == 200
     assert offense.total_dps == 100

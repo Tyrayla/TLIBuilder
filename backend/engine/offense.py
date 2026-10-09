@@ -2115,10 +2115,14 @@ def calculate_offense(
         mn = mx = 1.0
         for amount, tags, key in endpoint_factors:
             if applies(tags):
+                # An endpoint multiplier cannot reduce its endpoint below zero. Clamp each
+                # distinct factor before multiplication so two <-100% factors cannot turn
+                # their product positive again.
+                factor = max(0.0, 1.0 + amount)
                 if _ENDPOINT_ADDITIONAL_IS_MIN[key]:
-                    mn *= 1.0 + amount
+                    mn *= factor
                 else:
-                    mx *= 1.0 + amount
+                    mx *= factor
         result = (mn, mx)
         endpoint_mult_by_path[path_tags] = result
         return result
