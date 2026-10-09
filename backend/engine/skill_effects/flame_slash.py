@@ -133,11 +133,11 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
             auto_conditions["inverted_blaze_returns"] = hits
             condition_maximums["inverted_blaze_returns"] = hits
             raw = condition_state.get("inverted_blaze_returns")
-            return_count = float(hits) if raw is None else max(0.0, min(float(hits), float(raw)))
+            return_count = int(float(hits) if raw is None else max(0.0, min(float(hits), float(raw))))
             if return_count:
                 name = data.get("name") or iid
-                source.add_slotted("flame_slash_return_hits_flat", return_count, slot, None, SourceEntry(
-                    stat="flame_slash_return_hits_flat", amount=return_count, source_type="support",
+                source.add_slotted("flame_slash_return_hits_flat", float(return_count), slot, None, SourceEntry(
+                    stat="flame_slash_return_hits_flat", amount=float(return_count), source_type="support",
                     label=name, source_name=name,
                     text=(f"{return_count:.0f} returning fire-torrent hits (shotgunned with the "
                           f"outbound torrents) |flame_slash|inverted_blaze"),

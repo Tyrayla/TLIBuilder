@@ -438,6 +438,9 @@ class TestInvertedBlaze:
     def test_default_returns_equal_torrent_count(self):
         assert self._run({}) == pytest.approx(3.0)
 
+    def test_fractional_return_override_uses_whole_hits(self):
+        assert self._run({"inverted_blaze_returns": 2.9}) == pytest.approx(2.0)
+
     @pytest.mark.parametrize("area, expected", [(115, 5), (230, 7)])
     @pytest.mark.parametrize("manual", [None, 0, 2])
     def test_endpoint_reports_auto_intent_even_with_global_override(self, area, expected, manual):

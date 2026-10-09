@@ -618,12 +618,15 @@ interface NumericRowProps {
 }
 
 function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint, resetTitle }: NumericRowProps) {
+  const integerHitCount = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
   const def = defaultOverride ?? cond.default_value ?? min
   // A "0 = max" sentinel shows blank when at 0, so the resolved cap (placeholder) reads instead of a bare 0.
-  const blankForSentinel = (v: number | undefined) => (v === undefined || (zeroMeansMax && v === 0) ? '' : String(v))
+  const blankForSentinel = (v: number | undefined) => (
+    v === undefined || (zeroMeansMax && v === 0) ? '' : String(integerHitCount ? Math.trunc(v) : v)
+  )
   const [raw, setRaw] = useState(blankForSentinel(value))
 
   useEffect(() => { setRaw(blankForSentinel(value)) }, [value, zeroMeansMax])
@@ -634,8 +637,9 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
       if (onReset) { onReset(); setRaw(blankForSentinel(defaultOverride)); return }
       onChange(def); setRaw(blankForSentinel(def)); return
     }
-    const n = parseFloat(str)
-    if (isNaN(n)) { setRaw(blankForSentinel(value)); return }
+    const parsed = parseFloat(str)
+    if (isNaN(parsed)) { setRaw(blankForSentinel(value)); return }
+    const n = integerHitCount ? Math.trunc(parsed) : parsed
     const clamped = max !== null ? Math.min(Math.max(n, min), max) : Math.max(n, min)
     onChange(clamped)
     setRaw(blankForSentinel(clamped))
@@ -660,6 +664,7 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
             value={raw}
             min={min}
             max={max ?? undefined}
+            step={integerHitCount ? 1 : undefined}
             placeholder={autoHint && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
             onChange={e => setRaw(e.target.value)}
             onBlur={e => commit(e.target.value)}

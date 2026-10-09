@@ -39,6 +39,20 @@ describe('Inverted Blaze Config automatic returns', () => {
     act(() => { view.unmount() })
   })
 
+  it('displays and stores a fractional return-hit override as a whole count', () => {
+    useBuildStore.setState({ conditionState: { [key]: 2.9 } })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    const input = () => view.root.findAllByType('input').find(i => i.props.type === 'number')!
+    expect(input().props.value).toBe('2')
+    expect(input().props.step).toBe(1)
+    act(() => { input().props.onChange({ target: { value: '2.9' } }) })
+    act(() => { input().props.onBlur({ target: { value: '2.9' } }) })
+    expect(useBuildStore.getState().conditionState[key]).toBe(2)
+    expect(input().props.value).toBe('2')
+    act(() => { view.unmount() })
+  })
+
   it('shows differing automatic slot counts without choosing a global default', () => {
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
