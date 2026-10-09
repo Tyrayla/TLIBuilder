@@ -143,6 +143,7 @@
     "fire_taken_as_physical_inc",
     "flame_slash_return_hits_flat",
     "flame_slash_torrent_count_flat",
+    "flame_slash_torrent_hits_flat",
     "hit_curse_taken",
     "hit_dmg_additional",
     "hit_dmg_taken_additional",

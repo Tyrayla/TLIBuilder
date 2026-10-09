@@ -21,7 +21,7 @@ describe('Flame Slash torrent hits in Config', () => {
     useBuildStore.setState({ conditionState: {}, computedStats: {
       ...useBuildStore.getState().computedStats,
       condition_maximums: { [key]: 5 }, clamp_report: {}, referenced_conditions: [key],
-      auto_conditions: { [key]: { value: 5, source: 'Flame Slash', slot_values: { '1': 5 } } },
+      auto_conditions: { [key]: { value: 5, source: 'Flame Slash' } },
     } as never })
   })
 
@@ -53,10 +53,10 @@ describe('Flame Slash torrent hits in Config', () => {
     act(() => { view.unmount() })
   })
 
-  it('hides per-slot count helpers for Torrent Hits while keeping Auto visible inside the blank input', () => {
+  it('keeps differing automatic counts blank and offers Auto after an override', () => {
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
-      auto_conditions: { [key]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } } },
+      auto_conditions: { [key]: { value: null, source: 'Flame Slash' } },
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
@@ -70,10 +70,13 @@ describe('Flame Slash torrent hits in Config', () => {
     expect(torrentInput.props.value).toBe('')
     expect(torrentInput.props.placeholder).toBe('Auto')
     expect(row!.findAllByType('button').some(button => button.children.join('') === 'Auto')).toBe(false)
+    act(() => { torrentInput.props.onChange({ target: { value: '2' } }) })
+    act(() => { torrentInput.props.onBlur({ target: { value: '2' } }) })
+    expect(row!.findAllByType('button').some(button => button.children.join('') === 'Auto')).toBe(true)
     act(() => { view.unmount() })
   })
 
-  it('hides per-slot count helpers for Torrent Return Hits and uses Auto when slot values differ', () => {
+  it('keeps Torrent Return Hits blank when automatic counts differ', () => {
     const otherKey = 'inverted_blaze_returns'
     useReferenceStore.setState({ conditions: { Skill: [
       { key: otherKey, label: 'Torrent Return Hits', category: 'Skill', value_type: 'numeric', source: 'auto', default_value: 0, numeric_min: 0 },
@@ -81,7 +84,7 @@ describe('Flame Slash torrent hits in Config', () => {
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
       referenced_conditions: [otherKey], condition_maximums: { [otherKey]: 5 },
-      auto_conditions: { [otherKey]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } } },
+      auto_conditions: { [otherKey]: { value: null, source: 'Flame Slash' } },
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
@@ -109,15 +112,14 @@ describe('Flame Slash torrent hits in Config', () => {
       ...useBuildStore.getState().computedStats,
       referenced_conditions: [key, returnKey], condition_maximums: { [key]: 5, [returnKey]: 5 },
       auto_conditions: {
-        [key]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } },
-        [returnKey]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } },
+        [key]: { value: null, source: 'Flame Slash' },
+        [returnKey]: { value: null, source: 'Flame Slash' },
       },
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
     const screen = JSON.stringify(view.toJSON())
-    expect(screen).not.toContain('Slot 1: 3')
-    expect(screen).not.toContain('Slot 2: 5')
+    expect(screen).not.toMatch(/Slot\s+[0-9]+:/)
     expect(screen).toContain('Torrent Hits')
     expect(screen).toContain('Torrent Return Hits')
     for (const text of [label, 'Torrent Return Hits']) {

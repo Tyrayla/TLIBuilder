@@ -352,10 +352,6 @@ export default function BuildOverviewScreen() {
         // field can fall back to it. A manual value (in conditionState) always wins over the auto value, and
         // overriding releases the lock — so the auto badge/lock only apply while the user hasn't set it.
         const auto = autoConditions[cond.key]
-        const hidePerSlotHint = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
-        const slotHint = auto?.slot_values && !hidePerSlotHint
-          ? Object.entries(auto.slot_values).map(([slot, value]) => `Slot ${slot}: ${value}`).join(' · ')
-          : undefined
         const isOverridden = conditionState[cond.key] !== undefined
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
@@ -388,7 +384,7 @@ export default function BuildOverviewScreen() {
             return (
               <div key={cond.key} className="cond-item cond-item--derived" title={conditionSource(cond.key) ? undefined : t}>
                 <ConditionLabel condition={cond} className="cond-label" />
-                <span className="cond-derived-hint">{slotHint ?? (hidePerSlotHint && auto.value == null ? 'Auto' : Number(auto.value))}{cond.unit ? ` ${cond.unit}` : ''}</span>
+                <span className="cond-derived-hint">{auto.value == null ? 'Auto' : Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
                 <AutoBadge source={auto.source} />
               </div>
             )
@@ -397,13 +393,12 @@ export default function BuildOverviewScreen() {
             key={cond.key}
             cond={cond}
             // User value wins; otherwise the engine auto value; otherwise the catalog default.
-            value={(conditionState[cond.key] as number) ?? (auto?.value != null ? Number(auto.value) : undefined) ?? (auto?.slot_values ? undefined : cond.default_value ?? 0)}
+            value={(conditionState[cond.key] as number) ?? (auto?.value != null ? Number(auto.value) : undefined) ?? (auto ? undefined : cond.default_value ?? 0)}
             // Clearing the field falls back to the auto value when one exists (so an overridden auto-set
             // condition returns to its engine default, not the catalog default of 0).
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
-            onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
+            onReset={auto ? () => clearOverride(cond.key) : undefined}
             hasOverride={Object.prototype.hasOwnProperty.call(conditionState, cond.key)}
-            autoHint={hidePerSlotHint ? undefined : slotHint}
             resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
@@ -607,20 +602,19 @@ interface NumericRowProps {
   cond: ConditionDef
   value: number | undefined
   max: number | null
-  clamp: { requested: number; applied: number; slot_applied?: Record<string, number> } | undefined
+  clamp: { requested: number; applied: number } | undefined
   onChange: (v: number) => void
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
   onReset?: () => void
   hasOverride?: boolean
-  autoHint?: string
   resetTitle?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
   // resolved cap as a placeholder/hint instead of a bare confusing 0.
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, hasOverride, autoHint, resetTitle }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, hasOverride, resetTitle }: NumericRowProps) {
   const integerHitCount = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
@@ -682,12 +676,9 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
           {onReset && hasOverride && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
         </div>
       </div>
-      {autoHint && <span className="cond-derived-hint">{autoHint}</span>}
       {clamp && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
           ⚠ {clamp.applied !== clamp.requested ? `capped at ${clamp.applied}` : ''}
-          {clamp.slot_applied && Object.entries(clamp.slot_applied).map(([slot, applied]) =>
-            `Slot ${slot}: capped at ${applied}`).join(' · ')}
         </div>
       )}
     </div>

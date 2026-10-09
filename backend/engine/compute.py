@@ -1790,7 +1790,6 @@ def compute(
     # Per-slot granted Tags (add_mod_tags), recorded by _offense_for_slot for the skill-slot summary below.
     _granted_tags_by_slot: dict[int, set] = {}
     _auto_conditions_by_slot: dict[str, dict[str, float]] = {}
-    _condition_maximums_by_slot: dict[str, dict[str, float]] = {}
 
     def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
@@ -1811,7 +1810,6 @@ def compute(
             _auto_conditions_by_slot.setdefault(key, {})[str(slot)] = value
         for key, value in overrides.get("condition_maximums", {}).items():
             maxes[key] = max(maxes.get(key, 0.0), value)
-            _condition_maximums_by_slot.setdefault(key, {})[str(slot)] = value
         eff = source.materialize_for_skill(_mt, slot)
         # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
         # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
@@ -2545,13 +2543,12 @@ def compute(
         for k, v in auto_values.items()
         if _is_active(v)
     }
-    for key, slot_values in _auto_conditions_by_slot.items():
-        values = set(slot_values.values())
+    for key, values_by_slot in _auto_conditions_by_slot.items():
+        values = set(values_by_slot.values())
         auto_conditions[key] = {
             "value": next(iter(values)) if len(values) == 1 else None,
             "source": ("Flame Slash (all fire torrents land)" if key == "flame_slash_torrent_hits"
                        else "Inverted Blaze (returning torrents)"),
-            "slot_values": slot_values,
         }
 
     # Flame Slash's bounds arrive after slot Area and landed hits resolve.
@@ -2563,16 +2560,8 @@ def compute(
             if requested is None:
                 continue
             applied = normalize_hit_count(requested, int(maxes[key]), int(floor), int(maxes[key]))
-            slot_applied = {}
-            for slot, slot_max in _condition_maximums_by_slot.get(key, {}).items():
-                slot_value = normalize_hit_count(applied, applied, int(floor), int(slot_max))
-                if slot_value != applied:
-                    slot_applied[slot] = slot_value
-            if requested != applied or slot_applied:
-                report = {"requested": requested, "applied": applied}
-                if slot_applied:
-                    report["slot_applied"] = slot_applied
-                clamp_report[key] = report
+            if requested != applied:
+                clamp_report[key] = {"requested": requested, "applied": applied}
 
     from engine.warcry import summarize_warcries
     warcry_summaries = summarize_warcries(

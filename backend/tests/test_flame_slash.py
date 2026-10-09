@@ -277,8 +277,7 @@ class TestTorrentHits:
                      for slot in (1, 2)) == hits
         assert result["condition_maximums"]["flame_slash_torrent_hits"] == 5
         assert result["auto_conditions"]["flame_slash_torrent_hits"] == {
-            "value": None, "source": "Flame Slash (all fire torrents land)",
-            "slot_values": {"1": 3, "2": 5}}
+            "value": None, "source": "Flame Slash (all fire torrents land)"}
         assert "flame_slash_torrent_hits" in result["referenced_conditions"]
 
     @pytest.mark.parametrize("returns, total_hits, multiplier", [
@@ -313,7 +312,8 @@ class TestTorrentHits:
         assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
                      for slot in (1, 2)) == (6, 8)
         assert result["condition_maximums"]["inverted_blaze_returns"] == 4
-        assert result["auto_conditions"]["inverted_blaze_returns"]["slot_values"] == {"1": 3, "2": 4}
+        assert result["auto_conditions"]["inverted_blaze_returns"] == {
+            "value": None, "source": "Inverted Blaze (returning torrents)"}
 
     def test_endpoint_reports_outbound_and_return_clamps(self):
         from server import engine_stats, EngineStatsRequest
@@ -335,7 +335,7 @@ class TestTorrentHits:
             extra_conditions={"inverted_blaze_returns": 2.9})))
         assert result["clamp_report"]["inverted_blaze_returns"] == {"requested": 2.9, "applied": 2}
 
-    def test_endpoint_reports_per_slot_return_caps(self):
+    def test_endpoint_keeps_per_slot_return_caps_internal(self):
         from server import engine_stats, EngineStatsRequest
         from tests.mock_build import make_request
         result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
@@ -346,10 +346,11 @@ class TestTorrentHits:
                  "rank": 1, "level": 1, "slot": 2}],
             skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
             extra_conditions={"inverted_blaze_returns": 4})))
-        assert result["clamp_report"]["inverted_blaze_returns"] == {
-            "requested": 4, "applied": 4, "slot_applied": {"1": 3}}
+        assert "inverted_blaze_returns" not in result["clamp_report"]
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == (6, 9)
 
-    def test_endpoint_reports_per_slot_outbound_caps(self):
+    def test_endpoint_keeps_per_slot_outbound_caps_internal(self):
         from server import engine_stats, EngineStatsRequest
         from tests.mock_build import make_request
         result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
@@ -358,8 +359,9 @@ class TestTorrentHits:
                                 "rank": 1, "level": 1, "slot": 2}],
             skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
             extra_conditions={"flame_slash_torrent_hits": 4})))
-        assert result["clamp_report"]["flame_slash_torrent_hits"] == {
-            "requested": 4, "applied": 4, "slot_applied": {"1": 3}}
+        assert "flame_slash_torrent_hits" not in result["clamp_report"]
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == (3, 4)
 
     def test_endpoint_ignores_non_numeric_hit_count_values(self):
         from server import engine_stats, EngineStatsRequest
@@ -505,8 +507,7 @@ class TestInvertedBlaze:
         steep = result["offense"]["hit_forms"][1]
         assert steep["hits_per_fire"] == expected + (expected if manual is None else manual)
         assert result["auto_conditions"]["inverted_blaze_returns"] == {
-            "value": expected, "source": "Inverted Blaze (returning torrents)",
-            "slot_values": {"1": expected}}
+            "value": expected, "source": "Inverted Blaze (returning torrents)"}
 
     @pytest.mark.parametrize("manual, hits", [(None, (6, 10)), (0, (3, 5)), (2, (5, 7))])
     def test_two_slots_report_distinct_auto_counts_and_global_override(self, manual, hits):
@@ -525,8 +526,7 @@ class TestInvertedBlaze:
         assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
                      for slot in (1, 2)) == hits
         assert result["auto_conditions"]["inverted_blaze_returns"] == {
-            "value": None, "source": "Inverted Blaze (returning torrents)",
-            "slot_values": {"1": 3, "2": 5}}
+            "value": None, "source": "Inverted Blaze (returning torrents)"}
 
     def test_default_scales_with_area_bonus(self):
         assert self._run({}, area_inc=1.15) == pytest.approx(5.0)

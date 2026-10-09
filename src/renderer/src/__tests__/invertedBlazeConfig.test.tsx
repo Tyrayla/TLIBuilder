@@ -20,7 +20,7 @@ describe('Inverted Blaze Config automatic returns', () => {
     useBuildStore.setState({ conditionState: {}, computedStats: {
       ...useBuildStore.getState().computedStats,
       condition_maximums: {}, clamp_report: {}, referenced_conditions: [key],
-      auto_conditions: { [key]: { value: 5, source: 'Inverted Blaze', slot_values: { '1': 5 } } },
+      auto_conditions: { [key]: { value: 5, source: 'Inverted Blaze' } },
     } as never })
   })
 
@@ -53,16 +53,17 @@ describe('Inverted Blaze Config automatic returns', () => {
     act(() => { view.unmount() })
   })
 
-  it('shows differing automatic slot counts without choosing a global default', () => {
+  it('keeps differing automatic counts blank without displaying slot details', () => {
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
-      auto_conditions: { [key]: { value: null, source: 'Inverted Blaze', slot_values: { '1': 5, '2': 7 } } },
+      auto_conditions: { [key]: { value: null, source: 'Inverted Blaze' } },
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
     const input = view.root.findAllByType('input').find(i => i.props.type === 'number')!
     expect(input.props.value).toBe('')
-    expect(JSON.stringify(view.toJSON())).toContain('Slot 1: 5 · Slot 2: 7')
+    expect(JSON.stringify(view.toJSON())).not.toMatch(/Slot\s+[0-9]+:/)
+    expect(JSON.stringify(view.toJSON())).not.toMatch(/Slot [0-9]+:/)
     act(() => { input.props.onBlur({ target: { value: '' } }) })
     expect(useBuildStore.getState().conditionState).toEqual({})
     act(() => { view.unmount() })

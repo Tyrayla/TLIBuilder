@@ -1345,12 +1345,12 @@ export interface CustomModStatus {
 export interface StatSheetResponse {
   stats: Record<string, StatEntry>
   condition_maximums: Record<string, number>
-  clamp_report: Record<string, { requested: number; applied: number; slot_applied?: Record<string, number> }>
+  clamp_report: Record<string, { requested: number; applied: number }>
   // Condition keys any build mod references (gate on/off) — the Config screen hides the rest unless Show all.
   referenced_conditions?: string[]
   // Engine-activated (not user-set) conditions → {value, source}. Config shows these checked + locked with
   // an "auto" badge that names the source (e.g. Splendor inflicting Numbed/Frostbite/Ignite).
-  auto_conditions?: Record<string, { value: number | boolean | null; source: string; slot_values?: Record<string, number> }>
+  auto_conditions?: Record<string, { value: number | boolean | null; source: string }>
 
   offense?: OffenseResult | null
   defense?: DefenseResult | null
