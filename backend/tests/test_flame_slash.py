@@ -311,6 +311,17 @@ class TestTorrentHits:
         assert result["condition_maximums"]["inverted_blaze_returns"] == 4
         assert result["auto_conditions"]["inverted_blaze_returns"]["slot_values"] == {"1": 3, "2": 4}
 
+    def test_endpoint_reports_outbound_and_return_clamps(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": 1}],
+            extra_conditions={"flame_slash_torrent_hits": 99, "inverted_blaze_returns": 99})))
+        assert result["offense"]["hit_forms"][1]["hits_per_fire"] == 6
+        assert result["clamp_report"]["flame_slash_torrent_hits"] == {"requested": 99, "applied": 3}
+        assert result["clamp_report"]["inverted_blaze_returns"] == {"requested": 99, "applied": 3}
+
 
 class TestBothSupportsSameSlot:
     """Immediate Threat (slot 3) and Inverted Blaze (slot 5) are mutually compatible — a real build

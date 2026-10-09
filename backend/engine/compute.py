@@ -2551,6 +2551,17 @@ def compute(
             "slot_values": slot_values,
         }
 
+    # Flame Slash's bounds arrive after slot Area and landed hits resolve.
+    for key, floor in (("flame_slash_torrent_hits", 1.0), ("inverted_blaze_returns", 0.0)):
+        raw = build_input.condition_state.get(key)
+        if key in maxes and raw is not None:
+            requested = float(raw)
+            applied = max(floor, min(maxes[key], requested))
+            if key == "flame_slash_torrent_hits":
+                applied = float(int(applied))
+            if requested != applied:
+                clamp_report[key] = {"requested": requested, "applied": applied}
+
     from engine.warcry import summarize_warcries
     warcry_summaries = summarize_warcries(
         skills_input, skills_by_id, source, condition_state,
