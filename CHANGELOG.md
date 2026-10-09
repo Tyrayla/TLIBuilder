@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Engine & DPS
+- **Well Matched is now modeled.** It grants up to +40% additional Attack Damage and -15% additional damage taken from enemies. Builder applies the maximum values while an enemy is in proximity. Distance falloff is not modeled and remains unverified.
+
 ### Bug fixes
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
