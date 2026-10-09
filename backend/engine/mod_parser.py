@@ -627,6 +627,7 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # Core-talent resolution peels the nearby-enemy condition before calling this parser.
     m = re.match(r'^deals\s+up\s+to\s+\+?([\d.]+)\s*%\s+additional\s+attack\s+damage$', _tc, re.I)
     if m:
+        # Applies the maximum value. Distance falloff is not modeled (unverified approximation).
         return [{"stat_key": "attack_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # Flat PHYSICAL damage per N consumed (Blade-dancer's Fingers = Life→Attacks; Glacier Caster Shield =
@@ -695,6 +696,7 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # lose another modifier or its scope. Resolve it before the enemy-vulnerability fallback.
     m = re.match(r'^(-?[\d.]+)\s*%\s*additional\s+damage\s+taken\s+from\s+enemies$', _tc, re.I)
     if m:
+        # Applies the maximum value. Distance falloff is not modeled (unverified approximation).
         return [{"stat_key": "dmg_taken_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # Other negative "additional damage taken" lines describe damage taken by the wearer. Skip enemy-vulnerability

@@ -94,8 +94,7 @@ class TestEffectClassify:
 
 class TestResolveSources:
     def test_safeguard_field_mixed_damage_taken_line_stays_unresolved(self):
-        # SS12/SS13 season data line also limits the second modifier to enemies outside the field.
-        # origin/dev leaves this compound phrase unresolved rather than discarding its first clause and gate.
+        # Do not parse only the final amount and discard the first modifier and its outside-field scope.
         text = "-8% additional damage taken and -10.5% additional damage taken from enemies outside the Safeguard Field."
 
         assert _parse_custom_mod_text(text) == []
