@@ -49,15 +49,21 @@ _NEAR_M = 3.0   # Immediate Threat: the full tiered roll applies at/within this 
 _FAR_M = 8.0    # Immediate Threat: zero bonus at/beyond this distance
 
 
-def normalize_hit_count(raw, default: int, minimum: int, maximum: int) -> int:
-    """Return a finite whole-hit override, or the automatic default for invalid input."""
-    if raw is None:
-        return int(default)
+def parse_hit_count_override(raw) -> float | None:
+    """Return a finite numeric hit-count request, or None for missing/invalid input."""
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        return int(default)
+        return None
     if not math.isfinite(value):
+        return None
+    return value
+
+
+def normalize_hit_count(raw, default: int, minimum: int, maximum: int) -> int:
+    """Return a finite whole-hit override, or the automatic default for invalid input."""
+    value = parse_hit_count_override(raw)
+    if value is None:
         return int(default)
     return max(minimum, min(maximum, int(value)))
 

@@ -9,7 +9,7 @@
 
 ### Features
 - Flame Slash's Config now lets you choose how many Steep Strike fire torrents hit the target. Auto uses each slot's full torrent count, and Shotgunning shows the selected hits. Inverted Blaze's returning hits default to and are capped by the torrents that hit.
-- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Config shows each slot's automatic return count; enter a global override or choose Auto to restore per-slot counts. This model awaits in-game verification.
+- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Torrent Hits and Torrent Return Hits show no per-slot count text; clearing either field restores its automatic value, and the Auto button appears only while an override is set. This model awaits in-game verification.
 
 ## [0.6.9] - 2026-10-03
 

@@ -2314,8 +2314,7 @@ def calculate_offense(
             # Blaze's returning torrents land as EXTRA hits in the SAME same-target shotgun group
             # (flame_slash_return_hits_flat, 0 when that support isn't attached).
             _torrents = int(source.total("flame_slash_torrent_count_flat")) or form.hit_count
-            _hits = (int(source.total("flame_slash_torrent_hits_flat"))
-                     if "flame_slash_torrent_hits_flat" in source.all_stats() else _torrents)
+            _hits = int(source.total("flame_slash_torrent_hits_flat")) or _torrents
             n_proj = max(0, max(1, min(_torrents, _hits))
                          + int(source.total("flame_slash_return_hits_flat")))
         else:

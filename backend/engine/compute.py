@@ -2555,15 +2555,12 @@ def compute(
         }
 
     # Flame Slash's bounds arrive after slot Area and landed hits resolve.
-    from engine.skill_effects.flame_slash import normalize_hit_count
+    from engine.skill_effects.flame_slash import normalize_hit_count, parse_hit_count_override
     for key, floor in (("flame_slash_torrent_hits", 1.0), ("inverted_blaze_returns", 0.0)):
         raw = build_input.condition_state.get(key)
         if key in maxes and raw is not None:
-            try:
-                requested = float(raw)
-            except (TypeError, ValueError):
-                continue
-            if not math.isfinite(requested):
+            requested = parse_hit_count_override(raw)
+            if requested is None:
                 continue
             applied = normalize_hit_count(requested, int(maxes[key]), int(floor), int(maxes[key]))
             slot_applied = {}
