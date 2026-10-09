@@ -1722,6 +1722,9 @@ export interface HeroTraitTreeNode {
   y?: number   // 0..1, top→bottom
   effects: string[]
   icon_url?: string | null   // render via iconUrl('hero_trait', icon_url) → bundled webp
+  subtitle?: string          // in-game node header (e.g. "Spacetime Dictator")
+  unlock_level?: number | null   // character level the node unlocks at; null/absent = not recorded
+  unverified?: boolean       // transcribed from partial/pre-launch data — text may be incomplete
 }
 
 export interface HeroTrait {
@@ -1743,6 +1746,10 @@ export interface HeroTrait {
   tree_root_id?: string
   tree_nodes?: HeroTraitTreeNode[]
   tree_connections?: { from: string; to: string }[]
+  // Youga 3 (The Ultimate One) only — reference text for the skill effects active under "Selves of All Realms";
+  // display-only, none of it is modeled.
+  alternate_spacetime_header?: string
+  alternate_spacetime_effects?: { skill: string; lines: string[] }[]
   // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
   coverage?: 'full' | 'partial' | 'none'
   // For 'partial': the mechanics/status lines NOT modeled — show in a tooltip.

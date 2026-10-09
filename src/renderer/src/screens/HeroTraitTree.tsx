@@ -122,6 +122,7 @@ export default function HeroTraitTree({
   const nodes = trait.tree_nodes ?? []
   const connections = trait.tree_connections ?? []
   const rootId = trait.tree_root_id ?? ''
+  const altEffects = trait.alternate_spacetime_effects ?? []
   const memoryTypes = useReferenceStore(s => s.heroMemories?.memory_types) ?? null
   // Base/Special slot (same rules as the fixed-trait grid): shown only while a revived memory's enabler mod is
   // equipped, to the LEFT of the Origin socket in the rail.
@@ -268,6 +269,17 @@ export default function HeroTraitTree({
         })}
       </svg>
       {memoryRail}
+      {altEffects.length > 0 && (
+        <details className="htt-alt-effects" data-testid="htt-alt-effects">
+          <summary>{trait.alternate_spacetime_header ?? 'Alternate effects'}</summary>
+          {altEffects.map(e => (
+            <div key={e.skill} className="htt-alt-effect">
+              <strong>{e.skill}</strong>
+              {e.lines.map((ln, i) => <div key={i}>{ln}</div>)}
+            </div>
+          ))}
+        </details>
+      )}
     </div>
   )
 }

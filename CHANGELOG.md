@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Hero traits
+- **Youga's third trait, The Ultimate One, can be selected.** The 11-node tree is browsable and allocatable with your Hero Memories, along with the 19 Alternate Spacetime skill effects as reference text. Some node text is still missing and is marked Unverified, and the trait does not change your DPS yet. It appears once the SS14 season is selected.
+
 ### Bug fixes
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
