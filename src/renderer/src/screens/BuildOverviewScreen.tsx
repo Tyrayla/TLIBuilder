@@ -379,8 +379,10 @@ export default function BuildOverviewScreen() {
             // condition returns to its engine default, not the catalog default of 0).
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
             onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
-            autoHint={autoDefaultHint}
-            autoHintTitle={slotHint ? `Automatic torrent count for each Flame Slash skill slot, based on that slot's Skill Area bonus: ${slotHint}` : undefined}
+            autoHint={cond.key === 'flame_slash_torrent_hits' ? autoDefaultHint : slotHint}
+            autoHintTitle={cond.key === 'flame_slash_torrent_hits' && slotHint ? `Automatic torrent count for each Flame Slash skill slot, based on that slot's Skill Area bonus: ${slotHint}` : undefined}
+            autoHintStacked={cond.key === 'flame_slash_torrent_hits' && !!autoDefaultHint}
+            resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
@@ -590,12 +592,14 @@ interface NumericRowProps {
   onReset?: () => void
   autoHint?: string
   autoHintTitle?: string
+  autoHintStacked?: boolean
+  resetTitle?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
   // resolved cap as a placeholder/hint instead of a bare confusing 0.
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint, autoHintTitle }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint, autoHintTitle, autoHintStacked, resetTitle }: NumericRowProps) {
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
@@ -628,7 +632,7 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
   const showSentinelHint = zeroMeansMax && raw.trim() === '' && max != null
 
   return (
-    <div className={`cond-stack-row${autoHint ? ' cond-stack-row--with-auto' : ''}`} title={rowTitle}>
+    <div className={`cond-stack-row${autoHintStacked ? ' cond-stack-row--with-auto' : ''}`} title={rowTitle}>
       <div className="cond-stack-main">
         <span className="cond-stack-label">{cond.label}</span>
         <div className="cond-stack-controls">
@@ -649,10 +653,10 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
             </span>
           )}
           {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
-          {onReset && <button type="button" className="cond-stack-input" title="Clear the override and use the automatic torrent count" onClick={onReset}>Auto</button>}
+          {onReset && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
         </div>
       </div>
-      {autoHint && <span className="cond-derived-hint cond-derived-hint--auto" title={autoHintTitle}>{autoHint}</span>}
+      {autoHint && <span className={`cond-derived-hint${autoHintStacked ? ' cond-derived-hint--auto' : ''}`} title={autoHintTitle}>{autoHint}</span>}
       {clamp && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
           ⚠ capped at {clamp.applied}
