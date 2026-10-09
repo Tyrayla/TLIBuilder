@@ -96,6 +96,7 @@ describe('Star Trail Micro Fate effectiveness', () => {
     // The selected 18% roll is scaled for each modifier: 18 * 1.45 = 26.1, rounded to 26.
     expect(fateTexts(effects, 'Spell Damage')).toEqual(['+26 % Spell Damage +26 % Minion Damage'])
   })
+
   it('counts a Star Trail in a same-tree Undetermined medium slot', () => {
     const undetermined: (UndeterminedFate | null)[] = [
       { extraMicro: 1, extraMedium: 1, slots: [microFate(), STAR_TRAIL] },
@@ -173,7 +174,3 @@ describe('Star Trail Micro Fate effectiveness', () => {
     expect(fateTexts(effects, 'Ignite Damage Mitigation')).toEqual(['-44 % additional Ignite Damage taken'])
   })
 })
-
-
-
-
