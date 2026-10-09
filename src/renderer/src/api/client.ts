@@ -1350,7 +1350,7 @@ export interface StatSheetResponse {
   referenced_conditions?: string[]
   // Engine-activated (not user-set) conditions → {value, source}. Config shows these checked + locked with
   // an "auto" badge that names the source (e.g. Splendor inflicting Numbed/Frostbite/Ignite).
-  auto_conditions?: Record<string, { value: number | boolean; source: string }>
+  auto_conditions?: Record<string, { value: number | boolean | null; source: string }>
 
   offense?: OffenseResult | null
   defense?: DefenseResult | null
@@ -2878,14 +2878,19 @@ export function isSupportCompatible(
 
   // Generic "Supports X Skills" description parsing
   const firstLine = support.description_lines[0] || ''
-  if (!firstLine.startsWith('Supports')) return false
+  if (!/^Supports?\s+/i.test(firstLine)) return false
 
   // The "Supports X Skills." requirement is ONLY the sentence up to its first period — the rest of the
   // line is the support's effect text (the importer concatenates the whole description into one line).
   // Without isolating it, the requirement parse choked on trailing effect text (e.g. Jump's "...or Chain
   // Skills. +2 Jumps..." never matched Chain), so most supports were wrongly hidden.
-  const clauseMatch = firstLine.match(/^Supports\s+(.+?)\./)
-  const raw = (clauseMatch ? clauseMatch[1] : firstLine.replace(/^Supports\s+/, '')).trim()
+  const clauseMatch = firstLine.match(/^Supports?\s+(.+?)\./i)
+  const raw = (clauseMatch ? clauseMatch[1] : firstLine.replace(/^Supports?\s+/i, '')).trim()
+  // This canonical family list accepts either category. Composite restrictions such as
+  // "Persistent Skills and skills that can inflict Ailment" still require both operands.
+  if (/^(?:Attack and Spell|Spell and Attack) Skills?$/i.test(raw)) {
+    return parentSkill.skill_tags.some(t => /^(attack|spell)$/i.test(t))
+  }
   if (raw.toLowerCase() === 'any skill' || raw.toLowerCase() === 'any skills') return true
   // "Supports skills that hit enemies / deal damage / summon …" all require an active damage/summon skill —
   // a pure Aura/buff/Focus passive matches none of them, so gate on the skill actually dealing damage. (This
