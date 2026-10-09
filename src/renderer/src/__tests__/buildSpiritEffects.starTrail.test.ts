@@ -57,17 +57,18 @@ describe('Star Trail Micro Fate effectiveness', () => {
   })
 
   it('adds 45 percentage points for one Star Trail', () => {
-    // Owner-confirmed factor is 1 + 0.45 * 1 = 1.45; canonical roll 7 * 1.45 = 10.15, rounded to 10.
+    // Factor is 1 + 0.45 * 1 = 1.45 (+45 % per Star Trail, per game text); canonical roll 7 * 1.45 = 10.15, rounded to 10.
     expect(fateTexts(oneTreeEffects(1), 'Fire Resistance')).toEqual(['+10 % Fire Resistance'])
   })
 
   it('stacks three Star Trails additively', () => {
-    // Owner-confirmed factor is 1 + 0.45 * 3 = 2.35; canonical roll 7 * 2.35 = 16.45, rounded to 16.
+    // Factor is 1 + 0.45 * 3 = 2.35; canonical roll 7 * 2.35 = 16.45, rounded to 16.
     expect(fateTexts(oneTreeEffects(3), 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
 
   it('caps effectiveness at three Star Trails', () => {
-    // A fourth Star Trail is above the confirmed cap, so 7 * 2.35 = 16.45, still rounded to 16.
+    // Assumed cap of three (unverified; no source; owner has never seen more than three used).
+    // A fourth Star Trail is above the assumed cap, so 7 * 2.35 = 16.45, still rounded to 16.
     expect(fateTexts(oneTreeEffects(4), 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
 
@@ -161,7 +162,7 @@ describe('Star Trail Micro Fate effectiveness', () => {
     const micro = microFate('Life Restored on Defeat', 'Restores (0.1–0.2) % of Life on defeat', [0.13])
     const effects = oneTreeEffects(1, micro)
 
-    // Existing fate roll is 0.13; owner-confirmed factor is 1.45, so the 0.1885 rounds down to 0.
+    // Existing fate roll is 0.13; factor is 1.45, so the 0.1885 rounds down to 0.
     expect(fateTexts(effects, 'Life Restored on Defeat')).toEqual(['Restores 0 % of Life on defeat'])
   })
 
@@ -172,9 +173,6 @@ describe('Star Trail Micro Fate effectiveness', () => {
     expect(fateTexts(effects, 'Ignite Damage Mitigation')).toEqual(['-44 % additional Ignite Damage taken'])
   })
 })
-
-
-
 
 
 
