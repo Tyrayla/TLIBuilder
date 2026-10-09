@@ -327,6 +327,12 @@ export default function BuildOverviewScreen() {
         const slotHint = auto?.slot_values
           ? Object.entries(auto.slot_values).map(([slot, value]) => `Slot ${slot}: ${value}`).join(' · ')
           : undefined
+        const autoSlotEntries = auto?.slot_values ? Object.entries(auto.slot_values) : []
+        const autoDefaultHint = autoSlotEntries.length === 1
+          ? `Default: ${autoSlotEntries[0][1]} ${cond.unit || 'torrents'} (Slot ${autoSlotEntries[0][0]})`
+          : autoSlotEntries.length > 1
+            ? `Defaults: ${autoSlotEntries.map(([slot, value]) => `Slot ${slot}: ${value}`).join(' · ')} ${cond.unit || 'torrents'}`
+            : undefined
         const isOverridden = conditionState[cond.key] !== undefined
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
@@ -373,7 +379,8 @@ export default function BuildOverviewScreen() {
             // condition returns to its engine default, not the catalog default of 0).
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
             onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
-            autoHint={slotHint}
+            autoHint={autoDefaultHint}
+            autoHintTitle={slotHint ? `Automatic torrent count for each Flame Slash skill slot, based on that slot's Skill Area bonus: ${slotHint}` : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
@@ -582,12 +589,13 @@ interface NumericRowProps {
   defaultOverride?: number
   onReset?: () => void
   autoHint?: string
+  autoHintTitle?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
   // resolved cap as a placeholder/hint instead of a bare confusing 0.
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint, autoHintTitle }: NumericRowProps) {
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
@@ -620,29 +628,31 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
   const showSentinelHint = zeroMeansMax && raw.trim() === '' && max != null
 
   return (
-    <div className="cond-stack-row" title={rowTitle}>
-      <span className="cond-stack-label">{cond.label}</span>
-      <div className="cond-stack-controls">
-        <input
-          type="number"
-          className="cond-stack-input"
-          value={raw}
-          min={min}
-          max={max ?? undefined}
-          placeholder={autoHint && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
-          onChange={e => setRaw(e.target.value)}
-          onBlur={e => commit(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
-        />
-        {showSentinelHint && (
-          <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
-            all {max} attached
-          </span>
-        )}
-        {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
-        {onReset && <button type="button" className="cond-stack-input" onClick={onReset}>Auto</button>}
+    <div className={`cond-stack-row${autoHint ? ' cond-stack-row--with-auto' : ''}`} title={rowTitle}>
+      <div className="cond-stack-main">
+        <span className="cond-stack-label">{cond.label}</span>
+        <div className="cond-stack-controls">
+          <input
+            type="number"
+            className="cond-stack-input"
+            value={raw}
+            min={min}
+            max={max ?? undefined}
+            placeholder={autoHint && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
+            onChange={e => setRaw(e.target.value)}
+            onBlur={e => commit(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
+          />
+          {showSentinelHint && (
+            <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
+              all {max} attached
+            </span>
+          )}
+          {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
+          {onReset && <button type="button" className="cond-stack-input" title="Clear the override and use the automatic torrent count" onClick={onReset}>Auto</button>}
+        </div>
       </div>
-      {autoHint && <span className="cond-derived-hint">{autoHint}</span>}
+      {autoHint && <span className="cond-derived-hint cond-derived-hint--auto" title={autoHintTitle}>{autoHint}</span>}
       {clamp && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
           ⚠ capped at {clamp.applied}

@@ -32,6 +32,9 @@ describe('Flame Slash torrent hits in Config', () => {
     expect(input().props.value).toBe('5')
     expect(input().props.min).toBe(1)
     expect(input().props.max).toBe(5)
+    const autoHint = view.root.findAllByProps({ className: 'cond-derived-hint cond-derived-hint--auto' })[0]
+    expect(autoHint.children.join('')).toBe('Default: 5 torrents (Slot 1)')
+    expect(autoHint.props.title).toContain('based on that slot\'s Skill Area bonus')
     act(() => { input().props.onChange({ target: { value: '1' } }) })
     act(() => { input().props.onBlur({ target: { value: '1' } }) })
     expect(useBuildStore.getState().conditionState[key]).toBe(1)
@@ -40,6 +43,19 @@ describe('Flame Slash torrent hits in Config', () => {
     act(() => { input().props.onBlur({ target: { value: '' } }) })
     expect(input().props.value).toBe('5')
     expect(useBuildStore.getState().conditionState).toEqual({})
+    act(() => { view.unmount() })
+  })
+
+  it('shows per-slot automatic counts when Flame Slash slots differ', () => {
+    useBuildStore.setState({ computedStats: {
+      ...useBuildStore.getState().computedStats,
+      auto_conditions: { [key]: { value: 5, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } } },
+    } as never })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    const hint = view.root.findAllByProps({ className: 'cond-derived-hint cond-derived-hint--auto' })[0]
+    expect(hint.children.join('')).toBe('Defaults: Slot 1: 3 · Slot 2: 5 torrents')
+    expect(hint.props.title).toContain('Slot 1: 3 · Slot 2: 5')
     act(() => { view.unmount() })
   })
 
