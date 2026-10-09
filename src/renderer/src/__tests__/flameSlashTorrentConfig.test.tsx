@@ -53,16 +53,17 @@ describe('Flame Slash torrent hits in Config', () => {
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
     const labelNode = view.root.findAllByProps({ className: 'cond-stack-label' }).find(item => item.children.join('') === label)
     expect(labelNode).toBeDefined()
-    const row = labelNode!.parent!.parent!
-    expect(row.props.className).toBe('cond-stack-row')
-    expect(row.findAllByProps({ className: 'cond-derived-hint' })).toHaveLength(0)
+    let row = labelNode!.parent
+    while (row && row.props.className !== 'cond-stack-row') row = row.parent
+    expect(row?.props.className).toBe('cond-stack-row')
+    expect(row!.findAllByProps({ className: 'cond-derived-hint' })).toHaveLength(0)
     act(() => { view.unmount() })
   })
 
   it('preserves other per-slot numeric conditions’ helper and row layout', () => {
     const otherKey = 'inverted_blaze_returns'
     useReferenceStore.setState({ conditions: { Skill: [
-      { key: otherKey, label: 'Inverted Blaze Returns', category: 'Skill', value_type: 'numeric', source: 'auto', default_value: 0, numeric_min: 0 },
+      { key: otherKey, label: 'Torrent Return Hits', category: 'Skill', value_type: 'numeric', source: 'auto', default_value: 0, numeric_min: 0 },
     ] } })
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
@@ -71,11 +72,12 @@ describe('Flame Slash torrent hits in Config', () => {
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
-    const labelNode = view.root.findAllByProps({ className: 'cond-stack-label' }).find(item => item.children.join('') === 'Inverted Blaze Returns')
+    const labelNode = view.root.findAllByProps({ className: 'cond-stack-label' }).find(item => item.children.join('') === 'Torrent Return Hits')
     expect(labelNode).toBeDefined()
-    const row = labelNode!.parent!.parent!
-    expect(row.props.className).toBe('cond-stack-row')
-    expect(row.findAllByProps({ className: 'cond-derived-hint' })[0].children.join('')).toBe('Slot 1: 3')
+    let row = labelNode!.parent
+    while (row && row.props.className !== 'cond-stack-row') row = row.parent
+    expect(row?.props.className).toBe('cond-stack-row')
+    expect(row!.findAllByProps({ className: 'cond-derived-hint' })[0].children.join('')).toBe('Slot 1: 3')
     act(() => { view.unmount() })
   })
 

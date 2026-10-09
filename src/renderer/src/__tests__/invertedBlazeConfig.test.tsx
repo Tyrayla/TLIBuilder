@@ -13,7 +13,7 @@ const key = 'inverted_blaze_returns'
 describe('Inverted Blaze Config automatic returns', () => {
   beforeEach(() => {
     useReferenceStore.setState({ conditions: { Skill: [{
-      key, label: 'Returning Torrent Hits', category: 'Skill', value_type: 'numeric',
+      key, label: 'Torrent Return Hits', category: 'Skill', value_type: 'numeric',
       source: 'auto', default_value: 3, numeric_min: 0,
     }] }, referenceResolved: true })
     useUiPrefs.setState({ lockAutoConditions: false })
