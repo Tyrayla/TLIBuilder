@@ -25,22 +25,31 @@ describe('Flame Slash torrent hits in Config', () => {
     } as never })
   })
 
-  it('uses the automatic count and max, accepts one hit, and restores Auto', () => {
+  it('uses the automatic count, shows Auto only for an override, and clears back to auto on blank commit', () => {
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
     const input = () => view.root.findAllByType('input').find(i => i.props.type === 'number')!
+    const autoButton = () => view.root.findAllByType('button').find(button => button.children.join('') === 'Auto')
     expect(input().props.value).toBe('5')
     expect(input().props.min).toBe(1)
     expect(input().props.max).toBe(5)
+    expect(autoButton()).toBeUndefined()
     expect(view.root.findAllByProps({ className: 'cond-derived-hint' })).toHaveLength(0)
+    act(() => { input().props.onChange({ target: { value: '' } }) })
+    act(() => { input().props.onBlur({ target: { value: '' } }) })
+    expect(useBuildStore.getState().conditionState).toEqual({})
+    expect(input().props.value).toBe('5')
+    expect(autoButton()).toBeUndefined()
     act(() => { input().props.onChange({ target: { value: '1' } }) })
     act(() => { input().props.onBlur({ target: { value: '1' } }) })
     expect(useBuildStore.getState().conditionState[key]).toBe(1)
     expect(input().props.value).toBe('1')
+    expect(autoButton()).toBeDefined()
     act(() => { input().props.onChange({ target: { value: '' } }) })
     act(() => { input().props.onBlur({ target: { value: '' } }) })
     expect(input().props.value).toBe('5')
     expect(useBuildStore.getState().conditionState).toEqual({})
+    expect(autoButton()).toBeUndefined()
     act(() => { view.unmount() })
   })
 

@@ -401,6 +401,7 @@ export default function BuildOverviewScreen() {
             // condition returns to its engine default, not the catalog default of 0).
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
             onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
+            hasOverride={Object.prototype.hasOwnProperty.call(conditionState, cond.key)}
             autoHint={cond.key === 'flame_slash_torrent_hits' ? undefined : slotHint}
             resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
@@ -610,6 +611,7 @@ interface NumericRowProps {
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
   onReset?: () => void
+  hasOverride?: boolean
   autoHint?: string
   resetTitle?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
@@ -617,7 +619,7 @@ interface NumericRowProps {
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint, resetTitle }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, hasOverride, autoHint, resetTitle }: NumericRowProps) {
   const integerHitCount = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
@@ -676,7 +678,7 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
             </span>
           )}
           {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
-          {onReset && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
+          {onReset && hasOverride && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
         </div>
       </div>
       {autoHint && <span className="cond-derived-hint">{autoHint}</span>}
