@@ -1789,6 +1789,7 @@ def compute(
     # Per-slot granted Tags (add_mod_tags), recorded by _offense_for_slot for the skill-slot summary below.
     _granted_tags_by_slot: dict[int, set] = {}
     _auto_conditions_by_slot: dict[str, dict[str, float]] = {}
+    _condition_maximums_by_slot: dict[str, dict[str, float]] = {}
 
     def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
@@ -1809,6 +1810,7 @@ def compute(
             _auto_conditions_by_slot.setdefault(key, {})[str(slot)] = value
         for key, value in overrides.get("condition_maximums", {}).items():
             maxes[key] = max(maxes.get(key, 0.0), value)
+            _condition_maximums_by_slot.setdefault(key, {})[str(slot)] = value
         eff = source.materialize_for_skill(_mt, slot)
         # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
         # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
@@ -2557,10 +2559,20 @@ def compute(
         if key in maxes and raw is not None:
             requested = float(raw)
             applied = max(floor, min(maxes[key], requested))
-            if key == "flame_slash_torrent_hits":
+            if key in ("flame_slash_torrent_hits", "inverted_blaze_returns"):
                 applied = float(int(applied))
-            if requested != applied:
-                clamp_report[key] = {"requested": requested, "applied": applied}
+            slot_applied = {}
+            for slot, slot_max in _condition_maximums_by_slot.get(key, {}).items():
+                slot_value = max(floor, min(slot_max, applied))
+                if key in ("flame_slash_torrent_hits", "inverted_blaze_returns"):
+                    slot_value = float(int(slot_value))
+                if slot_value != applied:
+                    slot_applied[slot] = slot_value
+            if requested != applied or slot_applied:
+                report = {"requested": requested, "applied": applied}
+                if slot_applied:
+                    report["slot_applied"] = slot_applied
+                clamp_report[key] = report
 
     from engine.warcry import summarize_warcries
     warcry_summaries = summarize_warcries(

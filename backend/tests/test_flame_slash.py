@@ -322,6 +322,29 @@ class TestTorrentHits:
         assert result["clamp_report"]["flame_slash_torrent_hits"] == {"requested": 99, "applied": 3}
         assert result["clamp_report"]["inverted_blaze_returns"] == {"requested": 99, "applied": 3}
 
+    def test_endpoint_reports_fractional_return_normalization(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": 1}],
+            extra_conditions={"inverted_blaze_returns": 2.9})))
+        assert result["clamp_report"]["inverted_blaze_returns"] == {"requested": 2.9, "applied": 2}
+
+    def test_endpoint_reports_per_slot_return_caps(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            custom_mods=["+100% Skill Area"],
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": slot} for slot in (1, 2)] + [
+                {"item_id": "increased_area", "skill_type": "support_skill",
+                 "rank": 1, "level": 1, "slot": 2}],
+            skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
+            extra_conditions={"inverted_blaze_returns": 4})))
+        assert result["clamp_report"]["inverted_blaze_returns"] == {
+            "requested": 4, "applied": 4, "slot_applied": {"1": 3}}
+
 
 class TestBothSupportsSameSlot:
     """Immediate Threat (slot 3) and Inverted Blaze (slot 5) are mutually compatible — a real build

@@ -605,7 +605,7 @@ interface NumericRowProps {
   cond: ConditionDef
   value: number | undefined
   max: number | null
-  clamp: { requested: number; applied: number } | undefined
+  clamp: { requested: number; applied: number; slot_applied?: Record<string, number> } | undefined
   onChange: (v: number) => void
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
@@ -682,7 +682,9 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
       {autoHint && <span className="cond-derived-hint">{autoHint}</span>}
       {clamp && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
-          ⚠ capped at {clamp.applied}
+          ⚠ {clamp.applied !== clamp.requested ? `capped at ${clamp.applied}` : ''}
+          {clamp.slot_applied && Object.entries(clamp.slot_applied).map(([slot, applied]) =>
+            `Slot ${slot}: capped at ${applied}`).join(' · ')}
         </div>
       )}
     </div>

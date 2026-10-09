@@ -32,7 +32,9 @@ either support here would only re-break what already works, for no benefit.
     the new GLOBAL `inverted_blaze_returns` condition (owner: "should be global"), defaulting to this
     slot's own landed torrent hits, which also cap returns (owner-approved 2026-10-09).
 """
+
 from __future__ import annotations
+import math
 import re
 
 from engine.models import SourceEntry
@@ -82,8 +84,19 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
         text=f"{tc} fire torrents at {area_bonus * 100:.0f}% Area bonus |flame_slash|torrent_count",
         points=1))
 
+    def _hit_count(raw, default, minimum, maximum):
+        if raw is None:
+            return int(default)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return int(default)
+        if not math.isfinite(value):
+            return int(default)
+        return max(minimum, min(maximum, int(value)))
+
     raw_hits = condition_state.get("flame_slash_torrent_hits")
-    hits = tc if raw_hits is None else max(1, min(tc, int(float(raw_hits))))
+    hits = _hit_count(raw_hits, tc, 1, tc)
     # Auto retains the original count path and default golden metadata.
     if raw_hits is not None:
         source.add_slotted("flame_slash_torrent_hits_flat", float(hits), slot, None, SourceEntry(
@@ -133,7 +146,7 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
             auto_conditions["inverted_blaze_returns"] = hits
             condition_maximums["inverted_blaze_returns"] = hits
             raw = condition_state.get("inverted_blaze_returns")
-            return_count = int(float(hits) if raw is None else max(0.0, min(float(hits), float(raw))))
+            return_count = _hit_count(raw, hits, 0, hits)
             if return_count:
                 name = data.get("name") or iid
                 source.add_slotted("flame_slash_return_hits_flat", float(return_count), slot, None, SourceEntry(
