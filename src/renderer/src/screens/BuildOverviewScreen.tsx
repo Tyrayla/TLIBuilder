@@ -352,7 +352,8 @@ export default function BuildOverviewScreen() {
         // field can fall back to it. A manual value (in conditionState) always wins over the auto value, and
         // overriding releases the lock — so the auto badge/lock only apply while the user hasn't set it.
         const auto = autoConditions[cond.key]
-        const slotHint = auto?.slot_values
+        const hidePerSlotHint = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
+        const slotHint = auto?.slot_values && !hidePerSlotHint
           ? Object.entries(auto.slot_values).map(([slot, value]) => `Slot ${slot}: ${value}`).join(' · ')
           : undefined
         const isOverridden = conditionState[cond.key] !== undefined
@@ -387,7 +388,7 @@ export default function BuildOverviewScreen() {
             return (
               <div key={cond.key} className="cond-item cond-item--derived" title={conditionSource(cond.key) ? undefined : t}>
                 <ConditionLabel condition={cond} className="cond-label" />
-                <span className="cond-derived-hint">{slotHint ?? Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
+                <span className="cond-derived-hint">{slotHint ?? (hidePerSlotHint && auto.value == null ? 'Auto' : Number(auto.value))}{cond.unit ? ` ${cond.unit}` : ''}</span>
                 <AutoBadge source={auto.source} />
               </div>
             )
@@ -402,7 +403,7 @@ export default function BuildOverviewScreen() {
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
             onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
             hasOverride={Object.prototype.hasOwnProperty.call(conditionState, cond.key)}
-            autoHint={cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns' ? undefined : slotHint}
+            autoHint={hidePerSlotHint ? undefined : slotHint}
             resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}

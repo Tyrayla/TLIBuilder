@@ -98,6 +98,39 @@ describe('Flame Slash torrent hits in Config', () => {
     act(() => { view.unmount() })
   })
 
+  it('also hides per-slot count text when auto conditions are locked', () => {
+    const returnKey = 'inverted_blaze_returns'
+    useUiPrefs.setState({ lockAutoConditions: true })
+    useReferenceStore.setState({ conditions: { Skill: [
+      { key, label, category: 'Skill', value_type: 'numeric', source: 'auto', default_value: 3, numeric_min: 1 },
+      { key: returnKey, label: 'Torrent Return Hits', category: 'Skill', value_type: 'numeric', source: 'auto', default_value: 0, numeric_min: 0 },
+    ] } })
+    useBuildStore.setState({ conditionState: {}, computedStats: {
+      ...useBuildStore.getState().computedStats,
+      referenced_conditions: [key, returnKey], condition_maximums: { [key]: 5, [returnKey]: 5 },
+      auto_conditions: {
+        [key]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } },
+        [returnKey]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } },
+      },
+    } as never })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    const screen = JSON.stringify(view.toJSON())
+    expect(screen).not.toContain('Slot 1: 3')
+    expect(screen).not.toContain('Slot 2: 5')
+    expect(screen).toContain('Torrent Hits')
+    expect(screen).toContain('Torrent Return Hits')
+    for (const text of [label, 'Torrent Return Hits']) {
+      const node = view.root.findAllByProps({ className: 'cond-label' })
+        .find(item => item.children.join('') === text)!
+      let row = node.parent
+      while (row && row.props.className !== 'cond-item cond-item--derived') row = row.parent
+      expect(row?.findAllByProps({ className: 'cond-derived-hint' }).map(item => item.children.join('')))
+        .toContain('Auto')
+    }
+    act(() => { view.unmount() })
+  })
+
   it('hides a stale saved setting after Flame Slash leaves the build', () => {
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
