@@ -1899,7 +1899,8 @@ export function buildSpiritEffects(
       count + (slotIndex >= undeterminedFate.extraMicro && fate?.kind === 'kismet' && fate.shortName === 'Star Trail' ? 1 : 0), 0) ?? 0
     // +45 % per Star Trail comes from game text. The cap of three is an assumed working value
     // (unverified; no source states a limit; owner has never seen more than three used).
-    // Rounding to whole numbers is likewise an assumption. See data/verification/fates-kismets.json.
+    // Additive stacking (1 + 0.45n) is modeled, not measured. Rounding to whole numbers is likewise an assumption
+    // (half values round away from zero). See data/verification/fates-kismets.json.
     const microFateMultiplierPercent = 100 + 45 * Math.min(nativeStarTrails + undeterminedStarTrails, 3)
     // Inner/mid nodes: emit the installed fate's effect, else the node's own effect lines. Outer = rank modifiers.
     spirit.slots.forEach((slot, i) => {

@@ -62,6 +62,7 @@ describe('Star Trail Micro Fate effectiveness', () => {
   })
 
   it('stacks three Star Trails additively', () => {
+    // Additive stacking (1 + 0.45n) is the modeled behavior, not an in-game measurement.
     // Factor is 1 + 0.45 * 3 = 2.35; canonical roll 7 * 2.35 = 16.45, rounded to 16.
     expect(fateTexts(oneTreeEffects(3), 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
@@ -95,6 +96,47 @@ describe('Star Trail Micro Fate effectiveness', () => {
 
     // The selected 18% roll is scaled for each modifier: 18 * 1.45 = 26.1, rounded to 26.
     expect(fateTexts(effects, 'Spell Damage')).toEqual(['+26 % Spell Damage +26 % Minion Damage'])
+  })
+
+  it('does not emit the Star Trail effect line itself', () => {
+    expect(fateTexts(oneTreeEffects(1), 'Star Trail')).toEqual([])
+  })
+
+  it('does not count a Star Trail in a micro-ring slot or in another tree', () => {
+    const effects = buildSpiritEffects(
+      selected('tree-a', 'tree-b'),
+      [spirit('tree-a'), spirit('tree-b')],
+      { '0:0': microFate(), '1:0': STAR_TRAIL, '1:1': microFate('Attack Damage', '+(14–18) % Attack Damage') },
+      [null, null],
+    )
+
+    // Tree A has no mid-ring Trail (the only Trail is in tree B's inner slot), so its roll stays 7.
+    expect(fateTexts(effects, 'Fire Resistance')).toEqual(['+7 % Fire Resistance'])
+    expect(fateTexts(effects, 'Attack Damage')).toEqual(['+18 % Attack Damage'])
+  })
+
+  it('does not count an Undetermined Star Trail sitting in a micro slot', () => {
+    const effects = buildSpiritEffects(
+      selected('tree'),
+      [spirit('tree')],
+      { '0:0': microFate() },
+      [{ extraMicro: 1, extraMedium: 0, slots: [STAR_TRAIL] }],
+    )
+
+    expect(fateTexts(effects, 'Fire Resistance')).toEqual(['+7 % Fire Resistance'])
+  })
+
+  it('adds native and Undetermined Star Trails in one tree, capped at three in total', () => {
+    const fates: Record<string, InstalledFate> = { '0:0': microFate(), '0:1': STAR_TRAIL, '0:2': STAR_TRAIL }
+    const effects = buildSpiritEffects(
+      selected('tree'),
+      [spirit('tree')],
+      fates,
+      [{ extraMicro: 0, extraMedium: 2, slots: [STAR_TRAIL, STAR_TRAIL] }],
+    )
+
+    // Four Trails total; assumed cap of three (unverified) gives 7 * 2.35 = 16.45, rounded to 16.
+    expect(fateTexts(effects, 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
 
   it('counts a Star Trail in a same-tree Undetermined medium slot', () => {
