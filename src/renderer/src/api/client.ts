@@ -1818,10 +1818,15 @@ export const FATE_MEDIUM_LIMIT = 4
 // The "(lo–hi)" roll-range pattern shared by the fate helpers below.
 const FATE_RANGE_RE = /\(([+-]?\d+(?:\.\d+)?)\s*(?:\u2013|-)\s*([+-]?\d+(?:\.\d+)?)\)/g
 
+// A fresh global copy of the roll-range pattern, for callers that walk matches (keeps lastIndex private).
+export function fateRangeRegex(): RegExp {
+  return new RegExp(FATE_RANGE_RE.source, 'g')
+}
+
 // Each "(lo–hi)" roll range in a fate effect, in order, with the decimal precision of its bounds.
 export function fateRanges(effectText: string): { lo: number; hi: number; dp: number }[] {
   const out: { lo: number; hi: number; dp: number }[] = []
-  const re = new RegExp(FATE_RANGE_RE.source, 'g')
+  const re = fateRangeRegex()
   let m: RegExpExecArray | null
   while ((m = re.exec(effectText || ''))) {
     const dp = Math.max((m[1].split('.')[1] || '').length, (m[2].split('.')[1] || '').length)

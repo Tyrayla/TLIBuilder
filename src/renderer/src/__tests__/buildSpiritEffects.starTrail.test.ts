@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildSpiritEffects,
+  fateRangeRegex,
+  fateRanges,
   type InstalledFate,
   type PactSpirit,
   type SelectedPactSpirit,
@@ -62,7 +64,7 @@ describe('Star Trail Micro Fate effectiveness', () => {
   })
 
   it('stacks three Star Trails additively', () => {
-    // Additive stacking (1 + 0.45n) is the modeled behavior, not an in-game measurement.
+    // Additive stacking (1 + 0.45n) is modeled, unverified; no in-game measurement exists.
     // Factor is 1 + 0.45 * 3 = 2.35; canonical roll 7 * 2.35 = 16.45, rounded to 16.
     expect(fateTexts(oneTreeEffects(3), 'Fire Resistance')).toEqual(['+16 % Fire Resistance'])
   })
@@ -96,6 +98,14 @@ describe('Star Trail Micro Fate effectiveness', () => {
 
     // The selected 18% roll is scaled for each modifier: 18 * 1.45 = 26.1, rounded to 26.
     expect(fateTexts(effects, 'Spell Damage')).toEqual(['+26 % Spell Damage +26 % Minion Damage'])
+  })
+
+  it('shares one signed roll-range pattern between fateRanges and the roll editor', () => {
+    const text = '(-36–-30) % additional Ignite Damage taken +(5–7) % Fire Resistance'
+    const matches = Array.from(text.matchAll(fateRangeRegex())).map(m => m[0])
+
+    expect(matches).toEqual(['(-36–-30)', '(5–7)'])
+    expect(fateRanges(text)).toEqual([{ lo: -36, hi: -30, dp: 0 }, { lo: 5, hi: 7, dp: 0 }])
   })
 
   it('does not emit the Star Trail effect line itself', () => {
@@ -172,12 +182,12 @@ describe('Star Trail Micro Fate effectiveness', () => {
   })
 
   it('rounds a two-percent Micro Fate result of 2.9 up to 3', () => {
-    // Owner-approved factor gives 2 * 1.45 = 2.9, which rounds to 3.
+    // The +45 % factor is game text; 2 * 1.45 = 2.9 rounds to 3 (whole-number rounding is an unverified assumption).
     expect(fateTexts(oneTreeEffects(1, microFate('Two Percent', '+2 % Damage')), 'Two Percent')).toEqual(['+3 % Damage'])
   })
 
-  it('rounds a half value up to the next integer', () => {
-    // Owner-approved factor gives 10 * 1.45 = 14.5, which rounds half up to 15.
+  it('rounds a positive half value away from zero', () => {
+    // 10 * 1.45 = 14.5, which rounds half away from zero to 15 (unverified assumption).
     expect(fateTexts(oneTreeEffects(1, microFate('Ten Percent', '+10 % Damage')), 'Ten Percent')).toEqual(['+15 % Damage'])
   })
 
@@ -212,7 +222,7 @@ describe('Star Trail Micro Fate effectiveness', () => {
   it('scales the selected negative Micro Fate roll without losing its sign', () => {
     const effects = oneTreeEffects(1, microFate('Ignite Damage Mitigation', '(-36–-30) % additional Ignite Damage taken'))
 
-    // Existing best-roll behavior selects -30; applying 1.45 gives -43.5, rounded half up to -44.
+    // The default roll is the range's upper bound, -30; applying 1.45 gives -43.5, rounded half away from zero to -44.
     expect(fateTexts(effects, 'Ignite Damage Mitigation')).toEqual(['-44 % additional Ignite Damage taken'])
   })
 })
