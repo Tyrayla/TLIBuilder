@@ -63,7 +63,6 @@ describe('Inverted Blaze Config automatic returns', () => {
     const input = view.root.findAllByType('input').find(i => i.props.type === 'number')!
     expect(input.props.value).toBe('')
     expect(JSON.stringify(view.toJSON())).not.toMatch(/Slot\s+[0-9]+:/)
-    expect(JSON.stringify(view.toJSON())).not.toMatch(/Slot [0-9]+:/)
     act(() => { input.props.onBlur({ target: { value: '' } }) })
     expect(useBuildStore.getState().conditionState).toEqual({})
     act(() => { view.unmount() })
