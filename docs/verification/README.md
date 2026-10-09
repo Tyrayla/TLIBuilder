@@ -5,12 +5,12 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**97 entries** — ✅ Confirmed: 18 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 57
+**99 entries** — ✅ Confirmed: 18 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 58
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
 | Additional attack/cast speed pooling | — | damage-pool, speed | ✅ Confirmed | 2026-06-10 | [additional-speed-pooling.md](additional-speed-pooling.md) |
-| Affliction and True Flame | Cataclysm, True Flame | dot, stacking, damage-pool, trigger, uptime | ✅ Confirmed | 2026-09-18 | [affliction-true-flame.md](affliction-true-flame.md) |
+| Affliction and True Flame | Cataclysm, True Flame, Black Hole | dot, stacking, damage-pool, uptime | ✅ Confirmed | 2026-09-25 | [affliction-true-flame.md](affliction-true-flame.md) |
 | Armor does not mitigate Damage over Time | Mind Control, Path of Flames | dot, mitigation | ✅ Confirmed | 2026-07-10 | [dot-armor-exclusion.md](dot-armor-exclusion.md) |
 | Chain Lightning (baseline) | Chain Lightning | baseline, damage-pool | ✅ Confirmed | 2026-06-10 | [chain-lightning.md](chain-lightning.md) |
 | Channeled / Icebound Beam | Icebound Beam | channeled, redistribution | ✅ Confirmed | 2026-06-14 | [channeled.md](channeled.md) |
@@ -29,6 +29,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed, owner-confirmed, malformed-source-text | ✅ Confirmed | 2026-07-16 | [wind-stalker.md](wind-stalker.md) |
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
+| Flame Slash (+ supports) | Flame Slash | skill, slash-strike, shotgun, conversion, per-slot | 🔶 Partial | — | [flame-slash.md](flame-slash.md) |
 | Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
 | Multistrike + Wind Stalker | — | speed, attack | 🔶 Partial | 2026-06-22 | [multistrike.md](multistrike.md) |
 | Path of Flames | Path of Flames | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [path-of-flames.md](path-of-flames.md) |
@@ -64,7 +65,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Elixir system | — | buff, uptime | ⚠️ Unverified | — | [elixir-system.md](elixir-system.md) |
 | Extreme Coldness (only Cold Damage) | — | conversion, damage-pool | ⚠️ Unverified | — | [extreme-coldness.md](extreme-coldness.md) |
 | Fervor Rating | — | crit, buff | ⚠️ Unverified | — | [fervor.md](fervor.md) |
-| Flame Slash (+ supports) | Flame Slash | skill, slash-strike, shotgun, conversion, per-slot | ⚠️ Unverified | — | [flame-slash.md](flame-slash.md) |
 | Focused Slash / Moon Strike | Focused Slash, Moon Strike | skill, attack | ⚠️ Unverified | — | [focused-slash-moon-strike.md](focused-slash-moon-strike.md) |
 | Frail + Infiltration | — | enemy-vulnerability, ailment | ⚠️ Unverified | — | [frail-infiltration.md](frail-infiltration.md) |
 | Frost Terra (skill DoT + Terra damage pools) | Frost Terra | dot, stacking, damage-pool, terra | ⚠️ Unverified | — | [frost-terra.md](frost-terra.md) |
@@ -73,6 +73,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Ill Omen (Ominous curse) + Reap Purification conversion (Psychic) | Ominous, Reap Purification | curse, stacking, conversion, trigger, damage-pool, true-damage | ⚠️ Unverified | — | [ill-omen.md](ill-omen.md) |
+| Impermanence damage endpoints | Thunder Spike | damage-pool, conversion, methodology | ⚠️ Unverified | — | [impermanence.md](impermanence.md) |
 | Incoming Damage / Max Hit / Static EHP | — | defense, ehp, max-hit, mitigation, conversion, dot | ⚠️ Unverified | — | [incoming-mitigation-model.md](incoming-mitigation-model.md) |
 | Iris "Merged Spirit Magi" — Spirit Magus skills in Active Skill slots (soft-invalidation gating) | Spirit Magus skills (Spirit Magus-tagged) | hero-trait, slot-gating, soft-invalidation, trigger | ⚠️ Unverified | — | [merged-spirit-magi-active-slots.md](merged-spirit-magi-active-slots.md) |
 | Iris "Vigilant" — second-skill-slot restriction while Merged (SHELVED, not modeled) | Merged Spirit Magi (Iris "Vigilant" state) | hero-trait, slot-gating, methodology | ⚠️ Unverified | — | [iris-second-skill-slot-restriction.md](iris-second-skill-slot-restriction.md) |
@@ -91,6 +92,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Origin-effect scalar supports (Precise: Superpower / Friend of Spirit Magi) | Precise: Superpower, Friend of Spirit Magi, Precise: Friend of Spirit Magi | minion, spirit-magus, support | ⚠️ Unverified | — | [origin-effect-scalar-supports.md](origin-effect-scalar-supports.md) |
 | Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
 | Per-Attribute Scaling ("+X per N Strength/Dexterity/Intelligence") | — | breakpoint, condition, step-function | ⚠️ Unverified | — | [attribute-scaling-condition.md](attribute-scaling-condition.md) |
+| Periodic Burst averaged player buff | Periodic Burst, Spiral Strike | supports, uptime | ⚠️ Unverified | — | [periodic-burst.md](periodic-burst.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |
