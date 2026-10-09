@@ -51,4 +51,27 @@ describe('BuildSelectScreen — folders show with zero saved builds (bug-284)', 
     const text = await renderWith(NO_FOLDERS)
     expect(text).toContain('No saved builds yet.')
   })
+
+  it('keeps Import Code above the paired create actions with the centered brand and account control', async () => {
+    vi.mocked(api.getBuilds).mockResolvedValue([])
+    vi.mocked(api.getBuildFolders).mockResolvedValue(NO_FOLDERS)
+    let renderer!: TestRenderer.ReactTestRenderer
+    await act(async () => {
+      renderer = TestRenderer.create(<BuildSelectScreen onNewBuild={() => {}} onOpenBuild={() => {}} />)
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    const cluster = renderer.root.findByProps({ className: 'build-select-actions build-select-create-cluster' })
+    const [importAction, createRow] = cluster.children
+    if (typeof importAction === 'string' || typeof createRow === 'string') throw new Error('Expected action containers.')
+    expect(importAction.props.className).toContain('build-select-import')
+    expect(createRow.props.className).toBe('build-select-create-row')
+    expect(cluster.findAllByType('button').map(button => button.children.join(''))).toEqual(['Import Code', '+ New Folder', '+ New Build'])
+    expect(renderer.root.findByProps({ className: 'build-select-center' })).toBeTruthy()
+    expect(renderer.root.findByProps({ className: 'build-select-account-control' })).toBeTruthy()
+    const discordCta = renderer.root.findByProps({ className: 'btn btn-sm build-select-discord' })
+    expect(discordCta.findByType('svg').props['aria-hidden']).toBe('true')
+    expect(discordCta.findByType('span').children.join('')).toContain('Join the Discord')
+    renderer.unmount()
+  })
 })

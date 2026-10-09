@@ -4,6 +4,9 @@ import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs, SIDEBAR_MIN, SIDEBAR_MAX } from '../store/uiPrefsStore'
 import SettingsOverlay from './SettingsOverlay'
 import LoadoutOverlay from './LoadoutOverlay'
+import ProfileOverlay from './accounts/ProfileOverlay'
+import CloudLibraryOverlay from './accounts/CloudLibraryOverlay'
+import { useAccountStore } from '../store/accountStore'
 import type { OffenseResult } from '../api/client'
 import { dec } from '../utils/num'
 import { characterSummary } from '../utils/characterSummary'
@@ -159,6 +162,10 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
     || screen === 'preview-selector' || screen === 'preview-viewer'
   const [showSettings, setShowSettings] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [cloudLibraryOpen, setCloudLibraryOpen] = useState(false)
+  const account = useAccountStore(s => s.account)
+  const accountStatus = useAccountStore(s => s.status)
   const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
   // ≤768px the sidebar collapses into an overlay drawer (see the mobile block in index.css);
   // the floating toggle opens it and any navigation closes it. Desktop ignores all of this.
@@ -258,6 +265,17 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       {/* Trailing filler pushes the support link to the very bottom of the nav. */}
       <div className="sidebar-spacer" />
+      <button
+        className="sidebar-nav-btn sidebar-profile"
+        onClick={() => setProfileOpen(true)}
+        aria-label={account ? `Profile settings for ${account.publicName.name}#${account.publicName.tag}` : 'Profile settings'}
+      >
+        <svg className="sidebar-profile-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.5" />
+          <path d="M5 20c.2-4 2.6-6 7-6s6.8 2 7 6" />
+        </svg>
+        {accountStatus === 'signed-out' || accountStatus === 'unavailable' ? 'Sign in' : accountStatus === 'signup' ? 'Finish signup' : 'Profile settings'}
+      </button>
       <div className="sidebar-divider" />
       <button
         className="sidebar-nav-btn sidebar-support"
@@ -274,6 +292,14 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
         the drawer. As siblings they layer against the page like every other modal. */}
     {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
     {loadoutView && <LoadoutOverlay initialView={loadoutView} onClose={() => setLoadoutView(null)} />}
+    {profileOpen && <ProfileOverlay
+      onClose={() => setProfileOpen(false)}
+      onOpenCloudLibrary={() => { setProfileOpen(false); setCloudLibraryOpen(true) }}
+    />}
+    {cloudLibraryOpen && <CloudLibraryOverlay
+      onClose={() => setCloudLibraryOpen(false)}
+      onChanged={() => window.dispatchEvent(new Event('tli-local-builds-changed'))}
+    />}
     </>
   )
 }
