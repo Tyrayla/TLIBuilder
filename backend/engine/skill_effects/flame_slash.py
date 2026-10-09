@@ -48,6 +48,19 @@ INVERTED_BLAZE = "flame_slash_inverted_blaze_noble"
 _NEAR_M = 3.0   # Immediate Threat: the full tiered roll applies at/within this distance
 _FAR_M = 8.0    # Immediate Threat: zero bonus at/beyond this distance
 
+
+def normalize_hit_count(raw, default: int, minimum: int, maximum: int) -> int:
+    """Return a finite whole-hit override, or the automatic default for invalid input."""
+    if raw is None:
+        return int(default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return int(default)
+    if not math.isfinite(value):
+        return int(default)
+    return max(minimum, min(maximum, int(value)))
+
 # "...+(38–40) % additional damage to enemies within 3 m" (en-dash or hyphen; the tier roll itself).
 _PROXIMITY_RE = re.compile(
     r"\(?\s*([\d.]+)\s*[–−\-]\s*([\d.]+)\s*\)?\s*%\s*additional\s+damage\s+to\s+enemies\s+within",
@@ -84,19 +97,8 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
         text=f"{tc} fire torrents at {area_bonus * 100:.0f}% Area bonus |flame_slash|torrent_count",
         points=1))
 
-    def _hit_count(raw, default, minimum, maximum):
-        if raw is None:
-            return int(default)
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            return int(default)
-        if not math.isfinite(value):
-            return int(default)
-        return max(minimum, min(maximum, int(value)))
-
     raw_hits = condition_state.get("flame_slash_torrent_hits")
-    hits = _hit_count(raw_hits, tc, 1, tc)
+    hits = normalize_hit_count(raw_hits, tc, 1, tc)
     # Auto retains the original count path and default golden metadata.
     if raw_hits is not None:
         source.add_slotted("flame_slash_torrent_hits_flat", float(hits), slot, None, SourceEntry(
@@ -146,7 +148,7 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
             auto_conditions["inverted_blaze_returns"] = hits
             condition_maximums["inverted_blaze_returns"] = hits
             raw = condition_state.get("inverted_blaze_returns")
-            return_count = _hit_count(raw, hits, 0, hits)
+            return_count = normalize_hit_count(raw, hits, 0, hits)
             if return_count:
                 name = data.get("name") or iid
                 source.add_slotted("flame_slash_return_hits_flat", float(return_count), slot, None, SourceEntry(

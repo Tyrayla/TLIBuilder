@@ -9,6 +9,7 @@ server.py is a thin HTTP wrapper; all calculation logic lives here.
 """
 from __future__ import annotations
 import logging
+import math
 from engine.models import BuildInput, BuildSource, StatResult
 from engine.constants import ELEMENTAL
 
@@ -2554,18 +2555,20 @@ def compute(
         }
 
     # Flame Slash's bounds arrive after slot Area and landed hits resolve.
+    from engine.skill_effects.flame_slash import normalize_hit_count
     for key, floor in (("flame_slash_torrent_hits", 1.0), ("inverted_blaze_returns", 0.0)):
         raw = build_input.condition_state.get(key)
         if key in maxes and raw is not None:
-            requested = float(raw)
-            applied = max(floor, min(maxes[key], requested))
-            if key in ("flame_slash_torrent_hits", "inverted_blaze_returns"):
-                applied = float(int(applied))
+            try:
+                requested = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(requested):
+                continue
+            applied = normalize_hit_count(requested, int(maxes[key]), int(floor), int(maxes[key]))
             slot_applied = {}
             for slot, slot_max in _condition_maximums_by_slot.get(key, {}).items():
-                slot_value = max(floor, min(slot_max, applied))
-                if key in ("flame_slash_torrent_hits", "inverted_blaze_returns"):
-                    slot_value = float(int(slot_value))
+                slot_value = normalize_hit_count(applied, applied, int(floor), int(slot_max))
                 if slot_value != applied:
                     slot_applied[slot] = slot_value
             if requested != applied or slot_applied:
