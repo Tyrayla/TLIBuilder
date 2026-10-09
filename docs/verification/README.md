@@ -5,12 +5,12 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**97 entries** — ✅ Confirmed: 18 · 🔶 Partial: 11 · ⬜ Pending: 9 · ⚠️ Unverified: 57
+**100 entries** — ✅ Confirmed: 19 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 58
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
 | Additional attack/cast speed pooling | — | damage-pool, speed | ✅ Confirmed | 2026-06-10 | [additional-speed-pooling.md](additional-speed-pooling.md) |
-| Affliction and True Flame | Cataclysm, True Flame, Black Hole | dot, stacking, damage-pool, uptime | ✅ Confirmed | 2026-09-25 | [affliction-true-flame.md](affliction-true-flame.md) |
+| Affliction and True Flame | Cataclysm, True Flame, Black Hole | dot, stacking, damage-pool, trigger, uptime | ✅ Confirmed | 2026-09-25 | [affliction-true-flame.md](affliction-true-flame.md) |
 | Armor does not mitigate Damage over Time | Mind Control, Path of Flames | dot, mitigation | ✅ Confirmed | 2026-07-10 | [dot-armor-exclusion.md](dot-armor-exclusion.md) |
 | Chain Lightning (baseline) | Chain Lightning | baseline, damage-pool | ✅ Confirmed | 2026-06-10 | [chain-lightning.md](chain-lightning.md) |
 | Channeled / Icebound Beam | Icebound Beam | channeled, redistribution | ✅ Confirmed | 2026-06-14 | [channeled.md](channeled.md) |
@@ -26,9 +26,11 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Tangle (tick-rounding + model) | Spell Tangle | tick-rounding, breakpoint, trigger | ✅ Confirmed | 2026-06-19 | [tangle.md](tangle.md) |
 | Training Dummy (calc target) | — | mitigation, methodology, calc-target | ✅ Confirmed | 2026-06-10 | [training-dummy.md](training-dummy.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage, owner-confirmed | ✅ Confirmed | 2026-07-16 | [unsullied-blade.md](unsullied-blade.md) |
+| Warcry timing, power, and charges | charging_warcry, commanding_warcry, fearless_warcry, raging_warcry, resurrection_warcry, shockwave_warcry | warcry, cooldown, duration, charges, uptime | ✅ Confirmed | 2026-09-01 | [warcry.md](warcry.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed, owner-confirmed, malformed-source-text | ✅ Confirmed | 2026-07-16 | [wind-stalker.md](wind-stalker.md) |
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
+| Flame Slash (+ supports) | Flame Slash | skill, slash-strike, shotgun, conversion, per-slot | 🔶 Partial | — | [flame-slash.md](flame-slash.md) |
 | Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
 | Multistrike + Wind Stalker | — | speed, attack | 🔶 Partial | 2026-06-22 | [multistrike.md](multistrike.md) |
 | Path of Flames | Path of Flames | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [path-of-flames.md](path-of-flames.md) |
@@ -50,7 +52,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | "The base main stat no longer additionally increases damage" companion line | — | condition, damage-pool | ⚠️ Unverified | — | [main-stat-damage-bonus-override.md](main-stat-damage-bonus-override.md) |
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
 | Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
-| Attribute-Scaled Added Elemental Damage ("Adds A-B Damage per N Strength/Dexterity") | — | breakpoint, step-function, damage-pool | ⚠️ Unverified | — | [attribute-scaled-added-damage.md](attribute-scaled-added-damage.md) |
+| Attribute-Scaled Added Elemental Damage ("Adds A-B Damage [to Attacks/Spells] per N Strength/Dexterity") | — | breakpoint, step-function, damage-pool | ⚠️ Unverified | — | [attribute-scaled-added-damage.md](attribute-scaled-added-damage.md) |
 | Barrier (Six Gods' Blessing) | — | defense, barrier, absorb | ⚠️ Unverified | — | [barrier.md](barrier.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
 | Chance to Avoid Damage (incl. Blur) | — | defense, avoidance, blur | ⚠️ Unverified | — | [chance-to-avoid-damage.md](chance-to-avoid-damage.md) |
@@ -64,7 +66,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Elixir system | — | buff, uptime | ⚠️ Unverified | — | [elixir-system.md](elixir-system.md) |
 | Extreme Coldness (only Cold Damage) | — | conversion, damage-pool | ⚠️ Unverified | — | [extreme-coldness.md](extreme-coldness.md) |
 | Fervor Rating | — | crit, buff | ⚠️ Unverified | — | [fervor.md](fervor.md) |
-| Flame Slash (+ supports) | Flame Slash | skill, slash-strike, shotgun, conversion, per-slot | ⚠️ Unverified | — | [flame-slash.md](flame-slash.md) |
 | Focused Slash / Moon Strike | Focused Slash, Moon Strike | skill, attack | ⚠️ Unverified | — | [focused-slash-moon-strike.md](focused-slash-moon-strike.md) |
 | Frail + Infiltration | — | enemy-vulnerability, ailment | ⚠️ Unverified | — | [frail-infiltration.md](frail-infiltration.md) |
 | Frost Terra (skill DoT + Terra damage pools) | Frost Terra | dot, stacking, damage-pool, terra | ⚠️ Unverified | — | [frost-terra.md](frost-terra.md) |
@@ -92,6 +93,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Origin-effect scalar supports (Precise: Superpower / Friend of Spirit Magi) | Precise: Superpower, Friend of Spirit Magi, Precise: Friend of Spirit Magi | minion, spirit-magus, support | ⚠️ Unverified | — | [origin-effect-scalar-supports.md](origin-effect-scalar-supports.md) |
 | Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
 | Per-Attribute Scaling ("+X per N Strength/Dexterity/Intelligence") | — | breakpoint, condition, step-function | ⚠️ Unverified | — | [attribute-scaling-condition.md](attribute-scaling-condition.md) |
+| Periodic Burst averaged player buff | Periodic Burst, Spiral Strike | supports, uptime | ⚠️ Unverified | — | [periodic-burst.md](periodic-burst.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |

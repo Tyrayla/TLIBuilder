@@ -6,16 +6,24 @@
 - **Status:** ⚠️ Unverified
 - **Mechanic tags:** pact-spirit, build-system
 
+## Derived / confirmed formula
+
+Working assumption (unverified): for each Pact Spirit tree, let n = min(the number of Star Trails installed anywhere in that tree, 3). The game text gives +45 percent to Micro Fate effects in the same Pact Branch and states no stacking limit; the cap at three is not verified. For each Micro Fate source independently, compute round_half_up(source value × (1 + 0.45 × n)); values with fractional part >= 0.5 round up, and values below 0.5 round down. This affects only Micro Fates in that same tree, including Micro slots in an Undetermined Fate assigned to that tree.
+
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Fates/Kismets/Dual/Undetermined install onto spirit ring nodes (replace effect); 9 micro / 4 medium limit; buildSpiritEffects substitution.
+Shipped in the engine; not yet verified in-game. Fates/Kismets/Dual/Undetermined install onto spirit ring nodes (replace effect); 9 micro / 4 medium limit; buildSpiritEffects substitution. Star Trail behavior is not yet verified in-game. The game text gives +45 percent to Micro Fate effects in the same Pact Branch and states no stacking limit; the cap of three Star Trails per tree is an unverified working assumption, based only on the owner never having seen more than three used. To verify later, stack four Star Trails in one tree and check whether the fourth changes Micro Fate values. Per-source rounding (for example, 2% × 1.45 = 2.9 → 3) is a safe owner-approved assumption, not empirical verification.
 
 ## Implementation (engine model)
 
-`tools/destiny_catalog.py::categorize_destiny` is a pure transform from the imported `_destiny.json` into installable fate items, run at serve time by `GET /api/destiny` (mirrors `prism_catalog.categorize_prism_catalog`). `_kind` classifies each by name prefix → `micro_fate` / `medium_fate` / `dual_kismet` / `kismet` / `undetermined`. `node_tier` (micro|medium) is read from the `detail[]` line `Install to replace a Micro/Medium Talent Node` via `_TIER_RE`, falling back to kind. `effect_text` joins the clean `implicit[]` lines; for `dual_kismet` the `Activates … when there are 2 of this Kismet …:` intro is stripped by `_DUAL_INTRO_RE` (the 2-of-a-kind gating is enforced in the UI/engine, not here). Output pools items into `micro` (micro nodes) and `medium` (Medium Fates + Kismets), plus the single `undetermined` expansion item. This module only builds the catalog; installation onto spirit-ring nodes and the 9-micro / 4-medium slot limits + `buildSpiritEffects` substitution are handled renderer-side. Verified via `test_destiny_catalog.py` (SS12: 50 micro_fate, 41 medium_fate, 46 kismet, 54 dual_kismet).
+`tools/destiny_catalog.py::categorize_destiny` is a pure transform from the imported `_destiny.json` into installable fate items, run at serve time by `GET /api/destiny` (mirrors `prism_catalog.categorize_prism_catalog`). `_kind` classifies each by name prefix → `micro_fate` / `medium_fate` / `dual_kismet` / `kismet` / `undetermined`. `node_tier` (micro|medium) is read from the `detail[]` line `Install to replace a Micro/Medium Talent Node` via `_TIER_RE`, falling back to kind. `effect_text` joins the clean `implicit[]` lines; for `dual_kismet` the `Activates … when there are 2 of this Kismet …:` intro is stripped by `_DUAL_INTRO_RE` (the 2-of-a-kind gating is enforced in the UI/engine, not here). Output pools items into `micro` (micro nodes) and `medium` (Medium Fates + Kismets), plus the single `undetermined` expansion item. This module only builds the catalog; installation onto spirit-ring nodes and the 9-micro / 4-medium slot limits + `buildSpiritEffects` substitution are handled renderer-side. Verified via `test_destiny_catalog.py` (SS12: 50 micro_fate, 41 medium_fate, 46 kismet, 54 dual_kismet). Star Trail (TLIBuilder PR #11, commit 48c86ac): counts every Star Trail installed in a tree, including an Undetermined Fate Medium slot; adds 45 percentage points per trail, using a cap of three Star Trails per tree as an unverified working assumption; verify later by stacking four Star Trails in one tree and checking whether the fourth changes Micro Fate values; scales each Micro Fate source independently and rounds once using the owner-approved half-up rule. Same-tree Undetermined Micro slots are affected; a different tree is not.
 
 ## Sources
 
 - backend/tools/destiny_catalog.py
 - backend/tests/test_destiny_catalog.py
 - memory: project_fates
+- data/seasons/SS12/_destiny.json:1414-1417
+- data/seasons/SS13/_destiny.json:1436-1439
+- TLIBuilder draft PR #11, commit 48c86ac38e3a4109021e1ff362424219c74a835e
+- Owner decision: same-tree scope; cap of three is an unverified working assumption; per-source rounding remains an unverified assumption

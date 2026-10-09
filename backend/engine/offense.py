@@ -103,13 +103,16 @@ _FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg", "
 _SHADOW_SCOPED_ADDITIONAL: frozenset = frozenset({"shadow_dmg_additional"})
 
 # These modifiers change one endpoint, rather than multiplying the entire hit.
-_ENDPOINT_ADDITIONAL_STATS = [
-    ("dmg_min_additional", frozenset()),
-    ("dmg_max_additional", frozenset()),
-    ("physical_dmg_min_additional", frozenset({"physical"})),
-    ("physical_dmg_max_additional", frozenset({"physical"})),
-]
-_ENDPOINT_ADDITIONAL_KEYS = frozenset(k for k, _ in _ENDPOINT_ADDITIONAL_STATS)
+_ENDPOINT_ADDITIONAL_STATS = (
+    ("dmg_min_additional", frozenset(), True),
+    ("dmg_max_additional", frozenset(), False),
+    ("physical_dmg_min_additional", frozenset({"physical"}), True),
+    ("physical_dmg_max_additional", frozenset({"physical"}), False),
+)
+_ENDPOINT_ADDITIONAL_KEYED_TAGS = [(key, tags) for key, tags, _is_min in _ENDPOINT_ADDITIONAL_STATS]
+_ENDPOINT_ADDITIONAL_KEYS = frozenset(key for key, _tags, _is_min in _ENDPOINT_ADDITIONAL_STATS)
+_ENDPOINT_ADDITIONAL_TAGS = {key: tags for key, tags, _is_min in _ENDPOINT_ADDITIONAL_STATS}
+_ENDPOINT_ADDITIONAL_IS_MIN = {key: is_min for key, _tags, is_min in _ENDPOINT_ADDITIONAL_STATS}
 
 # Hit damage additional multiplier stats — each is an independent multiplicative pool.
 # Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
@@ -383,6 +386,9 @@ def _build_additional_factors(
     elif keyed_tags is _DOT_ADDITIONAL_STATS:
         keys = _DOT_ADDITIONAL_KEYS
         tags_map = _DOT_ADDITIONAL_TAGS
+    elif keyed_tags is _ENDPOINT_ADDITIONAL_KEYED_TAGS:
+        keys = _ENDPOINT_ADDITIONAL_KEYS
+        tags_map = _ENDPOINT_ADDITIONAL_TAGS
     elif id(keyed_tags) in _DOT_TYPE_ADDITIONAL_POOL_CACHE:
         keys, tags_map = _DOT_TYPE_ADDITIONAL_POOL_CACHE[id(keyed_tags)]
     else:
@@ -415,11 +421,23 @@ def _build_additional_factors(
             factors.append((a, tags_map[stat_key], stat_key))
 
     # Reconcile add()-only contributions per stat-key (raw read, no consumed_stats side effect).
-    for stat_key, tags in keyed_tags:
-        raw = sum(v for s, v in source._entries if s == stat_key)
-        remainder = raw - tracked.get(stat_key, 0.0)
-        if abs(remainder) > 1e-12:
-            factors.append((remainder, tags, stat_key))
+    # The endpoint pool is a four-key per-offense hot path. Aggregate its raw entries in one scan
+    # instead of rescanning BuildSource._entries once for each endpoint key.
+    if keyed_tags is _ENDPOINT_ADDITIONAL_KEYED_TAGS:
+        raw_by_key: dict[str, float] = defaultdict(float)
+        for stat_key, amount in source._entries:
+            if stat_key in keys:
+                raw_by_key[stat_key] += amount
+        for stat_key, tags in keyed_tags:
+            remainder = raw_by_key[stat_key] - tracked.get(stat_key, 0.0)
+            if abs(remainder) > 1e-12:
+                factors.append((remainder, tags, stat_key))
+    else:
+        for stat_key, tags in keyed_tags:
+            raw = sum(v for s, v in source._entries if s == stat_key)
+            remainder = raw - tracked.get(stat_key, 0.0)
+            if abs(remainder) > 1e-12:
+                factors.append((remainder, tags, stat_key))
     return factors
 
 
@@ -890,6 +908,15 @@ def _conversion_fracs(
     return convert, adds
 
 
+def _normalize_damage_endpoints(min_damage: float, max_damage: float) -> tuple[float, float]:
+    """Clamp invalid negative endpoints to zero and restore an ordered hit range."""
+    min_damage = max(0.0, min_damage)
+    max_damage = max(0.0, max_damage)
+    if min_damage > max_damage:
+        min_damage, max_damage = max_damage, min_damage
+    return min_damage, max_damage
+
+
 def _apply_conversion(eff_flat: dict, path_inc, path_add,
                       generic_inc: float, generic_add: float,
                       convert: dict, adds: dict, endpoint_mult=None) -> dict:
@@ -920,9 +947,11 @@ def _apply_conversion(eff_flat: dict, path_inc, path_add,
             if stay > 1e-12:
                 f = (1.0 + generic_inc + path_inc(p[2])) * generic_add * path_add(p[2])
                 min_mult, max_mult = endpoint_mult(p[2]) if endpoint_mult else (1.0, 1.0)
+                packet_min = p[0] * stay * f * min_mult
+                packet_max = p[1] * stay * f * max_mult
+                packet_min, packet_max = _normalize_damage_endpoints(packet_min, packet_max)
                 cur = final.get(t, (0.0, 0.0))
-                final[t] = (cur[0] + p[0] * stay * f * min_mult,
-                            cur[1] + p[1] * stay * f * max_mult)
+                final[t] = (cur[0] + packet_min, cur[1] + packet_max)
     return final
 
 
@@ -2071,21 +2100,28 @@ def calculate_offense(
             source, add_factors,
             lambda tags: bool(tags & _DTYPE_TAG_SET & path_tags) and _skill_gate(tags, mod_tags))
 
-    endpoint_factors = _build_additional_factors(source, _ENDPOINT_ADDITIONAL_STATS)
+    endpoint_factors = _build_additional_factors(source, _ENDPOINT_ADDITIONAL_KEYED_TAGS)
+    endpoint_mult_by_path: dict[frozenset, tuple[float, float]] = {}
 
     def _endpoint_mult(path_tags):
         # Converted Physical packets keep Physical endpoint bonuses. Native elemental
-        # packets receive only the generic factors. Reuse the ordinary source identities.
+        # packets receive only the generic factors. Reuse the ordinary source identities and
+        # cache each path's result for this calculate_offense call.
+        cached = endpoint_mult_by_path.get(path_tags)
+        if cached is not None:
+            return cached
         applies = lambda tags: not tags or bool(tags & path_tags)
-        _record_applicable_keys(source, _ENDPOINT_ADDITIONAL_STATS, applies)
+        _record_applicable_keys(source, _ENDPOINT_ADDITIONAL_KEYED_TAGS, applies)
         mn = mx = 1.0
         for amount, tags, key in endpoint_factors:
             if applies(tags):
-                if key.endswith("min_additional"):
+                if _ENDPOINT_ADDITIONAL_IS_MIN[key]:
                     mn *= 1.0 + amount
                 else:
                     mx *= 1.0 + amount
-        return mn, mx
+        result = (mn, mx)
+        endpoint_mult_by_path[path_tags] = result
+        return result
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)

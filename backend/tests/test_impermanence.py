@@ -49,6 +49,8 @@ def test_crit_uses_the_reshaped_average(crit, expected):
 def test_haunt_shadows_use_the_corrected_hit_average():
     # Canonical Haunt Lv1 gives +2 Shadows and -3% additional damage.
     # Help DB Shadow Strike: player + first shadow + .30 second shadow = x2.3.
+    # The expected DPS values are regression guards re-derived from those existing engine rules,
+    # not independent proof of Haunt's or Shadow Strike's behavior.
     support = {"item_id": "haunt", "skill_type": "support_skill", "level": 1}
     off = _result(False, supports=[support])["offense"]
     on = _result(True, supports=[support])["offense"]
@@ -60,6 +62,8 @@ def test_haunt_shadows_use_the_corrected_hit_average():
 @pytest.mark.parametrize("active, expected", [(False, 881.1924), (True, 1290.947866)])
 def test_rumbling_thunder_buff_keeps_its_gate_and_separate_multiplier(active, expected):
     # Rank5 universal x1.20; Tier1 canonical 45..48% midpoint gives x1.465 when active.
+    # These DPS values are regression guards derived from the existing endpoint result and those
+    # support multipliers, not independent proof of Rumbling Thunder's behavior.
     support = {"item_id": "thunder_spike_rumbling_thunder_noble",
                "skill_type": "noble_support_skill", "rank": 5, "level": 1}
     on = _result(True, supports=[support],
@@ -155,11 +159,44 @@ def test_roll_expectation_can_legitimately_lower_dps(luck, expected):
 
 
 def test_zero_damage_and_zero_minimum_boundary():
-    zero = _simple_hit(_endpoints())
+    # This real 100..200 Physical hit has both endpoints reduced to zero. It fails if the endpoint
+    # factors stop running; an empty hit would remain zero even with the endpoint code removed.
+    zero = _simple_hit({"physical_dmg_gear_flat_min": 100,
+                        "physical_dmg_gear_flat_max": 200, "weapon_attack_speed": 1,
+                        "dmg_min_additional": -1, "dmg_max_additional": -1})
     boundary = _simple_hit({"physical_dmg_gear_flat_min": 100,
                            "physical_dmg_gear_flat_max": 200, "weapon_attack_speed": 1,
                            "dmg_min_additional": -1})
+    assert zero.hit_forms[0].hit_min_by_type["physical"] == 0
+    assert zero.hit_forms[0].hit_max_by_type["physical"] == 0
     assert zero.total_dps == 0
     assert boundary.hit_forms[0].hit_min_by_type["physical"] == 0
     assert boundary.hit_forms[0].hit_max_by_type["physical"] == 200
     assert boundary.total_dps == 100
+
+
+@pytest.mark.parametrize(
+    "luck, expected_dps",
+    [("lucky_physical", 150), ("unlucky_physical", 100)],
+)
+def test_inverted_endpoint_range_is_swapped_before_luck(luck, expected_dps):
+    # Min x2 produces 200 while Max x0.25 produces 50. Swapping restores a 50..200 range;
+    # Lucky uses min + 2/3 of the 150 spread (150), Unlucky uses min + 1/3 (100).
+    offense = _simple_hit({"physical_dmg_gear_flat_min": 100,
+                           "physical_dmg_gear_flat_max": 200, "weapon_attack_speed": 1,
+                           "dmg_min_additional": 1, "dmg_max_additional": -.75,
+                           luck: 1})
+    assert offense.hit_forms[0].hit_min_by_type["physical"] == 50
+    assert offense.hit_forms[0].hit_max_by_type["physical"] == 200
+    assert offense.total_dps == pytest.approx(expected_dps)
+
+
+def test_negative_endpoint_result_is_clamped_to_zero():
+    # The generic -150% and Physical -50% Min factors multiply to -25 before clamping.
+    offense = _simple_hit({"physical_dmg_gear_flat_min": 100,
+                           "physical_dmg_gear_flat_max": 200, "weapon_attack_speed": 1,
+                           "dmg_min_additional": -1.5,
+                           "physical_dmg_min_additional": -.5})
+    assert offense.hit_forms[0].hit_min_by_type["physical"] == 0
+    assert offense.hit_forms[0].hit_max_by_type["physical"] == 200
+    assert offense.total_dps == 100
