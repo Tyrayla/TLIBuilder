@@ -159,6 +159,10 @@ class TestOffenseHitCount:
         steep = next(f for f in result.hit_forms if f.proc_stat_key == "steep_strike_chance")
         assert steep.hits_per_fire == 6  # 3 outbound + 3 returning, same shotgun group
         assert steep.shotgun_mult == pytest.approx(1.0 + 5 * 0.5)
+        # At 1 APS, 100 flat weapon damage and 346% effectiveness: Sweep contributes 276.8 DPS,
+        # while one Steep Strike torrent contributes 69.2 DPS. Three outbound plus three returns
+        # share the same 50% falloff group (1 + 5*0.5 = 3.5), so total DPS is 276.8 + 69.2*3.5.
+        assert result.total_dps == pytest.approx(519.0)
 
     def test_sweep_form_unaffected_by_torrent_stats(self):
         sk = resolve_skill(_fss_data())

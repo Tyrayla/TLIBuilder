@@ -53,10 +53,10 @@ describe('Flame Slash torrent hits in Config', () => {
     act(() => { view.unmount() })
   })
 
-  it('keeps differing per-slot automatic counts out of the visible row helper', () => {
+  it('hides per-slot count helpers for Torrent Hits while keeping Auto visible inside the blank input', () => {
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
-      auto_conditions: { [key]: { value: 5, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } } },
+      auto_conditions: { [key]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } } },
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
@@ -66,18 +66,22 @@ describe('Flame Slash torrent hits in Config', () => {
     while (row && row.props.className !== 'cond-stack-row') row = row.parent
     expect(row?.props.className).toBe('cond-stack-row')
     expect(row!.findAllByProps({ className: 'cond-derived-hint' })).toHaveLength(0)
+    const torrentInput = row!.findByType('input')
+    expect(torrentInput.props.value).toBe('')
+    expect(torrentInput.props.placeholder).toBe('Auto')
+    expect(row!.findAllByType('button').some(button => button.children.join('') === 'Auto')).toBe(false)
     act(() => { view.unmount() })
   })
 
-  it('preserves other per-slot numeric conditions’ helper and row layout', () => {
+  it('hides per-slot count helpers for Torrent Return Hits and uses Auto when slot values differ', () => {
     const otherKey = 'inverted_blaze_returns'
     useReferenceStore.setState({ conditions: { Skill: [
       { key: otherKey, label: 'Torrent Return Hits', category: 'Skill', value_type: 'numeric', source: 'auto', default_value: 0, numeric_min: 0 },
     ] } })
     useBuildStore.setState({ computedStats: {
       ...useBuildStore.getState().computedStats,
-      referenced_conditions: [otherKey], condition_maximums: { [otherKey]: 3 },
-      auto_conditions: { [otherKey]: { value: 3, source: 'Flame Slash', slot_values: { '1': 3 } } },
+      referenced_conditions: [otherKey], condition_maximums: { [otherKey]: 5 },
+      auto_conditions: { [otherKey]: { value: null, source: 'Flame Slash', slot_values: { '1': 3, '2': 5 } } },
     } as never })
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
@@ -86,7 +90,11 @@ describe('Flame Slash torrent hits in Config', () => {
     let row = labelNode!.parent
     while (row && row.props.className !== 'cond-stack-row') row = row.parent
     expect(row?.props.className).toBe('cond-stack-row')
-    expect(row!.findAllByProps({ className: 'cond-derived-hint' })[0].children.join('')).toBe('Slot 1: 3')
+    expect(row!.findAllByProps({ className: 'cond-derived-hint' })).toHaveLength(0)
+    const returnInput = row!.findByType('input')
+    expect(returnInput.props.value).toBe('')
+    expect(returnInput.props.placeholder).toBe('Auto')
+    expect(row!.findAllByType('button').some(button => button.children.join('') === 'Auto')).toBe(false)
     act(() => { view.unmount() })
   })
 

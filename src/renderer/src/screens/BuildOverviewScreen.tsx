@@ -402,7 +402,7 @@ export default function BuildOverviewScreen() {
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
             onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
             hasOverride={Object.prototype.hasOwnProperty.call(conditionState, cond.key)}
-            autoHint={cond.key === 'flame_slash_torrent_hits' ? undefined : slotHint}
+            autoHint={cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns' ? undefined : slotHint}
             resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
@@ -667,7 +667,7 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
             min={min}
             max={max ?? undefined}
             step={integerHitCount ? 1 : undefined}
-            placeholder={autoHint && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
+            placeholder={onReset && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
             onChange={e => setRaw(e.target.value)}
             onBlur={e => commit(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
