@@ -676,9 +676,9 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
           {onReset && hasOverride && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
         </div>
       </div>
-      {clamp && (
+      {clamp && clamp.applied !== clamp.requested && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
-          ⚠ {clamp.applied !== clamp.requested ? `capped at ${clamp.applied}` : ''}
+          ⚠ capped at {clamp.applied}
         </div>
       )}
     </div>
