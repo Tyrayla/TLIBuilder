@@ -2314,7 +2314,9 @@ def calculate_offense(
             # Blaze's returning torrents land as EXTRA hits in the SAME same-target shotgun group
             # (flame_slash_return_hits_flat, 0 when that support isn't attached).
             _torrents = int(source.total("flame_slash_torrent_count_flat")) or form.hit_count
-            n_proj = max(0, _torrents + int(source.total("flame_slash_return_hits_flat")))
+            _hits = int(source.total("flame_slash_torrent_hits_flat")) or _torrents
+            n_proj = max(0, max(1, min(_torrents, _hits))
+                         + int(source.total("flame_slash_return_hits_flat")))
         else:
             n_proj = max(1, form.hit_count)
         # Shots-on-target shotgun cap (Chromatic Shot): only the projectiles that LAND on the target shotgun. Cap

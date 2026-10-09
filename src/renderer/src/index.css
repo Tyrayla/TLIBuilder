@@ -1156,16 +1156,25 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 8px;
 }
 
+.cond-stack-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .cond-stack-label {
   font-size: 11px;
   color: var(--fg);   /* body text, same promotion as .cond-label */
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .cond-stack-controls {
   display: flex;
   align-items: center;
   gap: 5px;
+  flex: 0 0 auto;
 }
 
 .cond-stack-btn {

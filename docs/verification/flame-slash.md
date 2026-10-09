@@ -3,17 +3,29 @@
 
 # Flame Slash (+ supports)
 
-- **Status:** ⚠️ Unverified
+- **Status:** 🔶 Partial
 - **Skills affected:** Flame Slash
 - **Mechanic tags:** skill, slash-strike, shotgun, conversion, per-slot
 
+## Setup
+
+SS13. Lv90 Selena, Flame Slash level 16, Hollow Rift axe with 7% Armor DMG Mitigation Penetration, against the Lv85 Boss dummy. Run a 2-minute point-blank test with all 3 torrents hitting, then a ranged test with 1 torrent hitting.
+
+## Raw data points
+
+Owner in-game results: 3 torrents hitting point blank for 2 minutes = 533 DPS vs builder 532; 1 torrent hitting from range = approximately 448 DPS vs builder approximately 442.
+
+## Derived / confirmed formula
+
+Steep Strike torrent hits = the Flame Slash slot's automatic torrent count (3 + 2 * floor(area_bonus / 1.15)), clamped to 1..that count unless overridden. Same-target hits use 50% damage falloff (1 hit = 1x; 3 hits = 2x).
+
 ## Notes / caveats / open questions
 
-Modeled in the engine; not yet verified in-game. Enemy Distance defaults to 0 m. Inverted Blaze: Returning Torrent Hits is an auto condition: when unset, each Flame Slash slot uses its own Area-scaled torrent count. Config shows the automatic counts by slot. An explicit numeric override applies to all supported Flame Slash slots, including 0 for no returning hits. Clearing the input or choosing Auto removes the override. Keep source set to auto so new builds do not store the catalog fallback of 3 as a manual value. The conditions and this verification record are supplied by the paired canonical tli-data change.
+Modeled in the engine; not yet verified in-game. Enemy Distance defaults to 0 m. Torrent Hits and Torrent Return Hits are plain numeric rows with an Auto button. Clearing either field or pressing Auto restores its automatic value. An explicit Torrent Return Hits override can be 0. Keep source set to auto so new builds do not store the catalog fallback of 3 as a manual value. The conditions and this verification record are supplied by the paired canonical tli-data change. UNVERIFIED in game: Immediate Threat proximity scaling; Inverted Blaze return shotgunning; and the landed-return cap where `inverted_blaze_returns` defaults to and is capped by `flame_slash_torrent_hits`. The cap is an owner design decision (2026-10-09), not an in-game measurement. The owner dummy comparisons exercise Steep Strike torrent-hit counts: point-blank output is within 1 DPS of the builder and ranged single-hit output is within approximately 6 DPS.
 
 ## Implementation (engine model)
 
-Base skill reuses the shared Sweep Slash/Steep Strike resolver (`skill_resolver._resolve_slash_skill`, same family as Berserking Blade/Focused Slash/Moon Strike) via `_resolve_flame_slash`. Steep Strike's torrent count scales off the skill's OWN aggregated Area bonus (`flame_slash_torrent_count = 3 + 2 * floor(area_bonus / 1.15)`, owner-approved 2026-10-04), resolved per-slot by `skill_effects/flame_slash.py`'s `apply_slot_effects` (same `skill_area_inc`/`skill_area_additional` read Berserking Blade's Rampage already uses) and emitted as `flame_slash_torrent_count_flat`; offense.py's new `SkillHitForm.scales_with_skill_area` flag reads it (falling back to the resolver's base count of 3 if unset). The skill overrides the global Shotgun Effect default to its own 50% falloff on the Steep form. All Physical Damage converts to Fire via `intrinsic_convert` (same mechanism as Thunder Spike). Immediate Threat (Magnificent, slot 3): universal +20% is generic; its proximity-gated roll scales LINEARLY with a new `enemy_distance_m` condition (default 0m = point-blank => full roll; 0% at >=8m, full tiered roll at <=3m, linear between — owner design 2026-10-04), emitted as a slotted `dmg_additional`. Inverted Blaze (Noble, slot 5): universal +20% and its own flat tiered penalty are both generic (unchanged); its 'fire torrents... return and knockback enemies they hit reversely' clause splits in two (owner-clarified, with a follow-up correction, 2026-10-04): the knockback DIRECTION is cosmetic (zero DPS); the RETURN is a real second hit on the same enemy in the SAME same-target shotgun group as the outbound torrents (architecturally mirrors Icebound Beam's Ring-Blade-stays-on-Icy-Blade precedent), with the hit count user-tunable via a new GLOBAL `inverted_blaze_returns` condition defaulting to the slot's own torrent count (same dynamic-default pattern as `berserking_blade.py`'s `stacks()`). The Area threshold calculation corrects floating-point roundoff only within eight ULPs of an integer step. The engine response reports inverted_blaze_returns slot_values even under a manual override. Its scalar value is the common automatic count when slots agree, or null when they differ; this metadata never sets a global condition value.
+Base skill reuses the shared Sweep Slash/Steep Strike resolver (`skill_resolver._resolve_slash_skill`, same family as Berserking Blade/Focused Slash/Moon Strike) via `_resolve_flame_slash`. Steep Strike's torrent count scales off the skill's OWN aggregated Area bonus (`flame_slash_torrent_count = 3 + 2 * floor(area_bonus / 1.15)`, owner-approved 2026-10-04), resolved per-slot by `skill_effects/flame_slash.py`'s `apply_slot_effects` (same `skill_area_inc`/`skill_area_additional` read Berserking Blade's Rampage already uses) and emitted as `flame_slash_torrent_count_flat`; offense.py's new `SkillHitForm.scales_with_skill_area` flag reads it (falling back to the resolver's base count of 3 if unset). The skill overrides the global Shotgun Effect default to its own 50% falloff on the Steep form. All Physical Damage converts to Fire via `intrinsic_convert` (same mechanism as Thunder Spike). Immediate Threat (Magnificent, slot 3): universal +20% is generic; its proximity-gated roll scales LINEARLY with a new `enemy_distance_m` condition (default 0m = point-blank => full roll; 0% at >=8m, full tiered roll at <=3m, linear between — owner design 2026-10-04), emitted as a slotted `dmg_additional`. Inverted Blaze (Noble, slot 5): universal +20% and its own flat tiered penalty are both generic (unchanged); its 'fire torrents... return and knockback enemies they hit reversely' clause splits in two (owner-clarified, with a follow-up correction, 2026-10-04): the knockback DIRECTION is cosmetic (zero DPS); the RETURN is a real second hit on the same enemy in the SAME same-target shotgun group as the outbound torrents (architecturally mirrors Icebound Beam's Ring-Blade-stays-on-Icy-Blade precedent), with the hit count user-tunable via a new GLOBAL `inverted_blaze_returns` condition defaulting to the slot's own torrent count (same dynamic-default pattern as `berserking_blade.py`'s `stacks()`). The Area threshold calculation corrects floating-point roundoff only within eight ULPs of an integer step. The `flame_slash_torrent_hits` auto condition is surfaced by Flame Slash and resolved per slot; its default and maximum are that slot's automatic torrent count. The `Torrent Return Hits` condition defaults to and is capped by the selected torrent-hit count.
 
 ## Sources
 
@@ -22,3 +34,4 @@ Base skill reuses the shared Sweep Slash/Steep Strike resolver (`skill_resolver.
 - backend/engine/skill_effects/flame_slash.py — apply_slot_effects (torrent count, Immediate Threat, Inverted Blaze)
 - backend/tests/test_flame_slash.py
 - data/seasons/SS13/_skills.json — flame_slash, flame_slash_immediate_threat_magnificent, flame_slash_inverted_blaze_noble
+- owner in-game dummy measurements (2-minute test)

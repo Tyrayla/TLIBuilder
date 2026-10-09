@@ -1350,7 +1350,7 @@ export interface StatSheetResponse {
   referenced_conditions?: string[]
   // Engine-activated (not user-set) conditions → {value, source}. Config shows these checked + locked with
   // an "auto" badge that names the source (e.g. Splendor inflicting Numbed/Frostbite/Ignite).
-  auto_conditions?: Record<string, { value: number | boolean | null; source: string; slot_values?: Record<string, number> }>
+  auto_conditions?: Record<string, { value: number | boolean | null; source: string }>
 
   offense?: OffenseResult | null
   defense?: DefenseResult | null

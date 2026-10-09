@@ -6,8 +6,10 @@
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
 - Willpower no longer adds an extra unconditional damage multiplier on top of its stack bonus.
--
-- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Config shows each slot's automatic return count; enter a global override or choose Auto to restore per-slot counts. This model awaits in-game verification.
+
+### Features
+- Flame Slash's Config now lets you choose how many Steep Strike fire torrents hit the target. Auto uses each slot's full torrent count, and Shotgunning shows the selected hits. Inverted Blaze's returning hits default to and are capped by the torrents that hit.
+- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Torrent Hits and Torrent Return Hits use numeric fields; each shows Auto only while an override is set, and clearing the field restores its automatic value. This model awaits in-game verification.
 
 ## [0.6.9] - 2026-10-03
 
