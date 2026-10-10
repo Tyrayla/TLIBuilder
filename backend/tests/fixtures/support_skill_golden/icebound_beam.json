@@ -632,6 +632,8 @@
       {
         "avg_hit_pre_crit": 1398.1297705773895,
         "avg_hit_with_crit": 1502.9895033706937,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "cold": 309.0
         },
@@ -646,6 +648,8 @@
         },
         "dps_contribution": 5235.639110840854,
         "dps_vs_target": 2571.1901794895057,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 3.483483483483483,
         "form_type": "additive",
@@ -672,6 +676,8 @@
       {
         "avg_hit_pre_crit": 4183.228324024002,
         "avg_hit_with_crit": 4496.970448325802,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "cold": 928.0
         },
@@ -686,6 +692,8 @@
         },
         "dps_contribution": 5326.141576035124,
         "dps_vs_target": 2615.6103613807404,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
@@ -712,6 +720,8 @@
       {
         "avg_hit_pre_crit": 4183.228324024002,
         "avg_hit_with_crit": 4496.970448325802,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "cold": 928.0
         },
@@ -726,6 +736,8 @@
         },
         "dps_contribution": 2161.786874978962,
         "dps_vs_target": 1061.6300878545358,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
@@ -1307,6 +1319,8 @@
         {
           "avg_hit_pre_crit": 1398.1297705773895,
           "avg_hit_with_crit": 1502.9895033706937,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "cold": 309.0
           },
@@ -1321,6 +1335,8 @@
           },
           "dps_contribution": 5235.639110840854,
           "dps_vs_target": 2571.1901794895057,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 3.483483483483483,
           "form_type": "additive",
@@ -1347,6 +1363,8 @@
         {
           "avg_hit_pre_crit": 4183.228324024002,
           "avg_hit_with_crit": 4496.970448325802,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "cold": 928.0
           },
@@ -1361,6 +1379,8 @@
           },
           "dps_contribution": 5326.141576035124,
           "dps_vs_target": 2615.6103613807404,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
@@ -1387,6 +1407,8 @@
         {
           "avg_hit_pre_crit": 4183.228324024002,
           "avg_hit_with_crit": 4496.970448325802,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "cold": 928.0
           },
@@ -1401,6 +1423,8 @@
           },
           "dps_contribution": 2161.786874978962,
           "dps_vs_target": 1061.6300878545358,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
