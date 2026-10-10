@@ -155,6 +155,8 @@ def test_gold_rush_stage_four_boss_uses_existing_enemy_selector_for_empower_effe
     assert enhanced.avg_hit_with_crit / enhanced_without_gold_rush.avg_hit_with_crit == pytest.approx(
         1.396,
     )
+    assert (result.minion_skill_casts["enhanced"]["damage_per_cast"]
+            == no_empower.minion_skill_casts["enhanced"]["damage_per_cast"])
 
 
 def test_rock_magus_towering_mount_whole_attack_speed_step_avoids_float_truncation():
