@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Engine & DPS
-- Ghost Slaughter now grants Skill Area and additional Attack and Ailment Damage per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The linear formulas await in-game verification.
+- Ghost Slaughter now grants Skill Area, additional Attack Damage, and an additional Ailment Damage stat per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The engine does not yet calculate ailment DPS. These linear formulas await in-game verification.
 
 ### Bug fixes
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
