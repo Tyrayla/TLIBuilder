@@ -1805,6 +1805,27 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   const nyiFormsSel = (offense.hit_forms ?? []).filter(f => f.nyi?.length)
   const damageFormsSel = (offense.hit_forms ?? []).filter(f => !(f.nyi?.length))
   if (nyiFormsSel.length > 0 && damageFormsSel.length === 0) {
+    const ultimate = minion && offense.minion_ultimate
+      && nyiFormsSel.some(f => f.name === offense.minion_ultimate!.name)
+      ? offense.minion_ultimate : null
+    if (ultimate) {
+      return (
+        <StatPanel title={`${offense.skill_name} — ${ultimate.name}`} accent={AMBER}>
+          <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, marginBottom: 6 }}>
+            Ultimate per-cast damage. This value stays outside default DPS and is available to Iris skill selection.
+          </div>
+          <Row label="Damage per cast">{fmtNum(ultimate.damage_per_cast)}</Row>
+          <Row label="Damage per cast vs target">{fmtNum(ultimate.damage_per_cast_vs_target)}</Row>
+          <Row label="Hits per cast">{ultimate.hits_per_cast}</Row>
+          <Row label="Cast time">{dec(ultimate.cast_time)} s</Row>
+          <Row label="Cooldown">{dec(ultimate.cooldown)} s</Row>
+          <Row label="Rate">{dec(ultimate.casts_per_second)} casts/s</Row>
+          {(nyiFormsSel[0].nyi ?? []).map((n, i) => (
+            <div key={i} style={{ fontSize: 12, color: '#b8b0d0', lineHeight: 1.45, marginTop: 6 }}>{n}</div>
+          ))}
+        </StatPanel>
+      )
+    }
     // A modeled minion Empower (e.g. Thundercloud Surge) — show it like a player empower skill: Empower Effect,
     // base→effective cooldown/duration, an uptime box, and each Euphoria buff's base→effective magnitude. Each
     // box carries its formula + source breakdown. The buffs themselves are already folded into the attacks above.
@@ -2071,6 +2092,26 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           Effects across the top, then fills the shortest column. Column count scales with width; box width is
           capped by columnMax so boxes don't sprawl. */}
       <MasonryGrid columnWidth={220} columnMax={340} gap={6}>
+        {minion && offense.minion_skill_casts && (
+          <GridBox>
+            <StatPanel title="Per-Cast Skill Forms" accent={AMBER}>
+              <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, marginBottom: 6 }}>
+                Each form is available to Iris selection and stays outside the unmerged rotation DPS.
+              </div>
+              {Object.values(offense.minion_skill_casts).map(form => (
+                <div key={form.role} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#e0d0a0', marginBottom: 3 }}>{form.name}</div>
+                  <Row label="Damage per cast">{fmtNum(form.damage_per_cast)}</Row>
+                  <Row label="Damage per cast vs target">{fmtNum(form.damage_per_cast_vs_target)}</Row>
+                  <Row label="Hits per cast">{form.hits_per_cast}</Row>
+                  <Row label="Cast time">{dec(form.cast_time)} s</Row>
+                  <Row label="Cooldown">{dec(form.cooldown)} s</Row>
+                  <Row label="Rate">{dec(form.casts_per_second)} casts/s</Row>
+                </div>
+              ))}
+            </StatPanel>
+          </GridBox>
+        )}
         <GridBox>
           <StatPanel title="Hit Rate" accent={AMBER} info={rateInfo}>
             {/* Multi-form skills list each form's own firing rate (forms fire at different cadences — e.g. beam

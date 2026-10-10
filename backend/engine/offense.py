@@ -1287,6 +1287,10 @@ class OffenseResult:
     # A minion's Empower buff (e.g. Thundercloud Surge) surfaced like a player empower: base/effective cooldown +
     # duration, uptime, Empower Effect, and the per-buff magnitudes (base → effective). None for non-empower.
     minion_empower: dict | None = None
+    # Spirit Magus Ultimate calculations are per-cast and remain outside default DPS until Iris selects them.
+    minion_ultimate: dict | None = None
+    # Per-cast Magus skill forms for Iris selection; these never imply default rotation DPS.
+    minion_skill_casts: dict[str, dict] | None = None
     # ── Purpose-built breakdown-row contract (engine-owned; see DamageRow) ────────────────────────────────
     # Replaces the frontend's hand-reconstruction of _delivery and its back-solved per-type mitigation.
     # kind="hit" rows mirror hit_forms 1:1; kind="true" covers Mercury Baptism / Spell Ripple; kind="dot" is

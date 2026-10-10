@@ -9,6 +9,9 @@
 -
 - **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Config shows each slot's automatic return count; enter a global override or choose Auto to restore per-slot counts. This model awaits in-game verification.
 
+### Engine & DPS
+- **Rock Magus now models its Base and Enhanced rotation, Gold Rush uptime, and separate per-cast forms for all four skills.** Default DPS uses the unmerged rotation; Ultimate damage stays separate for Iris selection. The model awaits in-game DPS verification.
+
 ## [0.6.9] - 2026-10-03
 
 ### Engine & DPS
