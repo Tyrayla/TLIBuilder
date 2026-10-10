@@ -73,7 +73,7 @@ def test_added_flat_damage_uses_93_percent_effectiveness():
     offense = _offense(gear=_gear_with(
         physical_spell_dmg_flat_min=100.0, physical_spell_dmg_flat_max=100.0
     ))["offense"]
-    # 100 added flat ? 93% effectiveness adds 93 to the 174.5 base midpoint.
+    # 100 added flat at 93% effectiveness adds 93 to the 174.5 base midpoint.
     assert offense["hit_forms"][0]["avg_hit_pre_crit"] == pytest.approx(267.5)
     assert offense["total_dps"] == pytest.approx(685.46875, abs=0.01)
 

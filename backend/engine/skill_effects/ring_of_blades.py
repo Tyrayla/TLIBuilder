@@ -13,8 +13,6 @@ from engine.support_resolver import _explicit_roll, _progression_for_tier, _tier
 SKILL_ID = "ring_of_blades"
 BLADE_FORMATION = "ring_of_blades_blade_formation_magnificent"
 RAZOR_EDGE = "ring_of_blades_razor_edge_noble"
-STRENGTH_IN_NUMBERS = "ring_of_blades_strength_in_numbers_noble"
-
 _RANGE = r"\(?\s*([-?]?\d+(?:\.\d+)?)\s*[^0-9\s]\s*([-?]?\d+(?:\.\d+)?)\s*\)?"
 _RAZOR_EDGE_RE = re.compile(
     _RANGE + r"\s*%\s*additional Projectile Speed for every channeled stack", re.I

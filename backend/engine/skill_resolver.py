@@ -715,8 +715,7 @@ def _resolve_howling_gale(skill_data: dict) -> ResolvedSkill:
     )
 
 
-# Ring of Blades resolver: owner-measured persistent orbit.
-# depends on Projectile Speed and the per-blade 0.25 s hit gate.
+# Ring of Blades uses an owner-measured orbit rate capped by the per-blade 0.25 s hit interval.
 _RING_OF_BLADES_PER_ADDITIONAL_MAX_STACK = 0.215
 
 
@@ -755,7 +754,7 @@ def _resolve_ring_of_blades(skill_data: dict) -> ResolvedSkill:
     )
 
 
-# Skill-DoT (Damage over Time): Mind Control and Path of Flames.
+# ── Skill-DoT (Damage over Time) skills — Mind Control, Path of Flames ─────────────────────────────────────
 # Both are Spell / Channeled / Persistent, 2s Damage Over Time, cast speed 0.333 (dot-model.json). Neither
 # has a hit component at all — hit_forms_by_level stays {} (a pure DoT host, like a few other non-hit
 # skills already in this registry) and all damage comes from `dot_forms_by_level` (engine.offense.compute_dot).
