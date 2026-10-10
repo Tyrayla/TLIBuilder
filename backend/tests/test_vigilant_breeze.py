@@ -32,6 +32,20 @@ def test_vigilant_breeze_base_level_and_artificial_moon_contributions():
     assert magus_source.total("spirit_magi_initial_growth_flat") == 60
 
 
+def test_breeze_damage_applies_only_while_magi_are_merged():
+    common = {
+        "build_input": SimpleNamespace(season="SS13"), "ls_state": {}, "uptime_mode": "max",
+        "slot_levels": [1, 1, 1, 1], "advanced_picks": [],
+    }
+    unmerged = vb.apply(condition_state={"vigilant_breeze_merged_magi": 0,
+                                         "vigilant_breeze_stacks": 1}, **common)
+    merged = vb.apply(condition_state={"vigilant_breeze_merged_magi": 1,
+                                       "vigilant_breeze_stacks": 1}, **common)
+
+    assert _amount_map(unmerged).get("spirit_magi_dmg_additional", 0) == 0
+    assert _amount_map(merged)["spirit_magi_dmg_additional"] == pytest.approx(0.16)
+
+
 def test_happiest_reunion_uses_per_magus_product_and_adds_map_cap():
     result = vb.apply(
         build_input=SimpleNamespace(season="SS13"),
@@ -43,8 +57,19 @@ def test_happiest_reunion_uses_per_magus_product_and_adds_map_cap():
     # Owner-confirmed formula: 5% with three Magi gives 1.05**3 = 1.157625.
     assert ("spirit_magi_dmg_additional", pytest.approx(0.157625)) in _amounts(result)
     assert ("max_spirit_magi_flat", 1.0) in _amounts(result)
-    # Owner correction: +7 percentage points to 20%/s, not multiplicative.
+    # Tier 5 adds 6 percentage points to the 20%/s drain.
     assert result["set_conditions"]["vigilant_breeze_life_cost_pct_max_per_sec"] == pytest.approx(0.26)
+
+
+def test_happiest_reunion_adds_eight_percentage_points_at_tier_one():
+    result = vb.apply(
+        build_input=SimpleNamespace(season="SS13"),
+        condition_state={"vigilant_breeze_merged_magi": 1}, ls_state={}, uptime_mode="max",
+        slot_levels=[1, 1, 1, 1], advanced_picks=["Happiest Reunion"],
+    )
+
+    # Owner-confirmed percentage-point rule: 20%/s + 8 points = 28%/s.
+    assert result["set_conditions"]["vigilant_breeze_life_cost_pct_max_per_sec"] == pytest.approx(0.28)
 
 
 def test_warmest_vigilance_uses_per_magus_life_counter_and_defeat_stacks():
@@ -230,6 +255,16 @@ def test_enhanced_is_not_a_selectable_iris_skill():
     )
 
     assert contract["available"] is False
+
+
+@pytest.mark.parametrize(("selected", "role"), [
+    ("Base", "base skill"), ("Base Skill", "base skill"),
+    ("Blazing Dance (Base)", "base skill"),
+    ("Ultimate", "ultimate"), ("Ultimate Skill", "ultimate"),
+    ("Lightning Surge (Ultimate)", "ultimate"),
+])
+def test_selected_skill_role_normalization_accepts_condition_and_dropdown_labels(selected, role):
+    assert vb.normalize_selected_skill_role(selected) == role
 
 
 def test_vigilant_breeze_is_registered_in_trait_dispatch():

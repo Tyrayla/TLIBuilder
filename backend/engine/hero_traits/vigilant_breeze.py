@@ -165,8 +165,9 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         current = current_max
     current += float(set_conditions.get("vigilant_breeze_warmest_defeated_stacks", 0.0) or 0.0)
     current = min(current, current_max)
-    add("spirit_magi_dmg_additional", current * 0.16,
-        f"Vigilant Breeze: +{current:g} stacks × 16% additional damage")
+    if count > 0:
+        add("spirit_magi_dmg_additional", current * 0.16,
+            f"Vigilant Breeze: +{current:g} stacks × 16% additional damage")
     # The shared Spirit Magus layer consumes this trait-enabled input per recipient.
     set_conditions["vigilant_breeze_artificial_moon_growth"] = current * 6.0 if base_level >= 4 else 0.0
 
@@ -182,6 +183,16 @@ def stash(*, source, ls_state, **_):
         ls_state["iris_" + key] = source.total(key)
 
 
+def normalize_selected_skill_role(selected_skill):
+    role = str(selected_skill or "").rsplit("(", 1)[-1].rstrip(") ").lower()
+    role = {"base": "base skill", "ultimate": "ultimate"}.get(role, role)
+    if str(selected_skill or "").lower() in {"base", "base skill"}:
+        role = "base skill"
+    if str(selected_skill or "").lower() in {"ultimate", "ultimate skill"}:
+        role = "ultimate"
+    return role
+
+
 def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100.0, ultimate_cooldown_zero=False,
                             life_cost_pct_max_per_cast=0.0, breeze_per_cast=0):
     """Resolve one selected role to each Magus's matching ability and cast rate, without computing damage.
@@ -193,12 +204,7 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
         _MINION_SPEED_INC, _MINION_SPEED_ADD, _parse_cast_time, _speed_add_product, growth_stage,
     )
 
-    role = str(selected_skill or "").rsplit("(", 1)[-1].rstrip(") ").lower()
-    role = {"base": "base skill", "ultimate": "ultimate"}.get(role, role)
-    if str(selected_skill or "").lower() in {"base", "base skill"}:
-        role = "base skill"
-    if str(selected_skill or "").lower() in {"ultimate", "ultimate skill"}:
-        role = "ultimate"
+    role = normalize_selected_skill_role(selected_skill)
     abilities = list(minion_skills or [])
 
     def find_skill(skill_role):

@@ -2260,7 +2260,7 @@ def compute(
                         source=eff, condition_state=condition_state, growth=_growth)
                     _merged = int(condition_state.get("vigilant_breeze_merged_magi", 2) or 0) > 0
                     _selected = condition_state.get("vigilant_breeze_skill", "Ultimate")
-                    _role = str(_selected).rsplit("(", 1)[-1].rstrip(") ").lower()
+                    _role = _vigilant_breeze.normalize_selected_skill_role(_selected)
                     _tango = (_merged and bool(condition_state.get("vigilant_breeze_whirlwind_tango"))
                               and _role == "ultimate")
                     if _merged:
