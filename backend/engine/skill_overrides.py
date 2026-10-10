@@ -44,6 +44,22 @@ SKILL_OVERRIDES: dict[str, dict] = {
     # silently reapplying a possibly-stale correction — that's the intended fail-safe, not a bug.
     "mana_boil": {
         "authored_season": "SS12",
+        # The authored season's RAW (pre-override) text for every compared field, snapshotted from
+        # data/seasons/SS12/_skills.json. The web engine bundle ships only the ACTIVE season, so the authored
+        # season's data is often not on disk; without this baseline the divergence check has nothing to compare
+        # and (by design) warns "re-validate" on every load. Disk data wins when the authored season IS available.
+        "authored_baseline": {
+            "detailed_description": [
+                "Gains Euphoria upon casting the skill:",
+                "16.65 % additional Spell Damage while the skill lasts",
+                "Consumes 16.65 % additional Spell Damage while the skill lasts Mana every second.",
+                "Loses the Euphoria effect when Mana drops to 0.",
+            ],
+            "simple_description": [
+                "Gains Euphoria upon casting the skill: Consumes Mana over time and permanently grants 10% additional Spell Damage. Loses the Euphoria effect when Mana drops to 0.",
+            ],
+            "raw_text": "Gains Euphoria upon casting the skill: 16.65 % additional Spell Damage while the skill lasts Consumes 16.65 % additional Spell Damage while the skill lasts Mana every second. Loses the Euphoria effect when Mana drops to 0.",
+        },
         "reason": ("Crawler merged the consume clause into the Spell Damage clause "
                    "('Consumes 16.65 % additional Spell Damage while the skill lasts Mana every second'). "
                    "Truth: consume is 3% of Max Mana every second at ALL ranks; Euphoria is +16.65% additional "
@@ -109,16 +125,20 @@ def _authored_season_diverges(active_sk: dict, authored_sk: dict | None) -> bool
     return not compared_anything
 
 
-def _load_authored_season_skills(authored_season: str) -> dict[str, dict]:
+def _load_authored_season_skills(authored_season: str) -> dict[str, dict] | None:
+    """The authored season's skills by id, or None when that season's data isn't available at all (e.g. the web
+    engine bundle, which ships only the active season) — distinct from an empty/lacking-this-skill season."""
     from persistence import season_manager
-    data = season_manager.load_skills(authored_season) or {}
+    data = season_manager.load_skills(authored_season)
+    if not data:
+        return None
     return {s["item_id"]: s for s in (data.get("skills") or []) if "item_id" in s}
 
 
 def apply_skill_overrides(skills_by_id: dict[str, dict], active_season: str) -> list[str]:
     """Patch crawler-mangled skills in place (best effort) and return manual-review warnings."""
     reviews: list[str] = []
-    authored_season_cache: dict[str, dict[str, dict]] = {}
+    authored_season_cache: dict[str, dict[str, dict] | None] = {}
     for sid, ov in SKILL_OVERRIDES.items():
         sk = skills_by_id.get(sid)
         if not sk:
@@ -137,7 +157,12 @@ def apply_skill_overrides(skills_by_id: dict[str, dict], active_season: str) -> 
         if active_season != authored_season:
             if authored_season not in authored_season_cache:
                 authored_season_cache[authored_season] = _load_authored_season_skills(authored_season)
-            authored_sk = authored_season_cache[authored_season].get(sid)
+            authored_skills = authored_season_cache[authored_season]
+            if authored_skills is None:
+                # Authored season's data isn't on disk (web bundle): fall back to the baseline stored in the spec.
+                authored_sk = ov.get("authored_baseline")
+            else:
+                authored_sk = authored_skills.get(sid)
             # Compare the RAW (pre-patch) active-season data against the authored season's raw data — if they
             # match at every overlapping rank/field, the override's corrected values are still accurate and the
             # warning would just be crying wolf.
