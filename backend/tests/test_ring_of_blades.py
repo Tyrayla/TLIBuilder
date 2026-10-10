@@ -158,4 +158,3 @@ def test_strength_in_numbers_damage_lines_apply_and_minion_line_stays_nyi():
     coverage, detail = skill_coverage(data)
     assert coverage == "partial"
     assert any("Minions" in line and "Projectiles" in line for line in detail)
-
