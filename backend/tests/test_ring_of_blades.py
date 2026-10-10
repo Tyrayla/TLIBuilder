@@ -1,10 +1,22 @@
 """Ring of Blades behavior through the public engine_stats path.
 
-Owner measurements (2026-10-08) and SS13 data are recorded in
-.claude/plans/ring-of-blades-engine-brief.md. L16 base midpoint is 174.5;
-with 5% spell crit at 150%, the expected hit is 174.5 * 1.025 = 178.8625.
-At 0% speed, five blades hit at 5 * (1 / 2.0) = 2.5 hits/s, so naked DPS
-is 178.8625 * 2.5 = 447.15625 before target mitigation.
+Mechanic source: owner in-game measurements from 2026-10-08, taken with an
+L16 skill, an Invincible No.2 dummy, and 30 fps recordings. The owner measured
+a 2.00-second orbit at 0% Projectile Speed and a period of
+2.0 / (1 + Projectile Speed). Blades hit once per pass, with at most four
+hits per second per blade. Five blades therefore hit at 2.5 hits per second.
+Blade Formation adds one blade per Projectile Quantity, capped at seven extra
+blades. Extra Max Channeled Stacks do not add blades. Cast Speed does not
+change the orbit rate, and Area changes orbit radius only. The owner also
+confirmed 93% added-damage effectiveness and 21.5% additional damage per
+Max Channeled Stack above the base five. SS13 `_skills.json` supplies the
+skill's base damage and support lines.
+
+L16 base midpoint is 174.5. With 5% spell crit at 150%, the expected hit is
+174.5 * 1.025 = 178.8625. At 0% speed, naked DPS is
+178.8625 * 2.5 = 447.15625 before target mitigation. The interaction between
+Razor Edge and a distinct additional Projectile Speed source remains
+unverified and is not asserted here.
 """
 import pytest
 
