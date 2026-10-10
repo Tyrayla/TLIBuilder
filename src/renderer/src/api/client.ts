@@ -1724,7 +1724,6 @@ export interface HeroTraitTreeNode {
   icon_url?: string | null   // render via iconUrl('hero_trait', icon_url) → bundled webp
   subtitle?: string          // in-game node header (e.g. "Spacetime Dictator")
   unlock_level?: number | null   // character level the node unlocks at; null/absent = not recorded
-  unverified?: boolean       // transcribed from partial/pre-launch data — text may be incomplete
 }
 
 export interface HeroTrait {

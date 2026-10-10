@@ -18,6 +18,7 @@ import { useReferenceStore } from '../store/referenceStore'
 import {
   availableThresholds, canAllocate, allocate, deallocate, reconcile, badgeFor,
 } from '../utils/traitTree'
+import { findRing, connectorPath } from '../utils/traitTreeGeometry'
 
 interface Props {
   trait: HeroTrait
@@ -49,13 +50,15 @@ const XY_VH = 760
 // node down uniformly (spacing/arrangement unchanged), never touches the data's x/y values.
 const XY_TOP_PAD = 40
 
-function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatable, badge, resolveLevelAt, onClick, onContextMenu }: {
+function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatable, badge, resolveLevelAt, glossary, onClick, onContextMenu }: {
   node: HeroTraitTreeNode; cx: number; cy: number; baseR: number
   isRoot: boolean; isAllocated: boolean; isAllocatable: boolean; badge: number | null
   resolveLevelAt: number
+  glossary?: HeroTrait['glossary']
   onClick: () => void; onContextMenu: () => void
 }) {
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  // Interactive: the header term in the tooltip is clickable (opens its glossary text).
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', interactive: true })
   const icon = iconUrl('hero_trait', node.icon_url)
   const r = isRoot ? baseR + 6 : baseR
   const active = isRoot || isAllocated
@@ -107,7 +110,8 @@ function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatabl
       {tip.open && (
         <FloatingPortal>
           <div className="trait-info-card" {...tip.floatingProps}>
-            <TraitTooltipBody name={node.name} slotLevel={resolveLevelAt} effects={node.effects ?? []} />
+            <TraitTooltipBody name={node.name} slotLevel={resolveLevelAt} effects={(node.effects ?? []).filter(l => !/^Unverified\b/i.test(l))}
+              subtitle={node.subtitle} glossary={glossary} />
           </div>
         </FloatingPortal>
       )}
@@ -200,6 +204,9 @@ export default function HeroTraitTree({
   const nodeX = (n: HeroTraitTreeNode) => (useXY && typeof n.x === 'number') ? n.x * XY_VW : n.column * CELL + CELL / 2
   const nodeY = (n: HeroTraitTreeNode) => (useXY && typeof n.y === 'number') ? n.y * XY_VH + XY_TOP_PAD : n.row * CELL + CELL / 2
 
+  // Ring arcs only apply to the radial (x/y) layout; the legacy column/row grid keeps straight lines.
+  const ring = useXY ? findRing(nodes.map(n => ({ id: n.node_id, x: nodeX(n), y: nodeY(n) })), rootId) : null
+
   const handleClick = (nodeId: string) => {
     if (nodeId === rootId) return
     if (traitTreeAllocations.includes(nodeId)) {
@@ -238,11 +245,8 @@ export default function HeroTraitTree({
         {connections.map(({ from, to }, i) => {
           const n1 = byId[from]; const n2 = byId[to]
           if (!n1 || !n2) return null
-          return (
-            <line key={i}
-              x1={nodeX(n1)} y1={nodeY(n1)} x2={nodeX(n2)} y2={nodeY(n2)}
-              className="htt-tree-connector" />
-          )
+          const { d } = connectorPath({ x: nodeX(n1), y: nodeY(n1) }, { x: nodeX(n2), y: nodeY(n2) }, ring)
+          return <path key={i} d={d} fill="none" className="htt-tree-connector" />
         })}
         {nodes.map(n => {
           const isRoot = n.node_id === rootId
@@ -262,6 +266,7 @@ export default function HeroTraitTree({
               node={n} cx={nodeX(n)} cy={nodeY(n)} baseR={nodeR}
               isRoot={isRoot} isAllocated={isAllocated} isAllocatable={isAllocatable} badge={badge}
               resolveLevelAt={nodeLevelAt}
+              glossary={trait.glossary}
               onClick={() => handleClick(n.node_id)}
               onContextMenu={() => handleContextMenu(n.node_id)}
             />
