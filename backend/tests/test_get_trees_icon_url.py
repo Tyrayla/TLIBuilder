@@ -31,7 +31,8 @@ def test_tree_absent_from_icon_map_yields_none_not_error():
     # SS14 (pre-season) carries the same icon map as SS13, so key the precondition off the active
     # season's actual map rather than the season name.
     active = season_manager.get_active_season()
-    icons = season_manager.load_talent_tree_selector_icons(active) or {}
+    icons = season_manager.load_talent_tree_selector_icons(active)
+    assert icons, f"icon map missing/empty for active season {active!r} — cannot establish the Nether King gap"
     assert "Nether_King" not in icons, (
         f"active season {active!r} now has a Nether King icon — this test targets that icon gap; "
         "pick another tree with no upstream icon (or retire the test) before updating."
