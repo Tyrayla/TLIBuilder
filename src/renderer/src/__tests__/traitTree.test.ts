@@ -307,3 +307,38 @@ describe('defensive / malformed input', () => {
     expect(badgeFor('silencing_severance', [], [45, 60, 75])).toBeNull()
   })
 })
+
+// ── Fixture: Youga 3 "The Ultimate One" topology (data/seasons/SS14/_hero_traits.json) ──────────
+const YOUGA_ROOT = 'the_ultimate_one'
+const YOUGA_CONNECTIONS: TraitTreeConnection[] = [
+  { from: 'the_ultimate_one', to: 'i_meet_the_selves' },
+  { from: 'the_ultimate_one', to: 'i_hold_all_in_my_grasp' },
+  { from: 'the_ultimate_one', to: 'i_arrive_alongside_destiny' },
+  { from: 'i_meet_the_selves', to: 'i_am_the_measure_of_all_time' },
+  { from: 'i_meet_the_selves', to: 'i_need_not_lift_a_finger' },
+  { from: 'i_arrive_alongside_destiny', to: 'i_gather_the_threads_of_causality' },
+  { from: 'i_arrive_alongside_destiny', to: 'i_command_all' },
+  { from: 'i_hold_all_in_my_grasp', to: 'i_will_hunt_you_down' },
+  { from: 'i_will_hunt_you_down', to: 'i_come_to_claim_my_due' },
+  { from: 'i_will_hunt_you_down', to: 'i_see_no_doomsday_today' },
+]
+
+describe('Youga 3 — The Ultimate One topology', () => {
+  it('ring-1 nodes are allocatable straight from the root', () => {
+    for (const id of ['i_meet_the_selves', 'i_hold_all_in_my_grasp', 'i_arrive_alongside_destiny']) {
+      expect(canAllocate(id, [], YOUGA_CONNECTIONS, YOUGA_ROOT, 3)).toBe(true)
+    }
+  })
+
+  it('deeper nodes need their whole path allocated first', () => {
+    expect(canAllocate('i_come_to_claim_my_due', [], YOUGA_CONNECTIONS, YOUGA_ROOT, 3)).toBe(false)
+    expect(canAllocate('i_come_to_claim_my_due', ['i_hold_all_in_my_grasp'], YOUGA_CONNECTIONS, YOUGA_ROOT, 3)).toBe(false)
+    expect(canAllocate('i_come_to_claim_my_due',
+      ['i_hold_all_in_my_grasp', 'i_will_hunt_you_down'], YOUGA_CONNECTIONS, YOUGA_ROOT, 3)).toBe(true)
+  })
+
+  it('deallocating i_will_hunt_you_down drops both leaves beneath it', () => {
+    const full = ['i_hold_all_in_my_grasp', 'i_will_hunt_you_down', 'i_come_to_claim_my_due', 'i_see_no_doomsday_today']
+    expect(deallocate('i_will_hunt_you_down', full, YOUGA_CONNECTIONS, YOUGA_ROOT)).toEqual(['i_hold_all_in_my_grasp'])
+  })
+})

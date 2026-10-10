@@ -4,13 +4,13 @@
 # Affliction and True Flame
 
 - **Status:** ✅ Confirmed
-- **Skills affected:** Cataclysm, True Flame
+- **Skills affected:** Cataclysm, True Flame, Black Hole
 - **Mechanic tags:** dot, stacking, damage-pool, trigger, uptime
-- **Last verified:** 2026-09-18 by Tyra
+- **Last verified:** 2026-09-25 by Tyra
 
 ## Setup
 
-Configure Enemy Affliction on the Conditionals screen. Use an Ignited target to inspect True Flame. Cataclysm must support a skill with an active Damage over Time effect.
+Configure Enemy Affliction; use an Ignited target for True Flame and a target in Black Hole for its zone bonus. Cataclysm must support a skill with an active Damage over Time effect.
 
 ## Raw data points
 
@@ -18,20 +18,20 @@ Owner-confirmed in-game behavior: Affliction persists without natural decay; bas
 
 ## Derived / confirmed formula
 
-Affliction DoT-taken bonus = stacks x 1% x (1 + increased Affliction Effect) x product(1 + each additional Affliction Effect). True Flame Fire-hit-taken bonus = Affliction DoT-taken bonus x 65%, gated by Ignite. Magmaskull's Fire-hit-taken effect scales with increased Affliction Effect and is capped by its affix; its -6 Affliction per second per +10% Affliction Effect is step-based.
+Affliction DoT taken = stacks x 1% x (1 + increased Effect) x product(1 + each additional Effect). True Flame Fire-hit taken = final Affliction bonus x 65%. Black Hole grants 100 initially and 100/s while its DoT is active; its DoT zone grants its level-scaled additional DoT bonus per completed 10 Affliction. Magmaskull's Fire-hit-taken effect scales with increased Affliction Effect and is capped by its affix; its -6 Affliction per second per +10% Affliction Effect is step-based.
 
 ## Notes / caveats / open questions
 
-This entry intentionally excludes Torturer's Touch Reaping/reset behavior, which remains a separate future mechanic.
+Torturer's Touch Reaping/reset remains intentionally out of scope; its Effect-scaled APS is modeled.
 
 ## Implementation (engine model)
 
-engine/aggregator.py synthesizes Affliction, True Flame, and Magmaskull target-vulnerability sources; engine/compute.py derives the dynamic maximum and Enemy Has Max Affliction predicate; engine/offense.py applies the bonuses to the correct DoT or Fire-hit forms; engine/mod_parser.py and engine/support_resolver.py parse Cataclysm and Magmaskull inputs.
+aggregator.py, compute.py, offense.py, skill_resolver.py, mod_parser.py, and support_resolver.py; covered by backend/tests/test_affliction_true_flame.py.
 
 ## Sources
 
-- owner-confirmed in-game behavior, 2026-09-17/18
-- data/seasons/SS13/_skills.json — Cataclysm
-- data/seasons/SS13/_legendary_gear.json — Magmaskull and Magnus' Mindflame
+- owner-confirmed in-game behavior, 2026-09-17/25
+- data/seasons/SS13/_skills.json
+- data/seasons/SS13/_legendary_gear.json
 - data/seasons/SS13/warlord.json — True Flame
 - backend/tests/test_affliction_true_flame.py
