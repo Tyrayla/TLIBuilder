@@ -29,11 +29,20 @@ def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entr
 
 
 # Base effects granted per point of Fervor Rating, each multiplied by Fervor Effect
-# (fervor_effect_inc). Today just generic Critical Strike Rating; extend as items add more.
+# (fervor_effect_inc). Item-granted effects are appended only for their equipped items.
 #   (stat_key, amount_per_point, source_text)
 _FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("crit_rating_inc", 0.02, "+2% Critical Strike Rating per Fervor Rating"),
 ]
+
+_FERVOR_ITEM_EFFECTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "ghost slaughter": (
+        ("fervor_skill_area_per_rating", "skill_area_inc"),
+        ("fervor_attack_dmg_additional_per_rating", "attack_dmg_additional"),
+        ("fervor_ailment_dmg_additional_per_rating", "ailment_dmg_additional"),
+    ),
+    "ralph's footsteps": (("fervor_movement_speed_per_rating", "movement_speed_inc"),),
+}
 
 # Numbed: base additional Lightning Damage the TARGET takes per stack, scaled by Numbed Effect
 # (numbed_effect_inc). Modelled engine-side like Fervor — the per-stack value lives here, not on the
@@ -625,15 +634,28 @@ def aggregate(
 
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
-    # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
-    # point; future items may add further base effects that scale the same way — they'd just be
-    # added to _FERVOR_BASE_EFFECTS below. Driven off the user-set fervor_rating condition for now
+    # (fervor_effect_inc). Item-granted effects come from markers emitted by the exact gear affix text
+    # and are read only for their named equipped item. Driven off the user-set fervor_rating condition for now
     # (later this may be gated behind the hero trait that grants it). crit_rating_inc is generic
     # (read by both attack and spell crit). fervor_effect_inc is a fraction (0.5 = +50%).
     fervor_rating = float((numeric_vals or {}).get("fervor_rating", 0.0) or 0.0)
     if fervor_rating > 0:
         fervor_effect_mult = 1.0 + source.total("fervor_effect_inc")
-        for stat_key, per_point, label_text in _FERVOR_BASE_EFFECTS:
+        fervor_effects = list(_FERVOR_BASE_EFFECTS)
+        for item in build.gear:
+            item_name = str(item.get("item_name") or item.get("name") or "").strip().lower()
+            for marker, stat_key in _FERVOR_ITEM_EFFECTS.get(item_name, ()):
+                marker_contribs = [
+                    contrib
+                    for contrib in item.get("contributions", [])
+                    if contrib.get("stat") == marker
+                ]
+                per_point = sum(float(contrib.get("display_value", 0.0) or 0.0)
+                                for contrib in marker_contribs)
+                if per_point:
+                    label_text = marker_contribs[0].get("text") or f"Fervor gains {stat_key} per Fervor Rating"
+                    fervor_effects.append((stat_key, per_point, label_text))
+        for stat_key, per_point, label_text in fervor_effects:
             amount = per_point * fervor_rating * fervor_effect_mult
             source.add_with_source(stat_key, amount, SourceEntry(
                 stat=stat_key, amount=amount, source_type="condition",

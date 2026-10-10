@@ -2511,6 +2511,33 @@ def _resolve_gear_affix_clauses(text: str) -> list[dict]:
         return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
     out: list[dict] = []
     for clause in _expand_named_buffs(text):
+        # Keep Fervor base effects as engine-only markers. The aggregator applies them only
+        # when the named item is equipped.
+        fervor = re.search(
+            r"fervor gains an additional base effect:\s*\+?([\d.]+)\s*%\s*"
+            r"(skill area|additional attack and ailment damage|movement speed)\s+"
+            r"for every\s+([\d.]+)\s+fervor rating",
+            clause, re.I)
+        if fervor:
+            value, effect, divisor = fervor.groups()
+            per_rating = float(value) / 100.0 / float(divisor)
+            keys = {
+                "skill area": ("fervor_skill_area_per_rating",),
+                "additional attack and ailment damage": (
+                    "fervor_attack_dmg_additional_per_rating",
+                    "fervor_ailment_dmg_additional_per_rating",
+                ),
+                "movement speed": ("fervor_movement_speed_per_rating",),
+            }[effect.lower()]
+            parsed = [{"stat_key": key, "amount": per_rating, "text": clause} for key in keys]
+            # Some corrupted affixes combine the Fervor effect with another ordinary roll
+            # (Skill Area or Fervor Effect). Preserve that remainder through the normal parser.
+            remainder = clause[:fervor.start()] + clause[fervor.end():]
+            if remainder.strip():
+                parsed.extend(_parse_custom_mod_text(remainder))
+            out.append({"clause": clause, "parsed": parsed, "cond_expr": None,
+                        "resolved": True, "curse": None})
+            continue
         if re.search(r"each\s+different\s+warcry\s+cast", clause, re.I):
             cond_expr = {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}
             parsed = []

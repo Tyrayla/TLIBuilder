@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Engine & DPS
+- Ghost Slaughter now grants Skill Area and additional Attack and Ailment Damage per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The linear formulas await in-game verification.
+
 ### Bug fixes
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.

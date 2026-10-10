@@ -12,13 +12,16 @@ Each point of Fervor Rating grants **+2% (generic) Critical Strike Rating**, and
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Fervor Rating → generic crit, scales with Fervor Effect. Needs a "Have Fervor" gate (base applied unconditionally today).
+Modeled from the SS13 legendary affix data and public engine tests; not yet verified in-game. The per-rating formulas are treated as linear with no flooring or cap. Ghost Slaughter's Life and Energy Shield drain, Low Life Fervor loss, and consume-all-at-low-life effects remain outside this model. The existing Fervor base also has no 'Have Fervor' gate.
 
 ## Implementation (engine model)
 
-`aggregator.py::aggregate` (Fervor block): reads `fervor_rating` from `numeric_vals`; if >0, `fervor_effect_mult = 1 + fervor_effect_inc`, then for each `(stat_key, per_point, label)` in `_FERVOR_BASE_EFFECTS` emits `amount = per_point × fervor_rating × fervor_effect_mult`. Today the only base effect is `crit_rating_inc` at 0.02/pt (generic, read by both attack and spell crit). Logged as a `condition` source labelled 'Fervor Rating'. `_FERVOR_BASE_EFFECTS` is extensible for more per-point effects. NYI/limit: the base is applied whenever `fervor_rating > 0` with NO 'Have Fervor' gate (`project_fervor_gating`) — an unconditional base needs a Have-Fervor source; `automax_fervor` IS gated but the raw base is not. Gating the base + auto-Have-Fervor is a follow-up.
+`server.py::_resolve_gear_affix_clauses` parses the SS13 Ghost Slaughter and Ralph's Footsteps Fervor affixes into engine-only marker contributions. `aggregator.py::aggregate` reads those markers only from the matching equipped item and appends their mapped stats to the Fervor base effects. Each effect amount is its per-rating value multiplied by `fervor_rating` and `(1 + fervor_effect_inc)`. Ghost Slaughter maps Skill Area to `skill_area_inc`, and its additional Attack and Ailment Damage to `attack_dmg_additional` and `ailment_dmg_additional`. Its stronger damage line is +1% per 1 Fervor Rating; the standard line is +3% per 4. Ralph's Footsteps maps Movement Speed to `movement_speed_inc` at +1% per 5 Fervor Rating. The parser also preserves the Ghost Slaughter +(30–50)% Skill Area roll and Ralph's stronger affix +20% Fervor Effect roll. The existing +2% generic Critical Strike Rating per point remains in `_FERVOR_BASE_EFFECTS`. The base is applied whenever `fervor_rating > 0` with no 'Have Fervor' gate (`project_fervor_gating`); gating the base and automatic Have Fervor remains a follow-up.
 
 ## Sources
 
+- data/seasons/SS13/_legendary_gear.json — Ghost Slaughter (ghost_slaughter) and Ralph's Footsteps (ralph_s_footsteps) affix raw_text
+- TLIBuilder backend/server.py::_resolve_gear_affix_clauses
+- TLIBuilder backend/engine/aggregator.py::_FERVOR_ITEM_EFFECTS and Fervor block
 - backend/tests/test_fervor_mechanic.py
-- memory: project_fervor_gating
+- memory: shared/memory/20261010T133336-Codex.md (fervor-effects-3a17)
