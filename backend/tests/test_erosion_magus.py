@@ -97,6 +97,9 @@ def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
     # The existing calc target defaults to Boss (weight 5).
     assert stage4_default_enemy.minion_empower["empower_effect"] == pytest.approx(2.2)
     assert stage4.minion_empower["buffs"][0]["value"] == pytest.approx(0.20 * 2.2 * 0.6)
+    assert stage4.minion_empower["buffs"][1]["value"] == pytest.approx(0.50 * 2.2 * 0.6)
+    assert stage4.minion_empower["buffs"][1]["active"] is True
+    assert stage4_default_enemy.minion_empower["buffs"][1]["value"] == pytest.approx(0.50 * 2.2 * 0.6)
     assert _forms(stage4)["Bleak Grass"].hits_per_fire == pytest.approx(2.6)  # Extra spike only during 60% Empower uptime.
 
 

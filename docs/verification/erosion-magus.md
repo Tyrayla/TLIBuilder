@@ -9,11 +9,11 @@
 
 ## Derived / confirmed formula
 
-Scattered Mud and Bleak Grass share the Base cast rate, split by Enhanced replacement chance. Bleak Grass delivers its spike and explosion at full damage; the Stage 4 extra spike is weighted by Withering Payback uptime. Withering Payback contributes its +20% additional Erosion Damage buff at effective duration/cooldown uptime. Harvest Time preparation makes Empower instant. World of Thorns is retained as one per-cast hit form and excluded from default DPS until a selecting trait/dispatcher consumes it. Physical damage converts to Erosion through the player conversion cascade.
+Scattered Mud and Bleak Grass share the Base cast rate, split by Enhanced replacement chance. Bleak Grass delivers its spike and explosion at full damage. Withering Payback contributes its +20% additional Erosion Damage buff and Growth Stage 4+ +50% additional Ultimate Damage at Empower Effect-scaled duration/cooldown uptime. World of Thorns is retained as one per-cast hit form and excluded from default DPS until a selecting trait/dispatcher consumes it. Physical damage converts to Erosion through the player conversion cascade.
 
 ## Notes / caveats / open questions
 
-Engine status remains unverified by source. Tested in game by owner: Bleak Grass spike and explosion both hit the same target for full damage with no falloff; World of Thorns hits each enemy once even when thorns overlap. Assumption, owner to confirm: at Growth Stage 4+, one additional full-damage Bleak Grass spike is modeled as an exact recast with no extra cast time, only during Withering Payback uptime; the standard explosion occurs once. Withering Payback's damage-triggered cast is ignored because Magi do not practically take damage. SS14 shared minion base stats are a stopgap ported from SS12 pending in-game remeasurement.
+Engine status remains unverified by source. Tested in game by owner: Bleak Grass spike and explosion both hit the same target for full damage with no falloff; World of Thorns hits each enemy once even when thorns overlap. Assumption, owner to confirm: at Growth Stage 4+, the extra Bleak Grass spike is modeled as an exact recast with no damage penalty or added cast time. Withering Payback's damage-triggered cast is ignored because Magi do not practically take damage. SS14 shared minion base stats are a stopgap ported from SS12 pending in-game remeasurement. Harvest Time's canonical Preparation effect is modeled as an instant Empower cast.
 
 ## Implementation (engine model)
 

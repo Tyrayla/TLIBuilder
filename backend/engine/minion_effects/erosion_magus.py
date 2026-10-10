@@ -42,15 +42,17 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     empower_uptime = 0.0
     empower_display = None
     empower_effect = 1.0
+    ultimate_buff = 0.0
     if empower:
         duration = float(empower.get("duration") or 0.0) * (1.0 + source.total("minion_skill_effect_duration_inc"))
         base_cd = _parse_cast_time(empower.get("cooldown", "")) or 0.0
-        cooldown = base_cd / (1.0 + source.total("minion_cdr_speed_inc")) if base_cd > 0 else 0.0
+        cooldown = base_cd / max(1.0 + source.total("minion_cdr_speed_inc"), 1e-9) if base_cd > 0 else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
         enemy_weight = float((condition_state or {}).get("enemy_count_weight") or TARGET_ENEMY_COUNT_WEIGHT)
         boss = enemy_weight == TARGET_ENEMY_COUNT_WEIGHT
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional") + (1.20 if boss and stage >= 4 else 0.0)
         erosion_buff = 0.20 * empower_effect * empower_uptime
+        ultimate_buff = 0.50 * empower_effect * empower_uptime if stage >= 4 else 0.0
         # All Erosion Magus hits are Erosion after intrinsic conversion, so the generic minion
         # additional-damage pool is type-equivalent here and is already consumed by the engine.
         add("minion_dmg_additional", erosion_buff,
@@ -62,7 +64,10 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             "base_duration": float(empower.get("duration") or 0.0), "duration": duration,
             "uptime": empower_uptime,
             "buffs": [{"label": "Erosion Damage", "stat": "erosion_damage", "base": 0.20,
-                       "value": erosion_buff, "active": True}],
+                       "value": erosion_buff, "active": True},
+                      {"label": "Ultimate Damage", "stat": "ultimate_damage", "base": 0.50,
+                       "value": ultimate_buff, "active": stage >= 4,
+                       "note": "Growth Stage 4+ while Empower lasts"}],
         }
 
     results = []
@@ -95,7 +100,6 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     if ultimate:
         ultimate_source = replace(working, _entries=list(working._entries), source_log=list(working.source_log))
         # These pools are read by the Ultimate's formula now; their generic engine consumption is a separate task.
-        ultimate_buff = 0.50 * empower_effect * empower_uptime if stage >= 4 else 0.0
         for stat, amount in (
             ("minion_dmg_inc", source.total("spirit_magi_ultimate_dmg_inc")),
             ("minion_dmg_additional", source.total("spirit_magi_ultimate_dmg_additional")),
