@@ -5,6 +5,9 @@
 ### Engine & DPS
 - **Well Matched is now modeled.** It grants up to +40% additional Attack Damage and -15% additional damage taken from enemies. Builder applies the maximum values while an enemy is in proximity. Distance falloff is not modeled and remains unverified.
 
+### Hero traits
+- **Youga's third trait, The Ultimate One, can be selected.** The 11-node tree is browsable and allocatable with your Hero Memories, along with the 19 Alternate Spacetime skill effects as reference text. The trait does not change your DPS yet. It appears once the SS14 season is selected.
+
 ### Bug fixes
 - Fixed Impermanence lowering Thunder Spike DPS by applying minimum and maximum damage bonuses to the entire hit. These bonuses now change their respective damage endpoints and follow Physical damage through conversion. In-game verification of Impermanence remains open.
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.

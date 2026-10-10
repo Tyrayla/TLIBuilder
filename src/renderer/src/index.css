@@ -4294,6 +4294,16 @@ span.gear-affix-label {
   align-self: center;
 }
 .htt-points-hint { margin-top: 4px; font-size: 10px; font-weight: 400; color: #d09a4a; line-height: 1.3; max-width: 160px; }
+.trait-info-term { display: block; background: none; border: 0; padding: 0; margin: 2px 0; font: inherit;
+  font-size: 12px; color: #6fb1ff; cursor: pointer; text-align: left; }
+.trait-info-term:hover { text-decoration: underline; }
+.trait-info-term--plain { cursor: default; }
+.trait-info-term--plain:hover { text-decoration: none; }
+.trait-info-term-def { margin: 4px 0; padding: 4px 6px; font-size: 11px; line-height: 1.35; white-space: pre-line;
+  color: #c8c0b4; border-left: 2px solid #3a5a8a; }
+.htt-alt-effects { font-size: 12px; color: #c8c0b4; line-height: 1.4; }
+.htt-alt-effects summary { cursor: pointer; font-weight: 600; color: #ffe6ae; }
+.htt-alt-effect { margin-top: 6px; }
 .htt-tree-svg {
   width: 100%;
   aspect-ratio: 1000 / 760;
