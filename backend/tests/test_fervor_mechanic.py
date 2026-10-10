@@ -79,6 +79,8 @@ def test_ghost_slaughter_base_effects_are_item_gated_and_scale_with_rating():
     assert _total(with_item, "attack_dmg_additional") == pytest.approx(0.03 / 4 * 100)
     assert _total(with_item, "ailment_dmg_additional") == pytest.approx(0.03 / 4 * 100)
     assert _total(half_rating, "skill_area_inc") == pytest.approx(0.01 / 3 * 50, abs=1e-6)
+    assert not any(key.startswith("fervor_") and key.endswith("_per_rating")
+                   for key in with_item["stats"])
 
 
 def test_ghost_slaughter_stronger_damage_variant_and_fervor_effect():

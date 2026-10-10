@@ -43,6 +43,9 @@ _FERVOR_ITEM_EFFECTS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
     "ralph's footsteps": (("fervor_movement_speed_per_rating", "movement_speed_inc"),),
 }
+_FERVOR_MARKER_STATS = frozenset(
+    marker for effects in _FERVOR_ITEM_EFFECTS.values() for marker, _ in effects
+)
 
 # Numbed: base additional Lightning Damage the TARGET takes per stack, scaled by Numbed Effect
 # (numbed_effect_inc). Modelled engine-side like Fervor — the per-stack value lives here, not on the
@@ -375,6 +378,10 @@ def aggregate(
         if str(stat or "").startswith("torturers_touch_"):
             _torturers_touch_inputs_seen = True
         if not stat:
+            continue
+        # These internal item-affix markers are consumed by the Fervor block below. They are not
+        # player stats and must not enter the public stat/source breakdowns.
+        if stat in _FERVOR_MARKER_STATS:
             continue
         cond = contrib.get("condition")
         _extract_cond_keys(cond, source.referenced_conditions)
