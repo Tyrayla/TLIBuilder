@@ -30,9 +30,11 @@ either support here would only re-break what already works, for no benefit.
     Ring-Blade-stays-on-Icy-Blade precedent, not Chilling Spike's split-off precedent — Inverted
     Blaze's returns shotgun identically to the outbound torrents). The hit count is user-tunable via
     the new GLOBAL `inverted_blaze_returns` condition (owner: "should be global"), defaulting to this
-    slot's own `torrent_count` (same dynamic-default pattern as `berserking_blade.py`'s `stacks()`).
+    slot's own landed torrent hits, which also cap returns (owner-approved 2026-10-09).
 """
+
 from __future__ import annotations
+import math
 import re
 
 from engine.models import SourceEntry
@@ -45,6 +47,25 @@ INVERTED_BLAZE = "flame_slash_inverted_blaze_noble"
 
 _NEAR_M = 3.0   # Immediate Threat: the full tiered roll applies at/within this distance
 _FAR_M = 8.0    # Immediate Threat: zero bonus at/beyond this distance
+
+
+def parse_hit_count_override(raw) -> float | None:
+    """Return a finite numeric hit-count request, or None for missing/invalid input."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def normalize_hit_count(raw, default: int, minimum: int, maximum: int) -> int:
+    """Return a finite whole-hit override, or the automatic default for invalid input."""
+    value = parse_hit_count_override(raw)
+    if value is None:
+        return int(default)
+    return max(minimum, min(maximum, int(value)))
 
 # "...+(38–40) % additional damage to enemies within 3 m" (en-dash or hyphen; the tier roll itself).
 _PROXIMITY_RE = re.compile(
@@ -82,7 +103,18 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
         text=f"{tc} fire torrents at {area_bonus * 100:.0f}% Area bonus |flame_slash|torrent_count",
         points=1))
 
-    auto_conditions = {}
+    raw_hits = condition_state.get("flame_slash_torrent_hits")
+    hits = normalize_hit_count(raw_hits, tc, 1, tc)
+    # Auto retains the original count path and default golden metadata.
+    if raw_hits is not None:
+        source.add_slotted("flame_slash_torrent_hits_flat", float(hits), slot, None, SourceEntry(
+            stat="flame_slash_torrent_hits_flat", amount=float(hits), source_type="skill",
+            label="Flame Slash: Steep Strike", source_name=resolved.name,
+            text=f"{hits} of {tc} fire torrents hit the target |flame_slash|torrent_hits",
+            points=1))
+    source.referenced_conditions.add("flame_slash_torrent_hits")
+    auto_conditions = {"flame_slash_torrent_hits": tc}
+    condition_maximums = {"flame_slash_torrent_hits": tc}
     for sup in (attached_supports or []):
         # attached_supports is the BUILD-WIDE list (every skill slot's supports, flat) — scope to
         # THIS slot only, same convention every other bespoke module uses (e.g. icebound_beam.py,
@@ -119,19 +151,20 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
                     points=1))
             source.referenced_conditions.add("enemy_distance_m")
         elif iid == INVERTED_BLAZE:
-            auto_conditions["inverted_blaze_returns"] = tc
+            auto_conditions["inverted_blaze_returns"] = hits
+            condition_maximums["inverted_blaze_returns"] = hits
             raw = condition_state.get("inverted_blaze_returns")
-            return_count = float(tc) if raw is None else max(0.0, float(raw))
+            return_count = normalize_hit_count(raw, hits, 0, hits)
             if return_count:
                 name = data.get("name") or iid
-                source.add_slotted("flame_slash_return_hits_flat", return_count, slot, None, SourceEntry(
-                    stat="flame_slash_return_hits_flat", amount=return_count, source_type="support",
+                source.add_slotted("flame_slash_return_hits_flat", float(return_count), slot, None, SourceEntry(
+                    stat="flame_slash_return_hits_flat", amount=float(return_count), source_type="support",
                     label=name, source_name=name,
                     text=(f"{return_count:.0f} returning fire-torrent hits (shotgunned with the "
                           f"outbound torrents) |flame_slash|inverted_blaze"),
                     points=1))
             source.referenced_conditions.add("inverted_blaze_returns")
-    return {"auto_conditions": auto_conditions}
+    return {"auto_conditions": auto_conditions, "condition_maximums": condition_maximums}
 
 
 # ── Modeled-line specs (badge stat-keys + roll ranges) — see skill_effects/howling_gale.py for the

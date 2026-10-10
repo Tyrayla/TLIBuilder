@@ -9,6 +9,7 @@ server.py is a thin HTTP wrapper; all calculation logic lives here.
 """
 from __future__ import annotations
 import logging
+import math
 from engine.models import BuildInput, BuildSource, StatResult
 from engine.constants import ELEMENTAL
 
@@ -1807,6 +1808,8 @@ def compute(
             attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
         for key, value in overrides.get("auto_conditions", {}).items():
             _auto_conditions_by_slot.setdefault(key, {})[str(slot)] = value
+        for key, value in overrides.get("condition_maximums", {}).items():
+            maxes[key] = max(maxes.get(key, 0.0), value)
         eff = source.materialize_for_skill(_mt, slot)
         # Intrinsic additionals (Fervor/Mana/Channeled-Stack + Terra Charge) read the slot-EFFECTIVE source
         # so a slot-local amplifier (e.g. Tranquility's fervor_effect_additional) scopes to the skill's bonus
@@ -2540,13 +2543,25 @@ def compute(
         for k, v in auto_values.items()
         if _is_active(v)
     }
-    for key, slot_values in _auto_conditions_by_slot.items():
-        values = set(slot_values.values())
+    for key, values_by_slot in _auto_conditions_by_slot.items():
+        values = set(values_by_slot.values())
         auto_conditions[key] = {
             "value": next(iter(values)) if len(values) == 1 else None,
-            "source": "Inverted Blaze (returning torrents)",
-            "slot_values": slot_values,
+            "source": ("Flame Slash (all fire torrents land)" if key == "flame_slash_torrent_hits"
+                       else "Inverted Blaze (returning torrents)"),
         }
+
+    # Flame Slash's bounds arrive after slot Area and landed hits resolve.
+    from engine.skill_effects.flame_slash import normalize_hit_count, parse_hit_count_override
+    for key, floor in (("flame_slash_torrent_hits", 1.0), ("inverted_blaze_returns", 0.0)):
+        raw = build_input.condition_state.get(key)
+        if key in maxes and raw is not None:
+            requested = parse_hit_count_override(raw)
+            if requested is None:
+                continue
+            applied = normalize_hit_count(requested, int(maxes[key]), int(floor), int(maxes[key]))
+            if requested != applied:
+                clamp_report[key] = {"requested": requested, "applied": applied}
 
     from engine.warcry import summarize_warcries
     warcry_summaries = summarize_warcries(

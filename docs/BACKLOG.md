@@ -560,6 +560,7 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   id `bug-crossed-lightning-runon-progression-line-drops-quantity-grant`), so this fix changes no DPS today.
 
 ## 5. UI / screens
+- **Skill-effect Config labels.** Shorten skill-effect condition labels and add a tooltip with each source skill name. Defer the consistency pass; Torrent Hits and Torrent Return Hits are the first examples.
 - **Spirit Magus display + Origin effect calculations (owner, 2026-08-10; scoped same day).**
   **Phases A, B (minus Wicked), and the display box SHIPPED 2026-08-11** — `engine/spirit_magus_origins.py`
   (per-magus data parse + shared EMIT_TABLE), generalized compute scan, aggregator emission, new stats
