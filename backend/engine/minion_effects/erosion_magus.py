@@ -4,6 +4,7 @@ from dataclasses import replace
 from engine.models import SourceEntry
 
 OWNER_ID = "summon_erosion_magus"
+BOSS_ENEMY_COUNT_WEIGHT = 5.0
 _ROLE_TAGS = {"base skill": "Base", "enhanced skill": "Enhanced", "empower": "Empower", "ultimate": "Ultimate"}
 
 
@@ -43,15 +44,18 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     empower_effect = 1.0
     ultimate_buff = 0.0
     if empower:
-        duration = float(empower.get("duration") or 0.0) * (1.0 + source.total("minion_skill_effect_duration_inc"))
+        duration_inc = source.total("minion_skill_effect_duration_inc")
+        duration = float(empower.get("duration") or 0.0) * (1.0 + duration_inc)
         base_cd = _parse_cast_time(empower.get("cooldown", "")) or 0.0
         empower_cdr = (source.total("minion_cdr_speed_inc")
                        + source.total("spirit_magi_cdr_speed_inc"))
-        cooldown = base_cd / max(1.0 + empower_cdr, 1e-9) if base_cd > 0 else 0.0
+        empower_recovery_factor = 1.0 + empower_cdr
+        cooldown_unavailable = base_cd > 0 and empower_recovery_factor <= 0
+        cooldown = base_cd / empower_recovery_factor if base_cd > 0 and not cooldown_unavailable else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
         raw_enemy_weight = (condition_state or {}).get("enemy_count_weight")
         enemy_weight = float(1.0 if raw_enemy_weight is None else raw_enemy_weight)
-        boss = enemy_weight == 5.0
+        boss = enemy_weight == BOSS_ENEMY_COUNT_WEIGHT
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional") + (1.20 if boss and stage >= 4 else 0.0)
         erosion_buff = 0.20 * empower_effect * empower_uptime
         ultimate_buff = 0.50 * empower_effect * empower_uptime if stage >= 4 else 0.0
@@ -63,7 +67,9 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         empower_display = {
             "name": ability_label(empower), "empower_effect": empower_effect,
             "empower_effect_inc": empower_effect - 1.0, "base_cooldown": base_cd, "cooldown": cooldown,
+            "cdr_inc": empower_cdr,
             "base_duration": float(empower.get("duration") or 0.0), "duration": duration,
+            "duration_inc": duration_inc,
             "uptime": empower_uptime,
             "buffs": [{"label": "Erosion Damage", "stat": "erosion_damage", "base": 0.20,
                        "value": erosion_buff, "active": True},
@@ -74,11 +80,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
 
     results = []
     empower_base_time = _parse_cast_time(empower.get("cast_speed", "")) if empower else 0.0
-    harvest_time_linked = any(
-        entry.source_type == "support"
-        and any(str(value or "").strip().casefold() == "harvest time"
-                for value in (entry.label, entry.source_name))
-        for entry in source.source_log)
+    harvest_time_linked = bool((condition_state or {}).get("_engine_harvest_time_linked", False))
     empower_time = 0.0 if harvest_time_linked else empower_base_time
     base = by_role.get("Base")
     enhanced = by_role.get("Enhanced")
@@ -96,6 +98,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     if empower:
         result = nyi_offense(empower, level)
         result.nyi = ["Withering Payback is modeled as a buff at its duration/cooldown uptime; its damage-triggered cast is intentionally ignored."]
+        if cooldown_unavailable:
+            result.nyi.append("Empower cooldown recovery is at or below -100%; effective cooldown is reported as 0 and uptime is 0.")
         results.append(result)
 
     ultimate = by_role.get("Ultimate")
@@ -118,6 +122,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         result = calculate_minion_offense(
             ultimate_source, ultimate, base_stats, level, count, rate_multiplier=0.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True)
+        ultimate_cooldown_unavailable = False
         if result.hit_forms:
             ultimate_form = result.hit_forms[0]
             cast_speed = ((1.0 + ultimate_source.total("minion_cast_speed_inc"))
@@ -126,11 +131,17 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             ultimate_form.effective_cast_time = ultimate_form.base_cast_time / max(cast_speed, 1e-9)
             cdr = (ultimate_source.total("minion_cdr_speed_inc")
                    + ultimate_source.total("spirit_magi_cdr_speed_inc"))
-            ultimate_form.effective_cooldown = ultimate_form.base_cooldown / max(1.0 + cdr, 1e-9)
+            ultimate_recovery_factor = 1.0 + cdr
+            ultimate_cooldown_unavailable = ultimate_form.base_cooldown > 0 and ultimate_recovery_factor <= 0
+            ultimate_form.effective_cooldown = (
+                ultimate_form.base_cooldown / ultimate_recovery_factor
+                if ultimate_form.base_cooldown > 0 and not ultimate_cooldown_unavailable else 0.0)
         result.nyi = [
             "Per-cast Ultimate form only. It is excluded from default DPS until a selecting Iris trait or trigger dispatcher consumes it.",
             "World of Thorns per-cast damage uses uptime-averaged Empower bonuses; it assumes casts sample the Empower window in proportion to its uptime (event phase is not simulated).",
         ]
+        if ultimate.get("cooldown") and ultimate_cooldown_unavailable:
+            result.nyi.append("Ultimate cooldown recovery is at or below -100%; effective cooldown is reported as 0.")
         for ultimate_form in result.hit_forms:
             ultimate_form.nyi = list(result.nyi)
         results.append(result)

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from engine.models import BuildInput, BuildSource, SourceEntry
+from engine.models import BuildInput, BuildSource
 from engine.minion_offense import MINION_MODULES
 from engine.compute import compute
 from persistence import season_manager
@@ -113,11 +113,9 @@ def test_harvest_time_makes_empower_cast_instant():
 
     owner = _owner()
     source = BuildSource()
-    source.source_log.append(SourceEntry(stat="minion_cast_speed_inc", amount=0.0,
-                                         source_type="support", label="Harvest Time",
-                                         source_name="Harvest Time", text="Harvest Time"))
     result = MINION_MODULES[owner["item_id"]](
-        source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1)
+        source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1,
+        condition_state={"_engine_harvest_time_linked": True})
     empower = _forms(result)["Withering Payback"]
     assert empower.base_cast_time == pytest.approx(0.6)
     assert empower.effective_cast_time == 0.0
@@ -139,6 +137,26 @@ def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():
     empower = _forms(result)["Withering Payback"]
     assert empower.effective_cooldown == pytest.approx(10.0 / 1.5)
     assert result.minion_empower["uptime"] == pytest.approx(0.9)
+    assert result.minion_empower["cdr_inc"] == pytest.approx(0.5)
+    assert result.minion_empower["duration_inc"] == 0.0
+
+
+def test_negative_one_hundred_percent_spirit_magus_cdr_reports_zero_cooldown_with_note():
+    import engine.minion_effects  # noqa: F401 -- populate MINION_MODULES
+
+    owner = _owner()
+    source = BuildSource()
+    source.add("minion_cdr_speed_inc", -0.5)
+    source.add("spirit_magi_cdr_speed_inc", -0.5)
+    result = MINION_MODULES[owner["item_id"]](
+        source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1)
+    empower = _forms(result)["Withering Payback"]
+    ultimate = _forms(result)["World of Thorns"]
+    assert result.minion_empower["cooldown"] == 0.0
+    assert empower.effective_cooldown == 0.0
+    assert ultimate.effective_cooldown == 0.0
+    assert any("Empower cooldown recovery is at or below -100%" in note for note in empower.nyi)
+    assert any("Ultimate cooldown recovery is at or below -100%" in note for note in ultimate.nyi)
 
 
 def test_compute_passes_enemy_type_condition_to_registered_minion_handler():
@@ -147,7 +165,7 @@ def test_compute_passes_enemy_type_condition_to_registered_minion_handler():
     owner["detailed_description"] = []
     owner["description_lines"] = []
     build = BuildInput(
-        slots=[], slates=[], season="SS14",
+        slots=[], slates=[], season="SS14", attached_supports=[{"item_id": "harvest_time", "slot": 2}],
         condition_state={"enemy_count_weight": 1.0, "erosion_stage4_extra_spike": True},
         custom_contributions=[{"stat_key": "spirit_magi_initial_growth_flat", "amount": 300.0,
                                "text": "Integration test Growth"}],
@@ -160,6 +178,7 @@ def test_compute_passes_enemy_type_condition_to_registered_minion_handler():
     bleak_grass = next(form for form in erosion["hit_forms"] if form["name"].startswith("Bleak Grass"))
     assert bleak_grass["hits_per_fire"] == pytest.approx(2.6)
     assert next(form for form in erosion["hit_forms"] if form["name"].startswith("World of Thorns"))["fires_per_sec"] == 0.0
+    assert next(form for form in erosion["hit_forms"] if form["name"].startswith("Withering Payback"))["effective_cast_time"] == 0.0
 
 
 def test_growth_stage_four_ultimate_bonus_and_stage_five_damage_pool():

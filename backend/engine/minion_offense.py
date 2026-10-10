@@ -688,10 +688,11 @@ def calculate_minion_offense(
     cooldown = _parse_cast_time(minion_skill.get("cooldown", "")) or 0.0
     cdr = source.total("minion_cdr_speed_inc")
     recovery_factor = 1.0 + cdr
-    effective_cooldown = cooldown / max(recovery_factor, 1e-9) if cooldown > 0 else 0.0
+    cooldown_unavailable = cooldown > 0 and recovery_factor <= 0
+    effective_cooldown = cooldown / recovery_factor if cooldown > 0 and not cooldown_unavailable else 0.0
     if cooldown > 0:
         rate_cooldown = effective_cooldown if apply_cooldown_recovery_to_rate else cooldown
-        if apply_cooldown_recovery_to_rate and recovery_factor <= 0:
+        if cooldown_unavailable:
             rate = 0.0
         else:
             rate = min(rate, 1.0 / rate_cooldown) if rate > 0 else 1.0 / rate_cooldown
@@ -762,6 +763,8 @@ def calculate_minion_offense(
         base_min_by_type=dict(base_min), base_max_by_type=dict(base_max),
     )
     nyi = ["Persistent/domain per-second damage and ailment/DoT are NYI"]
+    if cooldown_unavailable:
+        nyi.append("Minion cooldown recovery is at or below -100%; effective cooldown is reported as 0 and firing rate is disabled.")
     if penetrates:
         nyi.append(f"{name}: Projectiles always Penetrate and track the enemy — multi-target / clear utility, "
                    "no single-target DPS effect (surfaced, not dropped).")

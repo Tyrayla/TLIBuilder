@@ -839,7 +839,7 @@ export interface MinionEmpower {
   empower_effect: number       // 1 + Spirit Magi Empower Effect (multiplier on the buff magnitudes)
   empower_effect_inc: number   // the raw additional Empower Effect (spirit_magi_empower_effect_additional)
   base_cooldown: number
-  cooldown: number             // effective = base ÷ (1 + Minion CDR)
+  cooldown: number             // effective = base ÷ (1 + Minion CDR + Spirit Magus CDR)
   cdr_inc: number
   base_duration: number
   duration: number             // effective = base × (1 + Minion Skill Effect Duration)

@@ -2249,8 +2249,13 @@ def compute(
                 count = min(_active, _max_count) if 0 < _active <= _max_count else _max_count
                 # A bespoke module returns ONE OffenseResult whose hit_forms ARE the minion's damage abilities
                 # (like a player multi-form skill), so the frontend's form dropdown / % of Total / combined view work.
+                module_condition_state = dict(condition_state)
+                module_condition_state["_engine_harvest_time_linked"] = any(
+                    sup.get("item_id") == "harvest_time"
+                    and int(sup.get("slot") or 1) == slot
+                    for sup in (build_input.attached_supports or []))
                 result = _mo.MINION_MODULES[owner["item_id"]](
-                    eff, owner, _mbase, level, count, condition_state=condition_state)
+                    eff, owner, _mbase, level, count, condition_state=module_condition_state)
                 minion_offense[owner["item_id"]] = asdict(result)
             else:
                 minion_offense[owner["item_id"]] = asdict(_mo.nyi_owner(owner.get("name") or owner["item_id"], abilities, level))

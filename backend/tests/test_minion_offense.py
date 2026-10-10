@@ -76,6 +76,8 @@ def test_cooldown_recovery_at_minus_100_percent_produces_zero_rate():
     result = calculate_minion_offense(
         source, _ULTIMATE, _BASE_STATS, level=20, apply_cooldown_recovery_to_rate=True)
     assert result.hit_forms[0].fires_per_sec == 0.0
+    assert result.hit_forms[0].effective_cooldown == 0.0
+    assert any("effective cooldown is reported as 0" in note for note in result.nyi)
     assert result.total_dps == 0.0
 
 
