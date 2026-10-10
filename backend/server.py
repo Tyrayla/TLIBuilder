@@ -1060,7 +1060,18 @@ def engine_stats(req: EngineStatsRequest):
                                          # Item-level slot (when sent) so the breakdown Source column names the real
                                          # slot ("Off-Hand"/"Ring 1") instead of a generic "Item"; None → "Item".
                                          "slot": gi.get("slot"), "condition": cl["cond_expr"], "scope": e.get("scope")})
-                    names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
+                    internal_labels = {
+                        "fervor_skill_area_per_rating": "Skill Area per Fervor Rating",
+                        "fervor_attack_dmg_additional_per_rating": "Additional Attack Damage per Fervor Rating",
+                        "fervor_ailment_dmg_additional_per_rating": "Additional Ailment Damage per Fervor Rating",
+                        "fervor_movement_speed_per_rating": "Movement Speed per Fervor Rating",
+                    }
+                    names = ", ".join(
+                        internal_labels.get(e["stat_key"])
+                        or _get_stat_display_name(e["stat_key"])
+                        or e["stat_key"]
+                        for e in parsed
+                    )
                     gear_mod_statuses.append({"text": cl["clause"], "resolved": True, "stat_display": names})
                 else:
                     gear_mod_statuses.append({"text": cl["clause"], "resolved": False, "stat_display": None})
@@ -2520,7 +2531,12 @@ def _resolve_gear_affix_clauses(text: str) -> list[dict]:
             clause, re.I)
         if fervor:
             value, effect, divisor = fervor.groups()
-            per_rating = float(value) / 100.0 / float(divisor)
+            divisor_value = float(divisor)
+            if divisor_value <= 0:
+                out.append({"clause": clause, "parsed": [], "cond_expr": None,
+                            "resolved": False, "curse": None})
+                continue
+            per_rating = float(value) / 100.0 / divisor_value
             keys = {
                 "skill area": ("fervor_skill_area_per_rating",),
                 "additional attack and ailment damage": (

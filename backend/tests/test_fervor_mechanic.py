@@ -81,6 +81,17 @@ def test_ghost_slaughter_base_effects_are_item_gated_and_scale_with_rating():
     assert _total(half_rating, "skill_area_inc") == pytest.approx(0.01 / 3 * 50, abs=1e-6)
     assert not any(key.startswith("fervor_") and key.endswith("_per_rating")
                    for key in with_item["stats"])
+    assert all("fervor_" not in status.get("stat_display", "")
+               for status in with_item["gear_mod_statuses"])
+
+
+def test_fervor_affixes_remain_unresolved_for_renderer_refresh():
+    from server import ResolveGearAffixesRequest, resolve_gear_affixes
+
+    line = "Fervor gains an additional base effect: +1% Skill Area for every 3 Fervor Rating"
+    result = resolve_gear_affixes(ResolveGearAffixesRequest(texts=[line]))
+
+    assert result["results"][line]["stat_key"] is None
 
 
 def test_ghost_slaughter_stronger_damage_variant_and_fervor_effect():

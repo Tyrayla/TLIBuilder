@@ -650,7 +650,8 @@ def aggregate(
         fervor_effect_mult = 1.0 + source.total("fervor_effect_inc")
         fervor_effects = list(_FERVOR_BASE_EFFECTS)
         for item in build.gear:
-            item_name = str(item.get("item_name") or item.get("name") or "").strip().lower()
+            item_name = (str(item.get("item_name") or item.get("name") or "").strip().lower()
+                         .replace("’", "'").replace("‘", "'"))
             for marker, stat_key in _FERVOR_ITEM_EFFECTS.get(item_name, ()):
                 marker_contribs = [
                     contrib
