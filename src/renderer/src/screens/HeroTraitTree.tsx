@@ -205,6 +205,7 @@ export default function HeroTraitTree({
   const nodeY = (n: HeroTraitTreeNode) => (useXY && typeof n.y === 'number') ? n.y * XY_VH + XY_TOP_PAD : n.row * CELL + CELL / 2
 
   // Ring arcs only apply to the radial (x/y) layout; the legacy column/row grid keeps straight lines.
+  // (Plain computation, not a hook: this sits after the early return above. ~165 triples for 11 nodes.)
   const ring = useXY ? findRing(nodes.map(n => ({ id: n.node_id, x: nodeX(n), y: nodeY(n) })), rootId) : null
 
   const handleClick = (nodeId: string) => {

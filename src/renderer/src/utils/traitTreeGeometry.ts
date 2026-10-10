@@ -62,7 +62,7 @@ export function findRing(nodes: (Pt & { id: string })[], rootId: string): Circle
         if (!c || c.r > maxR || c.cx < minX || c.cx > maxX || c.cy < minY || c.cy > maxY) continue
         const first = cand.filter(p => onCircle(p, c, 2 * RING_TOL))
         if (first.length < MIN_RING_NODES) continue
-        // Refit on the inliers, then score by how many nodes the REFIT circle holds (ties: smaller residual).
+        // Refit on the inliers, then score by how many nodes the REFIT circle holds (ties: larger circle).
         const fitted = refit(first, c)
         const held = cand.filter(p => onCircle(p, fitted))
         if (held.length < MIN_RING_NODES) continue
