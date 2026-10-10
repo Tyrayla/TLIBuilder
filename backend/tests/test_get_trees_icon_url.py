@@ -28,10 +28,13 @@ def test_tree_absent_from_icon_map_yields_none_not_error():
     # (no icon upstream — see season_manager.load_talent_tree_selector_icons docstring), so this
     # exercises the real SS13 season data rather than a synthetic map.
     assert "Nether King" in TREES, "fixture assumption: 'Nether King' tree missing from trees_meta.json"
-    monkeypatch_active = season_manager.get_active_season()
-    assert monkeypatch_active == "SS13", (
-        f"active season is {monkeypatch_active!r}, not SS13 — this test targets the SS13 "
-        "'Nether King' icon gap; re-verify against the new active season's icon map before updating."
+    # SS14 (pre-season) carries the same icon map as SS13, so key the precondition off the active
+    # season's actual map rather than the season name.
+    active = season_manager.get_active_season()
+    icons = season_manager.load_talent_tree_selector_icons(active) or {}
+    assert "Nether_King" not in icons, (
+        f"active season {active!r} now has a Nether King icon — this test targets that icon gap; "
+        "pick another tree with no upstream icon (or retire the test) before updating."
     )
 
     result = get_trees()
