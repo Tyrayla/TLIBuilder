@@ -2241,9 +2241,12 @@ def compute(
                 _iris_dispatch = None
                 _iris_cycle = None
                 _merged = False
+                _drain_rate = 0.0
+                _whisper_heal_rate = 0.0
+                from engine.minion_offense import _interp_level_table, spirit_magus_reconjuring_cycle
                 if _trait_id == "vigilant_breeze" and condition_state.get("vigilant_breeze_active"):
                     from engine.hero_traits import vigilant_breeze as _vigilant_breeze
-                    from engine.minion_offense import apply_spirit_magi_growth as _apply_spirit_magi_growth, _interp_level_table
+                    from engine.minion_offense import apply_spirit_magi_growth as _apply_spirit_magi_growth
                     # Per-Magus contributions must not mutate the shared player source or leak to another Magus.
                     eff = replace(eff, _entries=list(eff._entries), source_log=list(eff.source_log),
                                   scoped_entries=list(eff.scoped_entries), scoped_log=list(eff.scoped_log),
@@ -2253,45 +2256,48 @@ def compute(
                     _vigilant_breeze.apply_merging_stream_origins(
                         source=eff, condition_state=condition_state, growth=_growth)
                     _merged = int(condition_state.get("vigilant_breeze_merged_magi", 2) or 0) > 0
-                    _selected = condition_state.get("vigilant_breeze_skill", "Lightning Surge (Ultimate)")
+                    _selected = condition_state.get("vigilant_breeze_skill", "Ultimate")
                     _role = str(_selected).rsplit("(", 1)[-1].rstrip(") ").lower()
                     _tango = (_merged and bool(condition_state.get("vigilant_breeze_whirlwind_tango"))
                               and _role == "ultimate")
-                    _iris_dispatch = _vigilant_breeze.selected_skill_contract(
-                        selected_skill=_selected, minion_skills=abilities, source=eff,
-                        ultimate_cooldown_zero=_tango,
-                        life_cost_pct_max_per_cast=(
-                            float(condition_state.get("vigilant_breeze_whirlwind_life_cost_pct_max_per_cast", 0.0) or 0.0)
-                            if _tango else 0.0),
-                        breeze_per_cast=(
-                            int(condition_state.get("vigilant_breeze_whirlwind_breeze_gain", 0) or 0) if _tango else 0),
-                    )
-                    _life_table = ((_mbase or {}).get("life_by_group") or {}).get("magus") or {}
-                    _base_life = _interp_level_table(_life_table, level)
-                    _max_life = max(1.0, _base_life * max(0.01, 1.0 + eff.total("minion_max_life_inc")))
+                    if _merged:
+                        _iris_dispatch = _vigilant_breeze.selected_skill_contract(
+                            selected_skill=_selected, minion_skills=abilities, source=eff, growth=_growth,
+                            ultimate_cooldown_zero=_tango,
+                            life_cost_pct_max_per_cast=(
+                                float(condition_state.get("vigilant_breeze_whirlwind_life_cost_pct_max_per_cast", 0.0) or 0.0)
+                                if _tango else 0.0),
+                            breeze_per_cast=(
+                                int(condition_state.get("vigilant_breeze_whirlwind_breeze_gain", 0) or 0) if _tango else 0),
+                        )
                     _drain_rate = (float(condition_state.get("vigilant_breeze_life_cost_pct_max_per_sec", 0.20) or 0.20)
                                    if _merged else 0.0)
                     if _tango and _iris_dispatch.get("available"):
                         _drain_rate += (_iris_dispatch["life_cost_pct_max_per_cast"]
                                         * _iris_dispatch["casts_per_second"])
-                    _regen_rate = (eff.total("minion_life_regen_inc")
-                                   + eff.total("minion_life_regen_flat") / _max_life)
-                    _whisper_heal_rate = 0.0
                     if (condition_state.get("vigilant_breeze_whisper_active")
-                            and _role == "enhanced skill" and _iris_dispatch.get("available")):
+                            and _role == "base skill" and _iris_dispatch and _iris_dispatch.get("available")):
                         _whisper_interval = float(condition_state.get("vigilant_breeze_whisper_interval", 0.0) or 0.0)
                         _whisper_pct = float(condition_state.get("vigilant_breeze_whisper_heal_pct", 0.0) or 0.0)
                         if _whisper_interval > 0:
                             _whisper_heal_rate = min(
-                                _iris_dispatch["casts_per_second"], 1.0 / _whisper_interval) * _whisper_pct
-                    from engine.minion_offense import spirit_magus_reconjuring_cycle
-                    _iris_cycle = spirit_magus_reconjuring_cycle(
-                        drain_pct_per_second=_drain_rate,
-                        regen_pct_per_second=_regen_rate,
-                        regen_speed_inc=eff.total("minion_life_regen_speed_inc"),
-                        drain_heal_pct_per_second=_whisper_heal_rate,
-                        other_reconjuring_heal_pct_per_second=eff.total("minion_reconjuring_life_regen_inc"),
-                    ) if _merged else None
+                                _iris_dispatch.get("enhanced_casts_per_second", 0.0),
+                                1.0 / _whisper_interval) * _whisper_pct
+                # Reconjuring is shared Spirit Magus behavior. Run the shared life-cycle
+                # model for every Magus; Iris only supplies the Vigilant life drain and
+                # Breeze's Whisper healing when its trait is active.
+                _life_table = ((_mbase or {}).get("life_by_group") or {}).get("magus") or {}
+                _base_life = _interp_level_table(_life_table, level)
+                _max_life = max(1.0, _base_life * max(0.01, 1.0 + eff.total("minion_max_life_inc")))
+                _regen_rate = (eff.total("minion_life_regen_inc")
+                               + eff.total("minion_life_regen_flat") / _max_life)
+                _iris_cycle = spirit_magus_reconjuring_cycle(
+                    drain_pct_per_second=_drain_rate,
+                    regen_pct_per_second=_regen_rate,
+                    regen_speed_inc=eff.total("minion_life_regen_speed_inc"),
+                    drain_heal_pct_per_second=_whisper_heal_rate,
+                    other_reconjuring_heal_pct_per_second=eff.total("minion_reconjuring_life_regen_inc"),
+                )
                 _max_count = max(1, _minion_base_count(owner, level)
                                  + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
                 # Active count = the user's `active_minions` (Config), capped at the max; 0/unset → the full max.
@@ -2311,7 +2317,7 @@ def compute(
                         f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
                         f"{_iris_dispatch.get('casts_per_second', 0.0):.3f} casts/s; selected-skill damage "
                         "is pending that Magus module. Normal rotation is replaced while merged.")
-                if _iris_cycle:
+                if _iris_cycle and _drain_rate > 0:
                     _uptime = _iris_cycle["damage_uptime"]
                     result.total_dps *= _uptime
                     result.total_dps_vs_target *= _uptime
@@ -2327,7 +2333,7 @@ def compute(
                         f"Reconjuring steady cycle: {100 * _uptime:.1f}% damage uptime "
                         f"({_iris_cycle['drain_seconds']:.2f}s drain / {_iris_cycle['reconjuring_seconds']:.2f}s heal).")
                 minion_payload = asdict(result)
-                if _iris_cycle:
+                if _iris_cycle and _drain_rate > 0:
                     minion_payload["reconjuring_cycle"] = _iris_cycle
                     minion_payload["iris_skill_dispatch"] = _iris_dispatch
                 minion_offense[owner["item_id"]] = minion_payload

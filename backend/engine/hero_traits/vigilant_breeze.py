@@ -88,7 +88,6 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     if _pick(picks, slot_levels, "Breeze's Whisper", _SLOT_45):
         tier = _tier(slot_levels, _SLOT_45)
         add("spirit_magi_enhanced_skill_chance", 0.30, "Breeze's Whisper: +30% chance for Spirit Magi to use an Enhanced Skill")
-        current_max += _WHISPER_MAX[tier]
         set_conditions.update({
             "vigilant_breeze_whisper_active": True,
             "vigilant_breeze_whisper_heal_pct": _WHISPER_HEAL[tier],
@@ -153,7 +152,9 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         set_conditions["vigilant_breeze_nurturing_regain_share"] = 0.0
 
     whisper_bonus = _number(condition_state, "vigilant_breeze_whisper_bonus_stacks", 0.0, 0.0, 8.0)
-    current_max += whisper_bonus if set_conditions.get("vigilant_breeze_whisper_active") else 0.0
+    if set_conditions.get("vigilant_breeze_whisper_active"):
+        whisper_tier = _tier(slot_levels, _SLOT_45)
+        current_max += min(whisper_bonus, _WHISPER_MAX[whisper_tier])
     set_conditions["vigilant_breeze_max_stacks"] = current_max
     set_conditions["vigilant_breeze_life_cost_pct_max_per_sec"] = life_cost
     set_conditions["vigilant_breeze_whirlwind_life_cost_pct_max_per_cast"] = tango_life_cost
@@ -181,19 +182,33 @@ def stash(*, source, ls_state, **_):
         ls_state["iris_" + key] = source.total(key)
 
 
-def selected_skill_contract(*, selected_skill, minion_skills, source, ultimate_cooldown_zero=False,
+def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100.0, ultimate_cooldown_zero=False,
                             life_cost_pct_max_per_cast=0.0, breeze_per_cast=0):
     """Resolve one selected role to each Magus's matching ability and cast rate, without computing damage.
 
     Ultimate damage is intentionally not included in the default minion total. A later
     Magus module can call this contract and consume its own skill formula.
     """
-    from engine.minion_offense import _MINION_SPEED_INC, _MINION_SPEED_ADD, _parse_cast_time, _speed_add_product
+    from engine.minion_offense import (
+        _MINION_SPEED_INC, _MINION_SPEED_ADD, _parse_cast_time, _speed_add_product, growth_stage,
+    )
 
     role = str(selected_skill or "").rsplit("(", 1)[-1].rstrip(") ").lower()
-    role = {"base": "base skill", "enhanced": "enhanced skill"}.get(role, role)
-    resolved = next((s for s in (minion_skills or [])
-                     if role in {str(t).lower() for t in (s.get("skill_tags") or [])}), None)
+    role = {"base": "base skill", "ultimate": "ultimate"}.get(role, role)
+    if str(selected_skill or "").lower() in {"base", "base skill"}:
+        role = "base skill"
+    if str(selected_skill or "").lower() in {"ultimate", "ultimate skill"}:
+        role = "ultimate"
+    abilities = list(minion_skills or [])
+
+    def find_skill(skill_role):
+        return next((s for s in abilities
+                     if skill_role in {str(t).lower() for t in (s.get("skill_tags") or [])}), None)
+
+    if role not in {"base skill", "ultimate"}:
+        return {"selected_skill": selected_skill, "role": role, "available": False,
+                "damage_in_default_total": False}
+    resolved = find_skill(role)
     if not resolved:
         return {"selected_skill": selected_skill, "role": role, "available": False,
                 "damage_in_default_total": False}
@@ -214,6 +229,23 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, ultimate_c
                         + (source.total("spirit_magi_cdr_speed_inc") if ultimate else 0.0))
     if cooldown > 0:
         rate = min(rate, 1.0 / cooldown) if rate > 0 else 1.0 / cooldown
+    skill_forms = []
+    enhanced_chance = 0.0
+    if role == "base skill":
+        enhanced = find_skill("enhanced skill")
+        enhanced_chance = source.total("spirit_magi_enhanced_skill_chance")
+        if growth_stage(float(growth)) >= 2:
+            enhanced_chance += 0.30
+        enhanced_chance = max(0.0, min(1.0, enhanced_chance))
+        skill_forms = [
+            {"role": "base skill", "skill_name": resolved.get("name"),
+             "casts_per_second": rate * (1.0 - enhanced_chance)},
+            {"role": "enhanced skill", "skill_name": enhanced.get("name") if enhanced else None,
+             "casts_per_second": rate * enhanced_chance if enhanced else 0.0},
+        ]
+    else:
+        skill_forms = [{"role": "ultimate", "skill_name": resolved.get("name"),
+                        "casts_per_second": rate}]
     ultimate_damage_pools = ({
         "inc": source.total("spirit_magi_ultimate_dmg_inc"),
         "additional": source.total("spirit_magi_ultimate_dmg_additional"),
@@ -221,6 +253,8 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, ultimate_c
     return {"selected_skill": selected_skill, "skill_name": resolved.get("name"), "role": role,
             "available": True, "cast_time": base_time, "cooldown": cooldown,
             "casts_per_second": rate, "damage_in_default_total": False,
+            "enhanced_chance": enhanced_chance, "skill_forms": skill_forms,
+            "enhanced_casts_per_second": (rate * enhanced_chance if role == "base skill" and enhanced else 0.0),
             "ultimate_damage_pools": ultimate_damage_pools,
             "life_cost_pct_max_per_cast": float(life_cost_pct_max_per_cast),
             "breeze_per_cast": int(breeze_per_cast)}
@@ -297,6 +331,7 @@ def status_lines(*, slot_levels, advanced_picks, season=None, **_):
         line("Merged Magi enter Vigilant; current Breeze stacks are user-set (0 uses the computed maximum)", "Vigilant Breeze")
         line("During Vigilant, Magi consume 20% Max Life per second outside Reconjuring; gain 1 Breeze/s to 10 while merged and lose 2/s unmerged or Reconjuring", "Vigilant Breeze", "informational")
         line("Merged Magi cast only Iris's selected skill; their normal rotation is replaced until unmerged", "Vigilant Breeze")
+        line("Iris can select Base Skill (with Enhanced chance replacing individual casts) or Ultimate", "Vigilant Breeze")
         line("Selected skill damage lookup is pending each Magus module; Ultimate stays out of default DPS", "Vigilant Breeze", "informational")
         line(f"Base trait L2-L5: +{_BASE_DMG_ADD[1]*100:g}/{_BASE_DMG_ADD[2]*100:g}/{_BASE_DMG_ADD[3]*100:g}/{_BASE_DMG_ADD[4]*100:g}% additional Minion Damage", "Vigilant Breeze")
     if _pick(picks, slot_levels, "Whirlwind Tango", _SLOT_45):

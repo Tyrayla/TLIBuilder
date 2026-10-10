@@ -80,6 +80,21 @@ def test_nurturing_breeze_copies_scaled_regen_and_regain_pools():
     assert amounts["dmg_taken_additional"] == pytest.approx(-0.28)
 
 
+def test_whisper_temporary_breeze_bonus_is_user_set_and_capped_not_automatic():
+    common = {
+        "build_input": SimpleNamespace(season="SS13"), "ls_state": {},
+        "uptime_mode": "max", "slot_levels": [1, 5, 1, 1],
+        "advanced_picks": ["Breeze's Whisper"],
+    }
+
+    no_bonus = vb.apply(condition_state={"vigilant_breeze_stacks": 0}, **common)
+    with_bonus = vb.apply(condition_state={"vigilant_breeze_stacks": 0,
+                                           "vigilant_breeze_whisper_bonus_stacks": 99}, **common)
+
+    assert no_bonus["set_conditions"]["vigilant_breeze_max_stacks"] == 10
+    assert with_bonus["set_conditions"]["vigilant_breeze_max_stacks"] == 18
+
+
 def test_merging_stream_scales_origin_for_each_magus_growth():
     source = BuildSource()
     source.add("spirit_magi_origin_effect_inc", 0.20)
@@ -161,6 +176,60 @@ def test_selected_skill_contract_returns_per_cast_rate_and_keeps_ultimate_out_of
     assert tango["casts_per_second"] == pytest.approx(2.0)
     assert tango["life_cost_pct_max_per_cast"] == 0.06
     assert tango["breeze_per_cast"] == 4
+
+
+@pytest.mark.parametrize(("enhanced_chance", "base_rate", "enhanced_rate"), [
+    (0.0, 0.5, 0.0),
+    (1.0, 0.0, 0.5),
+])
+def test_merged_base_selection_mixes_enhanced_as_a_replacement_per_cast(
+        enhanced_chance, base_rate, enhanced_rate):
+    source = BuildSource()
+    source.add("spirit_magi_enhanced_skill_chance", enhanced_chance)
+    abilities = [
+        {"name": "Base Bolt", "cast_speed": "2 s", "cooldown": "1 s",
+         "skill_tags": ["Base Skill", "Spell", "Lightning"]},
+        {"name": "Enhanced Bolt", "cast_speed": "1 s", "cooldown": "4 s",
+         "skill_tags": ["Enhanced Skill", "Spell", "Lightning"]},
+    ]
+
+    contract = vb.selected_skill_contract(
+        selected_skill="Base Skill", minion_skills=abilities, source=source,
+    )
+
+    assert contract["role"] == "base skill"
+    assert contract["casts_per_second"] == pytest.approx(0.5)
+    assert contract["enhanced_chance"] == pytest.approx(enhanced_chance)
+    assert contract["skill_forms"] == [
+        {"role": "base skill", "skill_name": "Base Bolt", "casts_per_second": base_rate},
+        {"role": "enhanced skill", "skill_name": "Enhanced Bolt", "casts_per_second": enhanced_rate},
+    ]
+
+
+def test_merged_base_selection_adds_growth_stage_two_enhanced_chance():
+    source = BuildSource()
+    abilities = [
+        {"name": "Base Bolt", "cast_speed": "2 s", "cooldown": "1 s",
+         "skill_tags": ["Base Skill", "Spell"]},
+        {"name": "Enhanced Bolt", "cast_speed": "1 s", "cooldown": "4 s",
+         "skill_tags": ["Enhanced Skill", "Spell"]},
+    ]
+
+    contract = vb.selected_skill_contract(
+        selected_skill="Base Skill", minion_skills=abilities, source=source, growth=200,
+    )
+
+    assert contract["enhanced_chance"] == pytest.approx(0.30)
+    assert contract["skill_forms"][0]["casts_per_second"] == pytest.approx(0.35)
+    assert contract["skill_forms"][1]["casts_per_second"] == pytest.approx(0.15)
+
+
+def test_enhanced_is_not_a_selectable_iris_skill():
+    contract = vb.selected_skill_contract(
+        selected_skill="Enhanced Skill", minion_skills=[], source=BuildSource(),
+    )
+
+    assert contract["available"] is False
 
 
 def test_vigilant_breeze_is_registered_in_trait_dispatch():
