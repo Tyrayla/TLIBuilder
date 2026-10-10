@@ -56,11 +56,24 @@ def test_node_text_is_verbatim_trait_level_5():
     assert nodes["i_come_to_claim_my_due"]["unlock_level"] == 75
 
 
-def test_unseen_nodes_are_marked_unverified_not_invented():
+def test_root_and_late_nodes_carry_real_text_and_unlock_levels():
     nodes = {n["node_id"]: n for n in _trait()["tree_nodes"]}
-    for nid in ("the_ultimate_one", "i_will_hunt_you_down", "i_see_no_doomsday_today"):
-        assert nodes[nid]["effects"] == ["Unverified: effect text not supplied yet"]
-        assert nodes[nid]["unlock_level"] is None
+    assert nodes["the_ultimate_one"]["unlock_level"] is None
+    assert nodes["the_ultimate_one"]["effects"][0] == (
+        'Your Main Active Spell Skill, if eligible for Tangle, is supported by "Clockwork Core", '
+        "replacing the Support Skill in its second support slot."
+    )
+    assert nodes["i_will_hunt_you_down"]["unlock_level"] == 60
+    assert nodes["i_will_hunt_you_down"]["effects"][1] == (
+        'During "Recall", projectiles home in on enemies within "Stasis Vault".'
+    )
+    assert nodes["i_see_no_doomsday_today"]["unlock_level"] == 75
+    assert len(nodes["i_see_no_doomsday_today"]["effects"]) == 2
+
+
+def test_no_node_text_is_an_unverified_placeholder():
+    for n in _trait()["tree_nodes"]:
+        assert not any(line.startswith("Unverified") for line in n["effects"])
 
 
 def test_alternate_spacetime_effects_cover_19_skills():
