@@ -951,6 +951,7 @@ def aggregate(
     _origin_flags = active_booleans or frozenset()
     _any_origin = "origin_of_thunder" in _origin_flags or any(e[0] in _origin_flags for e in _ORIGIN_EMITS)
     _merging_stream = (getattr(build, "trait_id", None) == "vigilant_breeze"
+                       and "vigilant_breeze_active" in _origin_flags
                        and "vigilant_breeze_merging_stream" in _origin_flags)
     if _any_origin and not _merging_stream:
         _origin_inc_total = source.total("spirit_magi_origin_effect_inc")
@@ -965,8 +966,8 @@ def aggregate(
         if "origin_of_thunder" in _origin_flags:
             _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
             _origin_factor = _factor_for("origin_of_thunder")
-            _ot_speed = 0.06 * _origin_factor
-            _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
+            from engine.spirit_magus_origins import thunder_origin_values
+            _ot_speed, _ot_dmg = thunder_origin_values(_ot_lvl, _origin_factor)
             for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
                 source.add_with_source(_sk, _ot_speed, SourceEntry(
                     stat=_sk, amount=_ot_speed, source_type="condition",

@@ -77,8 +77,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     if _pick(picks, slot_levels, "Whirlwind Tango", _SLOT_45):
         tier = _tier(slot_levels, _SLOT_45)
         season = getattr(build_input, "season", None) or "SS13"
-        add("spirit_magi_dmg_additional", _WHIRLWIND_SKILL_DMG.get(season, -0.60),
-            f"Whirlwind Tango ({season}): {_WHIRLWIND_SKILL_DMG.get(season, -0.60) * 100:g}% additional Spirit Magus Skill Damage")
+        penalty = _WHIRLWIND_SKILL_DMG.get(season)
+        if penalty is not None:
+            add("spirit_magi_dmg_additional", penalty,
+                f"Whirlwind Tango ({season}): {penalty * 100:g}% additional Spirit Magus Skill Damage")
         tango_life_cost = _WHIRLWIND_LIFE_COST[tier]
         tango_breeze_gain = _WHIRLWIND_BREEZE[tier]
         set_conditions["vigilant_breeze_whirlwind_tango"] = True
@@ -98,6 +100,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
 
     if _pick(picks, slot_levels, "Happiest Reunion", _SLOT_60):
         tier = _tier(slot_levels, _SLOT_60)
+        count = _number(condition_state, "vigilant_breeze_total_magi", count, 0.0, 5.0)
         p = _REUNION_DMG[tier]
         damage_factor = (1.0 + p) ** count
         add("spirit_magi_dmg_additional", damage_factor - 1.0,
@@ -105,8 +108,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         add("max_spirit_magi_flat", 1.0, "Happiest Reunion: +1 Max Spirit Magi in Map")
         life_cost += _REUNION_DRAIN[tier]
         set_conditions["vigilant_breeze_happiest_reunion"] = True
+        set_conditions["vigilant_breeze_merged_magi_effective"] = count
     else:
         set_conditions["vigilant_breeze_happiest_reunion"] = False
+        set_conditions["vigilant_breeze_merged_magi_effective"] = count
 
     if _pick(picks, slot_levels, "Warmest Vigilance", _SLOT_60):
         tier = _tier(slot_levels, _SLOT_60)
@@ -275,7 +280,7 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
     if not condition_state.get("vigilant_breeze_merging_stream"):
         return
     from engine.models import SourceEntry
-    from engine.spirit_magus_origins import EMIT_TABLE, origin_factor, scaled_magnitude
+    from engine.spirit_magus_origins import EMIT_TABLE, origin_factor, scaled_magnitude, thunder_origin_values
 
     effect_inc = source.total("spirit_magi_origin_effect_inc")
     effect_add = source.total("spirit_magi_origin_effect_additional")
@@ -316,11 +321,12 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
         level = float(condition_state.get("origin_of_thunder_level", 20.0) or 20.0)
         factor = origin_factor(effect_inc, effect_add,
                                float(condition_state.get("origin_of_thunder_support_inc", 0.0) or 0.0)) * growth_factor
-        emit("minion_attack_speed_additional", 0.06 * factor, "Origin of Thunder (Merging Stream)",
+        _thunder_speed, _thunder_damage = thunder_origin_values(level, factor)
+        emit("minion_attack_speed_additional", _thunder_speed, "Origin of Thunder (Merging Stream)",
              "+6% additional Attack Speed (Origin of Thunder)")
-        emit("minion_cast_speed_additional", 0.06 * factor, "Origin of Thunder (Merging Stream)",
+        emit("minion_cast_speed_additional", _thunder_speed, "Origin of Thunder (Merging Stream)",
              "+6% additional Cast Speed (Origin of Thunder)")
-        emit("minion_dmg_additional", (2.5 + max(0.0, level - 1.0) * 0.25) / 100.0 * factor,
+        emit("minion_dmg_additional", _thunder_damage,
              "Origin of Thunder (Merging Stream)", f"Origin of Thunder Lv {int(level)} additional damage")
 
 
@@ -343,7 +349,12 @@ def status_lines(*, slot_levels, advanced_picks, season=None, **_):
     if _pick(picks, slot_levels, "Whirlwind Tango", _SLOT_45):
         tier = _tier(slot_levels, _SLOT_45)
         line(f"Whirlwind Tango ({season or 'SS13'}): Ultimate cooldown 0; each Ultimate cast consumes {_WHIRLWIND_LIFE_COST[tier]*100:g}% Max Life and gains {_WHIRLWIND_BREEZE[tier]} Breeze", "Whirlwind Tango")
-        line(f"Whirlwind Tango: {_WHIRLWIND_SKILL_DMG.get(season or 'SS13', -0.60)*100:g}% additional Spirit Magus Skill Damage to all Spirit Magi", "Whirlwind Tango")
+        penalty = _WHIRLWIND_SKILL_DMG.get(season or "SS13")
+        if penalty is None:
+            line(f"Whirlwind Tango Spirit Magus Skill Damage penalty is not modeled for {season}",
+                 "Whirlwind Tango", "NYI")
+        else:
+            line(f"Whirlwind Tango: {penalty*100:g}% additional Spirit Magus Skill Damage to all Spirit Magi", "Whirlwind Tango")
         line("Ultimate damage is a separate per-cast form and remains outside default DPS until its Magus module is wired", "Whirlwind Tango", "informational")
     if _pick(picks, slot_levels, "Breeze's Whisper", _SLOT_45):
         tier = _tier(slot_levels, _SLOT_45)

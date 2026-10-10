@@ -23,6 +23,12 @@ import re
 
 THUNDER_ID = "summon_thunder_magus"
 
+
+def thunder_origin_values(level: float, factor: float) -> tuple[float, float]:
+    """Return Origin of Thunder's additional speed and damage from its level and effect factor."""
+    effect = float(factor)
+    return 0.06 * effect, (2.5 + max(0.0, float(level) - 1.0) * 0.25) / 100.0 * effect
+
 # Base magus origins (Thunder excluded — see module docstring). ``cond`` is the synthetic condition
 # flag compute sets (with ``<cond>_value`` carrying the parsed, level-resolved magnitude, PRE
 # origin-effect scaling); the aggregator multiplies by the origin factor and emits.

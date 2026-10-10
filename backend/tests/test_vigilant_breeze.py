@@ -72,6 +72,20 @@ def test_happiest_reunion_adds_eight_percentage_points_at_tier_one():
     assert result["set_conditions"]["vigilant_breeze_life_cost_pct_max_per_sec"] == pytest.approx(0.28)
 
 
+def test_happiest_reunion_uses_derived_active_magus_total_not_selector():
+    result = vb.apply(
+        build_input=SimpleNamespace(season="SS13"),
+        condition_state={"vigilant_breeze_merged_magi": 0, "vigilant_breeze_total_magi": 3,
+                         "vigilant_breeze_stacks": 1},
+        ls_state={}, uptime_mode="max", slot_levels=[1, 1, 5, 1],
+        advanced_picks=["Happiest Reunion"],
+    )
+
+    assert result["set_conditions"]["vigilant_breeze_merged_magi_effective"] == 3
+    reunion_and_breeze = sum(amount for key, amount in _amounts(result) if key == "spirit_magi_dmg_additional")
+    assert reunion_and_breeze == pytest.approx((1.05**3 - 1) + 0.16)
+
+
 def test_warmest_vigilance_uses_per_magus_life_counter_and_defeat_stacks():
     result = vb.apply(
         build_input=SimpleNamespace(season="SS13"),
@@ -285,6 +299,8 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     assert merged_magus["total_dps"] == 0.0
     assert "normal rotation is replaced" in " ".join(merged_magus["nyi"]).lower()
     assert merged_magus["iris_skill_dispatch"]["role"] == "ultimate"
+    assert merged_magus["selected_skill_damage_status"] == "NYI"
+    assert merged_magus["selected_skill_damage_pending"] is True
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
 
     unmerged = calculate(0)
@@ -295,6 +311,60 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     stream = calculate(2, ["Merging Stream"])
     assert stream.get("origin_summary") is None
     assert stream["stats"].get("cast_speed_additional", {}).get("total", 0) == 0
+
+    reunion = calculate(0, ["Happiest Reunion"])
+    reunion_magus = reunion["minion_offense"]["summon_thunder_magus"]
+    # Thunder has one base summon at this level; Happiest Reunion adds one map-cap Magus.
+    assert reunion_magus["iris_merged_magi_count"] == 2
+    assert reunion_magus["iris_skill_dispatch"]["role"] == "ultimate"
+    assert reunion_magus["selected_skill_damage_status"] == "NYI"
+
+
+def test_compute_whisper_heals_enhanced_base_casts_but_not_selected_ultimate():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    def calculate(selected):
+        request = make_request(
+            "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 5, 1, 1],
+            advanced_trait_selections=["Breeze's Whisper"],
+            extra_conditions={"vigilant_breeze_merged_magi": 2, "vigilant_breeze_skill": selected},
+        )
+        return engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    base = calculate("Base Skill")
+    ultimate = calculate("Ultimate")
+    assert base["iris_skill_dispatch"]["enhanced_casts_per_second"] > 0
+    assert base["reconjuring_cycle"]["drain_heal_pct_per_second"] > 0
+    assert ultimate["iris_skill_dispatch"]["enhanced_casts_per_second"] == 0
+    assert ultimate["reconjuring_cycle"]["drain_heal_pct_per_second"] == 0
+
+
+def test_non_iris_spirit_magus_exposes_shared_growth_and_reconjuring_formula_without_dps_penalty():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request("summon_thunder_magus", 20)
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    assert magus["total_dps"] > 0
+    assert magus["spirit_magi_growth"] == 100
+    assert magus["reconjuring_cycle"]["heal_pct_per_second"] == pytest.approx(1 / 3)
+    assert magus["reconjuring_cycle"]["damage_uptime"] == 1
+
+
+def test_inactive_vigilant_merging_stream_condition_does_not_suppress_player_origin():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[0, 0, 0, 0],
+        extra_conditions={"vigilant_breeze_merging_stream": True, "origin_of_thunder": True},
+    )
+    stats = engine_stats(EngineStatsRequest(**request))["stats"]
+
+    assert stats["cast_speed_additional"]["total"] == pytest.approx(0.06)
+    assert stats["dmg_additional"]["total"] == pytest.approx(0.0725)
 
 
 def test_vigilant_breeze_is_registered_in_trait_dispatch():
