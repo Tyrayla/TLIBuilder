@@ -530,8 +530,6 @@
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
-      "dmg_max_additional",
-      "dmg_min_additional",
       "spell_dmg_additional",
       "at_center_dmg_additional"
     ],
@@ -684,8 +682,6 @@
       "lightning": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "lightning_dmg_additional",
         "elemental_dmg_additional",

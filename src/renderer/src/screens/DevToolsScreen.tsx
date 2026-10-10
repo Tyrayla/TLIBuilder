@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { seasonLabel, isPreSeason } from '../utils/seasonLabel'
 import { api, SeasonSummary, SeasonDiff, RebuildFilterResult, UnresolvedStat, FilterOverride, ImportCrawlerTreeResult, ConditionDef, ConditionDefsResponse, ConditionSourceEntry } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 
@@ -54,7 +55,11 @@ function DiffTab() {
                 style={{ background: '#1a1a3a', color: '#ddd', border: '1px solid #3a3a5a', borderRadius: 4, padding: '6px 10px', fontSize: 13 }}
               >
                 <option value="">— Select —</option>
-                {seasons.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                {seasons.map(s => (
+                  <option key={s.name} value={s.name} title={s.note ?? undefined}>
+                    {seasonLabel(s)}{isPreSeason(s) && !/pre-?season/i.test(seasonLabel(s)) ? ' (pre-season)' : ''}
+                  </option>
+                ))}
               </select>
             </div>
           )
@@ -515,9 +520,14 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
               }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: s.is_active ? '#c0a0ff' : '#ddd', fontWeight: s.is_active ? 700 : 400 }}>
-                    {s.name}
+                    <span title={s.note ?? undefined}>{seasonLabel(s)}</span>
+                    {isPreSeason(s) && (
+                      <span data-testid="season-pre-tag" title={s.note ?? undefined}
+                        style={{ fontSize: 10, color: '#d09a4a', marginLeft: 8, background: '#2a2210', padding: '1px 6px', borderRadius: 3 }}>pre-season</span>
+                    )}
                     {s.is_active && <span style={{ fontSize: 10, color: '#533483', marginLeft: 8, background: '#2a1a5a', padding: '1px 6px', borderRadius: 3 }}>ACTIVE</span>}
                   </div>
+                  {s.note && <div style={{ fontSize: 11, color: '#8a8a6a', marginTop: 2 }}>{s.note}</div>}
                   <div style={{ fontSize: 11, color: '#555', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <span>{s.trees.length} trees · {nodeTotal} nodes</span>
                     {s.new_god_count != null && <span>{s.new_god_count} new god talents</span>}

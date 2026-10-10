@@ -23,12 +23,17 @@ from persistence import season_manager
 
 _SEASON = season_manager.get_active_season()
 
+# SS14 is currently the SS13 dataset relabelled "Pre-Season" (+ the Youga 3 trait), so the SS13 mana_boil
+# crawler text is still what the active season serves. When real SS14 data lands, re-confirm the raw text
+# and narrow this set.
+_SS13_DATA_SEASONS = ("SS13", "SS14")
+
 
 def test_active_season_is_ss13():
     # Pin the concrete owner-facing case this test targets. If the active season legitimately
     # changed, re-verify the raw crawler text still exhibits the bug before updating this pin.
-    assert _SEASON == "SS13", (
-        f".wolf/data/seasons/.active is not SS13 (got {_SEASON!r}) — this test targets the SS13 "
+    assert _SEASON in _SS13_DATA_SEASONS, (
+        f".wolf/data/seasons/.active is not SS13/SS14 (got {_SEASON!r}) — this test targets the SS13 "
         "mana_boil owner-facing regression; update the pin only after re-confirming against the "
         "new active season's raw data."
     )
@@ -39,7 +44,7 @@ class TestGetSkillsAppliesOverrides:
 
     def test_mana_boil_detailed_description_has_corrected_consume_line(self):
         result = get_skills()
-        assert result["season"] == "SS13"
+        assert result["season"] == _SEASON
         by_id = {s["item_id"]: s for s in result["skills"]}
         assert "mana_boil" in by_id, "mana_boil missing from GET /api/skills output"
         mb = by_id["mana_boil"]
