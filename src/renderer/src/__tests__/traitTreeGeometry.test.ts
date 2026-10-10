@@ -47,4 +47,10 @@ describe('traitTreeGeometry', () => {
     const nodes = Object.entries(sel).map(([id, [x, y]]) => ({ id, x: x * 1000, y: y * 760 + 40 }))
     expect(findRing(nodes, 'root')).toBeNull()
   })
+
+  it('returns no ring for empty or tiny layouts', () => {
+    expect(findRing([], 'root')).toBeNull()
+    expect(findRing([{ id: 'root', x: 0, y: 0 }, { id: 'a', x: 10, y: 0 }], 'root')).toBeNull()
+  })
+
 })

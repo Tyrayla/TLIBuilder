@@ -47,7 +47,7 @@ def test_every_node_has_layout_and_connection_endpoints_exist():
         assert c["from"] in ids and c["to"] in ids
 
 
-def test_node_text_is_verbatim_trait_level_5():
+def test_node_text_is_verbatim_from_dataset():
     nodes = {n["node_id"]: n for n in _trait()["tree_nodes"]}
     assert nodes["i_arrive_alongside_destiny"]["effects"][0] == "+28% Cooldown Recovery Speed"
     assert nodes["i_come_to_claim_my_due"]["effects"][0] == (
