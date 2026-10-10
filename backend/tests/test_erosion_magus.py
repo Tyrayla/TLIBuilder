@@ -3,8 +3,9 @@ import json
 
 import pytest
 
-from engine.models import BuildSource, SourceEntry
+from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.minion_offense import MINION_MODULES
+from engine.compute import compute
 from persistence import season_manager
 
 
@@ -70,8 +71,8 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     assert forms["Bleak Grass"].hits_per_fire == 2  # spike + explosion; full damage, zero falloff.
     assert forms["Bleak Grass"].shotgun_mult == pytest.approx(2.0)
     assert forms["Bleak Grass"].shotgun_falloff == 0.0
-    # Thunder's owner-confirmed Empower cast-slot pattern applies its calibrated half-cast efficiency.
-    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.30 / 0.8 * (1.0 - 0.5 * 0.6 / 10.0))
+    # No cast-slot penalty is applied without a sourced Erosion-specific rotation rule.
+    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.30 / 0.8)
 
 
 def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
@@ -94,13 +95,17 @@ def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
     stage4 = module(stage4_source, owner, base_stats, 20, 1, condition_state={"enemy_count_weight": 5.0})
     stage4_default_enemy = module(stage4_source, owner, base_stats, 20, 1)
     assert stage4.minion_empower["empower_effect"] == pytest.approx(2.2)
-    # The existing calc target defaults to Boss (weight 5).
-    assert stage4_default_enemy.minion_empower["empower_effect"] == pytest.approx(2.2)
+    # This module defaults an unspecified enemy to Normal; Gold Rush is boss-only.
+    assert stage4_default_enemy.minion_empower["empower_effect"] == pytest.approx(1.0)
     assert stage4.minion_empower["buffs"][0]["value"] == pytest.approx(0.20 * 2.2 * 0.6)
     assert stage4.minion_empower["buffs"][1]["value"] == pytest.approx(0.50 * 2.2 * 0.6)
     assert stage4.minion_empower["buffs"][1]["active"] is True
-    assert stage4_default_enemy.minion_empower["buffs"][1]["value"] == pytest.approx(0.50 * 2.2 * 0.6)
-    assert _forms(stage4)["Bleak Grass"].hits_per_fire == pytest.approx(2.6)  # Extra spike only during 60% Empower uptime.
+    assert stage4_default_enemy.minion_empower["buffs"][1]["value"] == pytest.approx(0.50 * 0.6)
+    assert _forms(stage4)["Bleak Grass"].hits_per_fire == 2  # Extra spike input defaults off.
+    selected_spike = module(stage4_source, owner, base_stats, 20, 1, condition_state={
+        "enemy_count_weight": 5.0, "erosion_stage4_extra_spike": True,
+    })
+    assert _forms(selected_spike)["Bleak Grass"].hits_per_fire == pytest.approx(2.6)
 
 
 def test_harvest_time_makes_empower_cast_instant():
@@ -130,6 +135,30 @@ def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():
     ultimate = _forms(result)["World of Thorns"]
     assert ultimate.effective_cooldown == pytest.approx(8.0 / 1.5)
     assert ultimate.fires_per_sec == 0.0
+    empower = _forms(result)["Withering Payback"]
+    assert empower.effective_cooldown == pytest.approx(10.0 / 1.5)
+    assert result.minion_empower["uptime"] == pytest.approx(0.9)
+
+
+def test_compute_passes_enemy_type_condition_to_registered_minion_handler():
+    owner = _owner()
+    # compute() expects normalized detail strings while the raw catalog uses structured records.
+    owner["detailed_description"] = []
+    owner["description_lines"] = []
+    build = BuildInput(
+        slots=[], slates=[], season="SS14",
+        condition_state={"enemy_count_weight": 1.0, "erosion_stage4_extra_spike": True},
+        custom_contributions=[{"stat_key": "spirit_magi_initial_growth_flat", "amount": 300.0,
+                               "text": "Integration test Growth"}],
+    )
+    result = compute(
+        build, {}, {}, skills_input=[{"skill_id": owner["item_id"], "slot": 2, "level": 20}],
+        skills_by_id={owner["item_id"]: owner})
+    erosion = result.minion_offense[owner["item_id"]]
+    assert erosion["minion_empower"]["empower_effect"] == pytest.approx(1.0)
+    bleak_grass = next(form for form in erosion["hit_forms"] if form["name"].startswith("Bleak Grass"))
+    assert bleak_grass["hits_per_fire"] == pytest.approx(2.6)
+    assert next(form for form in erosion["hit_forms"] if form["name"].startswith("World of Thorns"))["fires_per_sec"] == 0.0
 
 
 def test_growth_stage_four_ultimate_bonus_and_stage_five_damage_pool():

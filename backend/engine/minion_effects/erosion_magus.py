@@ -18,7 +18,6 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         growth_stage, nyi_offense, spirit_magi_growth, spirit_magi_physique_inc, spirit_magi_skill_area_inc,
     )
     from engine.skill_resolver import _parse_cast_time
-    from engine.offense import TARGET_ENEMY_COUNT_WEIGHT
 
     by_role = {}
     for ability in owner.get("minion_skills") or []:
@@ -46,10 +45,13 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     if empower:
         duration = float(empower.get("duration") or 0.0) * (1.0 + source.total("minion_skill_effect_duration_inc"))
         base_cd = _parse_cast_time(empower.get("cooldown", "")) or 0.0
-        cooldown = base_cd / max(1.0 + source.total("minion_cdr_speed_inc"), 1e-9) if base_cd > 0 else 0.0
+        empower_cdr = (source.total("minion_cdr_speed_inc")
+                       + source.total("spirit_magi_cdr_speed_inc"))
+        cooldown = base_cd / max(1.0 + empower_cdr, 1e-9) if base_cd > 0 else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
-        enemy_weight = float((condition_state or {}).get("enemy_count_weight") or TARGET_ENEMY_COUNT_WEIGHT)
-        boss = enemy_weight == TARGET_ENEMY_COUNT_WEIGHT
+        raw_enemy_weight = (condition_state or {}).get("enemy_count_weight")
+        enemy_weight = float(1.0 if raw_enemy_weight is None else raw_enemy_weight)
+        boss = enemy_weight == 5.0
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional") + (1.20 if boss and stage >= 4 else 0.0)
         erosion_buff = 0.20 * empower_effect * empower_uptime
         ultimate_buff = 0.50 * empower_effect * empower_uptime if stage >= 4 else 0.0
@@ -78,17 +80,17 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
                 for value in (entry.label, entry.source_name))
         for entry in source.source_log)
     empower_time = 0.0 if harvest_time_linked else empower_base_time
-    cast_slot_factor = max(0.0, 1.0 - 0.5 * empower_time / cooldown) if empower_time and cooldown > 0 else 1.0
     base = by_role.get("Base")
     enhanced = by_role.get("Enhanced")
     if base:
         results.append(calculate_minion_offense(
-            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance) * cast_slot_factor,
+            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance),
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if enhanced:
-        spikes = 2 + (empower_uptime if stage >= 4 else 0.0)  # Extra Stage 4 spike is active only during Empower.
+        extra_spike_selected = bool((condition_state or {}).get("erosion_stage4_extra_spike", False))
+        spikes = 2 + (empower_uptime if stage >= 4 and extra_spike_selected else 0.0)
         results.append(calculate_minion_offense(
-            working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
+            working, enhanced, base_stats, level, count, rate_multiplier=chance,
             shotgun_hits=spikes, shotgun_falloff=0.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if empower:
@@ -146,7 +148,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     combined.spirit_magi_max = count
     combined.minion_empower = empower_display
     if stage >= 4:
-        combined.nyi.append("Stage 4 extra Bleak Grass spike is uptime-weighted to Withering Payback; its unverified assumption is one full-damage spike recast with no extra cast time or damage penalty.")
+        combined.nyi.append("Stage 4 extra Bleak Grass spike is OWNER TO CONFIRM; enable erosion_stage4_extra_spike to model one full-damage recast during Withering Payback uptime, with no added cast time or damage penalty.")
     if stage >= 3:
         combined.nyi.append("Bleak Grass's Stage 3+ temporary Erosion Damage Taken stacks are not yet time-weighted against the target.")
     return combined
