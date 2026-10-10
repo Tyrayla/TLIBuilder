@@ -410,6 +410,8 @@ def resolve_support_behavior(
         if not data:
             continue
         behavior = by_slot.setdefault(sup.get("slot", 1), {})
+        if sup.get("item_id") == "ring_of_blades_blade_formation_magnificent":
+            behavior["blade_formation"] = True
         desc = _dedup_join(data.get("description_lines", []))
         m = _FALLOFF_RE.search(desc)
         if m:

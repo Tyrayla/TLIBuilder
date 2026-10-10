@@ -50,6 +50,15 @@ class TestNoRegression:
         assert not bad, f"non-conditional support amounts changed: {bad[:5]}"
 
 
+def test_ring_of_blades_blade_formation_behavior_matches_baseline():
+    from engine.support_resolver import resolve_support_behavior
+
+    sid = "ring_of_blades_blade_formation_magnificent"
+    support = {"item_id": sid, "slot": 1, "enabled": True}
+    behavior = resolve_support_behavior([support], _BY_ID)
+    assert behavior[1] == _BASELINE[sid]["behavior"]
+
+
 class TestGating:
     def test_duel_line_is_gated(self):
         duel = _resolve("focused_slash_duel_magnificent")

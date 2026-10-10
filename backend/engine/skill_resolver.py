@@ -104,6 +104,10 @@ class ChanneledSpec:
     # form fires at `attack_frequency × cast-speed multiplier` (the spawned entity's rate), NOT the channel cast
     # rate (sps); sps stays the stack-build rate, shown separately. None → the form fires at sps (Icebound).
     attack_frequency: float | None = None
+    # Ring of Blades' orbit rate is independent of channel/cast cadence. These values are unset for other skills.
+    orbit_period_s: float | None = None
+    base_blades: int = 0
+    per_blade_hit_cap: float = 0.0
 
 
 @dataclass
@@ -711,7 +715,47 @@ def _resolve_howling_gale(skill_data: dict) -> ResolvedSkill:
     )
 
 
-# ── Skill-DoT (Damage over Time) skills — Mind Control, Path of Flames ─────────────────────────────────────
+# Ring of Blades resolver: owner-measured persistent orbit.
+# depends on Projectile Speed and the per-blade 0.25 s hit gate.
+_RING_OF_BLADES_PER_ADDITIONAL_MAX_STACK = 0.215
+
+
+@_register("ring_of_blades")
+def _resolve_ring_of_blades(skill_data: dict) -> ResolvedSkill:
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    base_by_level: dict[int, dict[str, tuple[float, float]]] = {}
+    effectiveness = _parse_pct(skill_data.get("effectiveness_of_added_damage"), 0.93)
+    damage_types: list[str] = []
+    for lvl, values in progression.items():
+        m = _SPELL_BASE_DMG_RE.search(" ".join(str(v) for v in values.values()))
+        if m:
+            dtype = m.group(3).lower()
+            base_by_level[lvl] = {dtype: (float(m.group(1).replace(",", "")),
+                                          float(m.group(2).replace(",", "")))}
+            if dtype not in damage_types:
+                damage_types.append(dtype)
+        eff = values.get("Effectiveness of added damage")
+        if eff:
+            effectiveness = _parse_pct(eff, effectiveness)
+    forms_by_level = {
+        lvl: [SkillHitForm("Ring of Blades", 100.0, "additive", channel_role="orbit")]
+        for lvl in base_by_level
+    }
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"], name=skill_data["name"], tags=skill_data.get("skill_tags", []),
+        max_level=skill_data.get("max_level", 20), hit_forms_by_level=forms_by_level, supported=True,
+        is_spell=True, base_dmg_by_level=base_by_level,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=effectiveness, damage_types=damage_types,
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="refresh",
+                                orbit_period_s=2.0, base_blades=5, per_blade_hit_cap=4.0),
+        intrinsic_additional=[IntrinsicAdditional(
+            per=_RING_OF_BLADES_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
+            rating_source="stat", per_n=1.0)],
+    )
+
+
+# Skill-DoT (Damage over Time): Mind Control and Path of Flames.
 # Both are Spell / Channeled / Persistent, 2s Damage Over Time, cast speed 0.333 (dot-model.json). Neither
 # has a hit component at all — hit_forms_by_level stays {} (a pure DoT host, like a few other non-hit
 # skills already in this registry) and all damage comes from `dot_forms_by_level` (engine.offense.compute_dot).
