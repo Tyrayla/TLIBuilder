@@ -207,7 +207,8 @@ export default function HeroTraitTree({
   // Ring arcs only apply to the radial (x/y) layout; the legacy column/row grid keeps straight lines.
   // (Plain computation, not a hook: this sits after the early return above. ~165 triples for 11 nodes.)
   const ring = useXY ? findRing(nodes.map(n => ({ id: n.node_id, x: nodeX(n), y: nodeY(n) })), rootId) : null
-  // Grow the viewBox so the full ring circle (its bottom reaches past the node area) is never clipped.
+  // Grow the viewBox so ring arcs that bulge past the node area (the bottom arc between the lower nodes) are
+  // never clipped by the SVG edge.
   const vb = viewBoxWithRing({ w: VW, h: VH }, ring)
 
   const handleClick = (nodeId: string) => {
@@ -246,9 +247,6 @@ export default function HeroTraitTree({
         </defs>
         {/* No flat backdrop rect here — the tree area shows the screen's own background (matches the
             rest of the panel) rather than a distinct tint. Only the glow filters + connectors draw. */}
-        {ring && (
-          <circle cx={ring.cx} cy={ring.cy} r={ring.r} fill="none" className="htt-tree-ring" data-testid="htt-tree-ring" />
-        )}
         {connections.map(({ from, to }, i) => {
           const n1 = byId[from]; const n2 = byId[to]
           if (!n1 || !n2) return null

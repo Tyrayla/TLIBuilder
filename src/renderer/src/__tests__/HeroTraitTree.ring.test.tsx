@@ -38,22 +38,16 @@ function render(t: HeroTrait) {
 }
 
 describe('HeroTraitTree ring', () => {
-  it('draws one complete ring circle behind the connections and grows the viewBox to contain it', () => {
+  it('draws the ring links as arcs (no full circle) and grows the viewBox so the bottom arc is not clipped', () => {
     const r = render(trait(POS, EDGES, [836, 713]))
-    const ring = r.root.findByProps({ 'data-testid': 'htt-tree-ring' })
-    const { cx, cy, r: rad } = ring.props
-    expect(Math.round(rad)).toBe(339)
-    expect(Math.round(cx)).toBe(553)
-    expect(Math.round(cy)).toBe(475)
-    const svg = r.root.findByType('svg')
-    const [vx, vy, vw, vh] = svg.props.viewBox.split(' ').map(Number)
-    expect(vx).toBeLessThanOrEqual(cx - rad)
-    expect(vy).toBeLessThanOrEqual(cy - rad)
-    expect(vx + vw).toBeGreaterThanOrEqual(cx + rad)
-    expect(vy + vh).toBeGreaterThanOrEqual(cy + rad)   // bottom of the ring is not clipped
-    // The ring is the first drawn child after <defs>, i.e. behind every connection and node.
-    const kids = svg.children.filter(c => typeof c !== 'string') as TestRenderer.ReactTestInstance[]
-    expect(kids[1].props['data-testid']).toBe('htt-tree-ring')
+    expect(r.root.findAllByType('circle').some(c => c.props.className === 'htt-tree-ring')).toBe(false)
+    const arcs = r.root.findAllByType('path').map(p => p.props.d as string).filter(d => d.includes(' A '))
+    expect(arcs).toHaveLength(3)   // Meet-Measure, Hunt-Claim, Hunt-Doomsday
+    // The Hunt-Doomsday arc runs along the bottom of the ring, down to about y=813 (render units), past the
+    // 800-tall node area; the viewBox must grow to hold it.
+    const [vx, vy, vw, vh] = r.root.findByType('svg').props.viewBox.split(' ').map(Number)
+    expect(vy + vh).toBeGreaterThan(813)
+    expect([vx, vy, vw]).toEqual([0, 0, 1000])
   })
 
   it('leaves a tree with no ring unchanged: no ring circle and the standard viewBox', () => {
