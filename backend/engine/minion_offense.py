@@ -695,9 +695,10 @@ def calculate_minion_offense(
         rate = (1.0 / base_time) * speed
         effective_time = base_time / max(speed, 1e-9)
     cooldown = _parse_cast_time(minion_skill.get("cooldown", "")) or 0.0
-    effective_cooldown = cooldown / max(1.0 + source.total("minion_cdr_speed_inc"), 1e-9) if cooldown > 0 else 0.0
+    cdr = source.total("minion_cdr_speed_inc") + source.total("spirit_magi_cdr_speed_inc")
+    effective_cooldown = cooldown / max(1.0 + cdr, 1e-9) if cooldown > 0 else 0.0
     if cooldown > 0:
-        rate = min(rate, 1.0 / cooldown) if rate > 0 else 1.0 / cooldown
+        rate = min(rate, 1.0 / effective_cooldown) if rate > 0 else 1.0 / effective_cooldown
     rate *= max(0.0, rate_multiplier)   # Base/Enhanced share split (a bespoke module passes 1−chance / chance)
 
     # Same-target Shotgun (Enhanced-only): N projectiles converge on one enemy; each extra hit deals (1−falloff).

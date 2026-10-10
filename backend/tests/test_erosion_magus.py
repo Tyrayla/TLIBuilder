@@ -99,3 +99,17 @@ def test_harvest_time_makes_empower_cast_instant():
     empower = _forms(result)["Withering Payback"]
     assert empower.base_cast_time == pytest.approx(0.6)
     assert empower.effective_cast_time == 0.0
+
+
+def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():
+    import engine.minion_effects  # noqa: F401 -- populate MINION_MODULES
+
+    owner = _owner()
+    source = BuildSource()
+    source.add("minion_cdr_speed_inc", 0.25)
+    source.add("spirit_magi_cdr_speed_inc", 0.25)
+    result = MINION_MODULES[owner["item_id"]](
+        source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1)
+    ultimate = _forms(result)["World of Thorns"]
+    assert ultimate.effective_cooldown == pytest.approx(8.0 / 1.5)
+    assert ultimate.fires_per_sec == 0.0

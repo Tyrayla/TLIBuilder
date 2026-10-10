@@ -63,7 +63,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
 
     results = []
     empower_base_time = _parse_cast_time(empower.get("cast_speed", "")) if empower else 0.0
-    harvest_time_linked = any("harvest time" in " ".join((entry.label, entry.source_name, entry.text)).lower()
+    harvest_time_linked = any("harvest time" in " ".join(str(value or "")
+                                                            for value in (entry.label, entry.source_name, entry.text)).lower()
                               for entry in source.source_log)
     empower_time = 0.0 if harvest_time_linked else empower_base_time
     cast_slot_factor = max(0.0, 1.0 - 0.5 * empower_time / cooldown) if empower_time and cooldown > 0 else 1.0
