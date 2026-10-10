@@ -1672,6 +1672,9 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
 
 export interface SeasonSummary {
   name: string
+  label?: string            // display name from the season's optional _season.json; falls back to `name`
+  status?: string | null    // e.g. "pre-season"
+  note?: string | null      // short explanation shown as a tooltip
   trees: string[]
   node_counts: Record<string, number>
   new_god_count: number | null
