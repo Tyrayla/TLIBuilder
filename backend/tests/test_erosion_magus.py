@@ -135,6 +135,7 @@ def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():
     ultimate = _forms(result)["World of Thorns"]
     assert ultimate.effective_cooldown == pytest.approx(8.0 / 1.5)
     assert ultimate.fires_per_sec == 0.0
+    assert any("assumes casts sample the Empower window" in note for note in ultimate.nyi)
     empower = _forms(result)["Withering Payback"]
     assert empower.effective_cooldown == pytest.approx(10.0 / 1.5)
     assert result.minion_empower["uptime"] == pytest.approx(0.9)

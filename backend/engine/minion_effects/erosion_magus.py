@@ -127,7 +127,12 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             cdr = (ultimate_source.total("minion_cdr_speed_inc")
                    + ultimate_source.total("spirit_magi_cdr_speed_inc"))
             ultimate_form.effective_cooldown = ultimate_form.base_cooldown / max(1.0 + cdr, 1e-9)
-        result.nyi = ["Per-cast Ultimate form only. It is excluded from default DPS until a selecting Iris trait or trigger dispatcher consumes it."]
+        result.nyi = [
+            "Per-cast Ultimate form only. It is excluded from default DPS until a selecting Iris trait or trigger dispatcher consumes it.",
+            "World of Thorns per-cast damage uses uptime-averaged Empower bonuses; it assumes casts sample the Empower window in proportion to its uptime (event phase is not simulated).",
+        ]
+        for ultimate_form in result.hit_forms:
+            ultimate_form.nyi = list(result.nyi)
         results.append(result)
 
     combined = combine_minion_forms(owner.get("name") or "Erosion Magus", results, count)
