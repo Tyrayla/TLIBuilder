@@ -53,7 +53,8 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     slot_levels = list(slot_levels or [1, 1, 1, 1])
     picks = set(advanced_picks or [])
     contributions = []
-    set_conditions = {"vigilant_breeze_active": True}
+    vigilant_active = bool(condition_state.get("vigilant_breeze_active", True))
+    set_conditions = {"vigilant_breeze_active": vigilant_active}
 
     def add(stat_key, amount, text, source="Vigilant Breeze"):
         if amount:
@@ -67,7 +68,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         add("minion_dmg_additional", _BASE_DMG_ADD[base_level],
             f"Vigilant Breeze: +{_BASE_DMG_ADD[base_level] * 100:g}% additional Minion Damage")
 
-    count = _number(condition_state, "vigilant_breeze_merged_magi", 2.0, 0.0, 5.0)
+    count = 1.0 if vigilant_active else 0.0
     current_max = 10.0
     life_cost = 0.20
     tango_life_cost = 0.0
@@ -100,14 +101,16 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
 
     if _pick(picks, slot_levels, "Happiest Reunion", _SLOT_60):
         tier = _tier(slot_levels, _SLOT_60)
-        count = _number(condition_state, "vigilant_breeze_total_magi", count, 0.0, 5.0)
+        count = (_number(condition_state, "vigilant_breeze_total_magi", 1.0, 0.0, 5.0)
+                 if vigilant_active else 0.0)
         p = _REUNION_DMG[tier]
         damage_factor = (1.0 + p) ** count
-        add("spirit_magi_dmg_additional", damage_factor - 1.0,
-            f"Happiest Reunion: per-Magus additional damage product (1 + {p * 100:g}%)^{count:g}")
+        if count > 0:
+            add("spirit_magi_dmg_additional", damage_factor - 1.0,
+                f"Happiest Reunion: per-Magus additional damage product (1 + {p * 100:g}%)^{count:g}")
         add("max_spirit_magi_flat", 1.0, "Happiest Reunion: +1 Max Spirit Magi in Map")
         life_cost += _REUNION_DRAIN[tier]
-        set_conditions["vigilant_breeze_happiest_reunion"] = True
+        set_conditions["vigilant_breeze_happiest_reunion"] = vigilant_active
         set_conditions["vigilant_breeze_merged_magi_effective"] = count
     else:
         set_conditions["vigilant_breeze_happiest_reunion"] = False
@@ -125,7 +128,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     else:
         set_conditions["vigilant_breeze_warmest_active"] = False
 
-    if _pick(picks, slot_levels, "Merging Stream", _SLOT_75):
+    if _pick(picks, slot_levels, "Merging Stream", _SLOT_75) and vigilant_active:
         tier = _tier(slot_levels, _SLOT_75)
         set_conditions["vigilant_breeze_merging_stream"] = True
         set_conditions["vigilant_breeze_origin_effect_per_2_growth"] = _STREAM_ORIGIN[tier]
@@ -170,11 +173,9 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         current = current_max
     current += float(set_conditions.get("vigilant_breeze_warmest_defeated_stacks", 0.0) or 0.0)
     current = min(current, current_max)
-    if count > 0:
-        add("spirit_magi_dmg_additional", current * 0.16,
-            f"Vigilant Breeze: +{current:g} stacks × 16% additional damage")
-    # The shared Spirit Magus layer consumes this trait-enabled input per recipient.
-    set_conditions["vigilant_breeze_artificial_moon_growth"] = current * 6.0 if base_level >= 4 else 0.0
+    set_conditions["vigilant_breeze_current_stacks"] = current if vigilant_active else 0.0
+    # The shared Spirit Magus layer applies this Growth only to Magi currently merged in Vigilant.
+    set_conditions["vigilant_breeze_artificial_moon_growth"] = current * 6.0 if base_level >= 4 and vigilant_active else 0.0
 
     set_conditions["vigilant_breeze_damage_factor"] = damage_factor
     return {"contributions": contributions, "set_conditions": set_conditions}

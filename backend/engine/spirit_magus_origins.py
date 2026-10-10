@@ -24,6 +24,18 @@ import re
 THUNDER_ID = "summon_thunder_magus"
 
 
+def is_merging_stream_active(trait_id: str | None, condition_flags) -> bool:
+    """Shared gate for moving player Origin grants onto per-Magus sources."""
+    if isinstance(condition_flags, dict):
+        active = bool(condition_flags.get("vigilant_breeze_active"))
+        stream = bool(condition_flags.get("vigilant_breeze_merging_stream"))
+    else:
+        flags = set(condition_flags or ())
+        active = "vigilant_breeze_active" in flags
+        stream = "vigilant_breeze_merging_stream" in flags
+    return trait_id == "vigilant_breeze" and active and stream
+
+
 def thunder_origin_values(level: float, factor: float) -> tuple[float, float]:
     """Return Origin of Thunder's additional speed and damage from its level and effect factor."""
     effect = float(factor)

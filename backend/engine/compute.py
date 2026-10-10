@@ -2247,6 +2247,11 @@ def compute(
     if skills_by_id is not None:
         from engine import minion_offense as _mo
         from engine import minion_effects as _  # noqa: F401 — registers bespoke minion modules into MINION_MODULES
+        from engine.hero_traits import vigilant_breeze as _vigilant_breeze
+        from engine.minion_offense import (
+            _interp_level_table, apply_spirit_magi_growth as _apply_spirit_magi_growth,
+            spirit_magus_reconjuring_cycle,
+        )
         from persistence import season_manager
         _mbase = season_manager.load_minion_base_stats(build_input.season)
         _owners: list[tuple[dict, int, int]] = []
@@ -2260,6 +2265,16 @@ def compute(
                 _owners.append((sd, sk["level"], sk["slot"]))
         for owner, level, slot in _owners:
             abilities = owner.get("minion_skills") or []
+            _is_magus = owner.get("item_id", "").endswith("_magus")
+            _iris_active = (_is_magus and _trait_id == "vigilant_breeze"
+                            and bool(condition_state.get("vigilant_breeze_active", True)))
+            _reunion = (_iris_active and bool(condition_state.get("vigilant_breeze_happiest_reunion")))
+            _controlled_magus = bool(
+                _iris_active and slot == main_slot and build_input.main_skill
+                and owner.get("item_id") == build_input.main_skill.skill_id)
+            _merged = bool(_iris_active and (_controlled_magus or _reunion))
+            _merged_count = (int(condition_state.get("vigilant_breeze_merged_magi_effective") or 0)
+                             if _reunion else (1 if _controlled_magus else 0))
             # GATE: a minion contributes damage ONLY through a registered bespoke module — its rotation/forms/
             # conversion must be modelled explicitly. Unmodelled owners list their abilities as NYI (0 damage).
             if _mo.is_modeled(owner["item_id"]):
@@ -2267,29 +2282,31 @@ def compute(
                 _iris_dispatch = None
                 _iris_cycle = None
                 _growth = None
-                _merged = False
                 _drain_rate = 0.0
                 _whisper_heal_rate = 0.0
-                from engine.minion_offense import _interp_level_table, spirit_magus_reconjuring_cycle
-                if owner.get("item_id", "").endswith("_magus"):
-                    from engine.hero_traits import vigilant_breeze as _vigilant_breeze
-                    from engine.minion_offense import apply_spirit_magi_growth as _apply_spirit_magi_growth
-                    # Per-Magus Growth must not mutate the shared source or leak to another Magus.
-                    eff = replace(eff, _entries=list(eff._entries), source_log=list(eff.source_log),
-                                  consumed_stats=eff.consumed_stats,
-                                  scoped_entries=list(eff.scoped_entries), scoped_log=list(eff.scoped_log),
-                                  slot_entries=list(eff.slot_entries), slot_log=list(eff.slot_log))
-                    _iris_active = (_trait_id == "vigilant_breeze"
-                                    and condition_state.get("vigilant_breeze_active"))
+                if _is_magus:
                     _growth_input = (float(condition_state.get("vigilant_breeze_artificial_moon_growth", 0.0) or 0.0)
-                                     if _iris_active else 0.0)
-                    _growth = _apply_spirit_magi_growth(eff, breeze_stacks=_growth_input / 6.0)
-                    if _iris_active:
+                                     / 6.0 if _merged else 0.0)
+                    _breeze_stacks = (float(condition_state.get("vigilant_breeze_current_stacks", 0.0) or 0.0)
+                                      if _merged else 0.0)
+                    _stream_effect = bool(_merged and condition_state.get("vigilant_breeze_merging_stream"))
+                    # Materialization may return the shared source. Clone only before a per-Magus mutation.
+                    if _growth_input > 0 or _breeze_stacks > 0 or _stream_effect:
+                        eff = replace(eff, _entries=list(eff._entries), source_log=list(eff.source_log),
+                                      consumed_stats=eff.consumed_stats,
+                                      scoped_entries=list(eff.scoped_entries), scoped_log=list(eff.scoped_log),
+                                      slot_entries=list(eff.slot_entries), slot_log=list(eff.slot_log))
+                    _growth = _apply_spirit_magi_growth(eff, breeze_stacks=_growth_input)
+                    if _breeze_stacks > 0:
+                        from engine.models import SourceEntry as _SourceEntry
+                        _breeze_damage = _breeze_stacks * 0.16
+                        eff.add_with_source("spirit_magi_dmg_additional", _breeze_damage, _SourceEntry(
+                            stat="spirit_magi_dmg_additional", amount=_breeze_damage, source_type="minion",
+                            label="Vigilant Breeze", source_name="Iris Vigilant Breeze",
+                            text=f"Vigilant Breeze: +{_breeze_stacks:g} stacks × 16% additional damage"))
+                    if _stream_effect:
                         _vigilant_breeze.apply_merging_stream_origins(
                             source=eff, condition_state=condition_state, growth=_growth)
-                    _merged_count = (condition_state.get("vigilant_breeze_merged_magi_effective")
-                                     if _iris_active else 0)
-                    _merged = bool(_iris_active and int(_merged_count or 0) > 0)
                     _selected = condition_state.get("vigilant_breeze_skill", "Ultimate")
                     _role = _vigilant_breeze.normalize_selected_skill_role(_selected)
                     _tango = (_merged and bool(condition_state.get("vigilant_breeze_whirlwind_tango"))
@@ -2306,11 +2323,9 @@ def compute(
                         )
                     _drain_rate = (float(condition_state.get("vigilant_breeze_life_cost_pct_max_per_sec", 0.20) or 0.20)
                                    if _merged else 0.0)
-                    if _tango and _iris_dispatch.get("available"):
-                        _drain_rate += (_iris_dispatch["life_cost_pct_max_per_cast"]
-                                        * _iris_dispatch["casts_per_second"])
                     if (_iris_active and condition_state.get("vigilant_breeze_whisper_active")
-                            and _role == "base skill" and _iris_dispatch and _iris_dispatch.get("available")):
+                            and _merged and _role == "base skill" and _iris_dispatch
+                            and _iris_dispatch.get("available")):
                         _whisper_interval = float(condition_state.get("vigilant_breeze_whisper_interval", 0.0) or 0.0)
                         _whisper_pct = float(condition_state.get("vigilant_breeze_whisper_heal_pct", 0.0) or 0.0)
                         if _whisper_interval > 0:
@@ -2322,9 +2337,11 @@ def compute(
                 # Breeze's Whisper healing when its trait is active.
                 _life_table = ((_mbase or {}).get("life_by_group") or {}).get("magus") or {}
                 _base_life = _interp_level_table(_life_table, level)
-                _max_life = max(1.0, _base_life * max(0.01, 1.0 + eff.total("minion_max_life_inc")))
-                _regen_rate = (eff.total("minion_life_regen_inc")
-                               + eff.total("minion_life_regen_flat") / _max_life)
+                _regen_rate = eff.total("minion_life_regen_inc")
+                _life_data_missing = _base_life <= 0
+                if not _life_data_missing:
+                    _max_life = _base_life * max(0.01, 1.0 + eff.total("minion_max_life_inc"))
+                    _regen_rate += eff.total("minion_life_regen_flat") / _max_life
                 _iris_cycle = spirit_magus_reconjuring_cycle(
                     drain_pct_per_second=_drain_rate,
                     regen_pct_per_second=_regen_rate,
@@ -2351,6 +2368,14 @@ def compute(
                         f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
                         f"{_iris_dispatch.get('casts_per_second', 0.0):.3f} casts/s; selected-skill damage "
                         "is pending that Magus module. Normal rotation is replaced while merged.")
+                    if _tango and _iris_dispatch.get("available"):
+                        result.nyi.append(
+                            "Whirlwind Tango per-cast Life cost is exposed in the dispatch payload but excluded "
+                            "from Reconjuring uptime pending verification of its timing.")
+                if _life_data_missing:
+                    result.nyi.append(
+                        "Spirit Magus base Life is unavailable; flat Life Regeneration was excluded from "
+                        "Reconjuring uptime.")
                 if _iris_cycle and owner.get("item_id", "").endswith("_magus") and _drain_rate > 0:
                     _uptime = _iris_cycle["damage_uptime"]
                     result.total_dps *= _uptime
@@ -2375,9 +2400,26 @@ def compute(
                         minion_payload["iris_merged_magi_count"] = int(_merged_count)
                         minion_payload["selected_skill_damage_status"] = "NYI"
                         minion_payload["selected_skill_damage_pending"] = True
+                if _is_magus:
+                    minion_payload["vigilant_merged"] = _merged
+                    minion_payload["vigilant_merge_reason"] = (
+                        "Happiest Reunion" if _merged and _reunion else
+                        "controlled Magus" if _merged else None)
                 minion_offense[owner["item_id"]] = minion_payload
             else:
-                minion_offense[owner["item_id"]] = asdict(_mo.nyi_owner(owner.get("name") or owner["item_id"], abilities, level))
+                minion_payload = asdict(_mo.nyi_owner(owner.get("name") or owner["item_id"], abilities, level))
+                if _is_magus:
+                    minion_payload["vigilant_merged"] = _merged
+                    minion_payload["vigilant_merge_reason"] = (
+                        "Happiest Reunion" if _merged and _reunion else
+                        "controlled Magus" if _merged else None)
+                    if _merged:
+                        minion_payload["selected_skill_damage_status"] = "NYI"
+                        minion_payload["selected_skill_damage_pending"] = True
+                        minion_payload["nyi"].append(
+                            "Vigilant replaces this Magus's normal rotation with the selected skill; "
+                            "selected-skill damage is pending its Magus module.")
+                minion_offense[owner["item_id"]] = minion_payload
 
     source._recording = False
 
@@ -2388,8 +2430,7 @@ def compute(
     # magnitude (`base`), the emitted magnitude (`value` = base × per-origin factor, clamped), and a
     # unit ("pct" | "flat"). Post-loop, recording off → golden-neutral reads. None when no magus grants.
     origin_summary: dict | None = None
-    if (_granted_origin_flags and not (_trait_id == "vigilant_breeze"
-                                       and condition_state.get("vigilant_breeze_merging_stream"))):
+    if _granted_origin_flags and not _smo.is_merging_stream_active(_trait_id, condition_state):
         _oi = source.total("spirit_magi_origin_effect_inc")
         _oa = source.total("spirit_magi_origin_effect_additional")
 
