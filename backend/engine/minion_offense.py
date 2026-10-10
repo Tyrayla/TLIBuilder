@@ -621,10 +621,17 @@ def calculate_minion_offense(
         from engine.offense import _conversion_fracs, _apply_conversion
         from engine.modifier_lines import pool_identity
         convert, adds = _conversion_fracs(source, intrinsic_convert)
+        path_inc_cache: dict[frozenset[str], float] = {}
+        path_add_cache: dict[frozenset[str], float] = {}
         def path_inc(path_tags):
-            return sum(source.total(k) for k, tags in _MINION_INC_STATS
-                       if (tags & _DTYPE_TAG_SET & path_tags) and _skill_type_ok(tags, is_spell))
+            if path_tags not in path_inc_cache:
+                path_inc_cache[path_tags] = sum(
+                    source.total(k) for k, tags in _MINION_INC_STATS
+                    if (tags & _DTYPE_TAG_SET & path_tags) and _skill_type_ok(tags, is_spell))
+            return path_inc_cache[path_tags]
         def path_add(path_tags):
+            if path_tags in path_add_cache:
+                return path_add_cache[path_tags]
             pos: dict[tuple[str, str], float] = defaultdict(float)
             neg: list[float] = []
             tracked: dict[str, float] = defaultdict(float)
@@ -649,6 +656,7 @@ def calculate_minion_offense(
                     remainder = sum(v for stat, v in source._entries if stat == key) - tracked.get(key, 0.0)
                     if abs(remainder) > 1e-12:
                         product *= 1.0 + remainder
+            path_add_cache[path_tags] = product
             return product
         converted_min = _apply_conversion({t: (v, v) for t, v in flat_min.items()}, path_inc, path_add,
                                           generic_inc, generic_add, convert, adds)
