@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Bug fixes
+- **Removed a false "Skill override 'mana_boil' was authored for SS12 ... re-validate" warning.** The web app ships only the current season's data, so the check had no earlier season to compare against and warned on every load. The Mana Boil correction carries its own reference text now, so the warning appears only if Mana Boil's data actually changes.
+
 ## [0.6.10] - 2026-10-10
 
 ### Engine & DPS
