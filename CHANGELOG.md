@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Engine & DPS
+- Ring of Blades now calculates DPS from its orbiting blades. Projectile Speed, Blade Formation, Razor Edge, and the supported damage bonuses affect the result.
+
 ## [0.6.10] - 2026-10-10
 
 ### Engine & DPS
