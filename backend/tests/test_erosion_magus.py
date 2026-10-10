@@ -26,9 +26,9 @@ def test_erosion_magus_reports_default_damage_and_separate_ultimate():
     forms = {form.name.split(" (")[0]: form for form in result.hit_forms}
 
     # Canonical SS14 shared Base Damage is 300; Scattered Mud is 100% per cast.
-    assert forms["Scattered Mud"].avg_hit_pre_crit == pytest.approx(300.0)
+    assert forms["Scattered Mud"].avg_hit_pre_crit == pytest.approx(336.0)  # +20% Empower buff × 60% uptime.
     # World of Thorns is 2298% = 300 * 22.98 = 6894 per cast, one hit per enemy.
-    assert forms["World of Thorns"].avg_hit_pre_crit == pytest.approx(6894.0)
+    assert forms["World of Thorns"].avg_hit_pre_crit == pytest.approx(6894.0 * 1.12)
     assert forms["World of Thorns"].hits_per_fire == 1
     assert forms["World of Thorns"].fires_per_sec == 0.0
     assert forms["World of Thorns"].base_cast_time == pytest.approx(1.5)
@@ -50,14 +50,22 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     source.add("spirit_magi_initial_growth_flat", 100.0)  # Stage 2: +30% Enhanced replacement chance.
     source.add("minion_physical_dmg_flat_min", 100.0)
     source.add("minion_physical_dmg_flat_max", 100.0)
+    source.add("minion_dmg_inc", 0.10)
+    source.add("minion_physical_dmg_inc", 0.20)
+    source.add("minion_erosion_dmg_inc", 0.50)
+    source.add("minion_dmg_additional", 0.10)
+    source.add("minion_physical_dmg_additional", 0.20)
     result = MINION_MODULES[owner["item_id"]](
         source, owner, season_manager.load_minion_base_stats("SS14"), 1, 1,
         condition_state={"enemy_count_weight": 1.0})
     forms = {form.name.split(" (")[0]: form for form in result.hit_forms}
 
-    # L1 Bleak Grass is 108%; added physical flat follows that same per-level effectiveness,
-    # then its 100% owner conversion routes the flat to Erosion. Base hit is 10*108%.
-    assert forms["Bleak Grass"].avg_hit_pre_crit == pytest.approx((10.0 + 100.0) * 1.08)
+    # Native Erosion and converted Physical packets retain their own conversion-path modifiers.
+    # Physical has both Physical and Erosion bonuses after the owner conversion; shared bonuses apply once.
+    withering_additional = 1.0 + (0.20 * 0.60)
+    native_erosion = 10.0 * 1.08 * 1.6 * 1.1 * withering_additional
+    converted_physical = 100.0 * 1.08 * 1.8 * 1.1 * 1.2 * withering_additional
+    assert forms["Bleak Grass"].avg_hit_pre_crit == pytest.approx(native_erosion + converted_physical)
     assert forms["Bleak Grass"].hits_per_fire == 2  # spike + explosion; full damage, zero falloff.
     assert forms["Bleak Grass"].shotgun_mult == pytest.approx(2.0)
     assert forms["Bleak Grass"].shotgun_falloff == 0.0

@@ -46,10 +46,12 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         base_cd = _parse_cast_time(empower.get("cooldown", "")) or 0.0
         cooldown = base_cd / (1.0 + source.total("minion_cdr_speed_inc")) if base_cd > 0 else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
-        boss = float((condition_state or {}).get("enemy_count_weight", 1.0) or 0.0) >= 5.0
+        boss = float((condition_state or {}).get("enemy_count_weight", 1.0) or 0.0) == 5.0
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional") + (1.20 if boss and stage >= 4 else 0.0)
         erosion_buff = 0.20 * empower_effect * empower_uptime
-        add("minion_erosion_dmg_additional", erosion_buff,
+        # All Erosion Magus hits are Erosion after intrinsic conversion, so the generic minion
+        # additional-damage pool is type-equivalent here and is already consumed by the engine.
+        add("minion_dmg_additional", erosion_buff,
             f"Withering Payback: +20% additional Erosion Damage × {empower_effect:.3g} Empower Effect × {empower_uptime:.0%} uptime",
             "Withering Payback")
         empower_display = {
