@@ -2922,6 +2922,14 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
     return out
 
 
+_FERVOR_MARKER_OUTPUT_STATS = {
+    "fervor_skill_area_per_rating": "skill_area_inc",
+    "fervor_attack_dmg_additional_per_rating": "attack_dmg_additional",
+    "fervor_ailment_dmg_additional_per_rating": "ailment_dmg_additional",
+    "fervor_movement_speed_per_rating": "movement_speed_inc",
+}
+
+
 def _affix_resolved_keys(resolved: dict, raw_text: str) -> list[str]:
     """Build-independent per-affix stat-key list (2026-07-12) — the SAME resolution
     `engine.coverage._affix_is_modeled` uses to judge legendary-gear coverage, exposed on the affix itself
@@ -2950,7 +2958,7 @@ def _affix_resolved_keys(resolved: dict, raw_text: str) -> list[str]:
         if cl.get("curse"):
             continue
         for e in (cl.get("parsed") or []):
-            k = e.get("stat_key")
+            k = _FERVOR_MARKER_OUTPUT_STATS.get(e.get("stat_key"), e.get("stat_key"))
             if k and k not in out:
                 out.append(k)
     return out
@@ -3050,13 +3058,10 @@ def map_modifiers(req: MapModifiersRequest):
         elif it.source == "skill":
             keys = _resolve_skill_line_keys(it.text)
         elif it.source == "gear":
-            keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
-            if not keys:
-                # Catalog resolver found nothing → fall back to the SAME resolver the engine's gear loop uses, so
-                # consume / per-N-consumed / gated lines (which _parse_custom_mod_text handles but the fuzzy
-                # catalog resolver doesn't) badge by what the engine actually applies instead of red NYI.
-                clauses = _resolve_gear_affix_clauses(it.text)
-                keys = [e["stat_key"] for cl in clauses for e in cl["parsed"]]
+            # Use the exact catalog-plus-clause resolution the legendary coverage badge uses, including
+            # translating engine-only structural markers to the stats their effects actually modify.
+            keys = _affix_resolved_keys(
+                _resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}), it.text)
         else:
             keys = []
         results[it.key] = {"stat_keys": keys}

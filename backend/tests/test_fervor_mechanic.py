@@ -94,6 +94,23 @@ def test_fervor_affixes_remain_unresolved_for_renderer_refresh():
     assert result["results"][line]["stat_key"] is None
 
 
+def test_fervor_catalog_resolution_reports_effect_stats_not_internal_markers():
+    from server import MapModifierItem, MapModifiersRequest, map_modifiers
+
+    lines = [
+        "Fervor gains an additional base effect: +1% Skill Area for every 3 Fervor Rating",
+        "Fervor gains an additional base effect: +3% additional Attack and Ailment Damage for every 4 Fervor Rating",
+        "Fervor gains an additional base effect: +1% Movement Speed for every 5 Fervor Rating",
+    ]
+    result = map_modifiers(MapModifiersRequest(items=[
+        MapModifierItem(key=str(i), text=line, source="gear") for i, line in enumerate(lines)
+    ]))
+
+    keys = [key for item in result["results"].values() for key in item["stat_keys"]]
+    assert keys == ["skill_area_inc", "attack_dmg_additional", "ailment_dmg_additional", "movement_speed_inc"]
+    assert not any(key.startswith("fervor_") for key in keys)
+
+
 def test_ghost_slaughter_stronger_damage_variant_and_fervor_effect():
     area = "Fervor gains an additional base effect: +1% Skill Area for every 3 Fervor Rating +(30–50) % Skill Area"
     damage = "Fervor gains an additional base effect: +1% additional Attack and Ailment Damage for every 1 Fervor Rating"
