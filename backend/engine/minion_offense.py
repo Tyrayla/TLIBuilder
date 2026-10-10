@@ -695,7 +695,7 @@ def calculate_minion_offense(
         rate = (1.0 / base_time) * speed
         effective_time = base_time / max(speed, 1e-9)
     cooldown = _parse_cast_time(minion_skill.get("cooldown", "")) or 0.0
-    cdr = source.total("minion_cdr_speed_inc") + source.total("spirit_magi_cdr_speed_inc")
+    cdr = source.total("minion_cdr_speed_inc")
     effective_cooldown = cooldown / max(1.0 + cdr, 1e-9) if cooldown > 0 else 0.0
     if cooldown > 0:
         rate = min(rate, 1.0 / effective_cooldown) if rate > 0 else 1.0 / effective_cooldown

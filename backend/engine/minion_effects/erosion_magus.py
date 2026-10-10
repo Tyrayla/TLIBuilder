@@ -46,7 +46,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         base_cd = _parse_cast_time(empower.get("cooldown", "")) or 0.0
         cooldown = base_cd / (1.0 + source.total("minion_cdr_speed_inc")) if base_cd > 0 else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
-        boss = float((condition_state or {}).get("enemy_count_weight", 5.0) or 0.0) >= 5.0
+        boss = float((condition_state or {}).get("enemy_count_weight", 1.0) or 0.0) >= 5.0
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional") + (1.20 if boss and stage >= 4 else 0.0)
         erosion_buff = 0.20 * empower_effect * empower_uptime
         add("minion_erosion_dmg_additional", erosion_buff,
@@ -75,7 +75,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             working, base, base_stats, level, count, rate_multiplier=(1.0 - chance) * cast_slot_factor,
             intrinsic_convert={"physical": {"erosion": 1.0}}))
     if enhanced:
-        spikes = 2 * (2 if stage >= 4 else 1)  # spike and explosion; Stage 4 assumes one free recast.
+        spikes = 2 + (1 if stage >= 4 else 0)  # spike + explosion, and one extra Stage 4 spike.
         results.append(calculate_minion_offense(
             working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
             shotgun_hits=spikes, shotgun_falloff=0.0,
@@ -135,7 +135,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     combined.spirit_magi_max = count
     combined.minion_empower = empower_display
     if stage >= 4:
-        combined.nyi.append("Stage 4 extra Bleak Grass spike uses the owner's unverified assumption: one exact recast with no extra cast time or damage penalty.")
+        combined.nyi.append("Stage 4 extra Bleak Grass spike uses the owner's unverified assumption: one exact spike recast with no extra cast time or damage penalty.")
     if stage >= 3:
         combined.nyi.append("Bleak Grass's Stage 3+ temporary Erosion Damage Taken stacks are not yet time-weighted against the target.")
     return combined
