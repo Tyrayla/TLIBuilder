@@ -612,6 +612,24 @@ def load_new_god_talents(season: str, raw: bool = False) -> list[dict] | None:
     return talents
 
 
+def _read_season_meta(season_dir: str, name: str) -> dict:
+    """Optional `_season.json` ({label, status, note}) -> display fields. Never raises: a missing, unreadable or
+    malformed file (or a non-string field) falls back to label=name, status/note=None."""
+    meta = {"label": name, "status": None, "note": None}
+    try:
+        with open(os.path.join(season_dir, "_season.json"), encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return meta
+    if not isinstance(raw, dict):
+        return meta
+    for key in ("label", "status", "note"):
+        val = raw.get(key)
+        if isinstance(val, str) and val.strip():
+            meta[key] = val.strip()
+    return meta
+
+
 def get_season_summary(name: str) -> dict:
     d = _season_dir(name)
     trees: list[str] = []
@@ -690,6 +708,7 @@ def get_season_summary(name: str) -> dict:
         "destiny_count": destiny_count, "ethereal_prism_count": ethereal_prism_count,
         "hero_memories_count": hero_memories_count, "memory_revival_count": memory_revival_count,
         "tower_sequence_count": tower_sequence_count, "belt_blend_count": belt_blend_count,
+        **_read_season_meta(d, name),
     }
 
 

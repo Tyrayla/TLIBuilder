@@ -159,6 +159,10 @@ class TestOffenseHitCount:
         steep = next(f for f in result.hit_forms if f.proc_stat_key == "steep_strike_chance")
         assert steep.hits_per_fire == 6  # 3 outbound + 3 returning, same shotgun group
         assert steep.shotgun_mult == pytest.approx(1.0 + 5 * 0.5)
+        # At 1 APS, 100 flat weapon damage and 346% effectiveness: Sweep contributes 276.8 DPS,
+        # while one Steep Strike torrent contributes 69.2 DPS. Three outbound plus three returns
+        # share the same 50% falloff group (1 + 5*0.5 = 3.5), so total DPS is 276.8 + 69.2*3.5.
+        assert result.total_dps == pytest.approx(519.0)
 
     def test_sweep_form_unaffected_by_torrent_stats(self):
         sk = resolve_skill(_fss_data())
@@ -238,6 +242,138 @@ class TestApplySlotEffectsTorrentCount:
                               mod_tags={"attack"}, attached_supports=[], skills_by_id={})
         eff = s.materialize_for_skill({"attack"}, 1)
         assert eff.total("flame_slash_torrent_count_flat") == pytest.approx(3.0)
+
+
+class TestTorrentHits:
+    @pytest.mark.parametrize("manual, hits, multiplier, dps", [
+        (None, 3, 2.0, 415.2), (1, 1, 1.0, 346.0), (3, 3, 2.0, 415.2),
+        (0, 1, 1.0, 346.0), (99, 3, 2.0, 415.2), (2.9, 2, 1.5, 380.6),
+    ])
+    def test_selected_hits_drive_shotgun_and_damage(self, manual, hits, multiplier, dps):
+        # 100 weapon damage * 346% effectiveness at 1 attack/s.
+        # 80% Sweep + 20% Steep, with 50% falloff per subsequent torrent.
+        source = TestOffenseHitCount()._src()
+        skill = resolve_skill(_fss_data())
+        fs.apply_slot_effects(source=source, resolved=skill, slot=1,
+            condition_state={} if manual is None else {"flame_slash_torrent_hits": manual},
+            mod_tags={"attack"}, attached_supports=[], skills_by_id={})
+        result = calculate_offense(source.materialize_for_skill({"attack"}, 1), skill, 20)
+        steep = result.hit_forms[1]
+        assert steep.hits_per_fire == hits
+        assert steep.shotgun_mult == multiplier
+        assert result.total_dps == pytest.approx(dps)
+
+    @pytest.mark.parametrize("manual, hits", [(None, (3, 5)), (1, (1, 1)), (4, (3, 4))])
+    def test_endpoint_defaults_and_caps_are_slot_local(self, manual, hits):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        req = make_request("flame_slash", 20, custom_mods=["+100% Skill Area"],
+            attached_supports=[{"item_id": "increased_area", "skill_type": "support_skill",
+                                "rank": 1, "level": 1, "slot": 2}],
+            skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
+            extra_conditions={} if manual is None else {"flame_slash_torrent_hits": manual})
+        result = engine_stats(EngineStatsRequest(**req))
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == hits
+        assert result["condition_maximums"]["flame_slash_torrent_hits"] == 5
+        assert result["auto_conditions"]["flame_slash_torrent_hits"] == {
+            "value": None, "source": "Flame Slash (all fire torrents land)"}
+        assert "flame_slash_torrent_hits" in result["referenced_conditions"]
+
+    @pytest.mark.parametrize("returns, total_hits, multiplier", [
+        (None, 2, 1.5), (0, 1, 1.0), (1, 2, 1.5), (99, 2, 1.5),
+    ])
+    def test_returns_default_and_cap_to_landed_torrents(self, returns, total_hits, multiplier):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        conditions = {"flame_slash_torrent_hits": 1}
+        if returns is not None:
+            conditions["inverted_blaze_returns"] = returns
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": 1}],
+            extra_conditions=conditions)))
+        assert result["offense"]["hit_forms"][1]["hits_per_fire"] == total_hits
+        assert result["offense"]["hit_forms"][1]["shotgun_mult"] == multiplier
+        assert result["condition_maximums"]["inverted_blaze_returns"] == 1
+        assert result["auto_conditions"]["inverted_blaze_returns"]["value"] == 1
+
+    def test_return_caps_follow_each_slots_landed_count(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            custom_mods=["+100% Skill Area"],
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": slot} for slot in (1, 2)] + [
+                {"item_id": "increased_area", "skill_type": "support_skill",
+                 "rank": 1, "level": 1, "slot": 2}],
+            skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
+            extra_conditions={"flame_slash_torrent_hits": 4, "inverted_blaze_returns": 99})))
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == (6, 8)
+        assert result["condition_maximums"]["inverted_blaze_returns"] == 4
+        assert result["auto_conditions"]["inverted_blaze_returns"] == {
+            "value": None, "source": "Inverted Blaze (returning torrents)"}
+
+    def test_endpoint_reports_outbound_and_return_clamps(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": 1}],
+            extra_conditions={"flame_slash_torrent_hits": 99, "inverted_blaze_returns": 99})))
+        assert result["offense"]["hit_forms"][1]["hits_per_fire"] == 6
+        assert result["clamp_report"]["flame_slash_torrent_hits"] == {"requested": 99, "applied": 3}
+        assert result["clamp_report"]["inverted_blaze_returns"] == {"requested": 99, "applied": 3}
+
+    def test_endpoint_reports_fractional_return_normalization(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": 1}],
+            extra_conditions={"inverted_blaze_returns": 2.9})))
+        assert result["clamp_report"]["inverted_blaze_returns"] == {"requested": 2.9, "applied": 2}
+
+    def test_endpoint_keeps_per_slot_return_caps_internal(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            custom_mods=["+100% Skill Area"],
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": slot} for slot in (1, 2)] + [
+                {"item_id": "increased_area", "skill_type": "support_skill",
+                 "rank": 1, "level": 1, "slot": 2}],
+            skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
+            extra_conditions={"inverted_blaze_returns": 4})))
+        assert "inverted_blaze_returns" not in result["clamp_report"]
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == (6, 9)
+
+    def test_endpoint_keeps_per_slot_outbound_caps_internal(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            custom_mods=["+100% Skill Area"],
+            attached_supports=[{"item_id": "increased_area", "skill_type": "support_skill",
+                                "rank": 1, "level": 1, "slot": 2}],
+            skills=[{"slot": slot, "skill_id": "flame_slash", "level": 20} for slot in (1, 2)],
+            extra_conditions={"flame_slash_torrent_hits": 4})))
+        assert "flame_slash_torrent_hits" not in result["clamp_report"]
+        assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
+                     for slot in (1, 2)) == (3, 4)
+
+    def test_endpoint_ignores_non_numeric_hit_count_values(self):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request
+        result = engine_stats(EngineStatsRequest(**make_request("flame_slash", 20,
+            attached_supports=[{"item_id": fs.INVERTED_BLAZE, "skill_type": "noble_support_skill",
+                                "rank": 5, "level": 1, "slot": 1}],
+            extra_conditions={"flame_slash_torrent_hits": "invalid",
+                              "inverted_blaze_returns": "invalid"})))
+        assert result["offense"]["hit_forms"][1]["hits_per_fire"] == 6
+        assert "flame_slash_torrent_hits" not in result["clamp_report"]
+        assert "inverted_blaze_returns" not in result["clamp_report"]
 
 
 class TestBothSupportsSameSlot:
@@ -355,6 +491,9 @@ class TestInvertedBlaze:
     def test_default_returns_equal_torrent_count(self):
         assert self._run({}) == pytest.approx(3.0)
 
+    def test_fractional_return_override_uses_whole_hits(self):
+        assert self._run({"inverted_blaze_returns": 2.9}) == pytest.approx(2.0)
+
     @pytest.mark.parametrize("area, expected", [(115, 5), (230, 7)])
     @pytest.mark.parametrize("manual", [None, 0, 2])
     def test_endpoint_reports_auto_intent_even_with_global_override(self, area, expected, manual):
@@ -368,8 +507,7 @@ class TestInvertedBlaze:
         steep = result["offense"]["hit_forms"][1]
         assert steep["hits_per_fire"] == expected + (expected if manual is None else manual)
         assert result["auto_conditions"]["inverted_blaze_returns"] == {
-            "value": expected, "source": "Inverted Blaze (returning torrents)",
-            "slot_values": {"1": expected}}
+            "value": expected, "source": "Inverted Blaze (returning torrents)"}
 
     @pytest.mark.parametrize("manual, hits", [(None, (6, 10)), (0, (3, 5)), (2, (5, 7))])
     def test_two_slots_report_distinct_auto_counts_and_global_override(self, manual, hits):
@@ -388,8 +526,7 @@ class TestInvertedBlaze:
         assert tuple(result["slot_offense"][str(slot)]["hit_forms"][1]["hits_per_fire"]
                      for slot in (1, 2)) == hits
         assert result["auto_conditions"]["inverted_blaze_returns"] == {
-            "value": None, "source": "Inverted Blaze (returning torrents)",
-            "slot_values": {"1": 3, "2": 5}}
+            "value": None, "source": "Inverted Blaze (returning torrents)"}
 
     def test_default_scales_with_area_bonus(self):
         assert self._run({}, area_inc=1.15) == pytest.approx(5.0)
