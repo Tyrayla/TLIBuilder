@@ -178,7 +178,9 @@ def consumable_universe() -> frozenset[str]:
                  "minion_lightning_pen_inc", "minion_erosion_pen_inc",
                  "spirit_magi_dmg_inc", "spirit_magi_dmg_additional", "spirit_magi_crit_rating_flat",
                  "spirit_magi_empower_effect_additional", "minions_inherit_mainhand_weapon",
-                 "minion_skill_level", "spirit_magi_skill_level"}
+                 "minion_skill_level", "spirit_magi_skill_level", "minion_life_regen_inc",
+                 "minion_life_regen_flat", "minion_life_regain_interval_additional",
+                 "minion_es_regain_interval_additional", "minion_reconjuring_life_regen_inc"}
     # Phase-1 conditional/scaling minion damage — read explicitly in engine.minion_offense (per-Growth folds,
     # Focused-Strike at-center full-uptime, Queer-Angle per-type Lucky, multistrike Max Count).
     consumed |= {"minion_at_center_dmg_additional", "minion_max_multistrike_count_flat",

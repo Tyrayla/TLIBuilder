@@ -155,6 +155,9 @@ class Stat(Enum):
     MINION_ATTACK_SPEED_INC = "minion_attack_speed_inc"
     MINION_CAST_SPEED_INC = "minion_cast_speed_inc"
     MINION_LIFE_REGEN_SPEED_INC = "minion_life_regen_speed_inc"
+    MINION_LIFE_REGEN_INC = "minion_life_regen_inc"
+    MINION_LIFE_REGEN_FLAT = "minion_life_regen_flat"
+    MINION_RECONJURING_LIFE_REGEN_INC = "minion_reconjuring_life_regen_inc"
     MINION_MULTISTRIKE_CHANCE = "minion_multistrike_chance"
     MINION_MULTISTRIKE_INCREASING_DMG_INC = "minion_multistrike_increasing_dmg_inc"
     MINION_IGNITE_CHANCE = "minion_ignite_chance"
@@ -213,6 +216,8 @@ class Stat(Enum):
     MINION_ATTACK_SPEED_ADDITIONAL = "minion_attack_speed_additional"
     MINION_CAST_SPEED_ADDITIONAL = "minion_cast_speed_additional"
     MINION_ES_REGAIN_INC = "minion_es_regain_inc"
+    MINION_LIFE_REGAIN_INTERVAL_ADDITIONAL = "minion_life_regain_interval_additional"
+    MINION_ES_REGAIN_INTERVAL_ADDITIONAL = "minion_es_regain_interval_additional"
     SUMMON_SKILL_CAST_SPEED_ADDITIONAL = "summon_skill_cast_speed_additional"
 
     # Synthetic Troops

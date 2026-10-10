@@ -950,7 +950,9 @@ def aggregate(
     # AFTER scaling (cap-scaling behavior unverified — spec: .wolf/engine-spec-magus-origins.md).
     _origin_flags = active_booleans or frozenset()
     _any_origin = "origin_of_thunder" in _origin_flags or any(e[0] in _origin_flags for e in _ORIGIN_EMITS)
-    if _any_origin:
+    _merging_stream = (getattr(build, "trait_id", None) == "vigilant_breeze"
+                       and "vigilant_breeze_merging_stream" in _origin_flags)
+    if _any_origin and not _merging_stream:
         _origin_inc_total = source.total("spirit_magi_origin_effect_inc")
         _origin_add_total = source.total("spirit_magi_origin_effect_additional")
 

@@ -14,6 +14,7 @@ Base Damage / Life come from data/seasons/<S>/_minion_base_stats.json (hand-ente
 """
 from __future__ import annotations
 import functools
+import math
 import re
 from collections import defaultdict
 from dataclasses import replace
@@ -318,8 +319,52 @@ def _primary_dtype(tags_lower: set[str]) -> str:
 # + talent/gear/Iris growth mods.
 
 def spirit_magi_growth(source: BuildSource) -> float:
-    """A Spirit Magus's Growth: base 100 (Stage 1) + initial-growth mods, clamped to [100, 1000]."""
+    """A Spirit Magus's innate Growth plus its per-Magus bonuses, clamped to [100, 1000]."""
     return max(100.0, min(1000.0, 100.0 + source.total("spirit_magi_initial_growth_flat")))
+
+
+def apply_spirit_magi_growth(source: BuildSource, *, breeze_stacks: float = 0.0) -> float:
+    """Apply per-Magus Growth effects, then return the clamped Growth value.
+
+    Growth is shared Spirit Magus behavior. Iris 2 supplies the optional
+    Artificial Moon Breeze-stack input; it does not own the Growth calculation.
+    """
+    if breeze_stacks > 0:
+        amount = float(breeze_stacks) * 6.0
+        source.add_with_source("spirit_magi_initial_growth_flat", amount, SourceEntry(
+            stat="spirit_magi_initial_growth_flat", amount=amount, source_type="minion",
+            label="Artificial Moon", source_name="Iris Vigilant Breeze",
+            text=f"Artificial Moon: +6 Growth × {float(breeze_stacks):g} Breeze stacks"))
+    return spirit_magi_growth(source)
+
+
+def spirit_magus_reconjuring_cycle(*, drain_pct_per_second: float = 0.0, heal_seconds: float = 3.0,
+                                   regen_pct_per_second: float = 0.0, regen_speed_inc: float = 0.0,
+                                   drain_heal_pct_per_second: float = 0.0,
+                                   other_reconjuring_heal_pct_per_second: float = 0.0) -> dict:
+    """Shared Spirit Magus life-cycle model; all rates are fractions of Max Life per second.
+
+    Life Regeneration applies during both phases. Life Regain is deliberately excluded.
+    """
+    drain = max(0.0, float(drain_pct_per_second))
+    ordinary_heal = max(0.0, float(regen_pct_per_second)) * (1.0 + float(regen_speed_inc))
+    drain_heal = ordinary_heal + max(0.0, float(drain_heal_pct_per_second))
+    net_drain = drain - drain_heal
+    if net_drain <= 0:
+        return {"drain_seconds": 0.0, "reconjuring_seconds": 0.0, "cycle_seconds": 0.0,
+                "damage_uptime": 1.0, "drain_pct_per_second": drain,
+                "drain_heal_pct_per_second": drain_heal,
+                "heal_pct_per_second": 1.0 / heal_seconds if heal_seconds > 0 else 0.0}
+    heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
+    heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
+    drain_duration = 1.0 / net_drain
+    reconjuring_duration = (1.0 / heal_rate) if heal_rate > 0 else math.inf
+    cycle = drain_duration + reconjuring_duration
+    uptime = drain_duration / cycle if math.isfinite(cycle) and cycle > 0 else 0.0
+    return {"drain_seconds": drain_duration, "reconjuring_seconds": reconjuring_duration,
+            "cycle_seconds": cycle, "damage_uptime": uptime,
+            "drain_pct_per_second": drain, "drain_heal_pct_per_second": drain_heal,
+            "heal_pct_per_second": heal_rate}
 
 
 def growth_stage(growth: float) -> int:

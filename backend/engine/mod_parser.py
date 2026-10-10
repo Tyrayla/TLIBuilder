@@ -359,6 +359,18 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     the ORIGINAL full text (incl. scope words) so the additional pool's affix-identity keeps scoped mods as
     distinct multiplicative factors."""
     stripped = text.strip()
+    # Graft line: the leading Reconjuring qualifier is consumed by the Magus lifecycle model, not a player
+    # condition. Keep this pool distinct from ordinary minion Life Regeneration so it applies only during the
+    # Reconjuring heal window.
+    reconjuring_regen = re.fullmatch(
+        r"\s*while\s+reconjuring\s*,\s*spirit\s+magi\s+regenerate\s+"
+        r"\(?\s*(\d+(?:\.\d+)?)\s*(?:[-–]\s*(\d+(?:\.\d+)?))?\s*\)?\s*%\s+life\s+per\s+second\s*",
+        stripped, re.I)
+    if reconjuring_regen:
+        lo = float(reconjuring_regen.group(1))
+        hi = float(reconjuring_regen.group(2)) if reconjuring_regen.group(2) else lo
+        return [{"stat_key": "minion_reconjuring_life_regen_inc",
+                 "amount": ((lo + hi) / 2.0) / 100.0, "text": stripped}]
     # "Spirit Magi … additional Empower Skill Effect" → the magi Empower Effect (else the leading "Spirit Magi"
     # strip leaves "additional Empower Skill Effect" and it leaks to the PLAYER's empower_effect_additional).
     if re.search(r'spirit\s+mag(?:i|us)', stripped, re.I):

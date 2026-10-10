@@ -565,6 +565,21 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_life",        stacking_rule="additive",
         ui_priority=33,                source_types=_T,
     ),
+    Stat.MINION_LIFE_REGEN_INC: StatMeta(
+        "Life Regeneration Per Second for Minions", "Minion", "increased", "%",
+        subgroup="minion_life",        stacking_rule="additive",
+        ui_priority=33,                source_types=_T,
+    ),
+    Stat.MINION_LIFE_REGEN_FLAT: StatMeta(
+        "Flat Life Regeneration for Minions", "Minion", "added_flat",
+        subgroup="minion_life",        stacking_rule="additive",
+        ui_priority=33,                source_types=_T,
+    ),
+    Stat.MINION_RECONJURING_LIFE_REGEN_INC: StatMeta(
+        "Life Regeneration Per Second for Spirit Magi while Reconjuring", "Minion", "increased", "%",
+        subgroup="minion_life",        tags=("minion",),
+        stacking_rule="additive",      ui_priority=33, source_types=_T,
+    ),
     Stat.MINION_MULTISTRIKE_CHANCE: StatMeta(
         "Minion Multistrike Chance", "Minion", "chance", "%",
         subgroup="minion_mechanics",   stacking_rule="additive_chance",
@@ -650,6 +665,16 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.MINION_ES_REGAIN_INC: StatMeta(
         "Energy Shield Regain for Minions", "Minion", "increased", "%",
+        subgroup="minion_life",        stacking_rule="additive",
+        ui_priority=34,                source_types=_TB,
+    ),
+    Stat.MINION_LIFE_REGAIN_INTERVAL_ADDITIONAL: StatMeta(
+        "Additional Life Regain Interval for Minions", "Minion", "additional", "%",
+        subgroup="minion_life",        stacking_rule="additive",
+        ui_priority=34,                source_types=_TB,
+    ),
+    Stat.MINION_ES_REGAIN_INTERVAL_ADDITIONAL: StatMeta(
+        "Additional Energy Shield Regain Interval for Minions", "Minion", "additional", "%",
         subgroup="minion_life",        stacking_rule="additive",
         ui_priority=34,                source_types=_TB,
     ),
