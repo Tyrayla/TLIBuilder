@@ -519,7 +519,7 @@ def calculate_minion_offense(
     minion_count: int = 1,
     rate_multiplier: float = 1.0,
     *,
-    shotgun_hits: int = 1,
+    shotgun_hits: float = 1,
     shotgun_falloff: float = 0.0,
     penetrates: bool = False,
     added_damage_effectiveness: float | None = None,

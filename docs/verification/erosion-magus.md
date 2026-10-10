@@ -13,7 +13,7 @@ Scattered Mud and Bleak Grass share the Base cast rate, split by Enhanced replac
 
 ## Notes / caveats / open questions
 
-Engine status remains unverified by source. Tested in game by owner: Bleak Grass spike and explosion both hit the same target for full damage with no falloff; World of Thorns hits each enemy once even when thorns overlap. Assumption, owner to confirm: at Growth Stage 4+, one additional Bleak Grass spike is modeled as an exact recast with no damage penalty or added cast time; the explosion still occurs once. Withering Payback's damage-triggered cast is ignored because Magi do not practically take damage. SS14 shared minion base stats are a stopgap ported from SS12 pending in-game remeasurement.
+Engine status remains unverified by source. Tested in game by owner: Bleak Grass spike and explosion both hit the same target for full damage with no falloff; World of Thorns hits each enemy once even when thorns overlap. Assumption, owner to confirm: at Growth Stage 4+, one additional full-damage Bleak Grass spike is modeled as an exact recast with no extra cast time, only during Withering Payback uptime; the standard explosion occurs once. Withering Payback's damage-triggered cast is ignored because Magi do not practically take damage. SS14 shared minion base stats are a stopgap ported from SS12 pending in-game remeasurement.
 
 ## Implementation (engine model)
 

@@ -77,7 +77,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             working, base, base_stats, level, count, rate_multiplier=(1.0 - chance) * cast_slot_factor,
             intrinsic_convert={"physical": {"erosion": 1.0}}))
     if enhanced:
-        spikes = 2 + (1 if stage >= 4 else 0)  # spike + explosion, and one extra Stage 4 spike.
+        spikes = 2 + (empower_uptime if stage >= 4 else 0.0)  # Extra Stage 4 spike is active only during Empower.
         results.append(calculate_minion_offense(
             working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
             shotgun_hits=spikes, shotgun_falloff=0.0,
@@ -137,7 +137,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     combined.spirit_magi_max = count
     combined.minion_empower = empower_display
     if stage >= 4:
-        combined.nyi.append("Stage 4 extra Bleak Grass spike uses the owner's unverified assumption: one exact spike recast with no extra cast time or damage penalty.")
+        combined.nyi.append("Stage 4 extra Bleak Grass spike is uptime-weighted to Withering Payback; its unverified assumption is one full-damage spike recast with no extra cast time or damage penalty.")
     if stage >= 3:
         combined.nyi.append("Bleak Grass's Stage 3+ temporary Erosion Damage Taken stacks are not yet time-weighted against the target.")
     return combined

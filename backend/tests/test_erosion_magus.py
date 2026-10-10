@@ -93,7 +93,7 @@ def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
     stage4 = module(stage4_source, owner, base_stats, 20, 1, condition_state={"enemy_count_weight": 5.0})
     assert stage4.minion_empower["empower_effect"] == pytest.approx(2.2)
     assert stage4.minion_empower["buffs"][0]["value"] == pytest.approx(0.20 * 2.2 * 0.6)
-    assert _forms(stage4)["Bleak Grass"].hits_per_fire == 3  # Two spikes + explosion; one extra spike assumption.
+    assert _forms(stage4)["Bleak Grass"].hits_per_fire == pytest.approx(2.6)  # Extra spike only during 60% Empower uptime.
 
 
 def test_harvest_time_makes_empower_cast_instant():
