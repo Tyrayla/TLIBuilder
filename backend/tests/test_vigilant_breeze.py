@@ -267,5 +267,35 @@ def test_selected_skill_role_normalization_accepts_condition_and_dropdown_labels
     assert vb.normalize_selected_skill_role(selected) == role
 
 
+def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origins_for_stream():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    def calculate(merged_count, picks=()):
+        request = make_request(
+            "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+            advanced_trait_selections=list(picks),
+            extra_conditions={"vigilant_breeze_merged_magi": merged_count,
+                              "vigilant_breeze_stacks": 1},
+        )
+        return engine_stats(EngineStatsRequest(**request))
+
+    merged = calculate(2)
+    merged_magus = merged["minion_offense"]["summon_thunder_magus"]
+    assert merged_magus["total_dps"] == 0.0
+    assert "normal rotation is replaced" in " ".join(merged_magus["nyi"]).lower()
+    assert merged_magus["iris_skill_dispatch"]["role"] == "ultimate"
+    assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
+
+    unmerged = calculate(0)
+    unmerged_magus = unmerged["minion_offense"]["summon_thunder_magus"]
+    assert unmerged_magus["total_dps"] > 0
+    assert "iris_skill_dispatch" not in unmerged_magus
+
+    stream = calculate(2, ["Merging Stream"])
+    assert stream.get("origin_summary") is None
+    assert stream["stats"].get("cast_speed_additional", {}).get("total", 0) == 0
+
+
 def test_vigilant_breeze_is_registered_in_trait_dispatch():
     assert has_module("vigilant_breeze") is True
