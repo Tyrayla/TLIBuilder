@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findRing, connectorPath } from '../utils/traitTreeGeometry'
+import { findRing, connectorPath, viewBoxWithRing } from '../utils/traitTreeGeometry'
 
 // Render-space (1000 x 760, plus the 40px top pad) positions, derived like HeroTraitTree: x*1000, y*760+40.
 const YOUGA_PX: Record<string, [number, number]> = {
@@ -33,6 +33,13 @@ describe('traitTreeGeometry', () => {
     expect(connectorPath({ x: 0, y: 100 }, { x: 100, y: 0 }, ring).d).toBe('M 0 100 A 100 100 0 0 0 100 0')
   })
 
+  it('projects slightly off-ring endpoints onto the ring so the arc lies on the circle', () => {
+    const ring = { cx: 0, cy: 0, r: 100 }
+    const p = connectorPath({ x: 108, y: 0 }, { x: 0, y: 95 }, ring)
+    expect(p.kind).toBe('arc')
+    expect(p.d).toBe('M 100 0 A 100 100 0 0 1 0 100')
+  })
+
   it('falls back to a straight line when a point is off the ring or there is no ring', () => {
     const ring = { cx: 0, cy: 0, r: 100 }
     expect(connectorPath({ x: 100, y: 0 }, { x: 0, y: 50 }, ring)).toEqual({ kind: 'line', d: 'M 100 0 L 0 50' })
@@ -53,4 +60,20 @@ describe('traitTreeGeometry', () => {
     expect(findRing([{ id: 'root', x: 0, y: 0 }, { id: 'a', x: 10, y: 0 }], 'root')).toBeNull()
   })
 
+})
+
+describe('viewBoxWithRing', () => {
+  it('keeps the base box when there is no ring', () => {
+    expect(viewBoxWithRing({ w: 1000, h: 800 }, null)).toEqual({ x: 0, y: 0, w: 1000, h: 800 })
+  })
+
+  it('grows the box so a ring reaching past the bottom edge is fully inside, with margin', () => {
+    const vb = viewBoxWithRing({ w: 1000, h: 800 }, { cx: 553, cy: 475, r: 338 }, 12)
+    expect(vb).toEqual({ x: 0, y: 0, w: 1000, h: 825 })   // ring bottom 813 + 12
+  })
+
+  it('also grows left/top when the ring pokes out there', () => {
+    const vb = viewBoxWithRing({ w: 100, h: 100 }, { cx: 50, cy: 50, r: 80 }, 10)
+    expect(vb).toEqual({ x: -40, y: -40, w: 180, h: 180 })
+  })
 })

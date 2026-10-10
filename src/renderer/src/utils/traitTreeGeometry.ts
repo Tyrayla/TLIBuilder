@@ -88,5 +88,22 @@ export function connectorPath(a: Pt, b: Pt, ring: Circle | null): ConnectorPath 
   // Short arc: sweep-flag is 1 (clockwise in SVG's y-down space) when the cross product of the two radii is positive.
   const cross = (a.x - ring.cx) * (b.y - ring.cy) - (a.y - ring.cy) * (b.x - ring.cx)
   const sweep = cross > 0 ? 1 : 0
-  return { kind: 'arc', d: `M ${f(a.x)} ${f(a.y)} A ${f(ring.r)} ${f(ring.r)} 0 0 ${sweep} ${f(b.x)} ${f(b.y)}` }
+  // Project both ends radially onto the ring so the arc lies exactly on the drawn ring circle (nodes sit up to
+  // RING_TOL off it; arcing between the raw centres would draw a second, slightly offset curve).
+  const onRing = (p: Pt): Pt => {
+    const d = Math.hypot(p.x - ring.cx, p.y - ring.cy) || 1
+    return { x: ring.cx + (p.x - ring.cx) * ring.r / d, y: ring.cy + (p.y - ring.cy) * ring.r / d }
+  }
+  const pa = onRing(a), pb = onRing(b)
+  return { kind: 'arc', d: `M ${f(pa.x)} ${f(pa.y)} A ${f(ring.r)} ${f(ring.r)} 0 0 ${sweep} ${f(pb.x)} ${f(pb.y)}` }
+}
+
+export interface ViewBox { x: number; y: number; w: number; h: number }
+
+/** `base` (0,0,w,h) grown just enough to show the whole `ring` circle plus `margin` (stroke and glow room). */
+export function viewBoxWithRing(base: { w: number; h: number }, ring: Circle | null, margin = 12): ViewBox {
+  if (!ring) return { x: 0, y: 0, w: base.w, h: base.h }
+  const x0 = Math.min(0, ring.cx - ring.r - margin), y0 = Math.min(0, ring.cy - ring.r - margin)
+  const x1 = Math.max(base.w, ring.cx + ring.r + margin), y1 = Math.max(base.h, ring.cy + ring.r + margin)
+  return { x: f(x0), y: f(y0), w: f(x1 - x0), h: f(y1 - y0) }
 }

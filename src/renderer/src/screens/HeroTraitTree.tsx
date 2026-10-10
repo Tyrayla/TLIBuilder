@@ -18,7 +18,7 @@ import { useReferenceStore } from '../store/referenceStore'
 import {
   availableThresholds, canAllocate, allocate, deallocate, reconcile, badgeFor,
 } from '../utils/traitTree'
-import { findRing, connectorPath } from '../utils/traitTreeGeometry'
+import { findRing, connectorPath, viewBoxWithRing } from '../utils/traitTreeGeometry'
 
 interface Props {
   trait: HeroTrait
@@ -207,6 +207,8 @@ export default function HeroTraitTree({
   // Ring arcs only apply to the radial (x/y) layout; the legacy column/row grid keeps straight lines.
   // (Plain computation, not a hook: this sits after the early return above. ~165 triples for 11 nodes.)
   const ring = useXY ? findRing(nodes.map(n => ({ id: n.node_id, x: nodeX(n), y: nodeY(n) })), rootId) : null
+  // Grow the viewBox so the full ring circle (its bottom reaches past the node area) is never clipped.
+  const vb = viewBoxWithRing({ w: VW, h: VH }, ring)
 
   const handleClick = (nodeId: string) => {
     if (nodeId === rootId) return
@@ -223,7 +225,8 @@ export default function HeroTraitTree({
 
   return (
     <div className="htt-row">
-      <svg viewBox={`0 0 ${VW} ${VH}`} className="htt-tree-svg">
+      <svg viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} className="htt-tree-svg"
+        style={ring ? { aspectRatio: `${vb.w} / ${vb.h}` } : undefined}>
         <defs>
           {/* Warm glow halos — blur behind, original (crisp) graphic merged on top. */}
           <filter id="htt-glow-strong" x="-80%" y="-80%" width="260%" height="260%">
@@ -243,6 +246,9 @@ export default function HeroTraitTree({
         </defs>
         {/* No flat backdrop rect here — the tree area shows the screen's own background (matches the
             rest of the panel) rather than a distinct tint. Only the glow filters + connectors draw. */}
+        {ring && (
+          <circle cx={ring.cx} cy={ring.cy} r={ring.r} fill="none" className="htt-tree-ring" data-testid="htt-tree-ring" />
+        )}
         {connections.map(({ from, to }, i) => {
           const n1 = byId[from]; const n2 = byId[to]
           if (!n1 || !n2) return null

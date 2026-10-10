@@ -1723,7 +1723,7 @@ export interface HeroTraitTreeNode {
   effects: string[]
   icon_url?: string | null   // render via iconUrl('hero_trait', icon_url) → bundled webp
   subtitle?: string          // in-game node header (e.g. "Spacetime Dictator")
-  unlock_level?: number | null   // character level the node unlocks at; null/absent = not recorded
+  unlock_level?: number | null   // character level the node unlocks at; recorded in data, not shown or enforced (same as Selena 2)
 }
 
 export interface HeroTrait {
