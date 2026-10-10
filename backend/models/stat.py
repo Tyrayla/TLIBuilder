@@ -567,6 +567,8 @@ class Stat(Enum):
     # hit count); the chromatic_shot module emits it (full under Lightchaser/tangle, else the user input).
     MAIN_STAT_DMG_BONUS_INC = "main_stat_dmg_bonus_inc"
     CHROMATIC_SHOTS_ON_TARGET_FLAT = "chromatic_shots_on_target_flat"
+    # Slot-local outbound torrents landing on the target, used for Steep Strike shotgunning.
+    FLAME_SLASH_TORRENT_HITS_FLAT = "flame_slash_torrent_hits_flat"
     # Cat Dive (Wind Stalker): per-attack chance during multistrike to be counted at the Max Multistrike Count
     # for increment purposes. Read by the offense multistrike stage.
     MULTISTRIKE_MAX_COUNT_PROC_CHANCE = "multistrike_max_count_proc_chance"

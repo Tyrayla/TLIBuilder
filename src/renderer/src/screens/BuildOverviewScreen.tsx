@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -9,6 +10,7 @@ import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
 import { TARGET_LEVELS, presetTargetConfig, NONPHYS_ARMOR_FACTOR, type TargetLevel } from '../utils/targetPresets'
 import { ENEMY_REGISTRY, findEnemy, configForSelection } from '../utils/enemyPresets'
 import type { EnemyDamage } from '../api/client'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 
 // Categories whose conditions always show (player-side scenario inputs relevant to any build).
 const ALWAYS_SHOW_CATEGORIES = new Set([
@@ -28,6 +30,32 @@ const CATEGORY_ACCENT: Record<string, string> = {
   Character: '#e0a050', Equipment: '#8a8aa0', Tangle: '#8888ff', 'Spell Burst': '#c8a0ff', Attributes: '#6fa8e0',
 }
 const accentFor = (cat: string): string => CATEGORY_ACCENT[cat] ?? '#7a6cc8'
+
+function conditionSource(conditionKey: string): string | undefined {
+  if (conditionKey === 'flame_slash_torrent_hits') return 'Flame Slash'
+  if (conditionKey === 'inverted_blaze_returns') return 'Flame Slash (Inverted Blaze)'
+  return undefined
+}
+
+function ConditionLabel({ condition, className }: { condition: ConditionDef; className: string }) {
+  const source = conditionSource(condition.key)
+  if (!source) return <span className={className}>{condition.label}</span>
+  return <ConditionSourceTooltip label={condition.label} source={source} className={className} />
+}
+
+function ConditionSourceTooltip({ label, source, className }: { label: string; source: string; className: string }) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'top', trigger: 'hover', interactive: false, openDelay: 120 })
+  return (
+    <>
+      <span className={className} {...tip.triggerProps}>{label}</span>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip" {...tip.floatingProps}>{source}</div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 // Config panel: accent left-border + cool-charcoal uppercase header, matching the Stats screen's StatPanel.
 // Collapsible only when Settings → Display "Collapsible panels" is on (mirrors the Stats screen). Default expanded.
@@ -184,7 +212,7 @@ export default function BuildOverviewScreen() {
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
   // Conditions the engine auto-activated (e.g. Splendor → Numbed/Frostbite/Ignite) → {value, source}.
   const autoConditions = useBuildStore(
-    s => (s.computedStats as { auto_conditions?: Record<string, { value: number | boolean; source: string }> }).auto_conditions) ?? {}
+    s => s.computedStats.auto_conditions) ?? {}
   const lockAutoConditions = useUiPrefs(s => s.lockAutoConditions)
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
@@ -273,6 +301,12 @@ export default function BuildOverviewScreen() {
   const setNumeric = (key: string, value: number) =>
     setConditionState({ ...conditionState, [key]: value })
 
+  const clearOverride = (key: string) => {
+    const next = { ...conditionState }
+    delete next[key]
+    setConditionState(next)
+  }
+
   const setEnum = (key: string, value: string) =>
     setConditionState({ ...conditionState, [key]: value })
 
@@ -326,7 +360,7 @@ export default function BuildOverviewScreen() {
           const sel = (conditionState[cond.key] as string) ?? cond.default_enum ?? opts[0] ?? ''
           return (
             <div key={cond.key} className="cond-item">
-              <span className="cond-label">{cond.label}</span>
+              <ConditionLabel condition={cond} className="cond-label" />
               <select className="cond-stack-input" style={{ marginLeft: 'auto', maxWidth: '55%' }}
                 value={sel} onChange={e => setEnum(cond.key, e.target.value)}>
                 {opts.map(o => <option key={o} value={o}>{o}</option>)}
@@ -339,7 +373,7 @@ export default function BuildOverviewScreen() {
             const val = (conditionState[cond.key] as number) ?? 0
             return (
               <div key={cond.key} className="cond-item cond-item--derived">
-                <span className="cond-label cond-label--derived">{cond.label}</span>
+                <ConditionLabel condition={cond} className="cond-label cond-label--derived" />
                 <span className="cond-derived-hint">{val}{cond.unit ? ` ${cond.unit}` : ''}</span>
               </div>
             )
@@ -348,9 +382,9 @@ export default function BuildOverviewScreen() {
             const mx = getNumericMax(cond)
             const t = `Set automatically by ${auto.source}` + (mx != null ? ` · Max ${mx}${cond.unit ? ` ${cond.unit}` : ''}` : '')
             return (
-              <div key={cond.key} className="cond-item cond-item--derived" title={t}>
-                <span className="cond-label">{cond.label}</span>
-                <span className="cond-derived-hint">{Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
+              <div key={cond.key} className="cond-item cond-item--derived" title={conditionSource(cond.key) ? undefined : t}>
+                <ConditionLabel condition={cond} className="cond-label" />
+                <span className="cond-derived-hint">{auto.value == null ? 'Auto' : Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
                 <AutoBadge source={auto.source} />
               </div>
             )
@@ -359,10 +393,13 @@ export default function BuildOverviewScreen() {
             key={cond.key}
             cond={cond}
             // User value wins; otherwise the engine auto value; otherwise the catalog default.
-            value={(conditionState[cond.key] as number) ?? (auto ? Number(auto.value) : undefined) ?? cond.default_value ?? 0}
+            value={(conditionState[cond.key] as number) ?? (auto?.value != null ? Number(auto.value) : undefined) ?? (auto ? undefined : cond.default_value ?? 0)}
             // Clearing the field falls back to the auto value when one exists (so an overridden auto-set
             // condition returns to its engine default, not the catalog default of 0).
-            defaultOverride={auto ? Number(auto.value) : undefined}
+            defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
+            onReset={auto ? () => clearOverride(cond.key) : undefined}
+            hasOverride={Object.prototype.hasOwnProperty.call(conditionState, cond.key)}
+            resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
@@ -377,7 +414,7 @@ export default function BuildOverviewScreen() {
           return (
             <div key={cond.key} className="cond-item cond-item--derived">
               <span className={`cond-derived-dot ${isActive ? 'cond-derived-dot--on' : ''}`} />
-              <span className="cond-label cond-label--derived">{cond.label}</span>
+              <ConditionLabel condition={cond} className="cond-label cond-label--derived" />
               <span className="cond-derived-hint">{isActive ? 'active' : 'inactive'}</span>
             </div>
           )
@@ -395,7 +432,7 @@ export default function BuildOverviewScreen() {
               disabled={autoLocked}
               onChange={e => { if (!autoLocked) setBoolean(cond.key, e.target.checked) }}
             />
-            <span className="cond-label">{cond.label}</span>
+            <ConditionLabel condition={cond} className="cond-label" />
             {autoGoverns && <AutoBadge source={auto.source} />}
           </label>
         )
@@ -563,33 +600,43 @@ function AutoBadge({ source }: { source: string }) {
 
 interface NumericRowProps {
   cond: ConditionDef
-  value: number
+  value: number | undefined
   max: number | null
   clamp: { requested: number; applied: number } | undefined
   onChange: (v: number) => void
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
+  onReset?: () => void
+  hasOverride?: boolean
+  resetTitle?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
   // resolved cap as a placeholder/hint instead of a bare confusing 0.
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, hasOverride, resetTitle }: NumericRowProps) {
+  const integerHitCount = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
   const def = defaultOverride ?? cond.default_value ?? min
   // A "0 = max" sentinel shows blank when at 0, so the resolved cap (placeholder) reads instead of a bare 0.
-  const blankForSentinel = (v: number) => (zeroMeansMax && v === 0 ? '' : String(v))
+  const blankForSentinel = (v: number | undefined) => (
+    v === undefined || (zeroMeansMax && v === 0) ? '' : String(integerHitCount ? Math.trunc(v) : v)
+  )
   const [raw, setRaw] = useState(blankForSentinel(value))
 
   useEffect(() => { setRaw(blankForSentinel(value)) }, [value, zeroMeansMax])
 
   const commit = (str: string) => {
     // Cleared input → reset to the condition's default value, not the previous value or a hardcoded 0.
-    if (str.trim() === '') { onChange(def); setRaw(blankForSentinel(def)); return }
-    const n = parseFloat(str)
-    if (isNaN(n)) { setRaw(blankForSentinel(value)); return }
+    if (str.trim() === '') {
+      if (onReset) { onReset(); setRaw(blankForSentinel(defaultOverride)); return }
+      onChange(def); setRaw(blankForSentinel(def)); return
+    }
+    const parsed = parseFloat(str)
+    if (isNaN(parsed)) { setRaw(blankForSentinel(value)); return }
+    const n = integerHitCount ? Math.trunc(parsed) : parsed
     const clamped = max !== null ? Math.min(Math.max(n, min), max) : Math.max(n, min)
     onChange(clamped)
     setRaw(blankForSentinel(clamped))
@@ -604,28 +651,32 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
   const showSentinelHint = zeroMeansMax && raw.trim() === '' && max != null
 
   return (
-    <div className="cond-stack-row" title={rowTitle}>
-      <span className="cond-stack-label">{cond.label}</span>
-      <div className="cond-stack-controls">
-        <input
-          type="number"
-          className="cond-stack-input"
-          value={raw}
-          min={min}
-          max={max ?? undefined}
-          placeholder={zeroMeansMax && max != null ? String(max) : undefined}
-          onChange={e => setRaw(e.target.value)}
-          onBlur={e => commit(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
-        />
-        {showSentinelHint && (
-          <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
-            all {max} attached
-          </span>
-        )}
-        {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
+    <div className="cond-stack-row" title={conditionSource(cond.key) ? undefined : rowTitle}>
+      <div className="cond-stack-main">
+        <ConditionLabel condition={cond} className="cond-stack-label" />
+        <div className="cond-stack-controls">
+          <input
+            type="number"
+            className="cond-stack-input"
+            value={raw}
+            min={min}
+            max={max ?? undefined}
+            step={integerHitCount ? 1 : undefined}
+            placeholder={onReset && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
+            onChange={e => setRaw(e.target.value)}
+            onBlur={e => commit(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
+          />
+          {showSentinelHint && (
+            <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
+              all {max} attached
+            </span>
+          )}
+          {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
+          {onReset && hasOverride && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
+        </div>
       </div>
-      {clamp && (
+      {clamp && clamp.applied !== clamp.requested && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
           ⚠ capped at {clamp.applied}
         </div>

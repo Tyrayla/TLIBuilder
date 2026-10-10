@@ -22,7 +22,7 @@ from tests.mock_build import make_request
 from server import engine_stats, EngineStatsRequest
 
 _SS13_ONLY = pytest.mark.skipif(
-    season_manager.get_active_season() != "SS13",
+    season_manager.get_active_season() in (None, "SS12"),
     reason="Frost Terra's Terra-system form ships with SS13 (SS12 catalog predates the charge lines).",
 )
 

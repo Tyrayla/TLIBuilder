@@ -141,8 +141,9 @@ def test_real_mana_boil_suppressed_under_active_ss13():
     # vs '10%' text difference in simple_description — so the season-mismatch warning must be
     # SUPPRESSED, not fired, for the real build.
     active_season = season_manager.get_active_season()
-    assert active_season == "SS13", (
-        "This test pins the SS13 concrete case; .wolf/data/seasons/.active is not SS13 — "
+    # SS14 is currently the SS13 dataset relabelled "Pre-Season"; the data loaded below is SS13's either way.
+    assert active_season in ("SS13", "SS14"), (
+        "This test pins the SS13 concrete case; .wolf/data/seasons/.active is not SS13/SS14 — "
         f"got {active_season!r}. If the active season legitimately changed, update this test."
     )
     ss13_skills = season_manager.load_skills("SS13")

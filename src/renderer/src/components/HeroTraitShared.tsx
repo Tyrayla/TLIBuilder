@@ -168,12 +168,35 @@ function resolveLevel(text: string, level: number): string {
 
 // ── Tooltip content shown for a base/advanced trait node or a tree node ──────────────────────────
 
-export function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
+/** Look a header term (e.g. "Spacetime Conqueror") up in a trait's glossary by name; null when absent. */
+export function findTraitGlossaryTerm(
+  glossary: Record<string, { name: string; description: string }> | undefined, term: string,
+): { name: string; description: string } | null {
+  if (!glossary) return null
+  return Object.values(glossary).find(g => g.name === term) ?? null
+}
+
+export function TraitTooltipBody({ name, slotLevel, effects, moonEffects, subtitle, glossary }: {
   name: string; slotLevel: number; effects: string[]; moonEffects?: string[]
+  subtitle?: string   // node header term, shown as a clickable glossary term under the title
+  glossary?: Record<string, { name: string; description: string }>   // the trait's glossary
 }) {
+  const [termOpen, setTermOpen] = React.useState(false)
+  const term = subtitle ? findTraitGlossaryTerm(glossary, subtitle) : null
   return (
     <>
       <div className="trait-info-name">{name}</div>
+      {subtitle && (
+        term
+          ? (
+            <>
+              <button type="button" className="trait-info-term" data-testid="trait-info-term"
+                onClick={e => { e.stopPropagation(); setTermOpen(o => !o) }}>{subtitle}</button>
+              {termOpen && <div className="trait-info-term-def" data-testid="trait-info-term-def">{term.description}</div>}
+            </>
+          )
+          : <div className="trait-info-term trait-info-term--plain">{subtitle}</div>
+      )}
       <div className="trait-info-level-current">Level {slotLevel}</div>
       <ul className="trait-info-effects">
         {effects.map((line, i) =>
