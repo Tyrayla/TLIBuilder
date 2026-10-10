@@ -864,6 +864,10 @@ export interface HitFormResult {
   // every use, a "burst" form once per RESET cycle. hits_per_fire = projectiles/blades per occurrence.
   fires_per_sec: number
   hits_per_fire: number
+  base_cast_time: number
+  base_cooldown: number
+  effective_cast_time: number
+  effective_cooldown: number
   shotgun_falloff: number   // same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
   shotgun_mult: number      // total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
   base_min_by_type: Record<string, number>   // this form's intrinsic base (multi-form spells)

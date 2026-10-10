@@ -18,6 +18,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         growth_stage, nyi_offense, spirit_magi_growth, spirit_magi_physique_inc, spirit_magi_skill_area_inc,
     )
     from engine.skill_resolver import _parse_cast_time
+    from engine.offense import TARGET_ENEMY_COUNT_WEIGHT
 
     by_role = {}
     for ability in owner.get("minion_skills") or []:
@@ -46,7 +47,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         base_cd = _parse_cast_time(empower.get("cooldown", "")) or 0.0
         cooldown = base_cd / (1.0 + source.total("minion_cdr_speed_inc")) if base_cd > 0 else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
-        boss = float((condition_state or {}).get("enemy_count_weight", 1.0) or 0.0) == 5.0
+        enemy_weight = float((condition_state or {}).get("enemy_count_weight") or TARGET_ENEMY_COUNT_WEIGHT)
+        boss = enemy_weight == TARGET_ENEMY_COUNT_WEIGHT
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional") + (1.20 if boss and stage >= 4 else 0.0)
         erosion_buff = 0.20 * empower_effect * empower_uptime
         # All Erosion Magus hits are Erosion after intrinsic conversion, so the generic minion
@@ -65,9 +67,11 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
 
     results = []
     empower_base_time = _parse_cast_time(empower.get("cast_speed", "")) if empower else 0.0
-    harvest_time_linked = any("harvest time" in " ".join(str(value or "")
-                                                            for value in (entry.label, entry.source_name, entry.text)).lower()
-                              for entry in source.source_log)
+    harvest_time_linked = any(
+        entry.source_type == "support"
+        and any(str(value or "").strip().casefold() == "harvest time"
+                for value in (entry.label, entry.source_name))
+        for entry in source.source_log)
     empower_time = 0.0 if harvest_time_linked else empower_base_time
     cast_slot_factor = max(0.0, 1.0 - 0.5 * empower_time / cooldown) if empower_time and cooldown > 0 else 1.0
     base = by_role.get("Base")
@@ -75,13 +79,13 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     if base:
         results.append(calculate_minion_offense(
             working, base, base_stats, level, count, rate_multiplier=(1.0 - chance) * cast_slot_factor,
-            intrinsic_convert={"physical": {"erosion": 1.0}}))
+            intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if enhanced:
         spikes = 2 + (empower_uptime if stage >= 4 else 0.0)  # Extra Stage 4 spike is active only during Empower.
         results.append(calculate_minion_offense(
             working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
             shotgun_hits=spikes, shotgun_falloff=0.0,
-            intrinsic_convert={"physical": {"erosion": 1.0}}))
+            intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if empower:
         result = nyi_offense(empower, level)
         result.nyi = ["Withering Payback is modeled as a buff at its duration/cooldown uptime; its damage-triggered cast is intentionally ignored."]
@@ -107,15 +111,16 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
                 text="Withering Payback: +50% additional Ultimate Damage at Growth Stage 4+"))
         result = calculate_minion_offense(
             ultimate_source, ultimate, base_stats, level, count, rate_multiplier=0.0,
-            intrinsic_convert={"physical": {"erosion": 1.0}})
-        ultimate_form = result.hit_forms[0]
-        cast_speed = ((1.0 + ultimate_source.total("minion_cast_speed_inc"))
-                      * _speed_add_product(ultimate_source, "minion_cast_speed_additional")
-                      * _speed_add_product(ultimate_source, "minion_ultimate_cast_speed_additional"))
-        ultimate_form.effective_cast_time = ultimate_form.base_cast_time / max(cast_speed, 1e-9)
-        cdr = (ultimate_source.total("minion_cdr_speed_inc")
-               + ultimate_source.total("spirit_magi_cdr_speed_inc"))
-        ultimate_form.effective_cooldown = ultimate_form.base_cooldown / max(1.0 + cdr, 1e-9)
+            intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True)
+        if result.hit_forms:
+            ultimate_form = result.hit_forms[0]
+            cast_speed = ((1.0 + ultimate_source.total("minion_cast_speed_inc"))
+                          * _speed_add_product(ultimate_source, "minion_cast_speed_additional")
+                          * _speed_add_product(ultimate_source, "minion_ultimate_cast_speed_additional"))
+            ultimate_form.effective_cast_time = ultimate_form.base_cast_time / max(cast_speed, 1e-9)
+            cdr = (ultimate_source.total("minion_cdr_speed_inc")
+                   + ultimate_source.total("spirit_magi_cdr_speed_inc"))
+            ultimate_form.effective_cooldown = ultimate_form.base_cooldown / max(1.0 + cdr, 1e-9)
         result.nyi = ["Per-cast Ultimate form only. It is excluded from default DPS until a selecting Iris trait or trigger dispatcher consumes it."]
         results.append(result)
 

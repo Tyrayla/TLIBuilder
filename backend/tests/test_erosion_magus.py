@@ -55,6 +55,7 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     source.add("minion_erosion_dmg_inc", 0.50)
     source.add("minion_dmg_additional", 0.10)
     source.add("minion_physical_dmg_additional", 0.20)
+    source.add("minion_at_center_dmg_additional", 0.25)
     result = MINION_MODULES[owner["item_id"]](
         source, owner, season_manager.load_minion_base_stats("SS14"), 1, 1,
         condition_state={"enemy_count_weight": 1.0})
@@ -63,8 +64,8 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     # Native Erosion and converted Physical packets retain their own conversion-path modifiers.
     # Physical has both Physical and Erosion bonuses after the owner conversion; shared bonuses apply once.
     withering_additional = 1.0 + (0.20 * 0.60)
-    native_erosion = 10.0 * 1.08 * 1.6 * 1.1 * withering_additional
-    converted_physical = 100.0 * 1.08 * 1.8 * 1.1 * 1.2 * withering_additional
+    native_erosion = 10.0 * 1.08 * 1.6 * 1.1 * withering_additional * 1.25
+    converted_physical = 100.0 * 1.08 * 1.8 * 1.1 * 1.2 * withering_additional * 1.25
     assert forms["Bleak Grass"].avg_hit_pre_crit == pytest.approx(native_erosion + converted_physical)
     assert forms["Bleak Grass"].hits_per_fire == 2  # spike + explosion; full damage, zero falloff.
     assert forms["Bleak Grass"].shotgun_mult == pytest.approx(2.0)
@@ -91,7 +92,10 @@ def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
     stage4_source = BuildSource()
     stage4_source.add("spirit_magi_initial_growth_flat", 300.0)
     stage4 = module(stage4_source, owner, base_stats, 20, 1, condition_state={"enemy_count_weight": 5.0})
+    stage4_default_enemy = module(stage4_source, owner, base_stats, 20, 1)
     assert stage4.minion_empower["empower_effect"] == pytest.approx(2.2)
+    # The existing calc target defaults to Boss (weight 5).
+    assert stage4_default_enemy.minion_empower["empower_effect"] == pytest.approx(2.2)
     assert stage4.minion_empower["buffs"][0]["value"] == pytest.approx(0.20 * 2.2 * 0.6)
     assert _forms(stage4)["Bleak Grass"].hits_per_fire == pytest.approx(2.6)  # Extra spike only during 60% Empower uptime.
 
@@ -123,3 +127,20 @@ def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():
     ultimate = _forms(result)["World of Thorns"]
     assert ultimate.effective_cooldown == pytest.approx(8.0 / 1.5)
     assert ultimate.fires_per_sec == 0.0
+
+
+def test_growth_stage_four_ultimate_bonus_and_stage_five_damage_pool():
+    import engine.minion_effects  # noqa: F401 -- populate MINION_MODULES
+
+    owner = _owner()
+    base_stats = season_manager.load_minion_base_stats("SS14")
+    module = MINION_MODULES[owner["item_id"]]
+    stage4 = BuildSource()
+    stage4.add("spirit_magi_initial_growth_flat", 300.0)
+    stage4_boss = module(stage4, owner, base_stats, 20, 1, condition_state={"enemy_count_weight": 5.0})
+    assert _forms(stage4_boss)["World of Thorns"].avg_hit_pre_crit == pytest.approx(6894.0 * 1.264 * 1.66)
+
+    stage5 = BuildSource()
+    stage5.add("spirit_magi_initial_growth_flat", 400.0)
+    result = module(stage5, owner, base_stats, 20, 1, condition_state={"enemy_count_weight": 1.0})
+    assert _forms(result)["Scattered Mud"].avg_hit_pre_crit == pytest.approx(300.0 * 1.50 * 1.12)

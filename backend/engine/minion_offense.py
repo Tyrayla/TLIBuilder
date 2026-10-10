@@ -352,7 +352,8 @@ def spirit_magi_skill_area_inc(stage: int) -> float:
     return stage * 0.10
 
 
-def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool, is_spell: bool) -> float:
+def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool, is_spell: bool,
+                       *, include_generic: bool = True) -> float:
     """Per-affix additional product for minion damage. `generic_only`=True → only stats with NO damage-type tag
     (the 'all types' factor); False → the full product applicable to `dtype_tag` (generic + type-specific). A
     `spell`/`attack`-tagged stat is included only when it matches the ability's category (`is_spell`)."""
@@ -366,6 +367,8 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
         if not _skill_type_ok(tags, is_spell):
             continue
         if generic_only and _has_dtype_tags(tags):
+            continue
+        if not generic_only and not include_generic and not _has_dtype_tags(tags):
             continue
         if not generic_only and not _applies(tags, dtype_tag):
             continue
@@ -385,6 +388,8 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
         if not _skill_type_ok(tags, is_spell):
             continue
         if generic_only and _has_dtype_tags(tags):
+            continue
+        if not generic_only and not include_generic and not _has_dtype_tags(tags):
             continue
         if not generic_only and not _applies(tags, dtype_tag):
             continue
@@ -524,6 +529,7 @@ def calculate_minion_offense(
     penetrates: bool = False,
     added_damage_effectiveness: float | None = None,
     intrinsic_convert: dict[str, dict[str, float]] | None = None,
+    apply_cooldown_recovery_to_rate: bool = False,
 ) -> OffenseResult:
     """Compute ONE minion ability's DPS as a full `OffenseResult` (so the frontend reuses the player panels).
     A BUILDING BLOCK for bespoke minion modules — NOT called for unmodelled minions (compute stubs those NYI).
@@ -619,7 +625,6 @@ def calculate_minion_offense(
     if conversion_active:
         # Use the same conversion priority, cap, and path bonuses as player hit damage.
         from engine.offense import _conversion_fracs, _apply_conversion
-        from engine.modifier_lines import pool_identity
         convert, adds = _conversion_fracs(source, intrinsic_convert)
         path_inc_cache: dict[frozenset[str], float] = {}
         path_add_cache: dict[frozenset[str], float] = {}
@@ -632,30 +637,8 @@ def calculate_minion_offense(
         def path_add(path_tags):
             if path_tags in path_add_cache:
                 return path_add_cache[path_tags]
-            pos: dict[tuple[str, str], float] = defaultdict(float)
-            neg: list[float] = []
-            tracked: dict[str, float] = defaultdict(float)
-            for entry in source.source_log:
-                stat = entry.stat
-                tags = _MINION_ADDITIONAL_TAGS.get(stat, frozenset())
-                if not (tags & _DTYPE_TAG_SET & path_tags) or not _skill_type_ok(tags, is_spell):
-                    continue
-                ident = (stat, pool_identity(entry, getattr(source, "identity_index", None)))
-                if entry.amount < 0:
-                    neg.append(entry.amount)
-                else:
-                    pos[ident] += entry.amount
-                tracked[stat] += entry.amount
-            product = 1.0
-            for amount in pos.values():
-                product *= 1.0 + amount
-            for amount in neg:
-                product *= 1.0 + amount
-            for key, tags in _MINION_ADDITIONAL_STATS:
-                if (tags & _DTYPE_TAG_SET & path_tags) and _skill_type_ok(tags, is_spell):
-                    remainder = sum(v for stat, v in source._entries if stat == key) - tracked.get(key, 0.0)
-                    if abs(remainder) > 1e-12:
-                        product *= 1.0 + remainder
+            product = _minion_additional(source, path_tags, generic_only=False, is_spell=is_spell,
+                                         include_generic=False)
             path_add_cache[path_tags] = product
             return product
         converted_min = _apply_conversion({t: (v, v) for t, v in flat_min.items()}, path_inc, path_add,
@@ -706,7 +689,8 @@ def calculate_minion_offense(
     cdr = source.total("minion_cdr_speed_inc")
     effective_cooldown = cooldown / max(1.0 + cdr, 1e-9) if cooldown > 0 else 0.0
     if cooldown > 0:
-        rate = min(rate, 1.0 / effective_cooldown) if rate > 0 else 1.0 / effective_cooldown
+        rate_cooldown = effective_cooldown if apply_cooldown_recovery_to_rate else cooldown
+        rate = min(rate, 1.0 / rate_cooldown) if rate > 0 else 1.0 / rate_cooldown
     rate *= max(0.0, rate_multiplier)   # Base/Enhanced share split (a bespoke module passes 1−chance / chance)
 
     # Same-target Shotgun (Enhanced-only): N projectiles converge on one enemy; each extra hit deals (1−falloff).

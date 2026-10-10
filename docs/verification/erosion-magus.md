@@ -4,12 +4,12 @@
 # Erosion Magus (Spirit Magus)
 
 - **Status:** ⚠️ Unverified
-- **Skills affected:** Summon Erosion Magus, Scattered Mud, Bleak Grass, Withering Payback, World of Thorns
+- **Skills affected:** Summon Erosion Magus, Scattered Mud, Bleak Grass, Withering Payback, World of Thorns, Harvest Time
 - **Mechanic tags:** minion, spirit-magus, erosion, conversion, uptime, shotgun
 
 ## Derived / confirmed formula
 
-Scattered Mud and Bleak Grass share the Base cast rate, split by Enhanced replacement chance. Bleak Grass delivers its spike and explosion at full damage. Withering Payback contributes its +20% additional Erosion Damage buff at effective duration/cooldown uptime. World of Thorns is retained as one per-cast hit form and excluded from default DPS until a selecting trait/dispatcher consumes it. Physical damage converts to Erosion through the player conversion cascade.
+Scattered Mud and Bleak Grass share the Base cast rate, split by Enhanced replacement chance. Bleak Grass delivers its spike and explosion at full damage; the Stage 4 extra spike is weighted by Withering Payback uptime. Withering Payback contributes its +20% additional Erosion Damage buff at effective duration/cooldown uptime. Harvest Time preparation makes Empower instant. World of Thorns is retained as one per-cast hit form and excluded from default DPS until a selecting trait/dispatcher consumes it. Physical damage converts to Erosion through the player conversion cascade.
 
 ## Notes / caveats / open questions
 
