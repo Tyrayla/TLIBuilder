@@ -4,12 +4,18 @@ Ability coefficients and timing come from the current canonical SS13 skill data.
 Growth stages and shared Spirit Magus pools use the helpers in minion_offense.
 """
 from dataclasses import replace
+from math import floor
 
 from engine.models import SourceEntry
 
 OWNER_ID = "summon_rock_magus"
 
 _ROLE_TAGS = {"base skill": "Base", "enhanced skill": "Enhanced", "empower": "Empower", "ultimate": "Ultimate"}
+
+
+def _whole_attack_speed_percent_steps(attack_speed_inc: float) -> int:
+    # Whole percentage points only; compensate for binary representations such as 0.29 * 100.
+    return floor(max(0.0, attack_speed_inc) * 100.0 + 1e-9)
 
 
 def _role(ability: dict) -> str:
@@ -59,8 +65,8 @@ def handler(source, owner, base_stats, level, count):
     if stage >= 5:
         add("minion_dmg_additional", 0.50, "Growth Stage 5: +50% additional damage")
 
-    # Iris selects one skill at a time for merged Magi. Their separate per-cast forms do not
-    # assume that this Magus also casts Gold Rush as part of its unmerged rotation.
+    # Iris-selected skills do not run the Magus's normal Empower rotation, so per-cast
+    # values use the persistent Spirit Magus stats before Gold Rush uptime is folded in.
     cast_source = replace(buffed, _entries=list(buffed._entries), source_log=list(buffed.source_log))
 
     empower = abilities.get("Empower")
@@ -144,6 +150,9 @@ def handler(source, owner, base_stats, level, count):
         ))
     if enhanced:
         enhanced_source = replace(cast_source, _entries=list(cast_source._entries), source_log=list(cast_source.source_log))
+        enhanced_rotation_source = replace(
+            buffed, _entries=list(buffed._entries), source_log=list(buffed.source_log),
+        )
         if stage >= 3:
             # Rock Blast's per-enemy damage uses the same weighted enemy count as Gold Rush.
             per_enemy = min(8.0, enemy_weight())
@@ -152,11 +161,16 @@ def handler(source, owner, base_stats, level, count):
                 source_type="minion", label="Rock Blast", source_name="Rock Blast",
                 text=f"Rock Blast: +3.5% additional damage per enemy within 8 m × {per_enemy:g}",
             ))
+            enhanced_rotation_source.add_with_source("minion_dmg_additional", 0.035 * per_enemy, SourceEntry(
+                stat="minion_dmg_additional", amount=0.035 * per_enemy,
+                source_type="minion", label="Rock Blast", source_name="Rock Blast",
+                text=f"Rock Blast: +3.5% additional damage per enemy within 8 m × {per_enemy:g}",
+            ))
         enhanced_cast = calculate_minion_offense(enhanced_source, enhanced, base_stats, level,
                                                   shotgun_hits=3, shotgun_falloff=0.0)
         record_cast("Enhanced", enhanced, enhanced_cast, source_for_cast=enhanced_source, hits=3)
         results.append(calculate_minion_offense(
-            enhanced_source, enhanced, base_stats, level,
+            enhanced_rotation_source, enhanced, base_stats, level,
             rate_multiplier=enhanced_chance * cast_slot_factor,
             shotgun_hits=3, shotgun_falloff=0.0,
         ))
@@ -197,7 +211,7 @@ def handler(source, owner, base_stats, level, count):
             text="Full Bloom: 50% of Attack Speed bonuses apply as additional Ultimate Attack Damage",
         ))
         # SS13: +0.2% Ultimate additional damage for each whole +1% increased Attack Speed.
-        attack_speed_steps = int(max(0.0, attack_speed_inc) * 100.0)
+        attack_speed_steps = _whole_attack_speed_percent_steps(attack_speed_inc)
         attack_speed_damage = attack_speed_steps * 0.002
         if attack_speed_damage:
             ultimate_source.add_with_source("minion_dmg_additional", attack_speed_damage, SourceEntry(
@@ -223,13 +237,12 @@ def handler(source, owner, base_stats, level, count):
                               if ultimate_cooldown_base and 1.0 + ultimate_cdr > 0 else 0.0)
         if conditions.get("whirlwind_tango_merged"):
             effective_cooldown = 0.0
-        ultimate_rate = (1.0 / effective_cast_time if effective_cast_time > 0 else 0.0)
-        if effective_cooldown > 0:
-            ultimate_rate = min(ultimate_rate, 1.0 / effective_cooldown)
+        ultimate_interval = max(effective_cast_time, effective_cooldown)
+        ultimate_rate = 1.0 / ultimate_interval if ultimate_interval > 0 else 0.0
         ultimate_result = calculate_minion_offense(
             ultimate_source, ultimate, base_stats, level, 1, shotgun_hits=2, shotgun_falloff=0.0,
         )
-        if ultimate_result.hit_forms and ultimate_rate > 0:
+        if ultimate_result.hit_forms:
             per_cast = ultimate_result.hit_forms[0]
             ultimate_summary = {
                 "name": ability_label(ultimate),
@@ -244,8 +257,11 @@ def handler(source, owner, base_stats, level, count):
                 "casts_per_second": ultimate_rate,
                 "included_in_default_dps": False,
             }
-        record_cast("Ultimate", ultimate, ultimate_result, source_for_cast=ultimate_source, hits=2)
-        if ultimate_summary is not None:
+        # Keep the exposed form's rate and cooldown identical to the Ultimate summary,
+        # including the zero-rate case and Whirlwind Tango's zero cooldown.
+        if ultimate_summary is None:
+            record_cast("Ultimate", ultimate, ultimate_result, source_for_cast=ultimate_source, hits=2)
+        else:
             skill_casts["ultimate"] = {**ultimate_summary, "role": "Ultimate"}
         ultimate_form = nyi_offense(ultimate, level)
         ultimate_form.nyi = ["Towering Mountains per-cast damage is shown separately. "

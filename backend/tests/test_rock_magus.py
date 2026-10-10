@@ -143,3 +143,25 @@ def test_gold_rush_stage_four_boss_uses_existing_enemy_selector_for_empower_effe
     )
     assert result.minion_empower["empower_effect"] == pytest.approx(2.2)
     assert result.minion_empower["uptime"] == pytest.approx(0.6)
+    # Gold Rush: 6% × 5 enemies × 2.2 Empower Effect × 60% uptime = a 1.396 damage multiplier.
+    # It multiplies Rock Blast's independently applied Stage 3+ per-enemy bonus.
+    enhanced = next(form for form in result.hit_forms if form.name == "Rock Blast (Enhanced)")
+    no_empower_owner = _owner()
+    no_empower_owner["minion_skills"] = [s for s in no_empower_owner["minion_skills"] if s["name"] != "Gold Rush"]
+    no_empower = MINION_MODULES["summon_rock_magus"](
+        source, no_empower_owner, {"base_damage_by_level": {"1": 10}}, 1, 1,
+    )
+    enhanced_without_gold_rush = next(f for f in no_empower.hit_forms if f.name == "Rock Blast (Enhanced)")
+    assert enhanced.avg_hit_with_crit / enhanced_without_gold_rush.avg_hit_with_crit == pytest.approx(
+        1.396,
+    )
+
+
+def test_rock_magus_towering_mount_whole_attack_speed_step_avoids_float_truncation():
+    from engine.minion_effects.rock_magus import _whole_attack_speed_percent_steps
+
+    # Towering Mountains counts whole increased Attack Speed points; 0.29 is 29 steps
+    # despite its binary float product being represented just below 29 on some platforms.
+    assert _whole_attack_speed_percent_steps(0.29) == 29
+    assert _whole_attack_speed_percent_steps(0.299) == 29
+    assert _whole_attack_speed_percent_steps(0.30) == 30
