@@ -3,7 +3,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import {
   api, PactSpirit, PactSpiritSlot, iconUrl,
   FateCatalog, FateCatalogItem, InstalledFate, UndeterminedFate,
-  FATE_MICRO_LIMIT, FATE_MEDIUM_LIMIT, fateRanges,
+  FATE_MICRO_LIMIT, FATE_MEDIUM_LIMIT, fateRanges, fateRangeRegex,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import EditableRollValue from '../components/EditableRollValue'
@@ -130,7 +130,7 @@ function FatePicker({ tier, pool, installed, microCount, medCount, dualCounts, i
             const ranges = fateRanges(installed.effectText)
             if (ranges.length === 0) return null
             const vals = installed.rolledValues ?? []
-            const re = /\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g
+            const re = fateRangeRegex()
             const parts: React.ReactNode[] = []
             let last = 0, i = 0, m: RegExpExecArray | null
             while ((m = re.exec(installed.effectText))) {

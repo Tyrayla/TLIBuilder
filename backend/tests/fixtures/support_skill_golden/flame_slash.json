@@ -143,6 +143,7 @@
     "fire_taken_as_physical_inc",
     "flame_slash_return_hits_flat",
     "flame_slash_torrent_count_flat",
+    "flame_slash_torrent_hits_flat",
     "hit_curse_taken",
     "hit_dmg_additional",
     "hit_dmg_taken_additional",
@@ -538,8 +539,6 @@
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
-      "dmg_max_additional",
-      "dmg_min_additional",
       "attack_dmg_additional",
       "melee_dmg_additional",
       "area_dmg_additional",
@@ -734,8 +733,6 @@
       "cold": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "melee_dmg_additional",
         "area_dmg_additional",
@@ -746,8 +743,6 @@
       "erosion": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "melee_dmg_additional",
         "area_dmg_additional",
@@ -757,8 +752,6 @@
       "fire": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "melee_dmg_additional",
         "area_dmg_additional",
@@ -769,8 +762,6 @@
       "lightning": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "melee_dmg_additional",
         "area_dmg_additional",
@@ -781,14 +772,10 @@
       "physical": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "melee_dmg_additional",
         "area_dmg_additional",
         "physical_dmg_additional",
-        "physical_dmg_min_additional",
-        "physical_dmg_max_additional",
         "at_center_dmg_additional"
       ]
     },
@@ -1094,8 +1081,6 @@
       "generic_add_keys": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "melee_dmg_additional",
         "area_dmg_additional",
@@ -1290,8 +1275,6 @@
         "cold": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "melee_dmg_additional",
           "area_dmg_additional",
@@ -1302,8 +1285,6 @@
         "erosion": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "melee_dmg_additional",
           "area_dmg_additional",
@@ -1313,8 +1294,6 @@
         "fire": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "melee_dmg_additional",
           "area_dmg_additional",
@@ -1325,8 +1304,6 @@
         "lightning": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "melee_dmg_additional",
           "area_dmg_additional",
@@ -1337,14 +1314,10 @@
         "physical": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "melee_dmg_additional",
           "area_dmg_additional",
           "physical_dmg_additional",
-          "physical_dmg_min_additional",
-          "physical_dmg_max_additional",
           "at_center_dmg_additional"
         ]
       },

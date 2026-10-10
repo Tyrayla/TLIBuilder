@@ -545,8 +545,6 @@
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
-      "dmg_max_additional",
-      "dmg_min_additional",
       "attack_dmg_additional",
       "projectile_dmg_additional",
       "channeled_dmg_additional",
@@ -715,8 +713,6 @@
       "fire": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "projectile_dmg_additional",
         "fire_dmg_additional",
@@ -727,8 +723,6 @@
       "lightning": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "projectile_dmg_additional",
         "lightning_dmg_additional",
@@ -739,13 +733,9 @@
       "physical": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "projectile_dmg_additional",
         "physical_dmg_additional",
-        "physical_dmg_min_additional",
-        "physical_dmg_max_additional",
         "channeled_dmg_additional",
         "at_center_dmg_additional"
       ]
@@ -1040,8 +1030,6 @@
       "generic_add_keys": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "attack_dmg_additional",
         "projectile_dmg_additional",
         "channeled_dmg_additional",
@@ -1210,8 +1198,6 @@
         "fire": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "projectile_dmg_additional",
           "fire_dmg_additional",
@@ -1222,8 +1208,6 @@
         "lightning": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "projectile_dmg_additional",
           "lightning_dmg_additional",
@@ -1234,13 +1218,9 @@
         "physical": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "attack_dmg_additional",
           "projectile_dmg_additional",
           "physical_dmg_additional",
-          "physical_dmg_min_additional",
-          "physical_dmg_max_additional",
           "channeled_dmg_additional",
           "at_center_dmg_additional"
         ]
