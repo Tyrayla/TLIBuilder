@@ -1256,6 +1256,7 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        "main_skill_slot": result.main_skill_slot,
         "numbed": result.numbed,
         # Per-blessing summary (stacks/max/effects) for the Blessings panel.
         "blessings": result.blessings,

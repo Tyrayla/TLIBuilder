@@ -155,8 +155,9 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     base = abilities.get("Base")
     enhanced = abilities.get("Enhanced")
     if base:
-        base_cast_result = calculate_minion_offense(cast_source, base, base_stats, level, count)
-        skill_forms["base skill"] = base_cast_result
+        base_cast_result = calculate_minion_offense(cast_source, base, base_stats, level)
+        # Keep the reusable merged template per Magus; `record_cast` and normal DPS stay per-cast/count-safe.
+        skill_forms["base skill"] = calculate_minion_offense(cast_source, base, base_stats, level, 1)
         record_cast("Base", base, base_cast_result, source_for_cast=cast_source)
         results.append(calculate_minion_offense(
             buffed, base, base_stats, level,
@@ -183,7 +184,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         enhanced_cast = calculate_minion_offense(enhanced_source, enhanced, base_stats, level,
                                                   shotgun_hits=3, shotgun_falloff=0.0)
         enhanced_merged_cast = calculate_minion_offense(
-            enhanced_rotation_source, enhanced, base_stats, level, count,
+            enhanced_rotation_source, enhanced, base_stats, level, 1,
             shotgun_hits=3, shotgun_falloff=0.0,
         )
         skill_forms["enhanced skill"] = enhanced_merged_cast

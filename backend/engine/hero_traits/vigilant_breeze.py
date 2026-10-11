@@ -196,14 +196,15 @@ def normalize_selected_skill_role(selected_skill):
 
 
 def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100.0, ultimate_cooldown_zero=False,
-                            life_cost_pct_max_per_cast=0.0, breeze_per_cast=0):
+                            life_cost_pct_max_per_cast=0.0, breeze_per_cast=0,
+                            enhanced_chance_override=None, enhanced_rate_multiplier=1.0):
     """Resolve one selected role to each Magus's matching ability and cast rate, without computing damage.
 
     Ultimate damage is intentionally not included in the default minion total. A later
     Magus module can call this contract and consume its own skill formula.
     """
     from engine.minion_offense import (
-        _MINION_SPEED_INC, _MINION_SPEED_ADD, _parse_cast_time, _speed_add_product, growth_stage,
+        _MINION_SPEED_INC, _MINION_SPEED_ADD, _parse_cast_time, _speed_add_product,
     )
 
     role = normalize_selected_skill_role(selected_skill)
@@ -246,17 +247,17 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
     enhanced_chance = 0.0
     if role == "base skill":
         enhanced = find_skill("enhanced skill")
-        enhanced_chance = source.total("spirit_magi_enhanced_skill_chance")
-        if growth_stage(float(growth)) >= 2:
-            enhanced_chance += 0.30
+        enhanced_chance = (source.total("spirit_magi_enhanced_skill_chance")
+                           if enhanced_chance_override is None else float(enhanced_chance_override))
         enhanced_chance = max(0.0, min(1.0, enhanced_chance))
+        enhanced_rate_multiplier = max(0.0, float(enhanced_rate_multiplier or 0.0))
         # Owner ruling: Enhanced REPLACES an individual Base cast, so its share uses the Base cadence;
         # Enhanced's own cast-time/cooldown schedule does not create a separate rotation.
         skill_forms = [
             {"role": "base skill", "skill_name": resolved.get("name"),
              "casts_per_second": rate * (1.0 - enhanced_chance)},
             {"role": "enhanced skill", "skill_name": enhanced.get("name") if enhanced else None,
-             "casts_per_second": rate * enhanced_chance if enhanced else 0.0},
+             "casts_per_second": rate * enhanced_chance * enhanced_rate_multiplier if enhanced else 0.0},
         ]
     else:
         skill_forms = [{"role": "ultimate", "skill_name": resolved.get("name"),
@@ -271,7 +272,10 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
             "casts_per_second": rate, "casts_per_second_before_cooldown": rate_before_cooldown,
             "damage_in_default_total": False,
             "enhanced_chance": enhanced_chance, "skill_forms": skill_forms,
-            "enhanced_casts_per_second": (rate * enhanced_chance if role == "base skill" and enhanced else 0.0),
+            "enhanced_rate_multiplier": (float(enhanced_rate_multiplier or 1.0)
+                                         if role == "base skill" else 1.0),
+            "enhanced_casts_per_second": (rate * enhanced_chance * enhanced_rate_multiplier
+                                           if role == "base skill" and enhanced else 0.0),
             "ultimate_damage_pools": ultimate_damage_pools,
             "life_cost_pct_max_per_cast": float(life_cost_pct_max_per_cast),
             "breeze_per_cast": int(breeze_per_cast)}
@@ -357,10 +361,12 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
     dispatch["casts_per_second"] = min(uncapped_rate * rate_multiplier, cooldown_cap)
     if dispatch.get("role") == "base skill":
         chance = float(dispatch.get("enhanced_chance", 0.0) or 0.0)
-        dispatch["enhanced_casts_per_second"] = dispatch["casts_per_second"] * chance
+        enhanced_rate_multiplier = float(dispatch.get("enhanced_rate_multiplier", 1.0) or 1.0)
+        dispatch["enhanced_casts_per_second"] = dispatch["casts_per_second"] * chance * enhanced_rate_multiplier
         for form in dispatch.get("skill_forms", ()):
             form_chance = chance if form.get("role") == "enhanced skill" else 1.0 - chance
-            form["casts_per_second"] = dispatch["casts_per_second"] * form_chance
+            form["casts_per_second"] = dispatch["casts_per_second"] * form_chance * (
+                enhanced_rate_multiplier if form.get("role") == "enhanced skill" else 1.0)
     else:
         for form in dispatch.get("skill_forms", ()):
             form["casts_per_second"] = dispatch["casts_per_second"]
@@ -369,12 +375,15 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
 
 def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled, minion_skills,
                              source, growth, minion_result, ultimate_cooldown_zero=False,
-                             life_cost_pct_max_per_cast=0.0, breeze_per_cast=0):
+                             life_cost_pct_max_per_cast=0.0, breeze_per_cast=0,
+                             enhanced_chance=None):
     """Build a merged Magus rotation from the Base, Ultimate, and Empower checkboxes."""
     rotations = []
     if base_enabled:
         rotations.append(selected_skill_contract(
             selected_skill="Base Skill", minion_skills=minion_skills, source=source, growth=growth,
+            enhanced_chance_override=enhanced_chance,
+            enhanced_rate_multiplier=getattr(minion_result, "minion_enhanced_rate_multiplier", 1.0),
         ))
     if ultimate_enabled:
         rotations.append(selected_skill_contract(
@@ -432,24 +441,27 @@ def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled,
         base["enhanced_casts_per_second"] = base_rate * chance
         for form in base.get("skill_forms", ()):
             form["casts_per_second"] = base_rate * (
-                chance if form.get("role") == "enhanced skill" else 1.0 - chance)
+                chance * float(base.get("enhanced_rate_multiplier", 1.0) or 1.0)
+                if form.get("role") == "enhanced skill" else 1.0 - chance)
 
     skill_forms = [form for rotation in rotations for form in rotation.get("skill_forms", ())]
-    total_rate = sum(float(r.get("casts_per_second", 0.0) or 0.0) for r in rotations)
-    empower_data = (rotations[0] if rotations else {})
-    if not rotations and empower_enabled:
-        empower_data = getattr(minion_result, "minion_empower", None) or {}
-        empower_cooldown = float(empower_data.get("cooldown", 0.0) or 0.0)
+    total_rate = sum(float(form.get("casts_per_second", 0.0) or 0.0)
+                     for rotation in rotations for form in rotation.get("skill_forms", ()))
+    empower_data = next((rotation for rotation in rotations if rotation.get("available")), None)
+    if empower_data is None and empower_enabled:
+        raw_empower = getattr(minion_result, "minion_empower", None) or {}
+        empower_cooldown = float(raw_empower.get("cooldown", 0.0) or 0.0)
         empower_data = {
             "empower_enabled": True,
-            "empower_uptime": float(empower_data.get("uptime", 0.0) or 0.0),
+            "empower_uptime": float(raw_empower.get("uptime", 0.0) or 0.0),
             "empower_cooldown": empower_cooldown,
             "empower_casts_per_second": 1.0 / empower_cooldown if empower_cooldown > 0 else 0.0,
-            "empower_cast_slot_status": "working" if empower_cooldown > 0 else "NYI",
-            "empower_cast_slot_factor": 1.0,
-            "empower_buffs": empower_data.get("buffs", []),
+            "empower_cast_slot_status": "working" if raw_empower.get("cast_slot_factor") is not None
+            else "NYI",
+            "empower_cast_slot_factor": float(raw_empower.get("cast_slot_factor", 1.0) or 0.0),
+            "empower_buffs": raw_empower.get("buffs", []),
         }
-    elif not rotations:
+    elif empower_data is None:
         empower_data = {"empower_enabled": False, "empower_cast_slot_status": "disabled",
                         "empower_cast_slot_factor": 1.0, "empower_casts_per_second": 0.0,
                         "empower_uptime": 0.0, "empower_buffs": []}

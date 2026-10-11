@@ -467,6 +467,30 @@ def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
     assert adjusted["casts_per_second"] == pytest.approx(0.5)
 
 
+def test_merged_rotation_reads_empower_data_from_first_available_skill():
+    unavailable_base = {"name": "Unparsed Base", "cast_speed": "", "cooldown": "0 s",
+                        "skill_tags": ["Base Skill", "Attack"]}
+    available_ultimate = {"name": "Towering Mountains", "cast_speed": "2 s", "cooldown": "8 s",
+                          "skill_tags": ["Ultimate", "Attack"]}
+    minion_result = SimpleNamespace(
+        minion_empower={"uptime": 0.6, "empower_effect": 1.2, "cooldown": 5.0,
+                        "cast_slot_factor": 0.9, "buffs": []},
+        minion_skill_casts={"empower": {"base_cast_time": 0.5, "cooldown": 5.0}},
+    )
+
+    rotation = vb.merged_rotation_contract(
+        base_enabled=True, ultimate_enabled=True, empower_enabled=True,
+        minion_skills=[unavailable_base, available_ultimate], source=BuildSource(),
+        growth=100, minion_result=minion_result,
+    )
+
+    assert rotation["rotations"][0]["available"] is False
+    assert rotation["rotations"][1]["available"] is True
+    assert rotation["empower_casts_per_second"] == pytest.approx(0.2)
+    assert rotation["empower_uptime"] == pytest.approx(0.6)
+    assert rotation["empower_cast_slot_status"] == "working"
+
+
 @pytest.mark.parametrize(("base_on", "ultimate_on", "empower_on", "expected_total",
                           "expected_base", "expected_ultimate", "expected_empower"), [
     (False, False, False, 0.0, 0.0, 0.0, 0.0),
@@ -542,7 +566,7 @@ def test_merged_base_selection_mixes_enhanced_as_a_replacement_per_cast(
     ]
 
 
-def test_merged_base_selection_adds_growth_stage_two_enhanced_chance():
+def test_merged_base_uses_module_enhanced_chance_instead_of_recomputing_growth():
     source = BuildSource()
     abilities = [
         {"name": "Base Bolt", "cast_speed": "2 s", "cooldown": "1 s",
@@ -553,11 +577,38 @@ def test_merged_base_selection_adds_growth_stage_two_enhanced_chance():
 
     contract = vb.selected_skill_contract(
         selected_skill="Base Skill", minion_skills=abilities, source=source, growth=200,
+        enhanced_chance_override=0.30,
     )
 
+    # The Magus module owns its Growth-stage chance; Iris consumes that returned value unchanged.
     assert contract["enhanced_chance"] == pytest.approx(0.30)
     assert contract["skill_forms"][0]["casts_per_second"] == pytest.approx(0.35)
     assert contract["skill_forms"][1]["casts_per_second"] == pytest.approx(0.15)
+
+
+def test_merged_thunder_base_applies_module_fast_insert_to_enhanced_rate():
+    abilities = [
+        {"name": "Base Bolt", "cast_speed": "2 s", "cooldown": "0 s",
+         "skill_tags": ["Base Skill", "Attack", "Lightning"]},
+        {"name": "Enhanced Bolt", "cast_speed": "1 s", "cooldown": "0 s",
+         "skill_tags": ["Enhanced Skill", "Attack", "Lightning"]},
+    ]
+    minion_result = SimpleNamespace(spirit_magi_enhanced_chance=0.20,
+                                     minion_enhanced_rate_multiplier=1.72)
+
+    rotation = vb.merged_rotation_contract(
+        base_enabled=True, ultimate_enabled=False, empower_enabled=False,
+        minion_skills=abilities, source=BuildSource(), growth=100,
+        minion_result=minion_result,
+        enhanced_chance=minion_result.spirit_magi_enhanced_chance,
+    )
+
+    rates = {form["role"]: form["casts_per_second"] for form in rotation["skill_forms"]}
+    # 0.5 Base opportunities/s split at p=.2; Thunder alone multiplies Enhanced by 1+.9*(1-.2)=1.72.
+    assert rates["base skill"] == pytest.approx(0.4)
+    assert rates["enhanced skill"] == pytest.approx(0.172)
+    assert rotation["enhanced_casts_per_second"] == pytest.approx(0.172)
+    assert rotation["casts_per_second"] == pytest.approx(0.572)
 
 
 def test_enhanced_is_not_a_selectable_iris_skill():
@@ -717,6 +768,7 @@ def test_rock_merged_ultimate_only_uses_towering_mountains_damage_per_cast():
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_rock_magus"]
 
     # 0.125 Ultimate casts/s × 0.625 non-Reconjuring uptime, using Towering Mountains' two full hits.
+    # Cadence x uptime x per-cast DPS: 0.125 x 0.625 x 3,674.3175 = 287.0560546875.
     assert magus["total_dps"] == pytest.approx(287.0560546875)
     assert magus["total_dps_vs_target"] == pytest.approx(143.52802734375)
     assert magus["hit_forms"][0]["name"] == "Towering Mountains (Ultimate)"
@@ -739,6 +791,7 @@ def test_erosion_merged_ultimate_and_empower_have_real_world_of_thorns_dps():
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_erosion_magus"]
 
     # World of Thorns uses its per-cast Erosion damage with one hit per target; Empower remains at 60% uptime.
+    # Cadence x uptime x uptime-averaged per-cast damage: 0.125 x 0.625 x 7,914.312 = 618.305625.
     assert magus["total_dps"] == pytest.approx(618.305625)
     assert magus["total_dps_vs_target"] == pytest.approx(302.96975625)
     assert magus["minion_empower"]["uptime"] == pytest.approx(0.6)
@@ -764,6 +817,8 @@ def test_merged_base_and_ultimate_partition_time_and_report_combined_damage():
 
     # Ultimate takes its cooldown share (0.125/s); Base fills the remaining 0.978125/s before 0.625 uptime.
     assert magus["iris_skill_dispatch"]["skill_forms"][0]["casts_per_second"] == pytest.approx(0.978125)
+    # 0.611328125 x 329.025 Base damage + 0.078125 x 3,674.3175 Ultimate damage
+    # = 201.142236328125 + 287.0560546875 = 488.19829101562505.
     assert magus["total_dps"] == pytest.approx(488.19829101562505)
     assert forms["Shattered Stone (Base)"]["fires_per_sec"] == pytest.approx(0.611328125)
     assert forms["Towering Mountains (Ultimate)"]["fires_per_sec"] == pytest.approx(0.078125)
@@ -807,13 +862,39 @@ def test_happiest_reunion_reports_damage_for_each_merged_magus():
     )
     minions = engine_stats(EngineStatsRequest(**request))["minion_offense"]
 
-    # The two Magus types plus Reunion's +1 map-cap Magus are all included in the merged count.
+    # Rock's two active Magi each deal 287.0560546875 DPS; Reunion's shared extra Magus is assigned to Erosion.
     assert minions["summon_rock_magus"]["vigilant_merged"] is True
     assert minions["summon_erosion_magus"]["vigilant_merged"] is True
     assert minions["summon_rock_magus"]["iris_merged_magi_count"] == 3
     assert minions["summon_erosion_magus"]["iris_merged_magi_count"] == 3
-    assert minions["summon_rock_magus"]["total_dps"] == pytest.approx(257.17751321790087)
+    assert minions["summon_rock_magus"]["total_dps"] == pytest.approx(514.3550264358017)
     assert minions["summon_erosion_magus"]["total_dps"] == pytest.approx(494.5969749558424)
+
+
+def test_only_selected_magus_count_uses_merged_rotation_and_remainder_keeps_normal_rotation(monkeypatch):
+    import engine.compute as compute_module
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    monkeypatch.setattr(compute_module, "_minion_owner_max_count", lambda *_args: 2)
+    request = make_request(
+        "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"active_minions": 2, "vigilant_breeze_active": True,
+                          "vigilant_breeze_use_max_stacks": False, "vigilant_breeze_stacks": 0,
+                          "vigilant_breeze_spam_base": False, "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": False},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_rock_magus"]
+    forms = {form["name"]: form for form in magus["hit_forms"]}
+
+    # One merged Ultimate contributes 287.0560546875 (0.125 × 0.625 × 3674.3175); one unmerged
+    # Magus keeps 413.30475375 normal Base DPS. The remaining Magus is not folded into the merged form.
+    assert magus["total_dps"] == pytest.approx(700.3608084375)
+    assert magus["cast_multiplier"] == 2.0
+    assert forms["Towering Mountains (Ultimate)"]["dps_contribution"] == pytest.approx(287.0560546875)
+    assert forms["Unmerged: Shattered Stone (Base)"]["dps_contribution"] == pytest.approx(413.30475375)
+    assert magus["iris_merged_magi_count"] == 1
+    assert any("Merged rotation applies to 1 of 2 Magi" in note for note in magus["nyi"])
 
 
 def test_thunder_merged_ultimate_without_per_cast_form_is_explicitly_nyi():
@@ -831,6 +912,7 @@ def test_thunder_merged_ultimate_without_per_cast_form_is_explicitly_nyi():
 
     assert magus["total_dps"] == 0.0
     assert any("Thunder Magus Lightning Surge per-cast form is pending" in note for note in magus["nyi"])
+    assert any("Lightning Surge (Ultimate) only fires in Full Bloom" in note for note in magus["nyi"])
     assert magus["hit_forms"][0]["nyi"]
 
 
@@ -848,6 +930,11 @@ def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monke
         ultimate = next(skill for skill in owner["minion_skills"]
                         if "ultimate" in {str(tag).lower() for tag in skill.get("skill_tags", [])})
         per_cast = calculate_minion_offense(source, ultimate, base_stats, level, count, rate_multiplier=1.0)
+        exclusion = "Per-cast Ultimate form only. It is excluded from default DPS until a selecting Iris trait or trigger dispatcher consumes it."
+        caveat = "Synthetic per-cast module caveat remains visible."
+        per_cast.nyi = [exclusion, caveat]
+        per_cast.hit_forms[0].nyi = [exclusion, caveat]
+        per_cast.damage_rows[0].nyi = [exclusion, caveat]
         result.minion_skill_forms = {}
         result.minion_skill_casts = {
             "ultimate": {"name": ability_label(ultimate), "role": "Ultimate",
@@ -868,13 +955,27 @@ def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monke
     assert magus["total_dps"] == pytest.approx(72.310546875)
     assert magus["hit_forms"][0]["name"] == "Lightning Surge (Ultimate)"
     assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.078125)
-    assert not magus["hit_forms"][0]["nyi"]
+    assert "Synthetic per-cast module caveat remains visible." in magus["hit_forms"][0]["nyi"]
+    assert any("Synthetic per-cast module caveat remains visible." in note for note in magus["nyi"])
+    assert not any(note.startswith("Per-cast Ultimate form only") for note in magus["nyi"])
     assert not any("per-cast form is pending" in note for note in magus["nyi"])
 
 
-def test_thunder_merged_base_uses_real_damage_and_empower_checkbox_controls_buff_and_slot():
+def test_thunder_merged_base_uses_module_chance_fast_insert_and_empower_checkbox(monkeypatch):
+    from engine import minion_effects, minion_offense  # noqa: F401 - registers module handlers
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
+
+    real_handler = minion_offense.MINION_MODULES["summon_thunder_magus"]
+
+    def module_with_enhanced_chance(source, owner, base_stats, level, count, *, condition_state=None):
+        result = real_handler(source, owner, base_stats, level, count, condition_state=condition_state)
+        # Exercise the module contract at p=.20; Thunder's module computes the rate multiplier from p.
+        result.spirit_magi_enhanced_chance = 0.20
+        result.minion_enhanced_rate_multiplier = 1.72
+        return result
+
+    monkeypatch.setitem(minion_offense.MINION_MODULES, "summon_thunder_magus", module_with_enhanced_chance)
 
     def calculate(empower_enabled):
         request = make_request(
@@ -889,13 +990,18 @@ def test_thunder_merged_base_uses_real_damage_and_empower_checkbox_controls_buff
     with_empower = calculate(True)
     without_empower = calculate(False)
 
-    assert with_empower["total_dps"] == pytest.approx(654.154359375)
-    assert without_empower["total_dps"] == pytest.approx(557.34375)
+    # Empower leaves Lightning Star at 1.1737/s, split to .93896 Base and .23474 Enhanced opportunities;
+    # Thunder's p=.20 fast-insert makes Enhanced .504691/s before the 62.5% life-cycle uptime. The
+    # resulting forms are 523.3234875 + 366.64223990625 = 889.96572740625 DPS.
+    assert with_empower["total_dps"] == pytest.approx(889.9657274062499)
+    assert without_empower["total_dps"] == pytest.approx(758.2565625000001)
     assert with_empower["iris_skill_dispatch"]["empower_casts_per_second"] == pytest.approx(0.1)
     assert with_empower["iris_skill_dispatch"]["empower_cast_slot_factor"] == pytest.approx(0.97)
+    assert with_empower["iris_skill_dispatch"]["enhanced_casts_per_second"] == pytest.approx(0.504691)
     assert without_empower["iris_skill_dispatch"]["empower_casts_per_second"] == 0.0
     assert without_empower["minion_empower"] is None
     assert with_empower["hit_forms"][0]["name"] == "Lightning Star (Base)"
+    assert with_empower["hit_forms"][1]["name"] == "Thunderlight Arrow (Enhanced)"
     assert not with_empower["hit_forms"][0]["nyi"]
 
 
@@ -1028,6 +1134,23 @@ def test_duplicate_same_type_magi_are_distinguished_by_slot():
     first_selected = calculate(1)
     assert first_selected[1]["vigilant_merged"] is True
     assert first_selected[2]["vigilant_merged"] is False
+
+
+def test_engine_reports_the_actual_main_slot_for_duplicate_same_type_magi():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
+        skills=[{"slot": 2, "skill_id": "summon_rock_magus", "level": 20},
+                {"slot": 1, "skill_id": "summon_rock_magus", "level": 20}],
+    )
+    result = engine_stats(EngineStatsRequest(**request))
+
+    # The engine picks the main slot from the same skill-input order used by _owners.
+    assert result["main_skill_slot"] == 2
+    assert result["minion_offense"]["summon_rock_magus@slot2"]["vigilant_merged"] is True
+    assert result["minion_offense"]["summon_rock_magus@slot1"]["vigilant_merged"] is False
 
 
 def test_unmodeled_merged_magus_uses_rotation_checkboxes_without_crashing(monkeypatch):

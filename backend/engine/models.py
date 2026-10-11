@@ -244,6 +244,7 @@ class StatResult:
     support_slots:       list[dict] | None = None  # per-support effective-level display summaries
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
+    main_skill_slot:     int | None = None       # engine-selected active slot backing main_skill, when resolved
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     minion_offense:      dict | None = None       # {owner_id: OffenseResult dict} per slotted minion owner — ONE result whose hit_forms are the minion's damage abilities (NYI/supported=False unless the owner has a bespoke module)
     spirit_offense:      dict | None = None       # {"seething_spirit": OffenseResult dict} — Seething Silhouette's Seething Spirit, a second independent calculate_offense() on the player's own main-skill stats + its own modifiers; None unless granted

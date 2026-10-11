@@ -35,7 +35,7 @@ describe('Merged Magi Rotation in Config', () => {
     useUiPrefs.setState({ lockAutoConditions: false, collapsiblePanels: false })
     useBuildStore.setState({ conditionState: {}, traitId: 'vigilant_breeze', computedStats: {
       ...useBuildStore.getState().computedStats,
-      condition_maximums: {}, clamp_report: {}, referenced_conditions: [], auto_conditions: {},
+      condition_maximums: {}, clamp_report: {}, referenced_conditions: [], auto_conditions: {}, main_skill_slot: null,
     } as never })
   })
 
@@ -89,14 +89,15 @@ describe('Merged Magi Rotation in Config', () => {
   })
 
   it('lists Magus options by slot, defaults to the first slotted Magus, and stores the chosen slot', () => {
-    const equipped = (slot: number, item_id: string, name: string) => ({
-      slot, item_id, name, level: 20, skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
+    const equipped = (slot: number, item_id: string, name: string, enabled = true) => ({
+      slot, item_id, name, level: 20, enabled, skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
     })
     useBuildStore.setState({
       skills: [
         equipped(1, 'summon_rock_magus', 'Rock Magus'),
         equipped(2, 'summon_rock_magus', 'Rock Magus'),
         equipped(3, 'summon_erosion_magus', 'Erosion Magus'),
+        equipped(5, 'summon_rock_magus', 'Disabled Rock Magus', false),
         equipped(6, 'summon_rock_magus', 'Passive Rock Magus'),
       ] as never,
       conditionState: { vigilant_breeze_merged_slot: '9' },
@@ -143,6 +144,26 @@ describe('Merged Magi Rotation in Config', () => {
       node.findAllByType('option').some(option => option.props.children === 'Erosion Magus · Slot 4'),
     )!
     expect(select.props.value).toBe('4')
+    act(() => { view.unmount() })
+  })
+
+  it('uses the engine-selected main slot when duplicate Magi share the same item id', () => {
+    const equipped = (slot: number) => ({
+      slot, item_id: 'summon_rock_magus', name: 'Rock Magus', level: 20,
+      skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
+    })
+    useBuildStore.setState({
+      skills: [equipped(1), equipped(2)] as never,
+      mainSkill: { skill_id: 'summon_rock_magus', level: 20 } as never,
+      computedStats: { ...useBuildStore.getState().computedStats, main_skill_slot: 2 },
+      conditionState: {},
+    })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    const select = view.root.findAllByType('select').find(node =>
+      node.findAllByType('option').some(option => option.props.children === 'Rock Magus · Slot 2'),
+    )!
+    expect(select.props.value).toBe('2')
     act(() => { view.unmount() })
   })
 })

@@ -152,7 +152,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     enhanced = by_role.get("Enhanced")
     if base:
         skill_forms["base skill"] = calculate_minion_offense(
-            buffed, base, base_stats, level, count, rate_multiplier=1.0)
+            buffed, base, base_stats, level, 1, rate_multiplier=1.0)
         results.append(calculate_minion_offense(buffed, base, base_stats, level, count,
                                                  rate_multiplier=(1.0 - enh_chance) * cast_slot_factor))
     if enhanced:
@@ -186,7 +186,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
                 text=f"Thunderlight Arrow: +5% additional damage × {proj_quantity_bonus:g} Projectile Quantity",
                 source_name="Thunderlight Arrow"))
         skill_forms["enhanced skill"] = calculate_minion_offense(
-            enhanced_source, enhanced, base_stats, level, count, rate_multiplier=1.0,
+            enhanced_source, enhanced, base_stats, level, 1, rate_multiplier=1.0,
             shotgun_hits=2, shotgun_falloff=0.0)
         results.append(calculate_minion_offense(
             enhanced_source, enhanced, base_stats, level, count, rate_multiplier=enh_rate_mult,

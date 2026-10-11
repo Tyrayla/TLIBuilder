@@ -102,7 +102,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     enhanced = by_role.get("Enhanced")
     if base:
         skill_forms["base skill"] = calculate_minion_offense(
-            working, base, base_stats, level, count, rate_multiplier=1.0,
+            working, base, base_stats, level, 1, rate_multiplier=1.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True)
         results.append(calculate_minion_offense(
             working, base, base_stats, level, count,
@@ -112,7 +112,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         extra_spike_selected = bool((condition_state or {}).get("erosion_stage4_extra_spike", False))
         spikes = 2 + (empower_uptime if stage >= 4 and extra_spike_selected else 0.0)
         skill_forms["enhanced skill"] = calculate_minion_offense(
-            working, enhanced, base_stats, level, count, rate_multiplier=1.0,
+            working, enhanced, base_stats, level, 1, rate_multiplier=1.0,
             shotgun_hits=spikes, shotgun_falloff=0.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True)
         results.append(calculate_minion_offense(
@@ -170,7 +170,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             ultimate_form.nyi = list(result.nyi)
         results.append(result)
         skill_forms["ultimate"] = calculate_minion_offense(
-            ultimate_source, ultimate, base_stats, level, count, rate_multiplier=1.0,
+            ultimate_source, ultimate, base_stats, level, 1, rate_multiplier=1.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True)
 
     combined = combine_minion_forms(owner.get("name") or "Erosion Magus", results, count)

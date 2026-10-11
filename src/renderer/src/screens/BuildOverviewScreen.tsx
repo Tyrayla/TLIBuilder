@@ -217,6 +217,7 @@ export default function BuildOverviewScreen() {
   const traitId = useBuildStore(s => s.traitId)
   const equippedSkills = useBuildStore(s => s.skills)
   const mainSkill = useBuildStore(s => s.mainSkill)
+  const engineMainSkillSlot = useBuildStore(s => s.computedStats.main_skill_slot)
   const gear = useBuildStore(s => s.gear)
   // Condition keys any build mod references (stable ref — only changes when stats recompute, so no render loop).
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
@@ -392,9 +393,13 @@ export default function BuildOverviewScreen() {
           if (dynamicOpts && opts.length === 0) return null
           const stored = conditionState[cond.key]
           const mainMagusSlot = cond.options_source === 'spirit_magus_slots'
-            ? equippedSkills.find(skill => skill.item_id === mainSkill?.skill_id
-              && skill.slot >= 1 && skill.slot <= 5 && skill.enabled !== false
-              && skill.skill_tags.includes('Spirit Magus'))?.slot
+            ? (engineMainSkillSlot != null && opts.some(option => option.value === String(engineMainSkillSlot))
+              ? engineMainSkillSlot
+              : [...equippedSkills]
+                .filter(skill => skill.slot >= 1 && skill.slot <= 5 && skill.enabled !== false)
+                .sort((a, b) => a.slot - b.slot)
+                .find(skill => skill.item_id === mainSkill?.skill_id
+                  && skill.skill_tags.includes('Spirit Magus'))?.slot)
             : undefined
           const sel = typeof stored === 'string' && opts.some(option => option.value === stored)
             ? stored

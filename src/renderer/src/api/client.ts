@@ -1411,6 +1411,8 @@ export interface StatSheetResponse {
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
+  // Exact slot selected by the engine for main_skill; used to keep slot-based Magus defaults aligned.
+  main_skill_slot?: number | null
   // Per-minion-owner offense ({owner_id: OffenseResult}) for slotted minion owners (Spirit Magi / Synthetic
   // Troops / Modularization). ONE OffenseResult per owner whose hit_forms are the minion's damage abilities
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
