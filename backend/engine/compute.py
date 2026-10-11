@@ -642,7 +642,7 @@ def compute(
     _configured_active = int(condition_state.get("active_minions") or 0)
     _spirit_magi_active_capacity = _spirit_magi_base_active_count(
         skills_by_id, skills_input, build_input.main_skill, main_enabled, main_slot, _configured_active)
-    if _spirit_magi_active_capacity:
+    if build_input.trait_id == "vigilant_breeze" and _spirit_magi_active_capacity:
         _reunion_enabled = _happiest_reunion_enabled(build_input, build_input.trait_id)
         if _reunion_enabled:
             _spirit_magi_active_capacity = _spirit_magi_base_active_count(

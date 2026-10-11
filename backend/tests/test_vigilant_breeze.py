@@ -205,6 +205,10 @@ def test_merging_stream_scales_origin_for_each_magus_growth():
         "origin_of_fire_value": 100.0,
         "origin_of_ice": True,
         "origin_of_ice_value": 2.4,
+        "origin_of_rock": True,
+        "origin_of_rock_value": -10.0,
+        "origin_of_erosion": True,
+        "origin_of_erosion_value": -10.0,
     }
 
     unsupported = vb.apply_merging_stream_origins(
@@ -214,7 +218,8 @@ def test_merging_stream_scales_origin_for_each_magus_growth():
     # The grant is 100 × (1 + 20% inc) × (1 + 10% Merging Stream additional) = 132.
     assert source.total("minion_crit_rating_flat") == pytest.approx(132.0)
     assert source.total("minion_life_regen_inc") > 0
-    assert unsupported == ["energy_shield_regen_pct"]
+    assert unsupported == ["dot_dmg_taken_additional", "energy_shield_regen_pct",
+                           "hit_dmg_taken_additional"]
 
     attack_source = BuildSource()
     attack_source.add("spirit_magi_origin_effect_inc", 0.20)
@@ -548,6 +553,36 @@ def test_happiest_reunion_count_includes_gear_max_magi():
     limited = engine_stats(EngineStatsRequest(**two_magi_limited))["minion_offense"]
     # Each owner is at its configured active cap, so shared gear/Reunion capacity adds no active Magi.
     assert limited["summon_thunder_magus"]["iris_merged_magi_count"] == 2
+
+
+def test_compute_forwards_breeze_and_reunion_damage_into_magus_pools(monkeypatch):
+    from engine import minion_offense
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    real_calculate = minion_offense.calculate_minion_offense
+    observed = []
+
+    def capture_magus_source(source, *args, **kwargs):
+        observed.extend(entry for entry in source.source_log
+                        if entry.stat == "minion_dmg_additional"
+                        and ("stacks" in entry.text or "Happiest Reunion:" in entry.text))
+        return real_calculate(source, *args, **kwargs)
+
+    monkeypatch.setattr(minion_offense, "calculate_minion_offense", capture_magus_source)
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[5, 1, 5, 1],
+        advanced_trait_selections=["Happiest Reunion"],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 2, "vigilant_breeze_skill": "Ultimate"},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    assert magus["selected_skill_damage_status"] == "NYI"
+    breeze_amounts = [entry.amount for entry in observed if "stacks" in entry.text]
+    reunion_amounts = [entry.amount for entry in observed if "Happiest Reunion:" in entry.text]
+    assert breeze_amounts and all(amount == pytest.approx(0.32) for amount in breeze_amounts)
+    assert reunion_amounts and all(amount == pytest.approx(1.05**2 - 1) for amount in reunion_amounts)
 
 
 def test_missing_magus_life_data_skips_flat_regen_and_flags_nyi(monkeypatch):

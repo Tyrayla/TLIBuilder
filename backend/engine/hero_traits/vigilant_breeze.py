@@ -293,8 +293,6 @@ def apply_merging_stream_origins(*, source, condition_state, growth, magus_skill
     unsupported_targets = set()
     stat_map = {
         "life_regen_inc": "minion_life_regen_inc",
-        "hit_dmg_taken_additional": "minion_dmg_taken_additional",
-        "dot_dmg_taken_additional": "minion_dmg_taken_additional",
     }
     skill_tags = {str(tag).lower() for tag in (magus_skill_tags or [])}
     crit_targets = {
