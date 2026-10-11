@@ -82,17 +82,26 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     empower_base_time = _parse_cast_time(empower.get("cast_speed", "")) if empower else 0.0
     harvest_time_linked = bool((condition_state or {}).get("_engine_harvest_time_linked", False))
     empower_time = 0.0 if harvest_time_linked else empower_base_time
+    empower_effective_cast_time = empower_time / max(
+        (1.0 + working.total("minion_cast_speed_inc"))
+        * _speed_add_product(working, "minion_cast_speed_additional"), 1e-9)
+    cast_slot_factor = (
+        max(0.0, 1.0 - 0.5 * empower_effective_cast_time / cooldown)
+        if empower_effective_cast_time > 0 and cooldown > 0 else 1.0
+    )
+    if empower_display is not None:
+        empower_display["cast_slot_factor"] = cast_slot_factor
     base = by_role.get("Base")
     enhanced = by_role.get("Enhanced")
     if base:
         results.append(calculate_minion_offense(
-            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance),
+            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance) * cast_slot_factor,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if enhanced:
         extra_spike_selected = bool((condition_state or {}).get("erosion_stage4_extra_spike", False))
         spikes = 2 + (empower_uptime if stage >= 4 and extra_spike_selected else 0.0)
         results.append(calculate_minion_offense(
-            working, enhanced, base_stats, level, count, rate_multiplier=chance,
+            working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
             shotgun_hits=spikes, shotgun_falloff=0.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if empower:
@@ -152,9 +161,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         if empower_form:
             empower_form.base_cast_time = empower_base_time
             empower_form.base_cooldown = base_cd
-            empower_form.effective_cast_time = empower_time / max(
-                (1.0 + working.total("minion_cast_speed_inc"))
-                * _speed_add_product(working, "minion_cast_speed_additional"), 1e-9)
+            empower_form.effective_cast_time = empower_effective_cast_time
             empower_form.effective_cooldown = cooldown
     combined.spirit_magi_growth = growth
     combined.spirit_magi_stage = stage

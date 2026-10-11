@@ -71,8 +71,11 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     assert forms["Bleak Grass"].hits_per_fire == 2  # spike + explosion; full damage, zero falloff.
     assert forms["Bleak Grass"].shotgun_mult == pytest.approx(2.0)
     assert forms["Bleak Grass"].shotgun_falloff == 0.0
-    # No cast-slot penalty is applied without a sourced Erosion-specific rotation rule.
-    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.30 / 0.8)
+    # Owner-directed Empower cast-slot model: 1 - 0.5 × 0.6s / 10s = 0.97.
+    # Stage 2 Enhanced chance is 30%; shared 1.25 casts/s split, then both rates lose 3% to Empower.
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.97)
+    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.7 / 0.8 * 0.97)
+    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.3 / 0.8 * 0.97)
 
 
 def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
@@ -119,6 +122,21 @@ def test_harvest_time_makes_empower_cast_instant():
     empower = _forms(result)["Withering Payback"]
     assert empower.base_cast_time == pytest.approx(0.6)
     assert empower.effective_cast_time == 0.0
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(1.0)
+
+
+def test_erosion_empower_cast_slot_uses_effective_cast_time():
+    import engine.minion_effects  # noqa: F401 -- populate MINION_MODULES
+
+    owner = _owner()
+    source = BuildSource()
+    source.add("minion_cast_speed_inc", 0.50)
+    result = MINION_MODULES[owner["item_id"]](
+        source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1)
+
+    # +50% minion cast speed makes Empower's 0.6s base cast 0.4s; 1 - 0.5 × 0.4 / 10 = 0.98.
+    assert _forms(result)["Withering Payback"].effective_cast_time == pytest.approx(0.4)
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.98)
 
 
 def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():
