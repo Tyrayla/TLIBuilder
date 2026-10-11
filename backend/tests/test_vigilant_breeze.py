@@ -447,11 +447,11 @@ def test_tango_base_fills_uncapped_ultimate_time_after_empower_slot_once():
     )
 
     rates = {form["role"]: form["casts_per_second"] for form in rotation["skill_forms"]}
-    # 2s cast time gives 0.5 raw casts/s. Empower multiplies Ultimate by 1.2 x 0.9,
-    # so Ultimate uses 90% of cast time and Base fills the remaining 10% at 0.6 casts/s.
+    # Ultimate's pre-slot rate is 0.5 x 1.2 = 0.6/s. Empower reserves 10% of time,
+    # so Ultimate is capped at 0.9 / (1 / 0.6) = 0.54/s and leaves no time for Base.
     assert rates["ultimate"] == pytest.approx(0.54)
-    assert rates["base skill"] == pytest.approx(0.06)
-    assert rotation["casts_per_second"] == pytest.approx(0.60)
+    assert rates["base skill"] == pytest.approx(0.0)
+    assert rotation["casts_per_second"] == pytest.approx(0.54)
 
 
 def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
@@ -476,7 +476,9 @@ def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
     (True, False, False, 0.5, 0.5, 0.0, 0.0),
     (True, False, True, 0.5634, 0.5634, 0.0, 0.2),
     (True, True, False, 0.5, 0.375, 0.125, 0.0),
-    (True, True, True, 0.626, 0.501, 0.125, 0.2),
+    # Capped Ultimate occupies 0.125 x (1 / 0.626) = 0.19968; Empower reserves 0.1,
+    # leaving 0.70032 x 0.626 = 0.4384/s for Base and 0.5634/s combined.
+    (True, True, True, 0.5634, 0.4384, 0.125, 0.2),
 ])
 def test_merged_rotation_checkbox_combinations_have_expected_cadences(
         base_on, ultimate_on, empower_on, expected_total, expected_base,
@@ -607,7 +609,9 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     assert merged_magus["total_dps"] == 0.0
     assert "normal rotation is replaced" in " ".join(merged_magus["nyi"]).lower()
     assert merged_magus["iris_skill_dispatch"]["role"] == "rotation"
+    # The request omits all three rotation keys: Base defaults off, Ultimate on, and Empower on.
     assert merged_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
+    assert merged_magus["iris_skill_dispatch"]["empower_enabled"] is True
     assert merged_magus["selected_skill_damage_status"] == "NYI"
     assert merged_magus["selected_skill_damage_pending"] is True
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)

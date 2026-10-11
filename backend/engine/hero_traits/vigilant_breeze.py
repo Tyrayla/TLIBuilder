@@ -400,14 +400,27 @@ def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled,
         # Ultimate uses its cooldown first. Base fills the remaining cast time after Ultimate and
         # the once-per-cooldown Empower slot. The owner confirmed Ultimate priority and Base
         # filling the remaining time when both damage skills are enabled.
-        ultimate_rate = ultimate["casts_per_second"]
         ultimate_speed = float(ultimate.get("empower_speed_multiplier", 1.0) or 1.0)
         ultimate_raw_rate = float(ultimate.get("casts_per_second_before_cooldown", 0.0) or 0.0)
         ultimate_cast_time = (1.0 / (ultimate_raw_rate * ultimate_speed)
                               if ultimate_raw_rate > 0 and ultimate_speed > 0 else 0.0)
-        # The selected Ultimate rate already includes Empower's cast-slot factor. Its occupied-time
-        # fraction therefore includes that loss; subtracting the slot factor separately would count it twice.
-        base_available_fraction = max(0.0, 1.0 - ultimate_rate * ultimate_cast_time)
+        ultimate_cooldown = float(ultimate.get("cooldown", 0.0) or 0.0)
+        ultimate_cooldown_cap = 1.0 / ultimate_cooldown if ultimate_cooldown > 0 else float("inf")
+        # Partition the timeline into Empower, Ultimate, and Base. First cap Ultimate by its
+        # speed and cooldown, then limit its pre-slot rate to the time left after Empower.
+        empower_slot_factor = (float(ultimate.get("empower_cast_slot_factor", 1.0) or 0.0)
+                               if empower_enabled else 1.0)
+        empower_slot_time = max(0.0, 1.0 - empower_slot_factor) if empower_enabled else 0.0
+        ultimate_rate_without_slot_factor = min(ultimate_raw_rate * ultimate_speed, ultimate_cooldown_cap)
+        ultimate_time_rate_cap = ((1.0 - empower_slot_time) / ultimate_cast_time
+                                  if ultimate_cast_time > 0 else 0.0)
+        ultimate_rate_pre_slot = min(ultimate_rate_without_slot_factor, ultimate_time_rate_cap)
+        ultimate_rate = ultimate_rate_pre_slot
+        ultimate["casts_per_second"] = ultimate_rate
+        for form in ultimate.get("skill_forms", ()):
+            form["casts_per_second"] = ultimate_rate
+        ultimate_occupied = ultimate_rate_pre_slot * ultimate_cast_time
+        base_available_fraction = max(0.0, 1.0 - ultimate_occupied - empower_slot_time)
         base_raw_rate = float(base.get("casts_per_second_before_cooldown", 0.0) or 0.0)
         base_speed = float(base.get("empower_speed_multiplier", 1.0) or 1.0)
         base_rate = base_raw_rate * base_speed * base_available_fraction
