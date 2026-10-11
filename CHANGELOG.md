@@ -6,11 +6,25 @@
 - Ghost Slaughter now grants Skill Area, additional Attack Damage, and an additional Ailment Damage stat per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The engine does not yet calculate ailment DPS. These linear formulas await in-game verification.
 
 ### Bug fixes
+- **Removed a false "Skill override 'mana_boil' was authored for SS12 ... re-validate" warning.** The web app ships only the current season's data, so the check had no earlier season to compare against and warned on every load. The Mana Boil correction carries its own reference text now, so the warning appears only if Mana Boil's data actually changes.
+
+## [0.6.10] - 2026-10-10
+
+### Engine & DPS
+- **Well Matched is now modeled.** It grants up to +40% additional Attack Damage and -15% additional damage taken from enemies. Builder applies the maximum values while an enemy is in proximity. Distance falloff is not modeled and remains unverified.
+
+### Hero traits
+- **Youga's third trait, The Ultimate One, can be selected.** The 11-node tree is browsable and allocatable with your Hero Memories, along with the 19 Alternate Spacetime skill effects as reference text. The trait does not change your DPS yet. Builder now defaults to the SS14 Pre-Season dataset, which is the SS13 data plus this trait, so your existing builds and calculations are unchanged.
+
+### Bug fixes
+- Fixed Impermanence lowering Thunder Spike DPS by applying minimum and maximum damage bonuses to the entire hit. These bonuses now change their respective damage endpoints and follow Physical damage through conversion. In-game verification of Impermanence remains open.
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
 - Willpower no longer adds an extra unconditional damage multiplier on top of its stack bonus.
--
-- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Config shows each slot's automatic return count; enter a global override or choose Auto to restore per-slot counts. This model awaits in-game verification.
+
+### Features
+- Flame Slash's Config now lets you choose how many Steep Strike fire torrents hit the target. Auto uses each slot's full torrent count, and Shotgunning shows the selected hits. Inverted Blaze's returning hits default to and are capped by the torrents that hit.
+- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Torrent Hits and Torrent Return Hits use numeric fields; each shows Auto only while an override is set, and clearing the field restores its automatic value. This model awaits in-game verification.
 
 ## [0.6.9] - 2026-10-03
 
