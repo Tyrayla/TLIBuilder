@@ -16,7 +16,8 @@ from models.stat_meta import STAT_META
 
 def test_universe_is_stable_and_nonempty():
     u = consumable_universe()
-    assert 150 < len(u) < 710, f"universe size {len(u)} outside sane range — synthetic run likely changed shape"
+    # Spirit Magus life and cooldown pools extend the consumable universe across merged Magus support.
+    assert 150 < len(u) < 720, f"universe size {len(u)} outside sane range — synthetic run likely changed shape"
     assert consumable_universe() is u  # cached singleton
 
 

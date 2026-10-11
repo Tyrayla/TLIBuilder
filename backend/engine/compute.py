@@ -2336,7 +2336,7 @@ def compute(
                 _owner_bonus = min(_remaining_shared_bonus, _bonus_room)
                 _reunion_max_count_by_owner[_owner["item_id"]] = _base_count + _owner_bonus
                 _remaining_shared_bonus -= _owner_bonus
-        # Read the Spirit Magi Rotation once for both modeled and unmodeled merged owners.
+        # Read the Merged Magi Rotation once for both modeled and unmodeled merged owners.
         _spam_base = bool(condition_state.get("vigilant_breeze_spam_base", False))
         _spam_ultimate = bool(condition_state.get("vigilant_breeze_spam_ultimate", True))
         _spam_empower = bool(condition_state.get("vigilant_breeze_spam_empower", True))
@@ -2485,7 +2485,7 @@ def compute(
                     result.damage_rows = []
                     if not _spam_base and not _spam_ultimate:
                         result.nyi.append(
-                            "No Base Skill or Ultimate is selected in Spirit Magi Rotation; "
+                            "No Base Skill or Ultimate is selected in Merged Magi Rotation; "
                             "merged Magus damage is 0.")
                     elif _iris_dispatch.get("available"):
                         _rotation_names = " + ".join(_iris_dispatch["selected_skills"])
@@ -2563,11 +2563,11 @@ def compute(
                             minion_payload["selected_skill_damage_status"] = "NYI"
                             minion_payload["selected_skill_damage_pending"] = True
                             minion_payload["nyi"].append(
-                                "Vigilant replaces this Magus's normal rotation with the checked Spirit Magi "
+                                "Vigilant replaces this Magus's normal rotation with the checked Merged Magi "
                                 "Rotation skills; selected-skill damage is pending its Magus module.")
                         else:
                             minion_payload["nyi"].append(
-                                "No Base Skill or Ultimate is selected in Spirit Magi Rotation; "
+                                "No Base Skill or Ultimate is selected in Merged Magi Rotation; "
                                 "merged Magus damage is 0.")
                 minion_offense[owner["item_id"]] = minion_payload
 

@@ -767,7 +767,7 @@ def test_unmodeled_merged_magus_uses_rotation_checkboxes_without_crashing(monkey
     base_rotation = calculate(True, False, False)
     assert base_rotation["vigilant_merged"] is True
     assert base_rotation["selected_skill_damage_status"] == "NYI"
-    assert "checked Spirit Magi Rotation skills" in " ".join(base_rotation["nyi"])
+    assert "checked Merged Magi Rotation skills" in " ".join(base_rotation["nyi"])
 
     no_damage_rotation = calculate(False, False, True)
     assert no_damage_rotation["vigilant_merged"] is True

@@ -59,18 +59,27 @@ function ConditionSourceTooltip({ label, source, className }: { label: string; s
 
 // Config panel: accent left-border + cool-charcoal uppercase header, matching the Stats screen's StatPanel.
 // Collapsible only when Settings → Display "Collapsible panels" is on (mirrors the Stats screen). Default expanded.
-function ConfigPanel({ title, accent, headerColor, full, children }: {
-  title: React.ReactNode; accent: string; headerColor?: string; full?: boolean; children: React.ReactNode
+function ConfigPanel({ title, accent, headerColor, full, forceCollapsible = false, defaultCollapsed = false, children }: {
+  title: React.ReactNode; accent: string; headerColor?: string; full?: boolean
+  forceCollapsible?: boolean; defaultCollapsed?: boolean; children: React.ReactNode
 }) {
-  const collapsible = useUiPrefs(s => s.collapsiblePanels)
-  const [collapsed, setCollapsed] = useState(false)
+  const collapsible = useUiPrefs(s => s.collapsiblePanels) || forceCollapsible
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const showCollapsed = collapsible && collapsed
   return (
     <div className={`cond-card${full ? ' cond-card--full' : ''}`} style={{ borderLeftColor: accent }}>
       <div className={`cond-card-header${collapsible ? ' cond-card-header--clickable' : ''}`}
         style={headerColor ? { color: headerColor } : undefined}
         onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
-        role={collapsible ? 'button' : undefined}>
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        onKeyDown={collapsible ? event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setCollapsed(c => !c)
+          }
+        } : undefined}
+        aria-expanded={collapsible ? !collapsed : undefined}>
         <span>{title}</span>
         {collapsible && <span className="cond-card-collapse">{collapsed ? '+' : '−'}</span>}
       </div>
@@ -285,6 +294,8 @@ export default function BuildOverviewScreen() {
   //  - Otherwise, keep showing anything the user explicitly toggled on.
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
+    // Vigilant Breeze controls are exclusive to that selected trait, even in Show all mode.
+    if (c.trait_id === 'vigilant_breeze' && traitId !== 'vigilant_breeze') return false
     if (showAll) return true
     if (c.key in autoConditions) return true   // engine auto-activated it → always surface so the user sees it
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
@@ -335,26 +346,33 @@ export default function BuildOverviewScreen() {
   // Frostbitten, ailment stacks, enemy proximity/life, …) move to a "Debuffs" group; the "Enemy" group is kept
   // for the injected offense/defense config (target dummy + incoming skill), which renders even with zero
   // conditions via isEnemy. Display-only remap — condition keys are unchanged, so engine gating is unaffected.
-  const spiritMagiRotationKeys = new Set([
+  const mergedMagiRotationKeys = new Set([
     'vigilant_breeze_spam_base', 'vigilant_breeze_spam_ultimate', 'vigilant_breeze_spam_empower',
   ])
-  const spiritMagiRotation: ConditionDef[] = []
+  const mergedMagiRotation: ConditionDef[] = []
   const condCategories: [string, ConditionDef[]][] = (conditionsData ? Object.entries(conditionsData) : [])
     .map(([cat, items]) => {
       const kept = items.filter(condition => {
-        if (!spiritMagiRotationKeys.has(condition.key)) return true
-        spiritMagiRotation.push(condition)
+        if (!mergedMagiRotationKeys.has(condition.key)) return true
+        mergedMagiRotation.push(condition)
         return false
       })
       return [cat === 'Enemy' ? 'Debuffs' : cat, kept] as [string, ConditionDef[]]
     })
-  if (spiritMagiRotation.length) condCategories.push(['Spirit Magi Rotation', spiritMagiRotation])
+  if (mergedMagiRotation.length && !condCategories.some(([cat]) => cat === 'Hero Trait')) {
+    condCategories.push(['Hero Trait', []])
+  }
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 
   // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
-  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
-    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
+  const renderCategoryPanel = (
+    cat: string,
+    visibleItems: ConditionDef[],
+    isEnemy: boolean,
+    panelOptions: { forceCollapsible?: boolean; defaultCollapsed?: boolean } = {},
+  ) => (
+    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)} {...panelOptions}>
       {isEnemy && <EnemyTargetFields />}
       {isEnemy && <EnemyIncomingFields />}
       {visibleItems.map(cond => {
@@ -449,6 +467,11 @@ export default function BuildOverviewScreen() {
           </label>
         )
       })}
+      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0
+        && renderCategoryPanel('Merged Magi Rotation', mergedMagiRotation, false, {
+          forceCollapsible: true,
+          defaultCollapsed: true,
+        })}
     </ConfigPanel>
   )
 
@@ -526,7 +549,8 @@ export default function BuildOverviewScreen() {
       place({ order: -1, weight: visibleItems.length + 6, node: renderCategoryPanel(cat, visibleItems, isEnemy) }, 2)
       return
     }
-    if (visibleItems.length === 0) return
+    if (visibleItems.length === 0
+      && !(cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0)) return
     restPanels.push({ order: idx, weight: visibleItems.length + 1,
       node: renderCategoryPanel(cat, visibleItems, false) })
   })
