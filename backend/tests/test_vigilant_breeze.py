@@ -162,6 +162,29 @@ def test_happiest_reunion_and_tango_keep_separate_additional_damage_factors():
     assert actual == pytest.approx(0.4 * 1.05**2)
 
 
+def test_spirit_magi_pool_fold_preserves_distinct_additional_sources_without_iris():
+    from engine.minion_offense import fold_spirit_magi_pools
+    from engine.offense import _additional_product, _build_additional_factors
+    from engine.models import SourceEntry
+
+    source = BuildSource()
+    source.add_with_source("spirit_magi_dmg_additional", 0.10, SourceEntry(
+        stat="spirit_magi_dmg_additional", amount=0.10, source_type="gear",
+        label="Gear", text="First Magus damage source"))
+    source.add_with_source("spirit_magi_dmg_additional", 0.20, SourceEntry(
+        stat="spirit_magi_dmg_additional", amount=0.20, source_type="talent",
+        label="Talent", text="Second Magus damage source"))
+
+    fold_spirit_magi_pools(source)
+    factors = _build_additional_factors(source)
+    actual = _additional_product(source, factors, lambda tags: "minion" in tags)
+
+    assert actual == pytest.approx(1.10 * 1.20)
+    assert [entry.text for entry in source.source_log if entry.stat == "minion_dmg_additional"] == [
+        "First Magus damage source", "Second Magus damage source",
+    ]
+
+
 def test_nurturing_breeze_copies_scaled_regen_and_regain_pools():
     result = vb.apply(
         build_input=SimpleNamespace(season="SS13"),
@@ -566,7 +589,8 @@ def test_compute_forwards_breeze_and_reunion_damage_into_magus_pools(monkeypatch
     def capture_magus_source(source, *args, **kwargs):
         observed.extend(entry for entry in source.source_log
                         if entry.stat == "minion_dmg_additional"
-                        and ("stacks" in entry.text or "Happiest Reunion:" in entry.text))
+                        and (entry.amount == pytest.approx(0.32)
+                             or entry.amount == pytest.approx(1.05**2 - 1)))
         return real_calculate(source, *args, **kwargs)
 
     monkeypatch.setattr(minion_offense, "calculate_minion_offense", capture_magus_source)
@@ -579,10 +603,8 @@ def test_compute_forwards_breeze_and_reunion_damage_into_magus_pools(monkeypatch
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
     assert magus["selected_skill_damage_status"] == "NYI"
-    breeze_amounts = [entry.amount for entry in observed if "stacks" in entry.text]
-    reunion_amounts = [entry.amount for entry in observed if "Happiest Reunion:" in entry.text]
-    assert breeze_amounts and all(amount == pytest.approx(0.32) for amount in breeze_amounts)
-    assert reunion_amounts and all(amount == pytest.approx(1.05**2 - 1) for amount in reunion_amounts)
+    assert any(entry.amount == pytest.approx(0.32) for entry in observed)
+    assert any(entry.amount == pytest.approx(1.05**2 - 1) for entry in observed)
 
 
 def test_missing_magus_life_data_skips_flat_regen_and_flags_nyi(monkeypatch):

@@ -140,7 +140,8 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
     magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
     otherwise drop on the `spirit_magi` tag) actually apply to the magus. Also folds the per-Growth pools (Talons
     of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth, and
-    Troublemaker's dmg + Attack/Cast Speed per 100 Growth."""
+    Troublemaker's dmg + Attack/Cast Speed per 100 Growth. Additional-damage entries retain their source identity
+    so the standard offense pool can multiply distinct affixes instead of merging their amounts into one sum."""
     def _add(dst: str, amt: float, text: str) -> None:
         if amt:
             source.add_with_source(dst, amt, SourceEntry(
@@ -152,6 +153,9 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
             for entry in entries:
                 source.add_with_source(dst_key, entry.amount, replace(entry, stat=dst_key))
             untracked = source.total(src_key) - sum(entry.amount for entry in entries)
+            # Every ordinary BuildSource entry has a matching source-log record. If that contract changes,
+            # fail loudly instead of turning a bookkeeping mismatch into a negative damage multiplier.
+            assert untracked >= -1e-12, f"Unlogged Spirit Magi additional damage: {untracked}"
             if abs(untracked) > 1e-12:
                 _add(dst_key, untracked, "Spirit Magi additional damage (untracked source)")
             continue
