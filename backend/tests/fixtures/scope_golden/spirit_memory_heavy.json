@@ -542,6 +542,8 @@
       {
         "avg_hit_pre_crit": 361.80863999999997,
         "avg_hit_with_crit": 370.85385599999995,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "lightning": 289.0
         },
@@ -553,6 +555,8 @@
         },
         "dps_contribution": 616.187945353846,
         "dps_vs_target": 323.49867131076905,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 1.6615384615384614,
         "form_type": "additive",
@@ -590,6 +594,8 @@
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "minion_empower": null,
+    "minion_skill_casts": null,
+    "minion_ultimate": null,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,

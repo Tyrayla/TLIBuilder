@@ -997,7 +997,11 @@ class HitFormResult:
     hit_min_by_type: dict[str, float] = field(default_factory=dict)
     hit_max_by_type: dict[str, float] = field(default_factory=dict)
     fires_per_sec: float = 0.0   # this form's effective occurrences/sec (rate × proc); channeled forms differ
-    hits_per_fire: int = 1       # projectiles/blades per occurrence (shotgun on one target)
+    base_cast_time: float = 0.0  # per-form cast time in seconds (minion forms use this for event-driven casts)
+    base_cooldown: float = 0.0   # per-form base cooldown in seconds, before recovery modifiers
+    effective_cast_time: float = 0.0  # event-driven cast time after this minion's speed pools
+    effective_cooldown: float = 0.0  # event-driven cooldown after this minion's recovery pools
+    hits_per_fire: float = 1     # projectiles/blades per occurrence (expected hits when uptime-weighted)
     shotgun_falloff: float = 0.0 # same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
     shotgun_mult: float = 1.0    # total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
     base_min_by_type: dict[str, float] = field(default_factory=dict)  # this form's intrinsic base (spells)
@@ -1335,6 +1339,10 @@ class OffenseResult:
     # A minion's Empower buff (e.g. Thundercloud Surge) surfaced like a player empower: base/effective cooldown +
     # duration, uptime, Empower Effect, and the per-buff magnitudes (base → effective). None for non-empower.
     minion_empower: dict | None = None
+    # Spirit Magus Ultimate calculations are per-cast and remain outside default DPS until Iris selects them.
+    minion_ultimate: dict | None = None
+    # Per-cast Magus skill forms for Iris selection; these never imply default rotation DPS.
+    minion_skill_casts: dict[str, dict] | None = None
     # ── Purpose-built breakdown-row contract (engine-owned; see DamageRow) ────────────────────────────────
     # Replaces the frontend's hand-reconstruction of _delivery and its back-solved per-type mitigation.
     # kind="hit" rows mirror hit_forms 1:1; kind="true" covers Mercury Baptism / Spell Ripple; kind="dot" is

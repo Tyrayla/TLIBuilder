@@ -3444,7 +3444,7 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.MINION_ELEMENTAL_DMG_INC: StatMeta(
         "Minion Elemental Damage", "Minion", "increased", "%",
         subgroup="damage",             pipeline_stage="increased_reduced",
-        tags=("minion",),              affects=_HIT_DOT,
+        tags=("minion", "elemental"), affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=20,
         source_types=_T,
     ),

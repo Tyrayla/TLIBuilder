@@ -35,7 +35,7 @@ def _role(ability: dict) -> str:
     return ""
 
 
-def handler(source, owner, base_stats, level, count):
+def handler(source, owner, base_stats, level, count, *, condition_state=None):
     """Return ONE OffenseResult for a Thunder Magus whose hit forms are its damage abilities (Base + Enhanced,
     uptime-split shares) — like a player multi-form skill. Empower/Ultimate are buffs/locked (folded in as NYI
     notes, not forms)."""

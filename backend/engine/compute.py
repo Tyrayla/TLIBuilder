@@ -2432,7 +2432,15 @@ def compute(
                 count = min(_active, _max_count) if 0 < _active <= _max_count else _max_count
                 # A bespoke module returns ONE OffenseResult whose hit_forms ARE the minion's damage abilities
                 # (like a player multi-form skill), so the frontend's form dropdown / % of Total / combined view work.
-                result = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)
+                module_condition_state = dict(condition_state)
+                module_condition_state["_engine_harvest_time_linked"] = any(
+                    sup.get("item_id") == "harvest_time"
+                    and int(sup.get("slot") or 1) == slot
+                    for sup in (build_input.attached_supports or []))
+                # Keep slot-local conditions available both through BuildSource and the module API.
+                eff.condition_state = module_condition_state
+                result = _mo.MINION_MODULES[owner["item_id"]](
+                    eff, owner, _mbase, level, count, condition_state=module_condition_state)
                 if _is_magus and _merged:
                     _iris_dispatch = _vigilant_breeze.merged_rotation_contract(
                         base_enabled=_spam_base,
