@@ -43,6 +43,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     empower_display = None
     empower_effect = 1.0
     ultimate_buff = 0.0
+    empower_base_time = empower_time = empower_effective_cast_time = 0.0
     if empower:
         duration_inc = source.total("minion_skill_effect_duration_inc")
         duration = float(empower.get("duration") or 0.0) * (1.0 + duration_inc)
@@ -52,6 +53,12 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         empower_recovery_factor = 1.0 + empower_cdr
         cooldown_unavailable = base_cd > 0 and empower_recovery_factor <= 0
         cooldown = base_cd / empower_recovery_factor if base_cd > 0 and not cooldown_unavailable else 0.0
+        empower_base_time = _parse_cast_time(empower.get("cast_speed", "")) or 0.0
+        harvest_time_linked = bool((condition_state or {}).get("_engine_harvest_time_linked", False))
+        empower_time = 0.0 if harvest_time_linked else empower_base_time
+        empower_effective_cast_time = empower_time / max(
+            (1.0 + working.total("minion_cast_speed_inc"))
+            * _speed_add_product(working, "minion_cast_speed_additional"), 1e-9)
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
         raw_enemy_weight = (condition_state or {}).get("enemy_count_weight")
         enemy_weight = float(1.0 if raw_enemy_weight is None else raw_enemy_weight)
@@ -67,6 +74,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         empower_display = {
             "name": ability_label(empower), "empower_effect": empower_effect,
             "empower_effect_inc": empower_effect - 1.0, "base_cooldown": base_cd, "cooldown": cooldown,
+            "effective_cast_time": empower_effective_cast_time,
+            "effective_cooldown": cooldown,
             "cdr_inc": empower_cdr,
             "base_duration": float(empower.get("duration") or 0.0), "duration": duration,
             "duration_inc": duration_inc,
@@ -79,12 +88,6 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         }
 
     results = []
-    empower_base_time = _parse_cast_time(empower.get("cast_speed", "")) if empower else 0.0
-    harvest_time_linked = bool((condition_state or {}).get("_engine_harvest_time_linked", False))
-    empower_time = 0.0 if harvest_time_linked else empower_base_time
-    empower_effective_cast_time = empower_time / max(
-        (1.0 + working.total("minion_cast_speed_inc"))
-        * _speed_add_product(working, "minion_cast_speed_additional"), 1e-9)
     cast_slot_factor = (
         max(0.0, 1.0 - 0.5 * empower_effective_cast_time / cooldown)
         if empower_effective_cast_time > 0 and cooldown > 0 else 1.0
@@ -95,13 +98,13 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     enhanced = by_role.get("Enhanced")
     if base:
         results.append(calculate_minion_offense(
-            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance) * cast_slot_factor,
+            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance),
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if enhanced:
         extra_spike_selected = bool((condition_state or {}).get("erosion_stage4_extra_spike", False))
         spikes = 2 + (empower_uptime if stage >= 4 and extra_spike_selected else 0.0)
         results.append(calculate_minion_offense(
-            working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
+            working, enhanced, base_stats, level, count, rate_multiplier=chance,
             shotgun_hits=spikes, shotgun_falloff=0.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if empower:
