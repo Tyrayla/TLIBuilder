@@ -607,13 +607,14 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     merged_magus = merged["minion_offense"]["summon_thunder_magus"]
     assert merged_magus["vigilant_merged"] is True
     assert merged_magus["total_dps"] == 0.0
-    assert "normal rotation is replaced" in " ".join(merged_magus["nyi"]).lower()
+    assert "normal Base/Enhanced rotation" in " ".join(merged_magus["nyi"])
+    assert "Thunder Magus Lightning Surge per-cast form is pending" in " ".join(merged_magus["nyi"])
     assert merged_magus["iris_skill_dispatch"]["role"] == "rotation"
     # The request omits all three rotation keys: Base defaults off, Ultimate on, and Empower on.
     assert merged_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
     assert merged_magus["iris_skill_dispatch"]["empower_enabled"] is True
-    assert merged_magus["selected_skill_damage_status"] == "NYI"
-    assert merged_magus["selected_skill_damage_pending"] is True
+    assert "selected_skill_damage_status" not in merged_magus
+    assert any(form["nyi"] for form in merged_magus["hit_forms"])
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
     empower = merged_magus["minion_empower"]
     dispatch = merged_magus["iris_skill_dispatch"]
@@ -642,7 +643,7 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     # Thunder has one base summon at this level; Happiest Reunion adds one map-cap Magus.
     assert reunion_magus["iris_merged_magi_count"] == 2
     assert reunion_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
-    assert reunion_magus["selected_skill_damage_status"] == "NYI"
+    assert "Thunder Magus Lightning Surge per-cast form is pending" in " ".join(reunion_magus["nyi"])
 
 
 def test_compute_whisper_heals_enhanced_base_casts_but_not_selected_ultimate():
@@ -694,12 +695,208 @@ def test_no_damage_skill_selection_reports_zero_and_empower_checkbox_controls_bu
     empower_on = calculate(True)
     empower_off = calculate(False)
     assert empower_on["total_dps"] == 0.0
-    assert "No Base Skill or Ultimate is selected" in " ".join(empower_on["nyi"])
+    assert "No supported Base Skill or Ultimate is selected" in " ".join(empower_on["nyi"])
     assert empower_on["iris_skill_dispatch"]["selected_skills"] == []
     assert empower_on["iris_skill_dispatch"]["empower_casts_per_second"] == pytest.approx(0.1)
     assert empower_off["total_dps"] == 0.0
     assert empower_off["minion_empower"] is None
     assert empower_off["iris_skill_dispatch"]["empower_casts_per_second"] == 0.0
+
+
+def test_rock_merged_ultimate_only_uses_towering_mountains_damage_per_cast():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": False},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_rock_magus"]
+
+    # 0.125 Ultimate casts/s × 0.625 non-Reconjuring uptime, using Towering Mountains' two full hits.
+    assert magus["total_dps"] == pytest.approx(287.0560546875)
+    assert magus["total_dps_vs_target"] == pytest.approx(143.52802734375)
+    assert magus["hit_forms"][0]["name"] == "Towering Mountains (Ultimate)"
+    assert magus["hit_forms"][0]["hits_per_fire"] == 2
+    assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.078125)
+    assert not magus["hit_forms"][0]["nyi"]
+
+
+def test_erosion_merged_ultimate_and_empower_have_real_world_of_thorns_dps():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_erosion_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": True},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_erosion_magus"]
+
+    # World of Thorns uses its per-cast Erosion damage with one hit per target; Empower remains at 60% uptime.
+    assert magus["total_dps"] == pytest.approx(618.305625)
+    assert magus["total_dps_vs_target"] == pytest.approx(302.96975625)
+    assert magus["minion_empower"]["uptime"] == pytest.approx(0.6)
+    assert magus["hit_forms"][0]["name"] == "World of Thorns (Ultimate)"
+    assert magus["hit_forms"][0]["hits_per_fire"] == 1
+    assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.078125)
+    assert not magus["hit_forms"][0]["nyi"]
+
+
+def test_merged_base_and_ultimate_partition_time_and_report_combined_damage():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": True,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": True},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_rock_magus"]
+    forms = {form["name"]: form for form in magus["hit_forms"]}
+
+    # Ultimate takes its cooldown share (0.125/s); Base fills the remaining 0.978125/s before 0.625 uptime.
+    assert magus["iris_skill_dispatch"]["skill_forms"][0]["casts_per_second"] == pytest.approx(0.978125)
+    assert magus["total_dps"] == pytest.approx(488.19829101562505)
+    assert forms["Shattered Stone (Base)"]["fires_per_sec"] == pytest.approx(0.611328125)
+    assert forms["Towering Mountains (Ultimate)"]["fires_per_sec"] == pytest.approx(0.078125)
+    assert magus["total_dps"] == pytest.approx(sum(form["dps_contribution"] for form in forms.values()))
+
+
+def test_whirlwind_tango_merged_ultimate_uses_zero_cooldown_cadence_and_real_damage():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        advanced_trait_selections=["Whirlwind Tango"],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": True},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_rock_magus"]
+
+    assert magus["iris_skill_dispatch"]["skill_forms"][0]["casts_per_second"] == pytest.approx(0.6466666666666666)
+    assert magus["iris_skill_dispatch"]["rotations"][0]["cooldown"] == 0.0
+    assert magus["total_dps"] == pytest.approx(1485.03665625)
+    assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.4041666666666666)
+    assert any("per-cast Life cost is exposed" in note for note in magus["nyi"])
+
+
+def test_happiest_reunion_reports_damage_for_each_merged_magus():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        advanced_trait_selections=["Happiest Reunion"],
+        skills=[{"slot": 1, "skill_id": "summon_rock_magus", "level": 20},
+                {"slot": 2, "skill_id": "summon_erosion_magus", "level": 20}],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": False},
+    )
+    minions = engine_stats(EngineStatsRequest(**request))["minion_offense"]
+
+    # The two Magus types plus Reunion's +1 map-cap Magus are all included in the merged count.
+    assert minions["summon_rock_magus"]["vigilant_merged"] is True
+    assert minions["summon_erosion_magus"]["vigilant_merged"] is True
+    assert minions["summon_rock_magus"]["iris_merged_magi_count"] == 3
+    assert minions["summon_erosion_magus"]["iris_merged_magi_count"] == 3
+    assert minions["summon_rock_magus"]["total_dps"] == pytest.approx(257.17751321790087)
+    assert minions["summon_erosion_magus"]["total_dps"] == pytest.approx(494.5969749558424)
+
+
+def test_thunder_merged_ultimate_without_per_cast_form_is_explicitly_nyi():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": False},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    assert magus["total_dps"] == 0.0
+    assert any("Thunder Magus Lightning Surge per-cast form is pending" in note for note in magus["nyi"])
+    assert magus["hit_forms"][0]["nyi"]
+
+
+def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monkeypatch):
+    from dataclasses import asdict
+    from engine import minion_effects, minion_offense  # noqa: F401 - registers module handlers
+    from engine.minion_offense import ability_label, calculate_minion_offense
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    real_handler = minion_offense.MINION_MODULES["summon_thunder_magus"]
+
+    def stubbed_ultimate_handler(source, owner, base_stats, level, count, *, condition_state=None):
+        result = real_handler(source, owner, base_stats, level, count, condition_state=condition_state)
+        ultimate = next(skill for skill in owner["minion_skills"]
+                        if "ultimate" in {str(tag).lower() for tag in skill.get("skill_tags", [])})
+        per_cast = calculate_minion_offense(source, ultimate, base_stats, level, count, rate_multiplier=1.0)
+        result.minion_skill_forms = {}
+        result.minion_skill_casts = {
+            "ultimate": {"name": ability_label(ultimate), "role": "Ultimate",
+                         "hit_breakdown": asdict(per_cast)},
+        }
+        return result
+
+    monkeypatch.setitem(minion_offense.MINION_MODULES, "summon_thunder_magus", stubbed_ultimate_handler)
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": False},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    assert magus["total_dps"] == pytest.approx(72.310546875)
+    assert magus["hit_forms"][0]["name"] == "Lightning Surge (Ultimate)"
+    assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.078125)
+    assert not magus["hit_forms"][0]["nyi"]
+    assert not any("per-cast form is pending" in note for note in magus["nyi"])
+
+
+def test_thunder_merged_base_uses_real_damage_and_empower_checkbox_controls_buff_and_slot():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    def calculate(empower_enabled):
+        request = make_request(
+            "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+            extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                              "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": True,
+                              "vigilant_breeze_spam_ultimate": False,
+                              "vigilant_breeze_spam_empower": empower_enabled},
+        )
+        return engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    with_empower = calculate(True)
+    without_empower = calculate(False)
+
+    assert with_empower["total_dps"] == pytest.approx(654.154359375)
+    assert without_empower["total_dps"] == pytest.approx(557.34375)
+    assert with_empower["iris_skill_dispatch"]["empower_casts_per_second"] == pytest.approx(0.1)
+    assert with_empower["iris_skill_dispatch"]["empower_cast_slot_factor"] == pytest.approx(0.97)
+    assert without_empower["iris_skill_dispatch"]["empower_casts_per_second"] == 0.0
+    assert without_empower["minion_empower"] is None
+    assert with_empower["hit_forms"][0]["name"] == "Lightning Star (Base)"
+    assert not with_empower["hit_forms"][0]["nyi"]
 
 
 def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkeypatch):
@@ -712,12 +909,15 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     monkeypatch.setitem(minion_offense.MINION_MODULES, "summon_rock_magus",
                         minion_offense.MINION_MODULES["summon_thunder_magus"])
 
-    def calculate(vigilant=True, reunion=False, picks=()):
+    def calculate(vigilant=True, reunion=False, picks=(), selected_slot=None):
         selected_picks = list(picks) + (["Happiest Reunion"] if reunion else [])
+        extra_conditions = {"vigilant_breeze_active": vigilant}
+        if selected_slot is not None:
+            extra_conditions["vigilant_breeze_merged_slot"] = selected_slot
         req = make_request(
             "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
             advanced_trait_selections=selected_picks,
-            extra_conditions={"vigilant_breeze_active": vigilant},
+            extra_conditions=extra_conditions,
             skills=[{"slot": 1, "skill_id": "summon_thunder_magus", "level": 20},
                     {"slot": 2, "skill_id": "summon_rock_magus", "level": 20}],
         )
@@ -733,7 +933,7 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     assert with_stream["summon_rock_magus"]["vigilant_merged"] is False
     assert with_stream["summon_rock_magus"]["total_dps"] > without_reunion["summon_rock_magus"]["total_dps"]
 
-    with_reunion = calculate(reunion=True)
+    with_reunion = calculate(reunion=True, selected_slot="2")
     assert with_reunion["summon_thunder_magus"]["vigilant_merged"] is True
     assert with_reunion["summon_rock_magus"]["vigilant_merged"] is True
     assert with_reunion["summon_thunder_magus"]["iris_merged_magi_count"] == 3
@@ -743,6 +943,91 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     assert disabled["summon_thunder_magus"]["vigilant_merged"] is False
     assert disabled["summon_rock_magus"]["vigilant_merged"] is False
     assert disabled["summon_rock_magus"]["total_dps"] > 0
+
+
+def test_vigilant_controlled_slot_resolves_defaults_duplicates_and_stale_values():
+    from engine.compute import _resolve_vigilant_controlled_slot
+
+    # The selector's value is the slot, so duplicate instances of one Magus remain distinct.
+    assert _resolve_vigilant_controlled_slot("2", [1, 2], 1) == 2
+    # A missing choice defaults to the main Magus when present, otherwise the first slotted Magus.
+    assert _resolve_vigilant_controlled_slot(None, [2], 1) == 2
+    assert _resolve_vigilant_controlled_slot(None, [2, 4], 4) == 4
+    assert _resolve_vigilant_controlled_slot(None, [4, 2], 1) == 2
+    # A stale or malformed saved slot follows the same fallback; no Magi means no selection.
+    assert _resolve_vigilant_controlled_slot("99", [1, 2], 1) == 1
+    assert _resolve_vigilant_controlled_slot("not-a-slot", [2, 4], 1) == 2
+    assert _resolve_vigilant_controlled_slot("2", [], 1) is None
+
+
+def test_merged_magus_condition_api_exposes_dynamic_slot_options(monkeypatch):
+    import server
+    from models import conditions
+
+    monkeypatch.setattr(conditions, "ALL_CONDITIONS", [conditions.ConditionDef(
+        key="vigilant_breeze_merged_slot", label="Merged Magus", category="Hero Trait",
+        value_type="enum", options_source="spirit_magus_slots", trait_id="vigilant_breeze",
+    )])
+
+    assert server.get_conditions() == {"Hero Trait": [{
+        "key": "vigilant_breeze_merged_slot",
+        "label": "Merged Magus",
+        "value_type": "enum",
+        "category": "Hero Trait",
+        "enum_values": [],
+        "default_enum": "",
+        "options_source": "spirit_magus_slots",
+        "source": "user",
+        "trait_id": "vigilant_breeze",
+    }]}
+
+
+def test_vigilant_selected_slot_controls_magus_when_main_skill_is_a_different_magus():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
+        skills=[{"slot": 1, "skill_id": "summon_thunder_magus", "level": 20},
+                {"slot": 2, "skill_id": "summon_rock_magus", "level": 20}],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_merged_slot": "2"},
+    )
+    offense = engine_stats(EngineStatsRequest(**request))["minion_offense"]
+
+    assert offense["summon_thunder_magus"]["vigilant_merged"] is False
+    assert offense["summon_rock_magus"]["vigilant_merged"] is True
+    assert offense["summon_rock_magus"]["vigilant_merge_reason"] == "selected Magus"
+
+    # If a stored slot stops holding a Magus, fall back to the main Magus rather than merging nobody.
+    request["condition_state"]["vigilant_breeze_merged_slot"] = "9"
+    fallback = engine_stats(EngineStatsRequest(**request))["minion_offense"]
+    assert fallback["summon_thunder_magus"]["vigilant_merged"] is True
+    assert fallback["summon_rock_magus"]["vigilant_merged"] is False
+
+
+def test_duplicate_same_type_magi_are_distinguished_by_slot():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    def calculate(selected_slot):
+        request = make_request(
+            "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
+            skills=[{"slot": 1, "skill_id": "summon_rock_magus", "level": 20},
+                    {"slot": 2, "skill_id": "summon_rock_magus", "level": 20}],
+            extra_conditions={"vigilant_breeze_active": True,
+                              "vigilant_breeze_merged_slot": str(selected_slot)},
+        )
+        offense = engine_stats(EngineStatsRequest(**request))["minion_offense"]
+        return {result["owner_slot"]: result for result in offense.values()}
+
+    # Both instances remain present and are selected by slot even though they share an item_id.
+    second_selected = calculate(2)
+    assert set(second_selected) == {1, 2}
+    assert second_selected[2]["vigilant_merged"] is True
+    assert second_selected[1]["vigilant_merged"] is False
+    first_selected = calculate(1)
+    assert first_selected[1]["vigilant_merged"] is True
+    assert first_selected[2]["vigilant_merged"] is False
 
 
 def test_unmodeled_merged_magus_uses_rotation_checkboxes_without_crashing(monkeypatch):
@@ -863,7 +1148,7 @@ def test_compute_forwards_breeze_and_reunion_damage_into_magus_pools(monkeypatch
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
-    assert magus["selected_skill_damage_status"] == "NYI"
+    assert "Thunder Magus Lightning Surge per-cast form is pending" in " ".join(magus["nyi"])
     assert any(entry.amount == pytest.approx(0.32) for entry in observed)
     assert any(entry.amount == pytest.approx(1.05**2 - 1) for entry in observed)
 
@@ -920,7 +1205,8 @@ def test_unavailable_selected_skill_reason_is_reported_in_compute(monkeypatch):
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
-    assert any("selected skill cast time is unavailable" in item for item in magus["nyi"])
+    assert any("Selected skill is unavailable" in item and "cast time is unavailable" in item
+               for item in magus["nyi"])
     assert not any("0.000 casts/s" in item for item in magus["nyi"])
 
 

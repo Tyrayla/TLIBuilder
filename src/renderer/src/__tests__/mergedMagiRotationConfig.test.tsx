@@ -10,6 +10,8 @@ vi.mock('../components/CustomModsPanel', () => ({ default: () => null }))
 
 const traitConditions = [
   { key: 'vigilant_breeze_active', label: 'Vigilant (Iris Merged)', value_type: 'boolean' as const },
+  { key: 'vigilant_breeze_merged_slot', label: 'Merged Magus', value_type: 'enum' as const,
+    enum_values: [], default_enum: '', options_source: 'spirit_magus_slots' },
   { key: 'vigilant_breeze_stacks', label: 'Current Breeze Stacks', value_type: 'numeric' as const },
   { key: 'vigilant_breeze_life_consumed_pct', label: 'Warmest Vigilance Max Life Consumed', value_type: 'numeric' as const },
   { key: 'vigilant_breeze_enemies_defeated', label: 'Warmest Vigilance Enemies Defeated', value_type: 'numeric' as const },
@@ -38,7 +40,10 @@ describe('Merged Magi Rotation in Config', () => {
   })
 
   it('keeps Vigilant-only conditions out of another trait and shows the merged rotation only for Vigilant Breeze', () => {
-    useBuildStore.setState({ traitId: 'another_trait' })
+    useBuildStore.setState({ traitId: 'another_trait', skills: [{
+      slot: 2, item_id: 'summon_rock_magus', name: 'Rock Magus', level: 20,
+      skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
+    }] as never })
     let otherTraitView!: TestRenderer.ReactTestRenderer
     act(() => { otherTraitView = TestRenderer.create(<BuildOverviewScreen />) })
     expect(otherTraitView.root.findAllByProps({ className: 'cond-label' })).toHaveLength(0)
@@ -80,6 +85,64 @@ describe('Merged Magi Rotation in Config', () => {
     expect(checks.map(input => input.props.checked)).toEqual([false, true, true])
     act(() => { checks[0].props.onChange({ target: { checked: true } }) })
     expect(useBuildStore.getState().conditionState.vigilant_breeze_spam_base).toBe(true)
+    act(() => { view.unmount() })
+  })
+
+  it('lists Magus options by slot, defaults to the first slotted Magus, and stores the chosen slot', () => {
+    const equipped = (slot: number, item_id: string, name: string) => ({
+      slot, item_id, name, level: 20, skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
+    })
+    useBuildStore.setState({
+      skills: [
+        equipped(1, 'summon_rock_magus', 'Rock Magus'),
+        equipped(2, 'summon_rock_magus', 'Rock Magus'),
+        equipped(3, 'summon_erosion_magus', 'Erosion Magus'),
+        equipped(6, 'summon_rock_magus', 'Passive Rock Magus'),
+      ] as never,
+      conditionState: { vigilant_breeze_merged_slot: '9' },
+    })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+
+    const select = view.root.findAllByType('select').find(node =>
+      node.findAllByType('option').some(option => option.props.children === 'Rock Magus · Slot 1'),
+    )!
+    expect(select.props.value).toBe('1')
+    expect(select.findAllByType('option').map(option => option.props.children)).toEqual([
+      'Rock Magus · Slot 1', 'Rock Magus · Slot 2', 'Erosion Magus · Slot 3',
+    ])
+    act(() => { select.props.onChange({ target: { value: '2' } }) })
+    expect(useBuildStore.getState().conditionState.vigilant_breeze_merged_slot).toBe('2')
+    act(() => { view.unmount() })
+  })
+
+  it('hides the selector when the build has no slotted Spirit Magi', () => {
+    useBuildStore.setState({ skills: [] })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    expect(view.root.findAllByProps({ className: 'cond-label' }).map(node => node.children.join('')))
+      .not.toContain('Merged Magus')
+    act(() => { view.unmount() })
+  })
+
+  it('defaults to the main skill when it is a Magus in a later active slot', () => {
+    const equipped = (slot: number, item_id: string, name: string) => ({
+      slot, item_id, name, level: 20, skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
+    })
+    useBuildStore.setState({
+      skills: [
+        equipped(2, 'summon_rock_magus', 'Rock Magus'),
+        equipped(4, 'summon_erosion_magus', 'Erosion Magus'),
+      ] as never,
+      mainSkill: { skill_id: 'summon_erosion_magus', level: 20 } as never,
+      conditionState: {},
+    })
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    const select = view.root.findAllByType('select').find(node =>
+      node.findAllByType('option').some(option => option.props.children === 'Erosion Magus · Slot 4'),
+    )!
+    expect(select.props.value).toBe('4')
     act(() => { view.unmount() })
   })
 })

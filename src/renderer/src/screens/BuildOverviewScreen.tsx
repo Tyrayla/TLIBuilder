@@ -215,6 +215,8 @@ export default function BuildOverviewScreen() {
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const traitId = useBuildStore(s => s.traitId)
+  const equippedSkills = useBuildStore(s => s.skills)
+  const mainSkill = useBuildStore(s => s.mainSkill)
   const gear = useBuildStore(s => s.gear)
   // Condition keys any build mod references (stable ref — only changes when stats recompute, so no render loop).
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
@@ -321,6 +323,14 @@ export default function BuildOverviewScreen() {
   const setEnum = (key: string, value: string) =>
     setConditionState({ ...conditionState, [key]: value })
 
+  const dynamicEnumOptions: Record<string, { value: string; label: string }[]> = {
+    spirit_magus_slots: equippedSkills
+      .filter(skill => skill.slot >= 1 && skill.slot <= 5
+        && skill.enabled !== false && skill.skill_tags.includes('Spirit Magus'))
+      .sort((a, b) => a.slot - b.slot)
+      .map(skill => ({ value: String(skill.slot), label: `${skill.name} · Slot ${skill.slot}` })),
+  }
+
   const getNumericMax = (cond: ConditionDef): number | null => {
     if (conditionMaximums[cond.key] !== undefined) return conditionMaximums[cond.key]
     if (cond.numeric_max != null) return cond.numeric_max
@@ -377,14 +387,29 @@ export default function BuildOverviewScreen() {
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
         if (cond.value_type === 'enum') {
-          const opts = cond.enum_values ?? []
-          const sel = (conditionState[cond.key] as string) ?? cond.default_enum ?? opts[0] ?? ''
+          const dynamicOpts = cond.options_source ? dynamicEnumOptions[cond.options_source] ?? [] : null
+          const opts = dynamicOpts ?? (cond.enum_values ?? []).map(value => ({ value, label: value }))
+          if (dynamicOpts && opts.length === 0) return null
+          const stored = conditionState[cond.key]
+          const mainMagusSlot = cond.options_source === 'spirit_magus_slots'
+            ? equippedSkills.find(skill => skill.item_id === mainSkill?.skill_id
+              && skill.slot >= 1 && skill.slot <= 5 && skill.enabled !== false
+              && skill.skill_tags.includes('Spirit Magus'))?.slot
+            : undefined
+          const sel = typeof stored === 'string' && opts.some(option => option.value === stored)
+            ? stored
+            : (cond.default_enum && opts.some(option => option.value === cond.default_enum)
+              ? cond.default_enum
+              : (mainMagusSlot != null && opts.some(option => option.value === String(mainMagusSlot))
+                ? String(mainMagusSlot)
+              : opts[0]?.value ?? '')
+              )
           return (
             <div key={cond.key} className="cond-item">
               <ConditionLabel condition={cond} className="cond-label" />
               <select className="cond-stack-input" style={{ marginLeft: 'auto', maxWidth: '55%' }}
                 value={sel} onChange={e => setEnum(cond.key, e.target.value)}>
-                {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                {opts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
           )

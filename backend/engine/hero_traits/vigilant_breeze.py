@@ -559,9 +559,8 @@ def status_lines(*, slot_levels, advanced_picks, season=None, skills_input=None,
         line("Merged Magi enter Vigilant; use-max selects the computed Breeze maximum, or set any literal stack count including zero", "Vigilant Breeze")
         line("Breeze adds +16% additional damage per current stack, linearly (owner-confirmed: 10 stacks = +160%)", "Vigilant Breeze")
         line("During Vigilant, Magi consume 20% Max Life per second outside Reconjuring; gain 1 Breeze/s to 10 while merged and lose 2/s unmerged or Reconjuring", "Vigilant Breeze", "informational")
-        line("Merged Magi cast only Iris's selected skill; their normal rotation is replaced until unmerged", "Vigilant Breeze")
-        line("Iris can select Base Skill (with Enhanced chance replacing individual casts) or Ultimate", "Vigilant Breeze")
-        line("Selected skill damage lookup is pending each Magus module; Ultimate stays out of default DPS", "Vigilant Breeze", "informational")
+        line("Merged Magi replace Base/Enhanced rotation with checked Base Skill, Ultimate, and optional Empower", "Vigilant Breeze")
+        line("Ultimate damage forms contribute only when the Merged Magi Rotation selects Ultimate; unmerged Ultimate remains outside default DPS", "Vigilant Breeze", "informational")
         line(f"Base trait L2-L5: +{_BASE_DMG_ADD[1]*100:g}/{_BASE_DMG_ADD[2]*100:g}/{_BASE_DMG_ADD[3]*100:g}/{_BASE_DMG_ADD[4]*100:g}% additional Minion Damage", "Vigilant Breeze")
     if _pick(picks, slot_levels, "Whirlwind Tango", _SLOT_45):
         tier = _tier(slot_levels, _SLOT_45)
@@ -572,7 +571,7 @@ def status_lines(*, slot_levels, advanced_picks, season=None, skills_input=None,
                  "Whirlwind Tango", "NYI")
         else:
             line(f"Whirlwind Tango: {penalty*100:g}% additional Spirit Magus Skill Damage to all Spirit Magi", "Whirlwind Tango")
-        line("Ultimate damage is a separate per-cast form and remains outside default DPS until its Magus module is wired", "Whirlwind Tango", "informational")
+        line("Ultimate damage contributes only when Merged Magi Rotation selects Ultimate; unmerged Ultimate remains outside default DPS", "Whirlwind Tango", "informational")
     if _pick(picks, slot_levels, "Breeze's Whisper", _SLOT_45):
         tier = _tier(slot_levels, _SLOT_45)
         line(f"Breeze's Whisper: +30% Enhanced chance; Enhanced casts restore {_WHISPER_HEAL[tier]*100:g}% Max Life at {_WHISPER_INTERVAL[tier]:g}s intervals; temporary max Breeze +{_WHISPER_MAX[tier]} until Reconjuring", "Breeze's Whisper")
