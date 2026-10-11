@@ -72,12 +72,12 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     assert forms["Bleak Grass"].shotgun_mult == pytest.approx(2.0)
     assert forms["Bleak Grass"].shotgun_falloff == 0.0
     # Informational slot factor for Iris: 1 - 0.5 × 0.6s / 10s = 0.97.
-    # It does not change unmerged rates: Stage 2 splits 1.25 casts/s at 30% Enhanced chance.
+    # Unmerged rates pay the Empower cast-slot cost: 1.25 × the 70% / 30% replacement split × 0.97.
     assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.97)
     assert result.minion_empower["effective_cast_time"] == pytest.approx(0.6)
     assert result.minion_empower["effective_cooldown"] == pytest.approx(10.0)
-    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.7 / 0.8)
-    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.3 / 0.8)
+    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.7 / 0.8 * 0.97)
+    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.3 / 0.8 * 0.97)
 
 
 def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
@@ -141,7 +141,7 @@ def test_erosion_empower_cast_slot_uses_effective_cast_time():
     assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.98)
 
 
-def test_erosion_owner_level_16_eighteen_percent_check_keeps_unmerged_dps():
+def test_erosion_owner_level_16_eighteen_percent_case_applies_empower_cast_slot():
     import engine.minion_effects  # noqa: F401 -- populate MINION_MODULES
 
     owner = _owner()
@@ -151,10 +151,11 @@ def test_erosion_owner_level_16_eighteen_percent_check_keeps_unmerged_dps():
         source, owner, season_manager.load_minion_base_stats("SS14"), 16, 1)
     forms = _forms(result)
 
-    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.82 / 0.8)
-    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.18 / 0.8)
-    # Owner in-game check: engine rounds to 119 DPS against the target; owner measured ~118.
-    assert round(forms["Scattered Mud"].dps_vs_target + forms["Bleak Grass"].dps_vs_target) == 119
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.97)
+    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.82 / 0.8 * 0.97)
+    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.18 / 0.8 * 0.97)
+    # No-slot reference 118.579216 × 0.97 = 115.02183952 target DPS; displayed integer is 115.
+    assert round(forms["Scattered Mud"].dps_vs_target + forms["Bleak Grass"].dps_vs_target) == 115
 
 
 def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():

@@ -98,13 +98,14 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     enhanced = by_role.get("Enhanced")
     if base:
         results.append(calculate_minion_offense(
-            working, base, base_stats, level, count, rate_multiplier=(1.0 - chance),
+            working, base, base_stats, level, count,
+            rate_multiplier=(1.0 - chance) * cast_slot_factor,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if enhanced:
         extra_spike_selected = bool((condition_state or {}).get("erosion_stage4_extra_spike", False))
         spikes = 2 + (empower_uptime if stage >= 4 and extra_spike_selected else 0.0)
         results.append(calculate_minion_offense(
-            working, enhanced, base_stats, level, count, rate_multiplier=chance,
+            working, enhanced, base_stats, level, count, rate_multiplier=chance * cast_slot_factor,
             shotgun_hits=spikes, shotgun_falloff=0.0,
             intrinsic_convert={"physical": {"erosion": 1.0}}, apply_cooldown_recovery_to_rate=True))
     if empower:
