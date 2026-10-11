@@ -351,7 +351,7 @@ def test_growth_stage_thresholds():
 
 def test_thunder_magus_module_base_enhanced_blend_and_gates():
     """Thunder Magus is modelled as ONE OffenseResult whose hit forms are Base + Enhanced (uptime-split at the
-    shared attack rate), Empower's +35% AS folded in, and Empower/Ultimate surfaced as NYI notes (not forms)."""
+    shared attack rate), Empower's +35% AS folded in, and Lightning Surge exposed as a separate per-cast form."""
     import json
     from engine.minion_offense import MINION_MODULES
     from persistence import season_manager
@@ -375,11 +375,14 @@ def test_thunder_magus_module_base_enhanced_blend_and_gates():
     assert forms["Lightning Star"].dps_contribution > 0 and not forms["Lightning Star"].nyi
     assert forms["Lightning Star"].fires_per_sec == pytest.approx(base_rate * cast_slot)
     assert forms["Thunderlight Arrow"].fires_per_sec == 0.0 and forms["Thunderlight Arrow"].dps_contribution == 0.0
-    # Empower + Ultimate ARE forms now — visible/selectable in the dropdown, but NYI (0 DPS, carry their reason).
+    # Empower remains NYI; Lightning Surge is a damage-bearing per-cast form outside default DPS.
     assert forms["Thundercloud Surge"].nyi and forms["Thundercloud Surge"].dps_contribution == 0.0
-    assert forms["Lightning Surge"].nyi and forms["Lightning Surge"].dps_contribution == 0.0
     assert any("Thundercloud Surge" in n for n in forms["Thundercloud Surge"].nyi)   # Empower reason surfaced
-    assert any("Lightning Surge" in n for n in forms["Lightning Surge"].nyi)         # Ultimate reason surfaced
+    ultimate = r1.minion_skill_casts["ultimate"]
+    assert ultimate["name"] == "Lightning Surge (Ultimate)"
+    assert ultimate["included_in_default_dps"] is False
+    assert ultimate["hits_per_cast"] == 7
+    assert ultimate["hit_breakdown"]["hit_forms"][0]["hits_per_fire"] == 7
 
     # Stage 2: Growth 200 → +30% Enhanced chance (p=0.30). Base fires at (1−p); Enhanced fires at its RAW chance p
     # PLUS the fast-insert bump p·F·(1−p) → p·(1 + F(1−p)), F=0.90. Both ×cast_slot. Enhanced lands 2 hits/cast.

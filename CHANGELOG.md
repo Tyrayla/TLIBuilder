@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Engine & DPS
+- Thunder Magus's Lightning Surge now has a per-cast damage breakdown for Iris selection. It hits each target seven times per cast and stays out of unmerged DPS. Bolt travel and chain targeting distances are owner estimates that still need independent verification.
 - Ghost Slaughter now grants Skill Area, additional Attack Damage, and an additional Ailment Damage stat per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The engine does not yet calculate ailment DPS. These linear formulas await in-game verification.
 - Ring of Blades now calculates DPS from its orbiting blades. Projectile Speed, Blade Formation, Razor Edge, and the supported damage bonuses affect the result.
 
