@@ -576,6 +576,8 @@
       {
         "avg_hit_pre_crit": 20851.806833609455,
         "avg_hit_with_crit": 24980.464586664126,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
@@ -585,6 +587,8 @@
         },
         "dps_contribution": 0.0,
         "dps_vs_target": 0.0,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 154.0,
         "fires_per_sec": 0.0,
         "form_type": "exclusive",
@@ -609,6 +613,8 @@
       {
         "avg_hit_pre_crit": 68185.4083459029,
         "avg_hit_with_crit": 81686.11919839168,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
@@ -618,6 +624,8 @@
         },
         "dps_contribution": 250155.57143315475,
         "dps_vs_target": 124365.1715353854,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 308.0,
         "fires_per_sec": 3.0624000000000007,
         "form_type": "exclusive",
@@ -1105,6 +1113,8 @@
         {
           "avg_hit_pre_crit": 20851.806833609455,
           "avg_hit_with_crit": 24980.464586664126,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
@@ -1114,6 +1124,8 @@
           },
           "dps_contribution": 0.0,
           "dps_vs_target": 0.0,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 154.0,
           "fires_per_sec": 0.0,
           "form_type": "exclusive",
@@ -1138,6 +1150,8 @@
         {
           "avg_hit_pre_crit": 68185.4083459029,
           "avg_hit_with_crit": 81686.11919839168,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
@@ -1147,6 +1161,8 @@
           },
           "dps_contribution": 250155.57143315475,
           "dps_vs_target": 124365.1715353854,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 308.0,
           "fires_per_sec": 3.0624000000000007,
           "form_type": "exclusive",

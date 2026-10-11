@@ -839,7 +839,7 @@ export interface MinionEmpower {
   empower_effect: number       // 1 + Spirit Magi Empower Effect (multiplier on the buff magnitudes)
   empower_effect_inc: number   // the raw additional Empower Effect (spirit_magi_empower_effect_additional)
   base_cooldown: number
-  cooldown: number             // effective = base ÷ (1 + Minion CDR)
+  cooldown: number             // effective = base ÷ (1 + Minion CDR + Spirit Magus CDR)
   cdr_inc: number
   base_duration: number
   duration: number             // effective = base × (1 + Minion Skill Effect Duration)
@@ -894,6 +894,10 @@ export interface HitFormResult {
   // every use, a "burst" form once per RESET cycle. hits_per_fire = projectiles/blades per occurrence.
   fires_per_sec: number
   hits_per_fire: number
+  base_cast_time: number
+  base_cooldown: number
+  effective_cast_time: number
+  effective_cooldown: number
   shotgun_falloff: number   // same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
   shotgun_mult: number      // total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
   base_min_by_type: Record<string, number>   // this form's intrinsic base (multi-form spells)

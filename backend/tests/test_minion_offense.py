@@ -118,6 +118,17 @@ def test_ultimate_cooldown_caps_rate():
     assert o.skills_per_second == pytest.approx(0.125)  # 1/8 cooldown caps the cast rate
 
 
+def test_cooldown_recovery_at_minus_100_percent_produces_zero_rate():
+    source = _src_with_minion_mods()
+    source.add("minion_cdr_speed_inc", -1.0)
+    result = calculate_minion_offense(
+        source, _ULTIMATE, _BASE_STATS, level=20, apply_cooldown_recovery_to_rate=True)
+    assert result.hit_forms[0].fires_per_sec == 0.0
+    assert result.hit_forms[0].effective_cooldown == 0.0
+    assert any("effective cooldown is reported as 0" in note for note in result.nyi)
+    assert result.total_dps == 0.0
+
+
 def test_minion_count_folds_into_totals_via_cast_multiplier():
     one = calculate_minion_offense(_src_with_minion_mods(), _BASE_SKILL, _BASE_STATS, 20, minion_count=1)
     three = calculate_minion_offense(_src_with_minion_mods(), _BASE_SKILL, _BASE_STATS, 20, minion_count=3)

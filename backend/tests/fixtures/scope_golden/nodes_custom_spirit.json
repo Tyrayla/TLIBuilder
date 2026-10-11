@@ -586,6 +586,8 @@
       {
         "avg_hit_pre_crit": 246.24,
         "avg_hit_with_crit": 255.47400000000002,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "lightning": 289.0
         },
@@ -598,6 +600,8 @@
         },
         "dps_contribution": 491.29615384615386,
         "dps_vs_target": 240.73511538461534,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 1.923076923076923,
         "form_type": "additive",
