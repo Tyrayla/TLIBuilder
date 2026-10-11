@@ -147,6 +147,14 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
                 stat=dst, amount=amt, source_type="minion", label="Spirit Magi", source_name="Spirit Magi", text=text))
 
     for src_key, dst_key in _SPIRIT_MAGI_FOLD.items():
+        if src_key == "spirit_magi_dmg_additional":
+            entries = [entry for entry in tuple(source.source_log) if entry.stat == src_key]
+            for entry in entries:
+                source.add_with_source(dst_key, entry.amount, replace(entry, stat=dst_key))
+            untracked = source.total(src_key) - sum(entry.amount for entry in entries)
+            if abs(untracked) > 1e-12:
+                _add(dst_key, untracked, "Spirit Magi additional damage (untracked source)")
+            continue
         _add(dst_key, source.total(src_key), f"Spirit Magi {src_key.replace('spirit_magi_', '').replace('_', ' ')}")
 
     # Per-Growth folds (Talons of Abyss): per-unit stat × floor(growth / divisor).
@@ -351,10 +359,12 @@ def spirit_magus_reconjuring_cycle(*, drain_pct_per_second: float = 0.0, heal_se
     drain_heal = ordinary_heal + max(0.0, float(drain_heal_pct_per_second))
     net_drain = drain - drain_heal
     if net_drain <= 0:
+        heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
+        heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
         return {"drain_seconds": 0.0, "reconjuring_seconds": 0.0, "cycle_seconds": 0.0,
                 "damage_uptime": 1.0, "drain_pct_per_second": drain,
                 "drain_heal_pct_per_second": drain_heal,
-                "heal_pct_per_second": 1.0 / heal_seconds if heal_seconds > 0 else 0.0}
+                "heal_pct_per_second": heal_rate}
     heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
     heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
     drain_duration = 1.0 / net_drain

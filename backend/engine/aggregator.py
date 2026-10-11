@@ -5,6 +5,7 @@ from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
                                          ORIGIN_OWNER_FLAG as _ORIGIN_OWNER_FLAG,
+                                         is_merging_stream_active as _is_merging_stream_active,
                                          origin_factor as _origin_factor_fn,
                                          scaled_magnitude as _origin_scaled)
 
@@ -950,8 +951,7 @@ def aggregate(
     # AFTER scaling (cap-scaling behavior unverified — spec: .wolf/engine-spec-magus-origins.md).
     _origin_flags = active_booleans or frozenset()
     _any_origin = "origin_of_thunder" in _origin_flags or any(e[0] in _origin_flags for e in _ORIGIN_EMITS)
-    from engine.spirit_magus_origins import is_merging_stream_active
-    _merging_stream = is_merging_stream_active(getattr(build, "trait_id", None), _origin_flags)
+    _merging_stream = _is_merging_stream_active(getattr(build, "trait_id", None), _origin_flags)
     if _any_origin and not _merging_stream:
         _origin_inc_total = source.total("spirit_magi_origin_effect_inc")
         _origin_add_total = source.total("spirit_magi_origin_effect_additional")

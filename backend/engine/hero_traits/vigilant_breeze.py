@@ -6,8 +6,6 @@ can consume them without making Ultimate forms part of default DPS.
 """
 from __future__ import annotations
 
-import math
-
 TRAIT_ID = "vigilant_breeze"
 
 _SLOT_BASE, _SLOT_45, _SLOT_60, _SLOT_75 = 0, 1, 2, 3
@@ -120,7 +118,9 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         tier = _tier(slot_levels, _SLOT_60)
         spent = _number(condition_state, "vigilant_breeze_life_consumed_pct", 0.0)
         defeated = _number(condition_state, "vigilant_breeze_enemies_defeated", 0.0)
-        bonus = min(_WARMEST_CAP[tier], math.floor(spent / (_WARMEST_STEP[tier] * 100.0)))
+        spent_bp = int(round(spent * 100.0))
+        step_bp = int(round(_WARMEST_STEP[tier] * 10_000.0))
+        bonus = min(_WARMEST_CAP[tier], spent_bp // step_bp)
         current_max += bonus
         set_conditions["vigilant_breeze_warmest_bonus_stacks"] = bonus
         set_conditions["vigilant_breeze_warmest_defeated_stacks"] = defeated
@@ -169,13 +169,12 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     set_conditions["vigilant_breeze_whirlwind_breeze_gain"] = tango_breeze_gain
 
     current = _number(condition_state, "vigilant_breeze_stacks", 0.0, 0.0, 100.0)
-    if current == 0.0:  # zero is the Config sentinel for the computed maximum
+    if condition_state.get("vigilant_breeze_use_max_stacks", True):
         current = current_max
     current += float(set_conditions.get("vigilant_breeze_warmest_defeated_stacks", 0.0) or 0.0)
     current = min(current, current_max)
     set_conditions["vigilant_breeze_current_stacks"] = current if vigilant_active else 0.0
-    # The shared Spirit Magus layer applies this Growth only to Magi currently merged in Vigilant.
-    set_conditions["vigilant_breeze_artificial_moon_growth"] = current * 6.0 if base_level >= 4 and vigilant_active else 0.0
+    # The shared Spirit Magus layer applies +6 Growth per Breeze stack to each Magus.
 
     set_conditions["vigilant_breeze_damage_factor"] = damage_factor
     return {"contributions": contributions, "set_conditions": set_conditions}
@@ -249,6 +248,8 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
         if growth_stage(float(growth)) >= 2:
             enhanced_chance += 0.30
         enhanced_chance = max(0.0, min(1.0, enhanced_chance))
+        # Owner ruling: Enhanced REPLACES an individual Base cast, so its share uses the Base cadence;
+        # Enhanced's own cast-time/cooldown schedule does not create a separate rotation.
         skill_forms = [
             {"role": "base skill", "skill_name": resolved.get("name"),
              "casts_per_second": rate * (1.0 - enhanced_chance)},
@@ -279,7 +280,7 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
     Each recipient Magus gets its own Growth-scaled Origin Effect multiplier.
     """
     if not condition_state.get("vigilant_breeze_merging_stream"):
-        return
+        return []
     from engine.models import SourceEntry
     from engine.spirit_magus_origins import EMIT_TABLE, origin_factor, scaled_magnitude, thunder_origin_values
 
@@ -287,6 +288,7 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
     effect_add = source.total("spirit_magi_origin_effect_additional")
     per_two_growth = float(condition_state.get("vigilant_breeze_origin_effect_per_2_growth", 0.0) or 0.0)
     growth_factor = 1.0 + per_two_growth * (float(growth) // 2)
+    unsupported_targets = set()
     stat_map = {
         "attack_crit_rating_flat": "minion_crit_rating_flat",
         "spell_crit_rating_flat": "minion_crit_rating_flat",
@@ -317,6 +319,8 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
             destination = stat_map.get(target)
             if destination:
                 emit(destination, value * scale, f"{origin_name} (Merging Stream)", text_fmt.format(v=value))
+            else:
+                unsupported_targets.add(target)
 
     if condition_state.get("origin_of_thunder"):
         level = float(condition_state.get("origin_of_thunder_level", 20.0) or 20.0)
@@ -329,9 +333,10 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
              "+6% additional Cast Speed (Origin of Thunder)")
         emit("minion_dmg_additional", _thunder_damage,
              "Origin of Thunder (Merging Stream)", f"Origin of Thunder Lv {int(level)} additional damage")
+    return sorted(unsupported_targets)
 
 
-def status_lines(*, slot_levels, advanced_picks, season=None, **_):
+def status_lines(*, slot_levels, advanced_picks, season=None, skills_input=None, **_):
     slot_levels = list(slot_levels or [1, 1, 1, 1])
     picks = set(advanced_picks or [])
     rows = []
@@ -341,7 +346,8 @@ def status_lines(*, slot_levels, advanced_picks, season=None, **_):
 
     if _enabled(slot_levels, _SLOT_BASE):
         line("Spirit Magus skills in active slots also cast the Trait Skill; every-season line", "Vigilant Breeze")
-        line("Merged Magi enter Vigilant; current Breeze stacks are user-set (0 uses the computed maximum)", "Vigilant Breeze")
+        line("Merged Magi enter Vigilant; use-max selects the computed Breeze maximum, or set any literal stack count including zero", "Vigilant Breeze")
+        line("Breeze adds +16% additional damage per selected current stack; OWNER TO CONFIRM whether stacks compound", "Vigilant Breeze", "needs-verification")
         line("During Vigilant, Magi consume 20% Max Life per second outside Reconjuring; gain 1 Breeze/s to 10 while merged and lose 2/s unmerged or Reconjuring", "Vigilant Breeze", "informational")
         line("Merged Magi cast only Iris's selected skill; their normal rotation is replaced until unmerged", "Vigilant Breeze")
         line("Iris can select Base Skill (with Enhanced chance replacing individual casts) or Ultimate", "Vigilant Breeze")
@@ -371,8 +377,10 @@ def status_lines(*, slot_levels, advanced_picks, season=None, **_):
         line("Consumed-Life and defeat counters are user-set per Magus; no event simulation", "Warmest Vigilance")
     if _pick(picks, slot_levels, "Merging Stream", _SLOT_75):
         tier = _tier(slot_levels, _SLOT_75)
-        line(f"Merging Stream: Iris does not receive Origins; basic Magus Origins apply to each Magus; +{_STREAM_ORIGIN[tier]*100:g}% additional Origin Effect per 2 Growth", "Merging Stream")
-        line("Origin of Ice Energy Shield regeneration is not modeled because minion Max Energy Shield has no engine pool", "Merging Stream", "informational")
+        line(f"Merging Stream: Iris does not receive Origins; basic Magus Origins apply to all Spirit Magi; +{_STREAM_ORIGIN[tier]*100:g}% additional Origin Effect per 2 total Growth, including innate Growth", "Merging Stream")
+        if any(sk.get("enabled", True) and sk.get("skill_id") == "summon_frost_magus"
+               for sk in (skills_input or [])):
+            line("Origin of Ice Energy Shield regeneration is not modeled because minion Max Energy Shield has no engine pool", "Merging Stream", "NYI")
     if _pick(picks, slot_levels, "Nurturing Breeze", _SLOT_75):
         tier = _tier(slot_levels, _SLOT_75)
         line(f"Nurturing Breeze: Iris takes {_NURTURE_DMG_TAKEN[tier]*100:g}% additional damage; copies {_NURTURE_REGEN_SHARE[tier]*100:g}% of Life Regeneration Speed/Per Second and {_NURTURE_REGAIN_SHARE[tier]*100:g}% of Life/Shield Regain and intervals to Magi", "Nurturing Breeze")

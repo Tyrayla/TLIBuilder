@@ -170,7 +170,8 @@ def consumable_universe() -> frozenset[str]:
     # Origin-of-Thunder buff block scales by Origin of Spirit Magus Effect.
     consumed |= {"spirit_magi_initial_growth_flat", "spirit_magi_enhanced_skill_chance",
                  "spirit_magi_origin_effect_inc", "spirit_magi_origin_effect_additional",
-                 "minion_physique_inc", "max_spirit_magi_flat", "minion_projectile_quantity_flat",
+                 "minion_physique_inc", "max_spirit_magi_flat", "extra_max_minions_flat",
+                 "minion_projectile_quantity_flat",
                  "minion_cdr_speed_inc", "minion_skill_effect_duration_inc"}
     # Minion penetration — read explicitly in engine.minion_offense._minion_target_mitigation (minion damage
     # penetrates with its OWN pen). Plus the spirit-magi damage/crit pools folded into minion pools for magi.

@@ -26,7 +26,7 @@ def test_vigilant_breeze_base_level_and_artificial_moon_contributions():
 
     assert ("minion_dmg_additional", 0.20) in _amounts(result)
     assert result["set_conditions"]["vigilant_breeze_max_stacks"] == 10
-    assert result["set_conditions"]["vigilant_breeze_artificial_moon_growth"] == 60
+    assert result["set_conditions"]["vigilant_breeze_current_stacks"] == 10
     magus_source = BuildSource()
     assert apply_spirit_magi_growth(magus_source, breeze_stacks=10) == 160
     assert magus_source.total("spirit_magi_initial_growth_flat") == 60
@@ -37,13 +37,32 @@ def test_breeze_stacks_are_shared_inputs_for_the_merged_magus_layer():
         "build_input": SimpleNamespace(season="SS13"), "ls_state": {}, "uptime_mode": "max",
         "slot_levels": [1, 1, 1, 1], "advanced_picks": [],
     }
-    unmerged = vb.apply(condition_state={"vigilant_breeze_active": False,
+    unmerged = vb.apply(condition_state={"vigilant_breeze_active": False, "vigilant_breeze_use_max_stacks": False,
                                          "vigilant_breeze_stacks": 1}, **common)
-    merged = vb.apply(condition_state={"vigilant_breeze_active": True,
+    merged = vb.apply(condition_state={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
                                        "vigilant_breeze_stacks": 1}, **common)
 
     assert unmerged["set_conditions"]["vigilant_breeze_current_stacks"] == 0
     assert merged["set_conditions"]["vigilant_breeze_current_stacks"] == 1
+
+
+def test_zero_breeze_stacks_can_be_selected_explicitly():
+    result = vb.apply(
+        build_input=SimpleNamespace(season="SS13"),
+        condition_state={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                         "vigilant_breeze_stacks": 0},
+        ls_state={}, uptime_mode="max", slot_levels=[5, 1, 1, 1], advanced_picks=[],
+    )
+
+    assert result["set_conditions"]["vigilant_breeze_current_stacks"] == 0
+
+
+def test_breeze_damage_is_exposed_as_needs_verification_status():
+    rows = vb.status_lines(slot_levels=[1, 1, 1, 1], advanced_picks=[])
+    breeze = next(row for row in rows if "Breeze adds +" in row["text"])
+
+    assert breeze["status"] == "needs-verification"
+    assert "OWNER TO CONFIRM" in breeze["text"]
 
 
 def test_happiest_reunion_uses_per_magus_product_and_adds_map_cap():
@@ -77,6 +96,7 @@ def test_happiest_reunion_uses_derived_active_magus_total_not_selector():
     result = vb.apply(
         build_input=SimpleNamespace(season="SS13"),
         condition_state={"vigilant_breeze_active": True, "vigilant_breeze_total_magi": 3,
+                         "vigilant_breeze_use_max_stacks": False,
                          "vigilant_breeze_stacks": 1},
         ls_state={}, uptime_mode="max", slot_levels=[1, 1, 5, 1],
         advanced_picks=["Happiest Reunion"],
@@ -93,6 +113,7 @@ def test_warmest_vigilance_uses_per_magus_life_counter_and_defeat_stacks():
         build_input=SimpleNamespace(season="SS13"),
         condition_state={"vigilant_breeze_life_consumed_pct": 10,
                          "vigilant_breeze_enemies_defeated": 2,
+                         "vigilant_breeze_use_max_stacks": False,
                          "vigilant_breeze_stacks": 3},
         ls_state={}, uptime_mode="max", slot_levels=[1, 1, 5, 1],
         advanced_picks=["Warmest Vigilance"],
@@ -101,6 +122,44 @@ def test_warmest_vigilance_uses_per_magus_life_counter_and_defeat_stacks():
     assert result["set_conditions"]["vigilant_breeze_warmest_bonus_stacks"] == 2
     assert result["set_conditions"]["vigilant_breeze_max_stacks"] == 12
     assert result["set_conditions"]["vigilant_breeze_current_stacks"] == 5
+
+
+@pytest.mark.parametrize(("tier_level", "consumed_pct"), [(3, 8.2), (4, 7.6)])
+def test_warmest_vigilance_uses_integer_basis_points_at_exact_thresholds(tier_level, consumed_pct):
+    result = vb.apply(
+        build_input=SimpleNamespace(season="SS13"),
+        condition_state={"vigilant_breeze_life_consumed_pct": consumed_pct,
+                         "vigilant_breeze_use_max_stacks": False, "vigilant_breeze_stacks": 1},
+        ls_state={}, uptime_mode="max", slot_levels=[1, 1, tier_level, 1],
+        advanced_picks=["Warmest Vigilance"],
+    )
+
+    assert result["set_conditions"]["vigilant_breeze_warmest_bonus_stacks"] == 2
+
+
+def test_happiest_reunion_and_tango_keep_separate_additional_damage_factors():
+    from engine.minion_offense import fold_spirit_magi_pools
+    from engine.offense import _additional_product, _build_additional_factors
+    from engine.models import SourceEntry
+
+    result = vb.apply(
+        build_input=SimpleNamespace(season="SS13"),
+        condition_state={"vigilant_breeze_active": True, "vigilant_breeze_total_magi": 2,
+                         "vigilant_breeze_use_max_stacks": False, "vigilant_breeze_stacks": 0},
+        ls_state={}, uptime_mode="max", slot_levels=[1, 5, 5, 1],
+        advanced_picks=["Whirlwind Tango", "Happiest Reunion"],
+    )
+    source = BuildSource()
+    for item in result["contributions"]:
+        source.add_with_source(item["stat_key"], item["amount"], SourceEntry(
+            stat=item["stat_key"], amount=item["amount"], source_type="condition",
+            label=item["source"], text=item["text"]))
+    fold_spirit_magi_pools(source)
+    factors = _build_additional_factors(source)
+    actual = _additional_product(source, factors, lambda tags: "minion" in tags)
+
+    # SS13 Tango is -60%; tier-5 Reunion is +5% per Magus, compounded across two Magi.
+    assert actual == pytest.approx(0.4 * 1.05**2)
 
 
 def test_nurturing_breeze_copies_scaled_regen_and_regain_pools():
@@ -144,13 +203,30 @@ def test_merging_stream_scales_origin_for_each_magus_growth():
         "vigilant_breeze_origin_effect_per_2_growth": 0.001,
         "origin_of_fire": True,
         "origin_of_fire_value": 100.0,
+        "origin_of_ice": True,
+        "origin_of_ice_value": 2.4,
     }
 
-    vb.apply_merging_stream_origins(source=source, condition_state=condition_state, growth=200)
+    unsupported = vb.apply_merging_stream_origins(source=source, condition_state=condition_state, growth=200)
 
     # Fire Origin grants both Attack and Spell CSR. Both fold into the Magus's one CSR pool.
     # Each grant is 100 × (1 + 20% inc) × (1 + 10% Merging Stream additional) = 132.
     assert source.total("minion_crit_rating_flat") == pytest.approx(264.0)
+    assert source.total("minion_life_regen_inc") > 0
+    assert unsupported == ["energy_shield_regen_pct"]
+
+    base_growth_source = BuildSource()
+    vb.apply_merging_stream_origins(source=base_growth_source, condition_state={
+        "vigilant_breeze_merging_stream": True,
+        "vigilant_breeze_origin_effect_per_2_growth": 0.001,
+        "origin_of_fire": True, "origin_of_fire_value": 100.0,
+    }, growth=100)
+    assert base_growth_source.total("minion_crit_rating_flat") == pytest.approx(210.0)
+
+    frost_status = vb.status_lines(slot_levels=[1, 1, 1, 5], advanced_picks=["Merging Stream"],
+                                   skills_input=[{"skill_id": "summon_frost_magus"}])
+    assert any(row["status"] == "NYI" and "Energy Shield regeneration" in row["text"]
+               for row in frost_status)
 
 
 def test_reconjuring_cycle_uses_heal_rate_and_reports_damage_uptime():
@@ -168,6 +244,13 @@ def test_reconjuring_cycle_uses_heal_rate_and_reports_damage_uptime():
     # 15%/s ordinary healing reduces the 20%/s drain to 5%/s, so drain lasts 20s.
     # Reconjuring lasts 1/(1/3 + 0.15)s. Uptime = 20 / (20 + 1/(1/3 + 0.15)).
     assert with_regen["damage_uptime"] == pytest.approx(0.90625)
+
+    no_drain = spirit_magus_reconjuring_cycle(
+        drain_pct_per_second=0.20, regen_pct_per_second=0.30,
+        other_reconjuring_heal_pct_per_second=0.10,
+    )
+    assert no_drain["damage_uptime"] == 1
+    assert no_drain["heal_pct_per_second"] == pytest.approx(1 / 3 + 0.30 + 0.10)
 
 
 def test_reconjuring_graft_regen_is_parsed_into_its_own_heal_window_pool():
@@ -354,10 +437,11 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     monkeypatch.setitem(minion_offense.MINION_MODULES, "summon_rock_magus",
                         minion_offense.MINION_MODULES["summon_thunder_magus"])
 
-    def calculate(vigilant=True, reunion=False):
+    def calculate(vigilant=True, reunion=False, picks=()):
+        selected_picks = list(picks) + (["Happiest Reunion"] if reunion else [])
         req = make_request(
             "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
-            advanced_trait_selections=["Happiest Reunion"] if reunion else [],
+            advanced_trait_selections=selected_picks,
             extra_conditions={"vigilant_breeze_active": vigilant},
             skills=[{"slot": 1, "skill_id": "summon_thunder_magus", "level": 20},
                     {"slot": 2, "skill_id": "summon_rock_magus", "level": 20}],
@@ -370,15 +454,39 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     assert "selected_skill_damage_status" not in without_reunion["summon_rock_magus"]
     assert without_reunion["summon_rock_magus"]["total_dps"] > 0
 
+    with_stream = calculate(picks=["Merging Stream"])
+    assert with_stream["summon_rock_magus"]["vigilant_merged"] is False
+    assert with_stream["summon_rock_magus"]["total_dps"] > without_reunion["summon_rock_magus"]["total_dps"]
+
     with_reunion = calculate(reunion=True)
     assert with_reunion["summon_thunder_magus"]["vigilant_merged"] is True
     assert with_reunion["summon_rock_magus"]["vigilant_merged"] is True
+    assert with_reunion["summon_thunder_magus"]["iris_merged_magi_count"] == 3
     assert with_reunion["summon_rock_magus"]["total_dps"] == 0
 
     disabled = calculate(vigilant=False, reunion=True)
     assert disabled["summon_thunder_magus"]["vigilant_merged"] is False
     assert disabled["summon_rock_magus"]["vigilant_merged"] is False
     assert disabled["summon_rock_magus"]["total_dps"] > 0
+
+
+def test_happiest_reunion_count_includes_gear_max_magi():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    gear = [{"item_name": "Max Magi Ring", "contributions": [{
+        "stat": "max_spirit_magi_flat", "display_value": 1, "unit": "", "slot": "ring1",
+        "item_name": "Max Magi Ring", "text": "+1 Max Spirit Magi",
+    }]}]
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
+        advanced_trait_selections=["Happiest Reunion"], gear=gear,
+        extra_conditions={"vigilant_breeze_active": True},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    # Base cap 1 + gear +1 + Happiest Reunion +1.
+    assert magus["iris_merged_magi_count"] == 3
 
 
 def test_missing_magus_life_data_skips_flat_regen_and_flags_nyi(monkeypatch):
