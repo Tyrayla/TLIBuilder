@@ -326,7 +326,7 @@ export default function BuildOverviewScreen() {
 
   const dynamicEnumOptions: Record<string, { value: string; label: string }[]> = {
     spirit_magus_slots: equippedSkills
-      .filter(skill => skill.slot >= 1 && skill.slot <= 5
+      .filter(skill => skill.slot >= 1
         && skill.enabled !== false && skill.skill_tags.includes('Spirit Magus'))
       .sort((a, b) => a.slot - b.slot)
       .map(skill => ({ value: String(skill.slot), label: `${skill.name} · Slot ${skill.slot}` })),
@@ -396,7 +396,7 @@ export default function BuildOverviewScreen() {
             ? (engineMainSkillSlot != null && opts.some(option => option.value === String(engineMainSkillSlot))
               ? engineMainSkillSlot
               : [...equippedSkills]
-                .filter(skill => skill.slot >= 1 && skill.slot <= 5 && skill.enabled !== false)
+                .filter(skill => skill.slot >= 1 && skill.enabled !== false)
                 .sort((a, b) => a.slot - b.slot)
                 .find(skill => skill.item_id === mainSkill?.skill_id
                   && skill.skill_tags.includes('Spirit Magus'))?.slot)

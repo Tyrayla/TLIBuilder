@@ -657,14 +657,14 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     merged = calculate()
     merged_magus = merged["minion_offense"]["summon_thunder_magus"]
     assert merged_magus["vigilant_merged"] is True
-    assert merged_magus["total_dps"] == 0.0
+    assert merged_magus["total_dps"] > 0.0
     assert "normal Base/Enhanced rotation" in " ".join(merged_magus["nyi"])
-    assert "Thunder Magus Lightning Surge per-cast form is pending" in " ".join(merged_magus["nyi"])
+    assert not any("per-cast form is pending" in note for note in merged_magus["nyi"])
     assert merged_magus["iris_skill_dispatch"]["role"] == "rotation"
     # The request omits all three rotation keys: Base defaults off, Ultimate on, and Empower on.
     assert merged_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
     assert merged_magus["iris_skill_dispatch"]["empower_enabled"] is True
-    assert "selected_skill_damage_status" not in merged_magus
+    assert merged_magus["selected_skill_damage_status"] == "working"
     assert any(form["nyi"] for form in merged_magus["hit_forms"])
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
     empower = merged_magus["minion_empower"]
@@ -694,7 +694,7 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     # Thunder has one base summon at this level; Happiest Reunion adds one map-cap Magus.
     assert reunion_magus["iris_merged_magi_count"] == 2
     assert reunion_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
-    assert "Thunder Magus Lightning Surge per-cast form is pending" in " ".join(reunion_magus["nyi"])
+    assert reunion_magus["total_dps"] > 0.0
 
 
 def test_compute_whisper_heals_enhanced_base_casts_but_not_selected_ultimate():
@@ -897,7 +897,7 @@ def test_only_selected_magus_count_uses_merged_rotation_and_remainder_keeps_norm
     assert any("Merged rotation applies to 1 of 2 Magi" in note for note in magus["nyi"])
 
 
-def test_thunder_merged_ultimate_without_per_cast_form_is_explicitly_nyi():
+def test_thunder_merged_ultimate_uses_real_seven_hit_per_cast_form():
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
 
@@ -910,10 +910,43 @@ def test_thunder_merged_ultimate_without_per_cast_form_is_explicitly_nyi():
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
-    assert magus["total_dps"] == 0.0
-    assert any("Thunder Magus Lightning Surge per-cast form is pending" in note for note in magus["nyi"])
+    # 6,479.025 damage/cast × 1/8 s cooldown × 0.625 damage uptime = 506.173828125 DPS.
+    # The real module template contributes seven full hits per target on each 1.5 s cast, with an 8 s cooldown.
+    assert magus["minion_ultimate"]["damage_per_cast"] == pytest.approx(6479.025)
+    assert magus["minion_ultimate"]["hits_per_target"] == 7
+    assert magus["minion_ultimate"]["cast_time"] == pytest.approx(1.5)
+    assert magus["minion_ultimate"]["cooldown"] == pytest.approx(8.0)
+    assert magus["total_dps"] == pytest.approx(506.173828125)
+    assert magus["hit_forms"][0]["name"] == "Lightning Surge (Ultimate)"
+    assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.078125)
+    assert magus["hit_forms"][0]["hits_per_fire"] == 7
     assert any("Lightning Surge (Ultimate) only fires in Full Bloom" in note for note in magus["nyi"])
-    assert magus["hit_forms"][0]["nyi"]
+    assert not any("per-cast form is pending" in note for note in magus["nyi"])
+
+
+def test_thunder_merged_ultimate_whirlwind_tango_uses_cast_time_cadence():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        advanced_trait_selections=["Whirlwind Tango"],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
+                          "vigilant_breeze_stacks": 0, "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": False},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    # Tango removes the 8 s cooldown, so the 1.5 s cast time sets 2/3 casts/s.
+    # 6,479.025 × 2/3 × 0.625 Reconjuring uptime = 2,699.59375 DPS.
+    assert magus["minion_ultimate"]["hits_per_target"] == 7
+    assert magus["minion_ultimate"]["base_cooldown"] == pytest.approx(8.0)
+    assert magus["minion_ultimate"]["base_cast_time"] == pytest.approx(1.5)
+    assert magus["iris_skill_dispatch"]["rotations"][0]["cooldown"] == 0.0
+    assert magus["iris_skill_dispatch"]["casts_per_second"] == pytest.approx(2 / 3)
+    assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(5 / 12)
+    assert magus["total_dps"] == pytest.approx(2699.59375)
 
 
 def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monkeypatch):
@@ -1043,7 +1076,7 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     assert with_reunion["summon_thunder_magus"]["vigilant_merged"] is True
     assert with_reunion["summon_rock_magus"]["vigilant_merged"] is True
     assert with_reunion["summon_thunder_magus"]["iris_merged_magi_count"] == 3
-    assert with_reunion["summon_rock_magus"]["total_dps"] == 0
+    assert with_reunion["summon_rock_magus"]["total_dps"] > 0
 
     disabled = calculate(vigilant=False, reunion=True)
     assert disabled["summon_thunder_magus"]["vigilant_merged"] is False
@@ -1271,7 +1304,6 @@ def test_compute_forwards_breeze_and_reunion_damage_into_magus_pools(monkeypatch
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
-    assert "Thunder Magus Lightning Surge per-cast form is pending" in " ".join(magus["nyi"])
     assert any(entry.amount == pytest.approx(0.32) for entry in observed)
     assert any(entry.amount == pytest.approx(1.05**2 - 1) for entry in observed)
 

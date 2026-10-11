@@ -175,9 +175,7 @@ def _apply_merged_magus_rotation(result, dispatch, owner, abilities, level: int,
     if "ultimate" in missing:
         ultimate_ability = next((ability for ability in abilities if "ultimate" in {
             str(tag).lower() for tag in (ability.get("skill_tags") or [])}), None)
-        is_thunder = owner.get("item_id") == "summon_thunder_magus"
-        detail = ("Thunder Magus Lightning Surge per-cast form is pending its separate module change."
-                  if is_thunder else "This Magus module does not expose an Ultimate per-cast form yet.")
+        detail = "This Magus module does not expose an Ultimate per-cast form yet."
         if ultimate_ability is not None:
             from engine.minion_offense import nyi_offense
             nyi_form = nyi_offense(ultimate_ability, level)

@@ -88,7 +88,7 @@ describe('Merged Magi Rotation in Config', () => {
     act(() => { view.unmount() })
   })
 
-  it('lists Magus options by slot, defaults to the first slotted Magus, and stores the chosen slot', () => {
+  it('lists enabled Magus options from every skill slot, defaults by slot order, and stores the chosen slot', () => {
     const equipped = (slot: number, item_id: string, name: string, enabled = true) => ({
       slot, item_id, name, level: 20, enabled, skill_tags: ['Spirit Magus'], description_lines: [], supports: [],
     })
@@ -98,7 +98,7 @@ describe('Merged Magi Rotation in Config', () => {
         equipped(2, 'summon_rock_magus', 'Rock Magus'),
         equipped(3, 'summon_erosion_magus', 'Erosion Magus'),
         equipped(5, 'summon_rock_magus', 'Disabled Rock Magus', false),
-        equipped(6, 'summon_rock_magus', 'Passive Rock Magus'),
+      equipped(6, 'summon_rock_magus', 'Passive Rock Magus'),
       ] as never,
       conditionState: { vigilant_breeze_merged_slot: '9' },
     })
@@ -110,7 +110,7 @@ describe('Merged Magi Rotation in Config', () => {
     )!
     expect(select.props.value).toBe('1')
     expect(select.findAllByType('option').map(option => option.props.children)).toEqual([
-      'Rock Magus · Slot 1', 'Rock Magus · Slot 2', 'Erosion Magus · Slot 3',
+      'Rock Magus · Slot 1', 'Rock Magus · Slot 2', 'Erosion Magus · Slot 3', 'Passive Rock Magus · Slot 6',
     ])
     act(() => { select.props.onChange({ target: { value: '2' } }) })
     expect(useBuildStore.getState().conditionState.vigilant_breeze_merged_slot).toBe('2')
