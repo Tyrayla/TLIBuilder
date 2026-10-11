@@ -76,8 +76,14 @@ def _spirit_magi_base_active_count(skills_by_id, skills_input, main_skill, main_
             remaining -= granted
             if remaining <= 0:
                 break
-    total = sum(counts)
-    return total
+    return sum(counts)
+
+
+def _happiest_reunion_enabled(build_input, trait_id: str | None) -> bool:
+    levels = list(build_input.trait_slot_levels or [])
+    return (trait_id == "vigilant_breeze"
+            and "Happiest Reunion" in (build_input.advanced_trait_selections or [])
+            and len(levels) > 2 and int(levels[0]) > 0 and int(levels[2]) > 0)
 
 # Support ids that turn a Spell into a Tangle (the skill is then cast by attached tangles, not the player).
 # Manifold Entanglement is NOT here — it's a normal damage support that spawns all tangles at once.
@@ -637,10 +643,7 @@ def compute(
     _spirit_magi_active_capacity = _spirit_magi_base_active_count(
         skills_by_id, skills_input, build_input.main_skill, main_enabled, main_slot, _configured_active)
     if _spirit_magi_active_capacity:
-        _reunion_enabled = (build_input.trait_id == "vigilant_breeze"
-                            and "Happiest Reunion" in (build_input.advanced_trait_selections or [])
-                            and len(build_input.trait_slot_levels or []) > 2
-                            and int(build_input.trait_slot_levels[2]) > 0)
+        _reunion_enabled = _happiest_reunion_enabled(build_input, build_input.trait_id)
         if _reunion_enabled:
             _spirit_magi_active_capacity = _spirit_magi_base_active_count(
                 skills_by_id, skills_input, build_input.main_skill, main_enabled, main_slot,
@@ -904,12 +907,7 @@ def compute(
         source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
         source.enemy_config = build_input.enemy_config      # incoming-hit enemy skill → defensive Max-Hit / EHP (WS3)
 
-        _reunion_enabled = (
-            _trait_id == "vigilant_breeze"
-            and "Happiest Reunion" in (build_input.advanced_trait_selections or [])
-            and len(build_input.trait_slot_levels or []) > 2
-            and int(build_input.trait_slot_levels[2]) > 0
-        )
+        _reunion_enabled = _happiest_reunion_enabled(build_input, _trait_id)
         if _reunion_enabled:
             # Keep the pre-loop and post-aggregate counts on the same per-owner
             # active_minions rule. Gear and node cap bonuses are shared, so count
