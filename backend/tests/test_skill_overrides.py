@@ -158,3 +158,50 @@ def test_real_mana_boil_suppressed_under_active_ss13():
     )
     # The override itself must still have applied (corrected values patched in) regardless of the warning.
     assert "Consumes 3 % of Max Mana every second" in skills_by_id["mana_boil"]["detailed_description"]
+
+
+# ── Authored season's data NOT on disk (web engine bundle ships only the ACTIVE season) ────────
+# Regression: with SS12 unavailable the divergence check had nothing to compare and warned "re-validate" on every
+# load. The override now carries its own authored-season baseline, used when that season can't be loaded.
+
+def _load_without_authored_season(real_load):
+    def _load(season: str, raw: bool = False):
+        return None if season == "SS12" else real_load(season, raw=raw)
+    return _load
+
+
+@pytest.mark.parametrize("season", ["SS13", "SS14"])
+def test_real_mana_boil_no_warning_when_authored_season_not_on_disk(monkeypatch, season):
+    data = season_manager.load_skills(season)
+    assert data, f"{season} skill data not found on disk"
+    by_id = {sk["item_id"]: sk for sk in data["skills"] if "item_id" in sk}
+    monkeypatch.setattr(season_manager, "load_skills", _load_without_authored_season(season_manager.load_skills))
+
+    reviews = apply_skill_overrides(by_id, season)
+    assert not [r for r in reviews if "mana_boil" in r], reviews
+    assert "Consumes 3 % of Max Mana every second" in by_id["mana_boil"]["detailed_description"]
+
+
+def test_baseline_still_flags_real_divergence_when_authored_season_not_on_disk(monkeypatch):
+    # A genuinely changed value must still warn even without SS12 on disk (the baseline is a comparison, not a pass).
+    active_sk = _mk_active_sk(
+        "Gains Euphoria upon casting the skill: Consumes Mana over time and permanently grants "
+        "12% additional Spell Damage. Loses the Euphoria effect when Mana drops to 0."
+    )
+    monkeypatch.setattr(season_manager, "load_skills", lambda season, raw=False: None)
+
+    reviews = apply_skill_overrides({"mana_boil": active_sk}, "SS14")
+    assert any("re-validate" in r for r in reviews)
+
+
+def test_mana_boil_authored_baseline_matches_authored_season_data():
+    # Drift guard: the embedded baseline must equal the real authored season's raw text, or the fallback would
+    # compare against something the authored season never said.
+    from engine.skill_overrides import SKILL_OVERRIDES
+    data = season_manager.load_skills("SS12")
+    if not data:
+        pytest.skip("SS12 data not hydrated in this environment")
+    real = {sk["item_id"]: sk for sk in data["skills"] if "item_id" in sk}["mana_boil"]
+    baseline = SKILL_OVERRIDES["mana_boil"]["authored_baseline"]
+    for field, expected in baseline.items():
+        assert real.get(field) == expected, f"baseline {field!r} drifted from SS12 data"

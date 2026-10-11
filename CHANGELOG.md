@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-11
+
+### Engine & DPS
+- **Ring of Blades now calculates damage from its orbiting blades.** Projectile Speed, Blade Formation, Razor Edge, and supported damage bonuses affect the result. The model awaits in-game verification.
+- **Fervor now scales the bonuses from Ghost Slaughter and Ralph's Footsteps.** Ghost Slaughter grants Skill Area, Attack Damage, and Ailment Damage per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. Ailment DPS is not modeled, and the formulas await in-game verification.
+- **Rock Magus now models its Base and Enhanced rotation.** The calculation includes Gold Rush uptime and shows separate damage for its four skills. The model awaits in-game verification.
+- **Erosion Magus now calculates damage for its Base and Enhanced rotation.** Enhanced casts replace Base casts at your Enhanced chance and hit twice. Withering Payback's +20% additional Erosion damage, averaged over its buff uptime, is included, and its cast time is counted (waived with Harvest Time). Physical damage converts to Erosion, and all four skills, including World of Thorns, show separate per-cast damage. The model awaits in-game verification.
+- **Thunder Magus's Lightning Surge Ultimate now has a per-cast damage breakdown.** It hits each target seven times and stays out of unmerged DPS; Iris's Merged Magi Rotation can use it. Bolt travel and chain targeting distances are estimates. The Ultimate damage awaits in-game verification.
+
+### Hero traits
+- **Iris's Vigilant Breeze trait now has a Merged Magi Rotation.** Pick which of your Spirit Magi Iris is merged with (the dropdown shows each Magus with its skill slot), then tick which skills it keeps casting: Base Skill, Ultimate and Empower. The Ultimate takes priority whenever it is ready, Base fills the remaining time, and Empower keeps its buff and cast time. Merged Magi now deal damage from those skills, with +16% additional damage per Breeze stack, plus Growth, Reconjuring and Happiest Reunion (which merges all your Magi). These controls only appear when the trait is selected. Everything in this model awaits in-game verification.
+
+### Bug fixes
+- **Minion Elemental Damage now affects Fire, Cold, and Lightning hits only.** Physical and Erosion hits no longer receive this bonus.
+- **Mana Boil no longer triggers a false season warning.** The app compares its current data with the correction's reference text, so it warns only when Mana Boil's data changes.
+
 ## [0.6.10] - 2026-10-10
 
 ### Engine & DPS

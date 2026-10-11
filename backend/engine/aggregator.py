@@ -5,8 +5,10 @@ from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
                                          ORIGIN_OWNER_FLAG as _ORIGIN_OWNER_FLAG,
+                                         is_merging_stream_active as _is_merging_stream_active,
                                          origin_factor as _origin_factor_fn,
-                                         scaled_magnitude as _origin_scaled)
+                                         scaled_magnitude as _origin_scaled,
+                                         thunder_origin_values as _thunder_origin_values)
 
 
 def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
@@ -29,11 +31,23 @@ def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entr
 
 
 # Base effects granted per point of Fervor Rating, each multiplied by Fervor Effect
-# (fervor_effect_inc). Today just generic Critical Strike Rating; extend as items add more.
+# (fervor_effect_inc). Item-granted effects are appended only for their equipped items.
 #   (stat_key, amount_per_point, source_text)
 _FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("crit_rating_inc", 0.02, "+2% Critical Strike Rating per Fervor Rating"),
 ]
+
+_FERVOR_ITEM_EFFECTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "ghost slaughter": (
+        ("fervor_skill_area_per_rating", "skill_area_inc"),
+        ("fervor_attack_dmg_additional_per_rating", "attack_dmg_additional"),
+        ("fervor_ailment_dmg_additional_per_rating", "ailment_dmg_additional"),
+    ),
+    "ralph's footsteps": (("fervor_movement_speed_per_rating", "movement_speed_inc"),),
+}
+_FERVOR_MARKER_STATS = frozenset(
+    marker for effects in _FERVOR_ITEM_EFFECTS.values() for marker, _ in effects
+)
 
 # Numbed: base additional Lightning Damage the TARGET takes per stack, scaled by Numbed Effect
 # (numbed_effect_inc). Modelled engine-side like Fervor — the per-stack value lives here, not on the
@@ -367,6 +381,10 @@ def aggregate(
             _torturers_touch_inputs_seen = True
         if not stat:
             continue
+        # These internal item-affix markers are consumed by the Fervor block below. They are not
+        # player stats and must not enter the public stat/source breakdowns.
+        if stat in _FERVOR_MARKER_STATS:
+            continue
         cond = contrib.get("condition")
         _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
@@ -625,15 +643,29 @@ def aggregate(
 
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
-    # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
-    # point; future items may add further base effects that scale the same way — they'd just be
-    # added to _FERVOR_BASE_EFFECTS below. Driven off the user-set fervor_rating condition for now
+    # (fervor_effect_inc). Item-granted effects come from markers emitted by the exact gear affix text
+    # and are read only for their named equipped item. Driven off the user-set fervor_rating condition for now
     # (later this may be gated behind the hero trait that grants it). crit_rating_inc is generic
     # (read by both attack and spell crit). fervor_effect_inc is a fraction (0.5 = +50%).
     fervor_rating = float((numeric_vals or {}).get("fervor_rating", 0.0) or 0.0)
     if fervor_rating > 0:
         fervor_effect_mult = 1.0 + source.total("fervor_effect_inc")
-        for stat_key, per_point, label_text in _FERVOR_BASE_EFFECTS:
+        fervor_effects = list(_FERVOR_BASE_EFFECTS)
+        for item in build.gear:
+            item_name = (str(item.get("item_name") or item.get("name") or "").strip().lower()
+                         .replace("’", "'").replace("‘", "'"))
+            for marker, stat_key in _FERVOR_ITEM_EFFECTS.get(item_name, ()):
+                marker_contribs = [
+                    contrib
+                    for contrib in item.get("contributions", [])
+                    if contrib.get("stat") == marker
+                ]
+                per_point = sum(float(contrib.get("display_value", 0.0) or 0.0)
+                                for contrib in marker_contribs)
+                if per_point:
+                    label_text = marker_contribs[0].get("text") or f"Fervor gains {stat_key} per Fervor Rating"
+                    fervor_effects.append((stat_key, per_point, label_text))
+        for stat_key, per_point, label_text in fervor_effects:
             amount = per_point * fervor_rating * fervor_effect_mult
             source.add_with_source(stat_key, amount, SourceEntry(
                 stat=stat_key, amount=amount, source_type="condition",
@@ -950,7 +982,8 @@ def aggregate(
     # AFTER scaling (cap-scaling behavior unverified — spec: .wolf/engine-spec-magus-origins.md).
     _origin_flags = active_booleans or frozenset()
     _any_origin = "origin_of_thunder" in _origin_flags or any(e[0] in _origin_flags for e in _ORIGIN_EMITS)
-    if _any_origin:
+    _merging_stream = _is_merging_stream_active(getattr(build, "trait_id", None), _origin_flags)
+    if _any_origin and not _merging_stream:
         _origin_inc_total = source.total("spirit_magi_origin_effect_inc")
         _origin_add_total = source.total("spirit_magi_origin_effect_additional")
 
@@ -963,8 +996,7 @@ def aggregate(
         if "origin_of_thunder" in _origin_flags:
             _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
             _origin_factor = _factor_for("origin_of_thunder")
-            _ot_speed = 0.06 * _origin_factor
-            _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
+            _ot_speed, _ot_dmg = _thunder_origin_values(_ot_lvl, _origin_factor)
             for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
                 source.add_with_source(_sk, _ot_speed, SourceEntry(
                     stat=_sk, amount=_ot_speed, source_type="condition",

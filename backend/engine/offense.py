@@ -252,6 +252,13 @@ _CAST_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     if stat.value in ("cast_speed_additional", "combo_starter_cast_speed_additional")
 ]
 
+# Projectile Speed additional pool used by Ring of Blades orbit cadence.
+_PROJECTILE_SPEED_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if stat.value == "projectile_speed_additional"
+]
+
 # Skill level bonus stats — each adds integer levels to the effective skill level.
 # Empty frozenset = no tag requirement (applies to all active skills).
 # Non-empty = applies only when skill has ANY of the listed tags.
@@ -990,7 +997,11 @@ class HitFormResult:
     hit_min_by_type: dict[str, float] = field(default_factory=dict)
     hit_max_by_type: dict[str, float] = field(default_factory=dict)
     fires_per_sec: float = 0.0   # this form's effective occurrences/sec (rate × proc); channeled forms differ
-    hits_per_fire: int = 1       # projectiles/blades per occurrence (shotgun on one target)
+    base_cast_time: float = 0.0  # per-form cast time in seconds (minion forms use this for event-driven casts)
+    base_cooldown: float = 0.0   # per-form base cooldown in seconds, before recovery modifiers
+    effective_cast_time: float = 0.0  # event-driven cast time after this minion's speed pools
+    effective_cooldown: float = 0.0  # event-driven cooldown after this minion's recovery pools
+    hits_per_fire: float = 1     # projectiles/blades per occurrence (expected hits when uptime-weighted)
     shotgun_falloff: float = 0.0 # same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
     shotgun_mult: float = 1.0    # total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
     base_min_by_type: dict[str, float] = field(default_factory=dict)  # this form's intrinsic base (spells)
@@ -1328,6 +1339,10 @@ class OffenseResult:
     # A minion's Empower buff (e.g. Thundercloud Surge) surfaced like a player empower: base/effective cooldown +
     # duration, uptime, Empower Effect, and the per-buff magnitudes (base → effective). None for non-empower.
     minion_empower: dict | None = None
+    # Spirit Magus Ultimate calculations are per-cast and remain outside default DPS until Iris selects them.
+    minion_ultimate: dict | None = None
+    # Per-cast Magus skill forms for Iris selection; these never imply default rotation DPS.
+    minion_skill_casts: dict[str, dict] | None = None
     # ── Purpose-built breakdown-row contract (engine-owned; see DamageRow) ────────────────────────────────
     # Replaces the frontend's hand-reconstruction of _delivery and its back-solved per-type mitigation.
     # kind="hit" rows mirror hit_forms 1:1; kind="true" covers Mercury Baptism / Spell Ripple; kind="dot" is
@@ -2359,7 +2374,19 @@ def calculate_offense(
         # REPLACES the continuous hit (burst_replaces_continuous) → it fires (rounds−1)/rounds of the time.
         # Icebound Beam is additive (beam fires every round, Tyra-confirmed) so the beam stays at sps.
         form_rate = sps
-        if skill.channeled and form.channel_role == "burst":
+        if (skill.channeled and form.channel_role == "orbit"
+                and skill.channeled.orbit_period_s and skill.channeled.orbit_period_s > 0):
+            # Ring of Blades: Projectile Speed sets one orbit's period. Area changes radius only.
+            speed_mult = ((1.0 + source.total("projectile_speed_inc"))
+                          * _speed_additional_product(source, _PROJECTILE_SPEED_ADDITIONAL_STATS, skill_tags_lower))
+            speed_mult = max(0.0, speed_mult)
+            blades = max(1, int(skill.channeled.base_blades))
+            if support_behavior and support_behavior.get("blade_formation"):
+                quantity = source.total("projectile_quantity_flat")
+                blades = max(1, math.floor(skill.channeled.base_blades + min(quantity, 7.0)))
+            per_blade_rate = min(skill.channeled.per_blade_hit_cap, speed_mult / skill.channeled.orbit_period_s)
+            form_rate = blades * per_blade_rate
+        elif skill.channeled and form.channel_role == "burst":
             form_rate = ch_burst_rate
         elif skill.channeled and form.channel_role == "continuous" and ch_attack_frequency:
             # Persistent entity (Howling Gale's Gale): the continuous damage fires at the Gale's strike rate,

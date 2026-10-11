@@ -43,3 +43,4 @@ and `preseed(...)` (type-C loop-time condition seeding). `support_resolver` cons
 | `berserking_blade.py` | Berserking Blade | Desperation / Sweep / Decimate / Rampage + intrinsic Skill-Area buff |
 | `focused_slash.py` | Focused Slash | Duel (generic) / Tranquility / Behead / Fervor |
 | `moon_strike.py` | Moon Strike | Rainbow / Lunar Ring (tracked, DPS-neutral); Lunar Eclipse + Wax and Wane **deferred** (mana-sealing / Spell Burst) |
+| `ring_of_blades.py` | Ring of Blades | Blade Formation quantity and Razor Edge Projectile Speed |

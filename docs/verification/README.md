@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**100 entries** — ✅ Confirmed: 19 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 58
+**101 entries** — ✅ Confirmed: 19 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 59
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -64,6 +64,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Dance of the Deep (Selena trait) | Dance of the Deep | hero-trait, not-modeled, selection-only | ⚠️ Unverified | — | [dance-of-the-deep.md](dance-of-the-deep.md) |
 | Dreamweaver spirit | — | pact-spirit, penetration | ⚠️ Unverified | — | [dreamweaver.md](dreamweaver.md) |
 | Elixir system | — | buff, uptime | ⚠️ Unverified | — | [elixir-system.md](elixir-system.md) |
+| Erosion Magus (Spirit Magus) | Summon Erosion Magus, Scattered Mud, Bleak Grass, Withering Payback, World of Thorns | minion, spirit-magus, erosion, conversion, uptime, shotgun | ⚠️ Unverified | — | [erosion-magus.md](erosion-magus.md) |
 | Extreme Coldness (only Cold Damage) | — | conversion, damage-pool | ⚠️ Unverified | — | [extreme-coldness.md](extreme-coldness.md) |
 | Fervor Rating | — | crit, buff | ⚠️ Unverified | — | [fervor.md](fervor.md) |
 | Focused Slash / Moon Strike | Focused Slash, Moon Strike | skill, attack | ⚠️ Unverified | — | [focused-slash-moon-strike.md](focused-slash-moon-strike.md) |

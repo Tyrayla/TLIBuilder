@@ -65,9 +65,68 @@ def test_base_skill_pipeline_math():
     assert o.total_dps_vs_target == pytest.approx(o.total_dps * 0.49)  # fire dummy mitigation
 
 
+def test_minion_damage_type_pools_match_the_hit_type():
+    """Type pools follow the hit's post-conversion damage type; elemental means Fire/Cold/Lightning only.
+
+    The literal expected pools below are hand-calculated from the supplied source amounts. The +39% generic and
+    +45% elemental lines match the owner's Rock Magus regression setup. The elemental pool is deliberately large
+    so a missing elemental tag fails loudly for Physical and Erosion.
+    """
+    source = BuildSource()
+    source.add("minion_dmg_inc", 0.39)
+    source.add("minion_elemental_dmg_inc", 0.45)
+    source.add("minion_physical_dmg_inc", 0.20)
+    source.add("minion_erosion_dmg_inc", 0.30)
+    source.add("minion_fire_dmg_inc", 0.05)
+    source.add("minion_cold_dmg_inc", 0.06)
+    source.add("minion_lightning_dmg_inc", 0.07)
+    source.add("minion_dmg_additional", 0.10)
+    source.add("minion_physical_dmg_additional", 0.20)
+    source.add("minion_cold_dmg_additional", 0.30)
+
+    skills = {
+        "physical": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Physical"]},
+        "erosion": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Erosion"]},
+        "fire": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Fire"]},
+        "cold": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Cold"]},
+        "lightning": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Lightning"]},
+    }
+    expected_inc = {"physical": 0.59, "erosion": 0.69, "fire": 0.89, "cold": 0.90, "lightning": 0.91}
+    expected_add = {"physical": 1.32, "erosion": 1.10, "fire": 1.10, "cold": 1.43, "lightning": 1.10}
+    for damage_type, skill in skills.items():
+        result = calculate_minion_offense(source, skill, _BASE_STATS, level=20, minion_count=1)
+        assert result.type_inc[damage_type] == pytest.approx(expected_inc[damage_type])
+        assert result.type_add[damage_type] == pytest.approx(expected_add[damage_type])
+
+
+def test_engine_stats_thunder_magus_uses_elemental_and_lightning_pools():
+    """The public endpoint applies both matching pools to Thunder Magus's Lightning hits."""
+    from server import engine_stats, EngineStatsRequest
+    from tests.mock_build import make_request
+
+    request = make_request("summon_thunder_magus", 20, custom_mods=[
+        "+39% Minion Damage", "+45% Minion Elemental Damage", "+12% Minion Lightning Damage",
+    ])
+    result = engine_stats(EngineStatsRequest(**request))
+    offense = result["minion_offense"]["summon_thunder_magus"]
+    assert offense["generic_inc"] == pytest.approx(0.39)
+    assert offense["type_inc"]["lightning"] == pytest.approx(0.96)  # 39% generic +45% elemental +12% lightning
+
+
 def test_ultimate_cooldown_caps_rate():
     o = calculate_minion_offense(_src_with_minion_mods(), _ULTIMATE, _BASE_STATS, level=20)
     assert o.skills_per_second == pytest.approx(0.125)  # 1/8 cooldown caps the cast rate
+
+
+def test_cooldown_recovery_at_minus_100_percent_produces_zero_rate():
+    source = _src_with_minion_mods()
+    source.add("minion_cdr_speed_inc", -1.0)
+    result = calculate_minion_offense(
+        source, _ULTIMATE, _BASE_STATS, level=20, apply_cooldown_recovery_to_rate=True)
+    assert result.hit_forms[0].fires_per_sec == 0.0
+    assert result.hit_forms[0].effective_cooldown == 0.0
+    assert any("effective cooldown is reported as 0" in note for note in result.nyi)
+    assert result.total_dps == 0.0
 
 
 def test_minion_count_folds_into_totals_via_cast_multiplier():
@@ -292,7 +351,7 @@ def test_growth_stage_thresholds():
 
 def test_thunder_magus_module_base_enhanced_blend_and_gates():
     """Thunder Magus is modelled as ONE OffenseResult whose hit forms are Base + Enhanced (uptime-split at the
-    shared attack rate), Empower's +35% AS folded in, and Empower/Ultimate surfaced as NYI notes (not forms)."""
+    shared attack rate), Empower's +35% AS folded in, and Lightning Surge exposed as a separate per-cast form."""
     import json
     from engine.minion_offense import MINION_MODULES
     from persistence import season_manager
@@ -316,11 +375,14 @@ def test_thunder_magus_module_base_enhanced_blend_and_gates():
     assert forms["Lightning Star"].dps_contribution > 0 and not forms["Lightning Star"].nyi
     assert forms["Lightning Star"].fires_per_sec == pytest.approx(base_rate * cast_slot)
     assert forms["Thunderlight Arrow"].fires_per_sec == 0.0 and forms["Thunderlight Arrow"].dps_contribution == 0.0
-    # Empower + Ultimate ARE forms now — visible/selectable in the dropdown, but NYI (0 DPS, carry their reason).
+    # Empower remains NYI; Lightning Surge is a damage-bearing per-cast form outside default DPS.
     assert forms["Thundercloud Surge"].nyi and forms["Thundercloud Surge"].dps_contribution == 0.0
-    assert forms["Lightning Surge"].nyi and forms["Lightning Surge"].dps_contribution == 0.0
     assert any("Thundercloud Surge" in n for n in forms["Thundercloud Surge"].nyi)   # Empower reason surfaced
-    assert any("Lightning Surge" in n for n in forms["Lightning Surge"].nyi)         # Ultimate reason surfaced
+    ultimate = r1.minion_skill_casts["ultimate"]
+    assert ultimate["name"] == "Lightning Surge (Ultimate)"
+    assert ultimate["included_in_default_dps"] is False
+    assert ultimate["hits_per_cast"] == 7
+    assert ultimate["hit_breakdown"]["hit_forms"][0]["hits_per_fire"] == 7
 
     # Stage 2: Growth 200 → +30% Enhanced chance (p=0.30). Base fires at (1−p); Enhanced fires at its RAW chance p
     # PLUS the fast-insert bump p·F·(1−p) → p·(1 + F(1−p)), F=0.90. Both ×cast_slot. Enhanced lands 2 hits/cast.

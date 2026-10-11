@@ -6,7 +6,7 @@
 - **Status:** ⚠️ Unverified
 - **Skills affected:** Summon Thunder Magus
 - **Mechanic tags:** minion, spirit-magus
-- **Last verified:** 2026-07-06 by Tyra
+- **Last verified:** 2026-10-11 by Tyra
 
 ## Setup
 
@@ -14,11 +14,11 @@ Character with NO gear, single Thunder Magus (Growth pinned at 100 = Stage 1), p
 
 ## Raw data points
 
-Magus-only steady-state DPS vs the dummy at 0/18/47/100% Enhanced chance = 202 / 265 / 346 / 588 (346, 588 normalize to 326 / 320 after removing the +6%/+84% minion damage). Engine reproduces 201.9 / 265.1 / 327.8 / 318.0 - all within 1%. F=0.90 was calibrated to the 18% point and then PREDICTED the 47% and 100% points. Per-hit at level 16: Base 134.5, Enhanced 105.5 (both mitigated); Enhanced return hit lands ~0.33s after the through hit. Locked by test_thunder_magus_enhanced_dps_matches_ingame_validation.
+Magus-only steady-state DPS vs the dummy at 0/18/47/100% Enhanced chance = 202 / 265 / 346 / 588 (346, 588 normalize to 326 / 320 after removing the +6%/+84% minion damage). Engine reproduces 201.9 / 265.1 / 327.8 / 318.0 - all within 1%. F=0.90 was calibrated to the 18% point and then PREDICTED the 47% and 100% points. Per-hit at level 16: Base 134.5, Enhanced 105.5 (both mitigated); Enhanced return hit lands ~0.33s after the through hit. Locked by test_thunder_magus_enhanced_dps_matches_ingame_validation. Owner-tested Ultimate behavior: 7 full hits per target per cast; chain interval 0.25 s; 8 base targets + external Projectile Quantity; fixed projectile speed. Estimated by owner: bolt travel about 6 m in about 1 s and chain targeting radius 12 m.
 
 ## Derived / confirmed formula
 
-Base (Lightning Star) + Enhanced (Thunderlight Arrow) blended per attack. Enhanced REPLACES Base on proc (chance p) and lands 2 FULL hits (through + tracked return, no falloff) at every stage. Enhanced fires with a short recovery only when it follows a Base attack ('fast insert'), so its net DPS boost scales p(1-p) - modeled as an Enhanced fire-rate bump enh_rate_mult = p*(1 + F*(1-p)), F=0.90. Empower (Thundercloud Surge): +35% additional AS (all stages) + 25% additional dmg (Stage 4+), folded at true uptime = duration/cooldown (6/10 = 60%) x Empower Effect; its 0.6s cast is a cast-slot that scales both rates by (1 - 0.5*cast/eff_cooldown). Stage 5 +50% additional dmg. Stage-3 +1 proj + external +Proj = +5% additional each (multi-target only). Base coefficient is level-scaled (per-level table).
+Base (Lightning Star) + Enhanced (Thunderlight Arrow) blended per attack. Enhanced REPLACES Base on proc (chance p) and lands 2 FULL hits (through + tracked return, no falloff) at every stage. Enhanced fires with a short recovery only when it follows a Base attack ('fast insert'), so its net DPS boost scales p(1-p) - modeled as an Enhanced fire-rate bump enh_rate_mult = p*(1 + F*(1-p)), F=0.90. Empower (Thundercloud Surge): +35% additional AS (all stages) + 25% additional dmg (Stage 4+), folded at true uptime = duration/cooldown (6/10 = 60%) x Empower Effect; its 0.6s cast is a cast-slot that scales both rates by (1 - 0.5*cast/eff_cooldown). Stage 5 +50% additional dmg. Stage-3 +1 proj + external +Proj = +5% additional each (multi-target only). Base coefficient is level-scaled (per-level table). Lightning Surge (Ultimate): the level table is the base_damage_coefficient applied to minion base damage; effectiveness_of_added_damage separately scales added flat damage and is read from the per-level progression when present. At level 20, base coefficient is 301% and added-damage effectiveness is also 301%, but they are distinct fields. Seven full chain hits per target per cast, with 0.25 s between chains. Projectile Quantity increases the target limit from 8 and does not add bolts. The Ultimate is a separate per-cast form and does not contribute to default DPS. Minion Cooldown Recovery Speed applies to its 8 s cooldown.
 
 ## Notes / caveats / open questions
 
@@ -26,9 +26,11 @@ VALIDATED in-game (reverse-engineered from screen-recorded footage + magus-only 
 
 GENERALIZES TO OTHER SPIRIT MAGI (Fire / Frost / Rock / Erosion) — validate each before trusting: Per the Help DB the STRUCTURE is shared — every magus has Base + Enhanced (Enhanced REPLACES the Base skill on proc) + Empower + Ultimate, and every magus BASE skill has the scalar-coefficient data gap (fill it in _minion_coefficient_overrides.json). The reusable REVERSE-ENGINEERING METHOD: (1) magus-only Recount DPS at several Enhanced chances (0 / mid / 100%) isolates per-cast damage and the fast-insert curve — solve F from the mid point, then it should PREDICT the others; (2) ffmpeg frame extraction of point-blank dummy footage reads the true hit count + attack cadence off the damage numbers. THUNDER-SPECIFIC, do NOT assume for others: the 2 hits (through + return) come from Thunderlight Arrow being a boomerang PROJECTILE — other magi Enhanced skills have different geometry (could be 1 hit, an AoE, or a genuine multi-hit); F=0.90 (fast-insert efficiency) and the 0.5 Empower cast-slot efficiency were CALIBRATED to Thunder. STRUCTURALLY likely on all magi but needing per-magus calibration: the fast-insert cadence (Enhanced fires fast only right after a Base -> p(1-p) DPS boost) and the Empower cast-slot (the magus pauses to cast its Empower). Verified numbers here (crit 5%/150%, dummy mitigation x0.49) are engine-wide minion constants and DO carry over.
 
+Lightning Surge owner test (2026-10-11): seven full-damage hits per target per cast, at 0.25 s intervals. Projectile Quantity adds targets to the base limit of 8, not bolts. The bolt speed is fixed. Owner estimates the bolt travels about 6 m in about 1 s and chains target enemies within about 12 m. Those distances are estimates and have not been independently verified. Lightning Surge receives no Stage-3 projectile bonus.
+
 ## Implementation (engine model)
 
-engine/minion_effects/thunder_magus.py returns ONE OffenseResult whose hit forms are the damage abilities (Base, Enhanced=2 hits); Empower/Ultimate are NYI forms (Empower also surfaces a structured display dict). spirit_magi damage/crit pools folded into minion pools. Base coefficient resolved via engine/minion_offense._resolve_coefficient (precedence: crawler per-level TABLE > hand-collected data/seasons/<S>/_minion_coefficient_overrides.json > bare scalar); the crawler data is never edited so re-imports win.
+engine/minion_effects/thunder_magus.py returns one default OffenseResult for Base and Enhanced damage; Empower remains an NYI buff form. Lightning Surge is exposed separately in minion_skill_casts.ultimate with per-cast damage, effective timing, and a full hit/modifier breakdown; it does not enter the default rotation.
 
 ## Sources
 
@@ -36,3 +38,6 @@ engine/minion_effects/thunder_magus.py returns ONE OffenseResult whose hit forms
 - backend/engine/minion_offense.py
 - backend/tests/test_minion_offense.py
 - data/seasons/SS12/_minion_coefficient_overrides.json
+- backend/tests/test_thunder_magus_ultimate.py
+- data/seasons/SS12/_skills.json (lightning_surge)
+- data/seasons/SS13/_skills.json (lightning_surge)

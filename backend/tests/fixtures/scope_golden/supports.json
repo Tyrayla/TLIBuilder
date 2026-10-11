@@ -36,6 +36,10 @@
     "tenacity_blessings": 4.0,
     "terra_charges_consumed": 1.0,
     "unique_weapon_types": 2.0,
+    "vigilant_breeze_enemies_defeated": 100.0,
+    "vigilant_breeze_life_consumed_pct": 1000.0,
+    "vigilant_breeze_stacks": 100.0,
+    "vigilant_breeze_whisper_bonus_stacks": 8.0,
     "well_fought_battle_stacks": 3.0,
     "willpower_stacks": 6.0
   },
@@ -541,6 +545,8 @@
       {
         "avg_hit_pre_crit": 217.39379999999997,
         "avg_hit_with_crit": 222.82864499999994,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "lightning": 289.0
         },
@@ -552,6 +558,8 @@
         },
         "dps_contribution": 342.81329999999986,
         "dps_vs_target": 167.97851699999993,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 1.5384615384615383,
         "form_type": "additive",
@@ -589,6 +597,8 @@
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "minion_empower": null,
+    "minion_skill_casts": null,
+    "minion_ultimate": null,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,

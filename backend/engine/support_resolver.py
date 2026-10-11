@@ -389,12 +389,15 @@ def resolve_support_behavior(
     attached_supports: list[dict] | None,
     skills_by_id: dict[str, dict] | None,
 ) -> dict:
-    """Parse attached supports' description text for behavioral (non-stat) effects that feed offense's
-    per-cast hit-list / shotgun. Text-driven, not hardcoded to Chain Lightning's support ids.
+    """Resolve attached supports' behavioral (non-stat) effects used by offense hit-rate mechanics.
+
+    Parse generic behavior from descriptions. Use an explicit support id when its behavior cannot safely be
+    inferred from prose, as with Blade Formation's Ring of Blades-only blade count.
 
     Returns a PER-SLOT map `{slot: {behavior keys}}` (a support belongs to its host skill's slot, default
     1) so each slot's offense pass reads only its own supports' behavior. Per-slot keys (present only when
     found):
+      - blade_formation                            ← Ring of Blades: Blade Formation enables quantity scaling
       - same_target_shotgun, falloff_coefficient  ← Merge ("…falloff coefficient … is 80%")
       - chains_per_jump                            ← Web ("…releases 1 additional Chain Lightning")
       - lucky_damage                               ← Lucky ("…deals Lucky Damage")
@@ -410,6 +413,8 @@ def resolve_support_behavior(
         if not data:
             continue
         behavior = by_slot.setdefault(sup.get("slot", 1), {})
+        if sup.get("item_id") == "ring_of_blades_blade_formation_magnificent":
+            behavior["blade_formation"] = True
         desc = _dedup_join(data.get("description_lines", []))
         m = _FALLOFF_RE.search(desc)
         if m:

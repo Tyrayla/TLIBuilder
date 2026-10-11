@@ -1060,7 +1060,18 @@ def engine_stats(req: EngineStatsRequest):
                                          # Item-level slot (when sent) so the breakdown Source column names the real
                                          # slot ("Off-Hand"/"Ring 1") instead of a generic "Item"; None → "Item".
                                          "slot": gi.get("slot"), "condition": cl["cond_expr"], "scope": e.get("scope")})
-                    names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
+                    internal_labels = {
+                        "fervor_skill_area_per_rating": "Skill Area per Fervor Rating",
+                        "fervor_attack_dmg_additional_per_rating": "Additional Attack Damage per Fervor Rating",
+                        "fervor_ailment_dmg_additional_per_rating": "Additional Ailment Damage per Fervor Rating",
+                        "fervor_movement_speed_per_rating": "Movement Speed per Fervor Rating",
+                    }
+                    names = ", ".join(
+                        internal_labels.get(e["stat_key"])
+                        or _get_stat_display_name(e["stat_key"])
+                        or e["stat_key"]
+                        for e in parsed
+                    )
                     gear_mod_statuses.append({"text": cl["clause"], "resolved": True, "stat_display": names})
                 else:
                     gear_mod_statuses.append({"text": cl["clause"], "resolved": False, "stat_display": None})
@@ -1245,6 +1256,7 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        "main_skill_slot": result.main_skill_slot,
         "numbed": result.numbed,
         # Per-blessing summary (stacks/max/effects) for the Blessings panel.
         "blessings": result.blessings,
@@ -1318,6 +1330,8 @@ def get_conditions():
         elif c.value_type == "enum":
             entry["enum_values"] = list(c.enum_values)
             entry["default_enum"] = c.default_enum
+            if c.options_source:
+                entry["options_source"] = c.options_source
         else:
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":
@@ -2511,6 +2525,38 @@ def _resolve_gear_affix_clauses(text: str) -> list[dict]:
         return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
     out: list[dict] = []
     for clause in _expand_named_buffs(text):
+        # Keep Fervor base effects as engine-only markers. The aggregator applies them only
+        # when the named item is equipped.
+        fervor = re.search(
+            r"fervor gains an additional base effect:\s*\+?([\d.]+)\s*%\s*"
+            r"(skill area|additional attack and ailment damage|movement speed)\s+"
+            r"for every\s+([\d.]+)\s+fervor rating",
+            clause, re.I)
+        if fervor:
+            value, effect, divisor = fervor.groups()
+            divisor_value = float(divisor)
+            if divisor_value <= 0:
+                out.append({"clause": clause, "parsed": [], "cond_expr": None,
+                            "resolved": False, "curse": None})
+                continue
+            per_rating = float(value) / 100.0 / divisor_value
+            keys = {
+                "skill area": ("fervor_skill_area_per_rating",),
+                "additional attack and ailment damage": (
+                    "fervor_attack_dmg_additional_per_rating",
+                    "fervor_ailment_dmg_additional_per_rating",
+                ),
+                "movement speed": ("fervor_movement_speed_per_rating",),
+            }[effect.lower()]
+            parsed = [{"stat_key": key, "amount": per_rating, "text": clause} for key in keys]
+            # Some corrupted affixes combine the Fervor effect with another ordinary roll
+            # (Skill Area or Fervor Effect). Preserve that remainder through the normal parser.
+            remainder = clause[:fervor.start()] + clause[fervor.end():]
+            if remainder.strip():
+                parsed.extend(_parse_custom_mod_text(remainder))
+            out.append({"clause": clause, "parsed": parsed, "cond_expr": None,
+                        "resolved": True, "curse": None})
+            continue
         if re.search(r"each\s+different\s+warcry\s+cast", clause, re.I):
             cond_expr = {"key": "kragols_roar_distinct_warcries", "op": "per", "divisor": 1}
             parsed = []
@@ -2879,6 +2925,14 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
     return out
 
 
+_FERVOR_MARKER_OUTPUT_STATS = {
+    "fervor_skill_area_per_rating": "skill_area_inc",
+    "fervor_attack_dmg_additional_per_rating": "attack_dmg_additional",
+    "fervor_ailment_dmg_additional_per_rating": "ailment_dmg_additional",
+    "fervor_movement_speed_per_rating": "movement_speed_inc",
+}
+
+
 def _affix_resolved_keys(resolved: dict, raw_text: str) -> list[str]:
     """Build-independent per-affix stat-key list (2026-07-12) — the SAME resolution
     `engine.coverage._affix_is_modeled` uses to judge legendary-gear coverage, exposed on the affix itself
@@ -2907,7 +2961,7 @@ def _affix_resolved_keys(resolved: dict, raw_text: str) -> list[str]:
         if cl.get("curse"):
             continue
         for e in (cl.get("parsed") or []):
-            k = e.get("stat_key")
+            k = _FERVOR_MARKER_OUTPUT_STATS.get(e.get("stat_key"), e.get("stat_key"))
             if k and k not in out:
                 out.append(k)
     return out
@@ -3007,13 +3061,10 @@ def map_modifiers(req: MapModifiersRequest):
         elif it.source == "skill":
             keys = _resolve_skill_line_keys(it.text)
         elif it.source == "gear":
-            keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
-            if not keys:
-                # Catalog resolver found nothing → fall back to the SAME resolver the engine's gear loop uses, so
-                # consume / per-N-consumed / gated lines (which _parse_custom_mod_text handles but the fuzzy
-                # catalog resolver doesn't) badge by what the engine actually applies instead of red NYI.
-                clauses = _resolve_gear_affix_clauses(it.text)
-                keys = [e["stat_key"] for cl in clauses for e in cl["parsed"]]
+            # Use the exact catalog-plus-clause resolution the legendary coverage badge uses, including
+            # translating engine-only structural markers to the stats their effects actually modify.
+            keys = _affix_resolved_keys(
+                _resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}), it.text)
         else:
             keys = []
         results[it.key] = {"stat_keys": keys}

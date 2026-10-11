@@ -13,8 +13,9 @@ from engine.hero_traits import sing_with_the_tide as _swt
 from engine.hero_traits import unsullied_blade as _ub
 from engine.hero_traits import licorice_note as _ln
 from engine.hero_traits import seething_silhouette as _ss
+from engine.hero_traits import vigilant_breeze as _vb
 
-_MODULES = (_ls, _hcc, _ws, _swt, _ub, _ln, _ss)
+_MODULES = (_ls, _hcc, _ws, _swt, _ub, _ln, _ss, _vb)
 
 _APPLY = {m.TRAIT_ID: m.apply for m in _MODULES if hasattr(m, "apply")}
 _STASH = {m.TRAIT_ID: m.stash for m in _MODULES if hasattr(m, "stash")}
