@@ -1875,7 +1875,9 @@
     ]
   },
   "ring_of_blades_blade_formation_magnificent": {
-    "behavior": {},
+    "behavior": {
+      "blade_formation": true
+    },
     "contribs": [
       [
         "dmg_additional",
