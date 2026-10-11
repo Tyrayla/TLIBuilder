@@ -7,8 +7,9 @@ level, count) -> list[OffenseResult]`.
 """
 from engine.minion_offense import MINION_MODULES
 from engine.minion_effects import thunder_magus as _thunder_magus
+from engine.minion_effects import rock_magus as _rock_magus
 
-_MODULES = (_thunder_magus,)
+_MODULES = (_thunder_magus, _rock_magus)
 
 for _m in _MODULES:
     MINION_MODULES[_m.OWNER_ID] = _m.handler

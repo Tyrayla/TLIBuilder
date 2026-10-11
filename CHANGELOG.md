@@ -10,6 +10,9 @@
 - Minion Elemental Damage now affects Fire, Cold, and Lightning hits only. Physical and Erosion hits no longer receive this bonus.
 - **Removed a false "Skill override 'mana_boil' was authored for SS12 ... re-validate" warning.** The web app ships only the current season's data, so the check had no earlier season to compare against and warned on every load. The Mana Boil correction carries its own reference text now, so the warning appears only if Mana Boil's data actually changes.
 
+### Engine & DPS
+- **Rock Magus now models its Base and Enhanced rotation, Gold Rush uptime, and separate per-cast forms for all four skills.** Default DPS uses the unmerged rotation; Ultimate damage stays separate for Iris selection. The model awaits in-game DPS verification.
+
 ## [0.6.10] - 2026-10-10
 
 ### Engine & DPS

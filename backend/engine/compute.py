@@ -2241,6 +2241,9 @@ def compute(
             # conversion must be modelled explicitly. Unmodelled owners list their abilities as NYI (0 damage).
             if _mo.is_modeled(owner["item_id"]):
                 eff = source.materialize_for_skill({"minion"}, slot)
+                # Bespoke Spirit Magus modules may read existing user conditions such as enemy type/count.
+                # Keep the request state on the slot-local source; minion offense pools remain unchanged.
+                eff.condition_state = condition_state
                 _max_count = max(1, _minion_base_count(owner, level)
                                  + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
                 # Active count = the user's `active_minions` (Config), capped at the max; 0/unset → the full max.
