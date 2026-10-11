@@ -405,9 +405,9 @@ def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled,
         ultimate_raw_rate = float(ultimate.get("casts_per_second_before_cooldown", 0.0) or 0.0)
         ultimate_cast_time = (1.0 / (ultimate_raw_rate * ultimate_speed)
                               if ultimate_raw_rate > 0 and ultimate_speed > 0 else 0.0)
-        empower_slot_loss = (max(0.0, 1.0 - float(ultimate.get("empower_cast_slot_factor", 1.0) or 0.0))
-                             if empower_enabled else 0.0)
-        base_available_fraction = max(0.0, 1.0 - ultimate_rate * ultimate_cast_time - empower_slot_loss)
+        # The selected Ultimate rate already includes Empower's cast-slot factor. Its occupied-time
+        # fraction therefore includes that loss; subtracting the slot factor separately would count it twice.
+        base_available_fraction = max(0.0, 1.0 - ultimate_rate * ultimate_cast_time)
         base_raw_rate = float(base.get("casts_per_second_before_cooldown", 0.0) or 0.0)
         base_speed = float(base.get("empower_speed_multiplier", 1.0) or 1.0)
         base_rate = base_raw_rate * base_speed * base_available_fraction

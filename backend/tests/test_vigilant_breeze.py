@@ -419,6 +419,41 @@ def test_empower_speed_and_cast_slot_do_not_exceed_merged_ultimate_cooldown():
     assert adjusted["skill_forms"][0]["casts_per_second"] == pytest.approx(0.125)
 
 
+def test_tango_base_fills_uncapped_ultimate_time_after_empower_slot_once():
+    abilities = [
+        {"name": "Base Bolt", "cast_speed": "2 s", "cooldown": "0 s",
+         "skill_tags": ["Base Skill", "Spell", "Lightning"]},
+        {"name": "Towering Mountains", "cast_speed": "2 s", "cooldown": "8 s",
+         "skill_tags": ["Ultimate", "Spell", "Physical"]},
+    ]
+    minion_result = SimpleNamespace(minion_empower={
+        "uptime": 0.60,
+        "empower_effect": 1.20,
+        "cast_time": 0.5,
+        "cooldown": 5.0,
+        "cast_slot_factor": 0.90,
+        "buffs": [{"stat": "cast_speed", "value": 0.20}],
+    })
+
+    rotation = vb.merged_rotation_contract(
+        base_enabled=True,
+        ultimate_enabled=True,
+        empower_enabled=True,
+        minion_skills=abilities,
+        source=BuildSource(),
+        growth=100,
+        minion_result=minion_result,
+        ultimate_cooldown_zero=True,
+    )
+
+    rates = {form["role"]: form["casts_per_second"] for form in rotation["skill_forms"]}
+    # 2s cast time gives 0.5 raw casts/s. Empower multiplies Ultimate by 1.2 x 0.9,
+    # so Ultimate uses 90% of cast time and Base fills the remaining 10% at 0.6 casts/s.
+    assert rates["ultimate"] == pytest.approx(0.54)
+    assert rates["base skill"] == pytest.approx(0.06)
+    assert rotation["casts_per_second"] == pytest.approx(0.60)
+
+
 def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
     base = {"name": "Base Strike", "cast_speed": "2 s", "cooldown": "1 s",
             "skill_tags": ["Base Skill", "Attack", "Physical"]}
@@ -441,7 +476,7 @@ def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
     (True, False, False, 0.5, 0.5, 0.0, 0.0),
     (True, False, True, 0.5634, 0.5634, 0.0, 0.2),
     (True, True, False, 0.5, 0.375, 0.125, 0.0),
-    (True, True, True, 0.5634, 0.4384, 0.125, 0.2),
+    (True, True, True, 0.626, 0.501, 0.125, 0.2),
 ])
 def test_merged_rotation_checkbox_combinations_have_expected_cadences(
         base_on, ultimate_on, empower_on, expected_total, expected_base,
@@ -704,6 +739,36 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     assert disabled["summon_thunder_magus"]["vigilant_merged"] is False
     assert disabled["summon_rock_magus"]["vigilant_merged"] is False
     assert disabled["summon_rock_magus"]["total_dps"] > 0
+
+
+def test_unmodeled_merged_magus_uses_rotation_checkboxes_without_crashing(monkeypatch):
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+    from engine import minion_offense
+
+    monkeypatch.delitem(minion_offense.MINION_MODULES, "summon_rock_magus", raising=False)
+
+    def calculate(base_enabled, ultimate_enabled, empower_enabled):
+        request = make_request(
+            "summon_rock_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
+            extra_conditions={
+                "vigilant_breeze_active": True,
+                "vigilant_breeze_spam_base": base_enabled,
+                "vigilant_breeze_spam_ultimate": ultimate_enabled,
+                "vigilant_breeze_spam_empower": empower_enabled,
+            },
+        )
+        return engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_rock_magus"]
+
+    base_rotation = calculate(True, False, False)
+    assert base_rotation["vigilant_merged"] is True
+    assert base_rotation["selected_skill_damage_status"] == "NYI"
+    assert "checked Spirit Magi Rotation skills" in " ".join(base_rotation["nyi"])
+
+    no_damage_rotation = calculate(False, False, True)
+    assert no_damage_rotation["vigilant_merged"] is True
+    assert "selected_skill_damage_status" not in no_damage_rotation
+    assert "No Base Skill or Ultimate is selected" in " ".join(no_damage_rotation["nyi"])
 
 
 def test_reunion_count_uses_per_owner_active_minion_cap():

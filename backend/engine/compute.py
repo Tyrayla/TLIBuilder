@@ -2336,6 +2336,10 @@ def compute(
                 _owner_bonus = min(_remaining_shared_bonus, _bonus_room)
                 _reunion_max_count_by_owner[_owner["item_id"]] = _base_count + _owner_bonus
                 _remaining_shared_bonus -= _owner_bonus
+        # Read the Spirit Magi Rotation once for both modeled and unmodeled merged owners.
+        _spam_base = bool(condition_state.get("vigilant_breeze_spam_base", False))
+        _spam_ultimate = bool(condition_state.get("vigilant_breeze_spam_ultimate", True))
+        _spam_empower = bool(condition_state.get("vigilant_breeze_spam_empower", True))
         for owner, level, slot in _owners:
             abilities = owner.get("minion_skills") or []
             _is_magus = _is_spirit_magus(owner)
@@ -2392,9 +2396,6 @@ def compute(
                         _stream_nyi_targets = _vigilant_breeze.apply_merging_stream_origins(
                             source=eff, condition_state=condition_state, growth=_growth,
                             magus_skill_tags=_magus_skill_tags)
-                    _spam_base = bool(condition_state.get("vigilant_breeze_spam_base", False))
-                    _spam_ultimate = bool(condition_state.get("vigilant_breeze_spam_ultimate", True))
-                    _spam_empower = bool(condition_state.get("vigilant_breeze_spam_empower", True))
                     _tango = (_merged and bool(condition_state.get("vigilant_breeze_whirlwind_tango"))
                               and _spam_ultimate)
                     _drain_rate = (float(condition_state.get("vigilant_breeze_life_cost_pct_max_per_sec", 0.20) or 0.20)
