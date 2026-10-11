@@ -57,12 +57,13 @@ def test_zero_breeze_stacks_can_be_selected_explicitly():
     assert result["set_conditions"]["vigilant_breeze_current_stacks"] == 0
 
 
-def test_breeze_damage_is_exposed_as_needs_verification_status():
+def test_breeze_damage_is_exposed_as_owner_confirmed_linear_scaling():
     rows = vb.status_lines(slot_levels=[1, 1, 1, 1], advanced_picks=[])
     breeze = next(row for row in rows if "Breeze adds +" in row["text"])
 
-    assert breeze["status"] == "needs-verification"
-    assert "OWNER TO CONFIRM" in breeze["text"]
+    assert breeze["status"] == "working"
+    assert "owner-confirmed" in breeze["text"]
+    assert "10 stacks = +160%" in breeze["text"]
 
 
 def test_happiest_reunion_uses_per_magus_product_and_adds_map_cap():
@@ -183,6 +184,23 @@ def test_spirit_magi_pool_fold_preserves_distinct_additional_sources_without_iri
     assert [entry.text for entry in source.source_log if entry.stat == "minion_dmg_additional"] == [
         "First Magus damage source", "Second Magus damage source",
     ]
+
+
+def test_spirit_magi_pool_fold_clamps_mismatched_log_and_reports_nyi():
+    from engine.minion_offense import fold_spirit_magi_pools
+    from engine.models import SourceEntry
+
+    source = BuildSource()
+    source.add_with_source("spirit_magi_dmg_additional", 0.25, SourceEntry(
+        stat="spirit_magi_dmg_additional", amount=0.25, source_type="gear",
+        label="Gear", text="Magus damage source"))
+    source._entries[0] = ("spirit_magi_dmg_additional", -0.10)
+
+    nyi = fold_spirit_magi_pools(source)
+
+    assert nyi == ["Spirit Magi additional damage source log did not balance; used a non-negative summed "
+                   "fallback (distinct-source multiplication NYI for this Magus)."]
+    assert source.total("minion_dmg_additional") == 0.0
 
 
 def test_nurturing_breeze_copies_scaled_regen_and_regain_pools():

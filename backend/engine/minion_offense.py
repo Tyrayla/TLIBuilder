@@ -135,7 +135,7 @@ _SPIRIT_MAGI_FOLD = {
 }
 
 
-def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
+def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> list[str]:
     """Fold `spirit_magi_*` damage/crit pools into the generic `minion_*` pools IN PLACE. Call on a source COPY a
     magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
     otherwise drop on the `spirit_magi` tag) actually apply to the magus. Also folds the per-Growth pools (Talons
@@ -147,16 +147,21 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
             source.add_with_source(dst, amt, SourceEntry(
                 stat=dst, amount=amt, source_type="minion", label="Spirit Magi", source_name="Spirit Magi", text=text))
 
+    nyi: list[str] = []
     for src_key, dst_key in _SPIRIT_MAGI_FOLD.items():
         if src_key == "spirit_magi_dmg_additional":
             entries = [entry for entry in tuple(source.source_log) if entry.stat == src_key]
-            for entry in entries:
-                source.add_with_source(dst_key, entry.amount, replace(entry, stat=dst_key))
             untracked = source.total(src_key) - sum(entry.amount for entry in entries)
-            # Every ordinary BuildSource entry has a matching source-log record. If that contract changes,
-            # fail loudly instead of turning a bookkeeping mismatch into a negative damage multiplier.
-            assert untracked >= -1e-12, f"Unlogged Spirit Magi additional damage: {untracked}"
-            if abs(untracked) > 1e-12:
+            if untracked < -1e-12:
+                # Preserve the summed pool if source-log accounting ever diverges. This loses distinct-source
+                # multiplication for this Magus, so surface the fallback instead of crashing engine_stats.
+                _add(dst_key, max(0.0, source.total(src_key)), "Spirit Magi additional damage (clamped fallback)")
+                nyi.append("Spirit Magi additional damage source log did not balance; used a non-negative summed "
+                           "fallback (distinct-source multiplication NYI for this Magus).")
+            else:
+                for entry in entries:
+                    source.add_with_source(dst_key, entry.amount, replace(entry, stat=dst_key))
+            if untracked > 1e-12:
                 _add(dst_key, untracked, "Spirit Magi additional damage (untracked source)")
             continue
         _add(dst_key, source.total(src_key), f"Spirit Magi {src_key.replace('spirit_magi_', '').replace('_', ' ')}")
@@ -179,6 +184,7 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
         _add("minion_cast_speed_additional",
              source.total("minion_cast_speed_additional_per_100_growth") * (growth // 100),
              "Troublemaker: Cast Speed per 100 Growth")
+    return nyi
 
 
 def _minion_target_mitigation(source: BuildSource, dtype: str) -> float:
@@ -362,15 +368,13 @@ def spirit_magus_reconjuring_cycle(*, drain_pct_per_second: float = 0.0, heal_se
     ordinary_heal = max(0.0, float(regen_pct_per_second)) * (1.0 + float(regen_speed_inc))
     drain_heal = ordinary_heal + max(0.0, float(drain_heal_pct_per_second))
     net_drain = drain - drain_heal
+    heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
+    heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
     if net_drain <= 0:
-        heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
-        heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
         return {"drain_seconds": 0.0, "reconjuring_seconds": 0.0, "cycle_seconds": 0.0,
                 "damage_uptime": 1.0, "drain_pct_per_second": drain,
                 "drain_heal_pct_per_second": drain_heal,
                 "heal_pct_per_second": heal_rate}
-    heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
-    heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
     drain_duration = 1.0 / net_drain
     reconjuring_duration = (1.0 / heal_rate) if heal_rate > 0 else math.inf
     cycle = drain_duration + reconjuring_duration

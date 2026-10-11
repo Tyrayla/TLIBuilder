@@ -58,7 +58,7 @@ def handler(source, owner, base_stats, level, count):
     # Spirit-Magi-scoped damage/crit gear/talents carry the `spirit_magi` tag (not `minion`) and would otherwise
     # be dropped — fold them into the generic minion pools so a magus consumes them. Also folds the per-Growth
     # pools (Talons of Abyss) scaled by this magus's Growth.
-    fold_spirit_magi_pools(buffed, growth)
+    pool_fold_nyi = fold_spirit_magi_pools(buffed, growth)
 
     def _add(stat: str, amt: float, text: str) -> None:
         buffed.add_with_source(stat, amt, SourceEntry(
@@ -191,6 +191,7 @@ def handler(source, owner, base_stats, level, count):
         results.append(r)
 
     combined = combine_minion_forms(owner.get("name") or "Thunder Magus", results, count)
+    combined.nyi.extend(pool_fold_nyi)
     # Surface the Spirit Magus Growth state (glossary 759) for the minion info panel. Physique & Skill Area are
     # display-only (don't change single-target hit DPS); the DPS-relevant stage bonuses are already folded above.
     combined.spirit_magi_growth = growth

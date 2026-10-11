@@ -357,7 +357,7 @@ def status_lines(*, slot_levels, advanced_picks, season=None, skills_input=None,
     if _enabled(slot_levels, _SLOT_BASE):
         line("Spirit Magus skills in active slots also cast the Trait Skill; every-season line", "Vigilant Breeze")
         line("Merged Magi enter Vigilant; use-max selects the computed Breeze maximum, or set any literal stack count including zero", "Vigilant Breeze")
-        line("Breeze adds +16% additional damage per selected current stack; OWNER TO CONFIRM whether stacks compound", "Vigilant Breeze", "needs-verification")
+        line("Breeze adds +16% additional damage per current stack, linearly (owner-confirmed: 10 stacks = +160%)", "Vigilant Breeze")
         line("During Vigilant, Magi consume 20% Max Life per second outside Reconjuring; gain 1 Breeze/s to 10 while merged and lose 2/s unmerged or Reconjuring", "Vigilant Breeze", "informational")
         line("Merged Magi cast only Iris's selected skill; their normal rotation is replaced until unmerged", "Vigilant Breeze")
         line("Iris can select Base Skill (with Enhanced chance replacing individual casts) or Ultimate", "Vigilant Breeze")
