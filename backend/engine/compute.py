@@ -44,6 +44,27 @@ def _minion_owner_max_count(source: BuildSource, owner: dict, level: int, slot: 
     return max(1, _minion_base_count(owner, level)
                + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
 
+
+def _spirit_magi_base_active_count(skills_by_id, skills_input, main_skill, main_enabled, main_slot,
+                                   configured_active: int) -> int:
+    """Apply the existing per-owner active-minion cap consistently to the Reunion count."""
+    if skills_by_id is None:
+        return 0
+    total = 0
+    for sk in skills_input or []:
+        if sk.get("slot") == main_slot or not sk.get("enabled", True):
+            continue
+        owner = skills_by_id.get(sk.get("skill_id"))
+        if owner and owner.get("minion_skills") and _is_spirit_magus(owner):
+            capacity = _minion_base_count(owner, int(sk.get("level", 1)))
+            total += min(capacity, configured_active) if configured_active > 0 else capacity
+    if main_skill and main_enabled:
+        owner = skills_by_id.get(main_skill.skill_id)
+        if owner and owner.get("minion_skills") and _is_spirit_magus(owner):
+            capacity = _minion_base_count(owner, main_skill.level)
+            total += min(capacity, configured_active) if configured_active > 0 else capacity
+    return total
+
 # Support ids that turn a Spell into a Tangle (the skill is then cast by attached tangles, not the player).
 # Manifold Entanglement is NOT here — it's a normal damage support that spawns all tangles at once.
 _TANGLE_ACTIVATORS = frozenset({"spell_tangle", "activation_medium_tangle"})
@@ -598,26 +619,15 @@ def compute(
             if _msd and _msd.get("minion_skills"):
                 minion_owner_slots.add(main_slot)
                 slot_cats[main_slot] = _minion_owner_cat(_msd)
-    _spirit_magi_active_capacity = 0
-    if skills_by_id is not None:
-        _configured_active = int(condition_state.get("active_minions") or 0)
-        for _sk in (skills_input or []):
-            _sd = skills_by_id.get(_sk.get("skill_id"))
-            if (_sk.get("slot") != main_slot and _sk.get("enabled", True) and _sd and _sd.get("minion_skills")
-                    and _is_spirit_magus(_sd)):
-                _cap = _minion_base_count(_sd, int(_sk.get("level", 1)))
-                _spirit_magi_active_capacity += min(_cap, _configured_active) if _configured_active > 0 else _cap
-        if build_input.main_skill and main_enabled:
-            _msd = skills_by_id.get(build_input.main_skill.skill_id)
-            if _msd and _msd.get("minion_skills") and _is_spirit_magus(_msd):
-                _cap = _minion_base_count(_msd, build_input.main_skill.level)
-                _spirit_magi_active_capacity += min(_cap, _configured_active) if _configured_active > 0 else _cap
+    _configured_active = int(condition_state.get("active_minions") or 0)
+    _spirit_magi_active_capacity = _spirit_magi_base_active_count(
+        skills_by_id, skills_input, build_input.main_skill, main_enabled, main_slot, _configured_active)
     if _spirit_magi_active_capacity:
         _reunion_enabled = (build_input.trait_id == "vigilant_breeze"
                             and "Happiest Reunion" in (build_input.advanced_trait_selections or [])
                             and len(build_input.trait_slot_levels or []) > 2
                             and int(build_input.trait_slot_levels[2]) > 0)
-        if _reunion_enabled and skills_by_id is not None:
+        if _reunion_enabled:
             _spirit_magi_active_capacity += 1
         condition_state["vigilant_breeze_total_magi"] = min(5, _spirit_magi_active_capacity)
 
@@ -884,20 +894,16 @@ def compute(
             and int(build_input.trait_slot_levels[2]) > 0
         )
         if _reunion_enabled:
-            _merged_capacity = 0
-            if skill_data and build_input.main_skill and main_enabled and _is_spirit_magus(skill_data):
-                _merged_capacity += _minion_base_count(skill_data, build_input.main_skill.level)
-            for _sk in (skills_input or []):
-                if _sk.get("slot") == main_slot or not _sk.get("enabled", True):
-                    continue
-                _sd = skills_by_id.get(_sk.get("skill_id"))
-                if _sd and _sd.get("minion_skills") and _is_spirit_magus(_sd):
-                    _merged_capacity += _minion_base_count(_sd, int(_sk.get("level", 1)))
-            # Max-Magus bonuses increase the shared Spirit Magus cap once. Per-owner
-            # offense materialization still applies those bonuses when sizing each module.
-            _merged_capacity += int(round(
-                source.total("max_spirit_magi_flat") + source.total("extra_max_minions_flat")))
-            condition_state["vigilant_breeze_total_magi"] = min(5, _merged_capacity)
+            # Keep the pre-loop and post-aggregate counts on the same per-owner
+            # active_minions rule. Gear and node cap bonuses are shared, so count
+            # them once after the aggregate has materialized their values.
+            _base_active_magi = _spirit_magi_base_active_count(
+                skills_by_id, skills_input, build_input.main_skill, main_enabled,
+                main_slot, int(condition_state.get("active_minions") or 0))
+            if _base_active_magi:
+                _merged_capacity = _base_active_magi + int(round(
+                    source.total("max_spirit_magi_flat") + source.total("extra_max_minions_flat")))
+                condition_state["vigilant_breeze_total_magi"] = min(5, _merged_capacity)
 
         # Warcry Power is the greater of target rarity and the build's minimum-enemies value, capped at
         # 8 (16 with Formless). The same cap clamps a manual Config value.
@@ -2322,6 +2328,11 @@ def compute(
                         float(condition_state.get("vigilant_breeze_current_stacks", 0.0) or 0.0)
                         if _merged and build_input.trait_slot_levels
                         and int(build_input.trait_slot_levels[0]) >= 5 else 0.0)
+                    _base_ability = next((ability for ability in abilities
+                                          if "base skill" in {str(tag).lower() for tag in
+                                                              (ability.get("skill_tags") or [])}), None)
+                    _magus_skill_tags = ({str(tag).lower() for tag in (_base_ability.get("skill_tags") or [])}
+                                         if _base_ability else None)
                     _breeze_stacks = (float(condition_state.get("vigilant_breeze_current_stacks", 0.0) or 0.0)
                                       if _merged else 0.0)
                     # Merging Stream explicitly applies basic Origins to all Spirit Magi, including
@@ -2343,7 +2354,8 @@ def compute(
                             text=f"Vigilant Breeze: +{_breeze_stacks:g} stacks × 16% additional damage"))
                     if _stream_effect:
                         _stream_nyi_targets = _vigilant_breeze.apply_merging_stream_origins(
-                            source=eff, condition_state=condition_state, growth=_growth)
+                            source=eff, condition_state=condition_state, growth=_growth,
+                            magus_skill_tags=_magus_skill_tags)
                     _selected = condition_state.get("vigilant_breeze_skill", "Ultimate")
                     _role = _vigilant_breeze.normalize_selected_skill_role(_selected)
                     _tango = (_merged and bool(condition_state.get("vigilant_breeze_whirlwind_tango"))
@@ -2375,10 +2387,11 @@ def compute(
                 _life_table = ((_mbase or {}).get("life_by_group") or {}).get("magus") or {}
                 _base_life = _interp_level_table(_life_table, level)
                 _regen_rate = eff.total("minion_life_regen_inc")
+                _flat_regen = eff.total("minion_life_regen_flat")
                 _life_data_missing = _base_life <= 0
                 if not _life_data_missing:
                     _max_life = _base_life * max(0.01, 1.0 + eff.total("minion_max_life_inc"))
-                    _regen_rate += eff.total("minion_life_regen_flat") / _max_life
+                    _regen_rate += _flat_regen / _max_life
                 _iris_cycle = spirit_magus_reconjuring_cycle(
                     drain_pct_per_second=_drain_rate,
                     regen_pct_per_second=_regen_rate,
@@ -2408,7 +2421,7 @@ def compute(
                         result.nyi.append(
                             "Whirlwind Tango per-cast Life cost is exposed in the dispatch payload but excluded "
                             "from Reconjuring uptime pending verification of its timing.")
-                if _life_data_missing:
+                if _life_data_missing and _flat_regen:
                     result.nyi.append(
                         "Spirit Magus base Life is unavailable; flat Life Regeneration was excluded from "
                         "Reconjuring uptime.")

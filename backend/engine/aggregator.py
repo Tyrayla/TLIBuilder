@@ -7,7 +7,8 @@ from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
                                          ORIGIN_OWNER_FLAG as _ORIGIN_OWNER_FLAG,
                                          is_merging_stream_active as _is_merging_stream_active,
                                          origin_factor as _origin_factor_fn,
-                                         scaled_magnitude as _origin_scaled)
+                                         scaled_magnitude as _origin_scaled,
+                                         thunder_origin_values as _thunder_origin_values)
 
 
 def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
@@ -965,8 +966,7 @@ def aggregate(
         if "origin_of_thunder" in _origin_flags:
             _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
             _origin_factor = _factor_for("origin_of_thunder")
-            from engine.spirit_magus_origins import thunder_origin_values
-            _ot_speed, _ot_dmg = thunder_origin_values(_ot_lvl, _origin_factor)
+            _ot_speed, _ot_dmg = _thunder_origin_values(_ot_lvl, _origin_factor)
             for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
                 source.add_with_source(_sk, _ot_speed, SourceEntry(
                     stat=_sk, amount=_ot_speed, source_type="condition",

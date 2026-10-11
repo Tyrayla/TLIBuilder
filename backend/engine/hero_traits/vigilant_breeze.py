@@ -227,6 +227,10 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
     is_spell = "spell" in tags
     which = "cast" if is_spell else "attack"
     base_time = _parse_cast_time(resolved.get("cast_speed", "")) or 0.0
+    if base_time <= 0:
+        return {"selected_skill": selected_skill, "skill_name": resolved.get("name"), "role": role,
+                "available": False, "damage_in_default_total": False,
+                "reason": "selected skill cast time is unavailable"}
     ultimate = role == "ultimate"
     ultimate_speed_key = f"minion_ultimate_{which}_speed_additional"
     rate = ((1.0 / base_time) * (1.0 + source.total(_MINION_SPEED_INC[which]))
@@ -273,11 +277,12 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
             "breeze_per_cast": int(breeze_per_cast)}
 
 
-def apply_merging_stream_origins(*, source, condition_state, growth):
+def apply_merging_stream_origins(*, source, condition_state, growth, magus_skill_tags=None):
     """Apply every slotted basic Magus Origin to one Magus source under Merging Stream.
 
     The player-side aggregator suppresses these grants while this node is active.
     Each recipient Magus gets its own Growth-scaled Origin Effect multiplier.
+    Attack and Spell Crit Rating stay scoped to the recipient's skill type.
     """
     if not condition_state.get("vigilant_breeze_merging_stream"):
         return []
@@ -290,11 +295,14 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
     growth_factor = 1.0 + per_two_growth * (float(growth) // 2)
     unsupported_targets = set()
     stat_map = {
-        "attack_crit_rating_flat": "minion_crit_rating_flat",
-        "spell_crit_rating_flat": "minion_crit_rating_flat",
         "life_regen_inc": "minion_life_regen_inc",
         "hit_dmg_taken_additional": "minion_dmg_taken_additional",
         "dot_dmg_taken_additional": "minion_dmg_taken_additional",
+    }
+    skill_tags = {str(tag).lower() for tag in (magus_skill_tags or [])}
+    crit_targets = {
+        "attack_crit_rating_flat": "attack",
+        "spell_crit_rating_flat": "spell",
     }
 
     def emit(stat, amount, label, text):
@@ -317,6 +325,13 @@ def apply_merging_stream_origins(*, source, condition_state, growth):
         value = scaled_magnitude(raw, factor, clamp)
         for target, scale in targets:
             destination = stat_map.get(target)
+            if target in crit_targets:
+                if magus_skill_tags is None:
+                    unsupported_targets.add(target)
+                    continue
+                if crit_targets[target] not in skill_tags:
+                    continue
+                destination = "minion_crit_rating_flat"
             if destination:
                 emit(destination, value * scale, f"{origin_name} (Merging Stream)", text_fmt.format(v=value))
             else:

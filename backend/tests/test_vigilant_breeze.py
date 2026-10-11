@@ -207,21 +207,28 @@ def test_merging_stream_scales_origin_for_each_magus_growth():
         "origin_of_ice_value": 2.4,
     }
 
-    unsupported = vb.apply_merging_stream_origins(source=source, condition_state=condition_state, growth=200)
+    unsupported = vb.apply_merging_stream_origins(
+        source=source, condition_state=condition_state, growth=200, magus_skill_tags={"spell"})
 
-    # Fire Origin grants both Attack and Spell CSR. Both fold into the Magus's one CSR pool.
-    # Each grant is 100 × (1 + 20% inc) × (1 + 10% Merging Stream additional) = 132.
-    assert source.total("minion_crit_rating_flat") == pytest.approx(264.0)
+    # Fire Origin's Attack and Spell CSR stay scoped; a spell Magus receives only the spell grant.
+    # The grant is 100 × (1 + 20% inc) × (1 + 10% Merging Stream additional) = 132.
+    assert source.total("minion_crit_rating_flat") == pytest.approx(132.0)
     assert source.total("minion_life_regen_inc") > 0
     assert unsupported == ["energy_shield_regen_pct"]
+
+    attack_source = BuildSource()
+    attack_source.add("spirit_magi_origin_effect_inc", 0.20)
+    vb.apply_merging_stream_origins(source=attack_source, condition_state=condition_state, growth=200,
+                                    magus_skill_tags={"attack"})
+    assert attack_source.total("minion_crit_rating_flat") == pytest.approx(132.0)
 
     base_growth_source = BuildSource()
     vb.apply_merging_stream_origins(source=base_growth_source, condition_state={
         "vigilant_breeze_merging_stream": True,
         "vigilant_breeze_origin_effect_per_2_growth": 0.001,
         "origin_of_fire": True, "origin_of_fire_value": 100.0,
-    }, growth=100)
-    assert base_growth_source.total("minion_crit_rating_flat") == pytest.approx(210.0)
+    }, growth=100, magus_skill_tags={"spell"})
+    assert base_growth_source.total("minion_crit_rating_flat") == pytest.approx(105.0)
 
     frost_status = vb.status_lines(slot_levels=[1, 1, 1, 5], advanced_picks=["Merging Stream"],
                                    skills_input=[{"skill_id": "summon_frost_magus"}])
@@ -356,6 +363,18 @@ def test_enhanced_is_not_a_selectable_iris_skill():
     assert contract["available"] is False
 
 
+def test_selected_skill_with_unparsed_cast_time_is_unavailable():
+    contract = vb.selected_skill_contract(
+        selected_skill="Ultimate",
+        minion_skills=[{"name": "Unknown Ultimate", "cooldown": "8 s",
+                        "skill_tags": ["Ultimate", "Spell"]}],
+        source=BuildSource(),
+    )
+
+    assert contract["available"] is False
+    assert contract["reason"] == "selected skill cast time is unavailable"
+
+
 @pytest.mark.parametrize(("selected", "role"), [
     ("Base", "base skill"), ("Base Skill", "base skill"),
     ("Blazing Dance (Base)", "base skill"),
@@ -470,6 +489,25 @@ def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkey
     assert disabled["summon_rock_magus"]["total_dps"] > 0
 
 
+def test_reunion_count_uses_per_owner_active_minion_cap():
+    from engine.compute import _spirit_magi_base_active_count
+
+    skills_by_id = {
+        "summon_thunder_magus": {"item_id": "summon_thunder_magus", "minion_skills": [{}],
+                                 "detailed_description": ["Summons up to 3 Spirit Magi"]},
+        "summon_rock_magus": {"item_id": "summon_rock_magus", "minion_skills": [{}],
+                              "detailed_description": ["Summons up to 2 Spirit Magi"]},
+    }
+    skills_input = [{"slot": 2, "skill_id": "summon_rock_magus", "level": 20, "enabled": True}]
+    main_skill = type("MainSkill", (), {"skill_id": "summon_thunder_magus", "level": 20})()
+
+    assert _spirit_magi_base_active_count(
+        skills_by_id, skills_input, main_skill, True, 1, 1) == 2
+    assert _spirit_magi_base_active_count(
+        skills_by_id, skills_input, main_skill, True, 1, 0) == 5
+    assert _spirit_magi_base_active_count(None, skills_input, main_skill, True, 1, 0) == 0
+
+
 def test_happiest_reunion_count_includes_gear_max_magi():
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
@@ -495,12 +533,24 @@ def test_missing_magus_life_data_skips_flat_regen_and_flags_nyi(monkeypatch):
     from tests.mock_build import make_request
 
     monkeypatch.setattr(season_manager, "load_minion_base_stats", lambda _season: {"life_by_group": {}})
-    req = make_request(
+    no_flat_regen = make_request(
         "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 5],
         advanced_trait_selections=["Nurturing Breeze"],
         extra_conditions={"vigilant_breeze_active": True},
     )
-    magus = engine_stats(EngineStatsRequest(**req))["minion_offense"]["summon_thunder_magus"]
+    no_regen_magus = engine_stats(EngineStatsRequest(**no_flat_regen))["minion_offense"]["summon_thunder_magus"]
+    assert not any("base Life is unavailable" in item for item in no_regen_magus["nyi"])
+
+    gear = [{"item_name": "Life Regeneration Ring", "contributions": [{
+        "stat": "life_regen_flat", "display_value": 100, "unit": "", "slot": "ring1",
+        "item_name": "Life Regeneration Ring", "text": "+100 Life Regeneration per Second",
+    }]}]
+    with_flat_regen = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 5],
+        advanced_trait_selections=["Nurturing Breeze"], gear=gear,
+        extra_conditions={"vigilant_breeze_active": True},
+    )
+    magus = engine_stats(EngineStatsRequest(**with_flat_regen))["minion_offense"]["summon_thunder_magus"]
     assert any("base Life is unavailable" in item for item in magus["nyi"])
 
 
