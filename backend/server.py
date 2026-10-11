@@ -1256,6 +1256,7 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        "main_skill_slot": result.main_skill_slot,
         "numbed": result.numbed,
         # Per-blessing summary (stacks/max/effects) for the Blessings panel.
         "blessings": result.blessings,
@@ -1329,6 +1330,8 @@ def get_conditions():
         elif c.value_type == "enum":
             entry["enum_values"] = list(c.enum_values)
             entry["default_enum"] = c.default_enum
+            if c.options_source:
+                entry["options_source"] = c.options_source
         else:
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":

@@ -636,6 +636,7 @@ export interface ConditionDef {
   value_type: 'boolean' | 'numeric' | 'enum'
   enum_values?: string[]        // value_type === 'enum': the selectable options (a dropdown)
   default_enum?: string         // value_type === 'enum': default selected option
+  options_source?: string       // enum choices derived from current build state
   numeric_min?: number
   numeric_max?: number | null
   min_base?: number
@@ -934,6 +935,8 @@ export interface DamageRow {
 }
 
 export interface OffenseResult {
+  owner_slot?: number
+  vigilant_merged?: boolean
   skill_name: string
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
@@ -1408,6 +1411,8 @@ export interface StatSheetResponse {
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
+  // Exact slot selected by the engine for main_skill; used to keep slot-based Magus defaults aligned.
+  main_skill_slot?: number | null
   // Per-minion-owner offense ({owner_id: OffenseResult}) for slotted minion owners (Spirit Magi / Synthetic
   // Troops / Modularization). ONE OffenseResult per owner whose hit_forms are the minion's damage abilities
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled

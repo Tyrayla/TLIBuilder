@@ -36,6 +36,10 @@
     "tenacity_blessings": 4.0,
     "terra_charges_consumed": 1.0,
     "unique_weapon_types": 2.0,
+    "vigilant_breeze_enemies_defeated": 100.0,
+    "vigilant_breeze_life_consumed_pct": 1000.0,
+    "vigilant_breeze_stacks": 100.0,
+    "vigilant_breeze_whisper_bonus_stacks": 8.0,
     "well_fought_battle_stacks": 3.0,
     "willpower_stacks": 6.0
   },

@@ -64,6 +64,27 @@ def test_rock_magus_shares_base_and_enhanced_cadence_and_reports_hits():
     )
 
 
+def test_rock_magus_per_cast_template_does_not_change_unmerged_output_for_count_two():
+    import engine.minion_effects  # noqa: F401
+    from engine.minion_offense import MINION_MODULES
+
+    handler = MINION_MODULES["summon_rock_magus"]
+    base_stats = {"base_damage_by_level": {"1": 10}}
+    one = handler(BuildSource(), _owner(), base_stats, 1, 1)
+    two = handler(BuildSource(), _owner(), base_stats, 1, 2)
+
+    # The task only needs a unit-count reusable template; ordinary Rock rotation DPS remains unchanged here.
+    assert one.total_dps == pytest.approx(0.13776825125)
+    assert two.total_dps == pytest.approx(0.13776825125)
+    assert two.total_dps_vs_target == pytest.approx(one.total_dps_vs_target)
+    assert two.minion_skill_casts["base"]["damage_per_cast"] == pytest.approx(
+        one.minion_skill_casts["base"]["damage_per_cast"],
+    )
+    assert two.minion_skill_forms["base skill"].total_dps == pytest.approx(
+        one.minion_skill_forms["base skill"].total_dps,
+    )
+
+
 def test_rock_magus_ultimate_reads_spirit_magus_cdr_and_tango_zeroes_merged_cooldown():
     import engine.minion_effects  # noqa: F401
     from engine.minion_offense import MINION_MODULES

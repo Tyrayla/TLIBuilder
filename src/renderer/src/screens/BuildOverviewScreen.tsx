@@ -70,7 +70,15 @@ function ConfigPanel({ title, accent, headerColor, full, children }: {
       <div className={`cond-card-header${collapsible ? ' cond-card-header--clickable' : ''}`}
         style={headerColor ? { color: headerColor } : undefined}
         onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
-        role={collapsible ? 'button' : undefined}>
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        onKeyDown={collapsible ? event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setCollapsed(c => !c)
+          }
+        } : undefined}
+        aria-expanded={collapsible ? !collapsed : undefined}>
         <span>{title}</span>
         {collapsible && <span className="cond-card-collapse">{collapsed ? '+' : '−'}</span>}
       </div>
@@ -207,6 +215,9 @@ export default function BuildOverviewScreen() {
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const traitId = useBuildStore(s => s.traitId)
+  const equippedSkills = useBuildStore(s => s.skills)
+  const mainSkill = useBuildStore(s => s.mainSkill)
+  const engineMainSkillSlot = useBuildStore(s => s.computedStats.main_skill_slot)
   const gear = useBuildStore(s => s.gear)
   // Condition keys any build mod references (stable ref — only changes when stats recompute, so no render loop).
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
@@ -217,6 +228,7 @@ export default function BuildOverviewScreen() {
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
   const [showAll, setShowAll] = useState(false)
+  const [mergedRotationCollapsed, setMergedRotationCollapsed] = useState(true)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
   const warcryConflict = useBuildStore(
@@ -285,6 +297,8 @@ export default function BuildOverviewScreen() {
   //  - Otherwise, keep showing anything the user explicitly toggled on.
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
+    // Vigilant Breeze controls are exclusive to that selected trait, even in Show all mode.
+    if (c.trait_id === 'vigilant_breeze' && traitId !== 'vigilant_breeze') return false
     if (showAll) return true
     if (c.key in autoConditions) return true   // engine auto-activated it → always surface so the user sees it
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
@@ -309,6 +323,14 @@ export default function BuildOverviewScreen() {
 
   const setEnum = (key: string, value: string) =>
     setConditionState({ ...conditionState, [key]: value })
+
+  const dynamicEnumOptions: Record<string, { value: string; label: string }[]> = {
+    spirit_magus_slots: equippedSkills
+      .filter(skill => skill.slot >= 1
+        && skill.enabled !== false && skill.skill_tags.includes('Spirit Magus'))
+      .sort((a, b) => a.slot - b.slot)
+      .map(skill => ({ value: String(skill.slot), label: `${skill.name} · Slot ${skill.slot}` })),
+  }
 
   const getNumericMax = (cond: ConditionDef): number | null => {
     if (conditionMaximums[cond.key] !== undefined) return conditionMaximums[cond.key]
@@ -335,17 +357,27 @@ export default function BuildOverviewScreen() {
   // Frostbitten, ailment stacks, enemy proximity/life, …) move to a "Debuffs" group; the "Enemy" group is kept
   // for the injected offense/defense config (target dummy + incoming skill), which renders even with zero
   // conditions via isEnemy. Display-only remap — condition keys are unchanged, so engine gating is unaffected.
+  const mergedMagiRotationKeys = new Set([
+    'vigilant_breeze_spam_base', 'vigilant_breeze_spam_ultimate', 'vigilant_breeze_spam_empower',
+  ])
+  const mergedMagiRotation: ConditionDef[] = []
   const condCategories: [string, ConditionDef[]][] = (conditionsData ? Object.entries(conditionsData) : [])
-    .map(([cat, items]) => (cat === 'Enemy' ? ['Debuffs', items] : [cat, items]) as [string, ConditionDef[]])
+    .map(([cat, items]) => {
+      const kept = items.filter(condition => {
+        if (!mergedMagiRotationKeys.has(condition.key)) return true
+        mergedMagiRotation.push(condition)
+        return false
+      })
+      return [cat === 'Enemy' ? 'Debuffs' : cat, kept] as [string, ConditionDef[]]
+    })
+  if (mergedMagiRotation.length && !condCategories.some(([cat]) => cat === 'Hero Trait')) {
+    condCategories.push(['Hero Trait', []])
+  }
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 
-  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
-  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
-    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
-      {isEnemy && <EnemyTargetFields />}
-      {isEnemy && <EnemyIncomingFields />}
-      {visibleItems.map(cond => {
+  // Shared row renderer lets the Hero Trait panel place rotation conditions inside its own body.
+  const renderConditionRow = (cond: ConditionDef): React.ReactNode => {
         const isComputed = cond.source === 'computed_stat'
         // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).
         // `auto.value` is the engine's intent; it's reported even when the user has overridden it, so a cleared
@@ -356,14 +388,33 @@ export default function BuildOverviewScreen() {
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
         if (cond.value_type === 'enum') {
-          const opts = cond.enum_values ?? []
-          const sel = (conditionState[cond.key] as string) ?? cond.default_enum ?? opts[0] ?? ''
+          const dynamicOpts = cond.options_source ? dynamicEnumOptions[cond.options_source] ?? [] : null
+          const opts = dynamicOpts ?? (cond.enum_values ?? []).map(value => ({ value, label: value }))
+          if (dynamicOpts && opts.length === 0) return null
+          const stored = conditionState[cond.key]
+          const mainMagusSlot = cond.options_source === 'spirit_magus_slots'
+            ? (engineMainSkillSlot != null && opts.some(option => option.value === String(engineMainSkillSlot))
+              ? engineMainSkillSlot
+              : [...equippedSkills]
+                .filter(skill => skill.slot >= 1 && skill.enabled !== false)
+                .sort((a, b) => a.slot - b.slot)
+                .find(skill => skill.item_id === mainSkill?.skill_id
+                  && skill.skill_tags.includes('Spirit Magus'))?.slot)
+            : undefined
+          const sel = typeof stored === 'string' && opts.some(option => option.value === stored)
+            ? stored
+            : (cond.default_enum && opts.some(option => option.value === cond.default_enum)
+              ? cond.default_enum
+              : (mainMagusSlot != null && opts.some(option => option.value === String(mainMagusSlot))
+                ? String(mainMagusSlot)
+              : opts[0]?.value ?? '')
+              )
           return (
             <div key={cond.key} className="cond-item">
               <ConditionLabel condition={cond} className="cond-label" />
               <select className="cond-stack-input" style={{ marginLeft: 'auto', maxWidth: '55%' }}
                 value={sel} onChange={e => setEnum(cond.key, e.target.value)}>
-                {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                {opts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
           )
@@ -436,7 +487,32 @@ export default function BuildOverviewScreen() {
             {autoGoverns && <AutoBadge source={auto.source} />}
           </label>
         )
-      })}
+  }
+
+  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
+  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
+    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
+      {isEnemy && <EnemyTargetFields />}
+      {isEnemy && <EnemyIncomingFields />}
+      {visibleItems.map(renderConditionRow)}
+      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0 && (
+        <div className="merged-magi-rotation">
+          <button
+            type="button"
+            className="merged-magi-rotation-toggle"
+            aria-expanded={!mergedRotationCollapsed}
+            onClick={() => setMergedRotationCollapsed(collapsed => !collapsed)}
+          >
+            <span>Merged Magi Rotation</span>
+            <span aria-hidden="true">{mergedRotationCollapsed ? '+' : '−'}</span>
+          </button>
+          {!mergedRotationCollapsed && (
+            <div className="merged-magi-rotation-list">
+              {mergedMagiRotation.map(renderConditionRow)}
+            </div>
+          )}
+        </div>
+      )}
     </ConfigPanel>
   )
 
@@ -514,7 +590,8 @@ export default function BuildOverviewScreen() {
       place({ order: -1, weight: visibleItems.length + 6, node: renderCategoryPanel(cat, visibleItems, isEnemy) }, 2)
       return
     }
-    if (visibleItems.length === 0) return
+    if (visibleItems.length === 0
+      && !(cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0)) return
     restPanels.push({ order: idx, weight: visibleItems.length + 1,
       node: renderCategoryPanel(cat, visibleItems, false) })
   })

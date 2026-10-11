@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
+import { minionOffenseForSlot } from '../utils/minionOffense'
 import type { OffenseResult, DamageRow, DefenseResult, IncomingResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost, OriginGrant, OriginSkillSummary, WarcrySummary, LevelSummary, AfflictionInfo } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS, deriveTraitSlotLevels } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
@@ -3821,7 +3822,7 @@ export default function PlayerStatsScreen() {
   // (its damage abilities are hit forms — like a player multi-form skill) instead of the owner's damage-less
   // offense. It flows through the SAME form-dropdown / % of Total path as a player skill.
   const selectedOwnerId = skills.find(sk => sk.slot === selectedSlot)?.item_id
-  const minionResult = (selectedOwnerId && minionOffense?.[selectedOwnerId]) || null
+  const minionResult = minionOffenseForSlot(minionOffense, selectedOwnerId, selectedSlot)
   const minionMode = !!minionResult
 
   // slot_offense holds EVERY active slot's offense (incl. the main slot), so index it by the selected
@@ -3840,13 +3841,17 @@ export default function PlayerStatsScreen() {
   // the shown numbers). Phase 2 swaps this for a true engine recompute (forced forms, Chilling Spike split).
   const formNames = [...new Set([
     ...(shownOffense?.hit_forms?.map(f => f.name) ?? []),
-    ...(Object.values(shownOffense?.minion_skill_casts ?? {}).map(form => form.name)),
+    ...(!shownOffense?.vigilant_merged
+      ? Object.values(shownOffense?.minion_skill_casts ?? {}).map(form => form.name)
+      : []),
   ])]
   const displayOffense = useMemo(() => {
     if (!shownOffense) return shownOffense
     const selectedUltimate = shownOffense.minion_skill_casts?.ultimate
     const ultimateBreakdown = selectedUltimate?.hit_breakdown
-    if (selectedForm && selectedForm === selectedUltimate?.name && ultimateBreakdown) {
+    const selectedUltimateIsDamageForm = shownOffense.hit_forms.some(form => form.name === selectedForm)
+    if (selectedForm && selectedForm === selectedUltimate?.name && ultimateBreakdown
+      && !selectedUltimateIsDamageForm) {
       return {
         ...ultimateBreakdown,
         minion_ultimate: shownOffense.minion_ultimate,

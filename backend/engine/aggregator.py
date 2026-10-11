@@ -5,8 +5,10 @@ from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
                                          ORIGIN_OWNER_FLAG as _ORIGIN_OWNER_FLAG,
+                                         is_merging_stream_active as _is_merging_stream_active,
                                          origin_factor as _origin_factor_fn,
-                                         scaled_magnitude as _origin_scaled)
+                                         scaled_magnitude as _origin_scaled,
+                                         thunder_origin_values as _thunder_origin_values)
 
 
 def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
@@ -980,7 +982,8 @@ def aggregate(
     # AFTER scaling (cap-scaling behavior unverified — spec: .wolf/engine-spec-magus-origins.md).
     _origin_flags = active_booleans or frozenset()
     _any_origin = "origin_of_thunder" in _origin_flags or any(e[0] in _origin_flags for e in _ORIGIN_EMITS)
-    if _any_origin:
+    _merging_stream = _is_merging_stream_active(getattr(build, "trait_id", None), _origin_flags)
+    if _any_origin and not _merging_stream:
         _origin_inc_total = source.total("spirit_magi_origin_effect_inc")
         _origin_add_total = source.total("spirit_magi_origin_effect_additional")
 
@@ -993,8 +996,7 @@ def aggregate(
         if "origin_of_thunder" in _origin_flags:
             _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
             _origin_factor = _factor_for("origin_of_thunder")
-            _ot_speed = 0.06 * _origin_factor
-            _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
+            _ot_speed, _ot_dmg = _thunder_origin_values(_ot_lvl, _origin_factor)
             for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
                 source.add_with_source(_sk, _ot_speed, SourceEntry(
                     stat=_sk, amount=_ot_speed, source_type="condition",

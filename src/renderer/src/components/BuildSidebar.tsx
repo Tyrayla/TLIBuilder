@@ -68,6 +68,7 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
   const minionContributors = minionOffense
     ? Object.entries(minionOffense).flatMap(([ownerId, result]) => {
         const ownerSk = skills.find(sk => sk.item_id === ownerId)
+          ?? (result.owner_slot ? skills.find(sk => sk.slot === result.owner_slot) : undefined)
         if (ownerSk && (ownerSk.enabled === false || ownerSk.countInDps === false)) return []
         const dps = result.supported ? (result.total_dps_vs_target ?? 0) : 0
         if (dps <= 0) return []

@@ -89,6 +89,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         duration = duration_base * (1.0 + duration_inc)
         cooldown = cooldown_base / (1.0 + cdr_inc) if cooldown_base else 0.0
         empower_uptime = min(1.0, duration / cooldown) if duration > 0 and cooldown > 0 else 0.0
+        if conditions.get("_engine_iris_merged") and not conditions.get("_engine_iris_spam_empower", True):
+            empower_uptime = 0.0
         # The existing boss condition is represented by the current target's enemy count weight.
         # In the absence of a boss target, the documented normal-enemy default is one.
         empower_effect = 1.0 + source.total("spirit_magi_empower_effect_additional")
@@ -119,6 +121,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
 
     results = []
     skill_casts = {}
+    skill_forms = {}
 
     def record_cast(role, skill, offense, *, source_for_cast=buffed, hits=None):
         if not skill:
@@ -153,6 +156,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     enhanced = abilities.get("Enhanced")
     if base:
         base_cast_result = calculate_minion_offense(cast_source, base, base_stats, level)
+        # Keep the reusable merged template per Magus; `record_cast` and normal DPS stay per-cast/count-safe.
+        skill_forms["base skill"] = calculate_minion_offense(cast_source, base, base_stats, level, 1)
         record_cast("Base", base, base_cast_result, source_for_cast=cast_source)
         results.append(calculate_minion_offense(
             buffed, base, base_stats, level,
@@ -178,6 +183,11 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             ))
         enhanced_cast = calculate_minion_offense(enhanced_source, enhanced, base_stats, level,
                                                   shotgun_hits=3, shotgun_falloff=0.0)
+        enhanced_merged_cast = calculate_minion_offense(
+            enhanced_rotation_source, enhanced, base_stats, level, 1,
+            shotgun_hits=3, shotgun_falloff=0.0,
+        )
+        skill_forms["enhanced skill"] = enhanced_merged_cast
         record_cast("Enhanced", enhanced, enhanced_cast, source_for_cast=enhanced_source, hits=3)
         results.append(calculate_minion_offense(
             enhanced_rotation_source, enhanced, base_stats, level,
@@ -300,6 +310,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
                 "role": "Ultimate",
                 "hit_breakdown": ultimate_breakdown,
             }
+        skill_forms["ultimate"] = ultimate_result
     combined = combine_minion_forms(owner.get("name") or "Rock Magus", results, count)
     combined.spirit_magi_growth = growth
     combined.spirit_magi_stage = stage
@@ -308,4 +319,5 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     combined.minion_empower = empower_display
     combined.minion_ultimate = ultimate_summary
     combined.minion_skill_casts = skill_casts
+    combined.minion_skill_forms = skill_forms
     return combined

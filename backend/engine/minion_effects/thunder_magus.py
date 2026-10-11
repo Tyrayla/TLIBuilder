@@ -58,7 +58,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     # Spirit-Magi-scoped damage/crit gear/talents carry the `spirit_magi` tag (not `minion`) and would otherwise
     # be dropped — fold them into the generic minion pools so a magus consumes them. Also folds the per-Growth
     # pools (Talons of Abyss) scaled by this magus's Growth.
-    fold_spirit_magi_pools(buffed, growth)
+    pool_fold_nyi = fold_spirit_magi_pools(buffed, growth)
     # Iris-selected forms use persistent stats, not the Magus's normal Empower rotation.
     cast_source = replace(buffed, _entries=list(buffed._entries), source_log=list(buffed.source_log))
 
@@ -90,6 +90,9 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         _emp_cast_time = _pct(empower.get("cast_speed", "")) or 0.0    # cast-slot: attacking paused while casting it
         _dur_eff, _cd_eff = _dur, _cd
         empower_uptime = min(1.0, _dur / _cd) if (_dur > 0 and _cd > 0) else 1.0
+        if (condition_state or {}).get("_engine_iris_merged") and not (condition_state or {}).get(
+                "_engine_iris_spam_empower", True):
+            empower_uptime = 0.0
         _pct_txt = f"{round(empower_uptime * 100)}% uptime"
         _eff_txt = f" × {round(emp_eff * 100)}% Empower Effect" if abs(emp_eff - 1.0) > 1e-9 else ""
         _add("minion_attack_speed_additional", 0.35 * emp_eff * empower_uptime,
@@ -139,12 +142,22 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     _CAST_SLOT_EFFICIENCY = 0.5
     cast_slot_factor = (1.0 - _CAST_SLOT_EFFICIENCY * (_emp_cast_time / _cd_eff)
                         if (_emp_cast_time > 0 and _cd_eff > 0) else 1.0)
+    if (condition_state or {}).get("_engine_iris_merged") and not (condition_state or {}).get(
+            "_engine_iris_spam_empower", True):
+        cast_slot_factor = 1.0
     cast_slot_factor = max(0.0, cast_slot_factor)
+    if empower_display is not None:
+        empower_display["cast_time"] = _emp_cast_time
+        empower_display["cast_slot_factor"] = cast_slot_factor
 
     results = []
+    skill_forms = {}
+    enhanced_rate_factor = 1.0
     base = by_role.get("Base")
     enhanced = by_role.get("Enhanced")
     if base:
+        skill_forms["base skill"] = calculate_minion_offense(
+            buffed, base, base_stats, level, 1, rate_multiplier=1.0)
         results.append(calculate_minion_offense(buffed, base, base_stats, level, count,
                                                  rate_multiplier=(1.0 - enh_chance) * cast_slot_factor))
     if enhanced:
@@ -163,6 +176,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         #    per projectile, NOT a single-target shotgun.
         _F_INSERT = 0.90
         p = enh_chance
+        enhanced_rate_factor = 1.0 + _F_INSERT * (1.0 - p)
         enh_rate_mult = p * (1.0 + _F_INSERT * (1.0 - p)) * cast_slot_factor
         proj_quantity_bonus = (1 if stage >= 3 else 0) + source.total("minion_projectile_quantity_flat")
         enh_additional = 0.05 * proj_quantity_bonus
@@ -176,6 +190,9 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
                 stat="minion_dmg_additional", amount=enh_additional, source_type="skill", label="Skill Intrinsic",
                 text=f"Thunderlight Arrow: +5% additional damage × {proj_quantity_bonus:g} Projectile Quantity",
                 source_name="Thunderlight Arrow"))
+        skill_forms["enhanced skill"] = calculate_minion_offense(
+            enhanced_source, enhanced, base_stats, level, 1, rate_multiplier=1.0,
+            shotgun_hits=2, shotgun_falloff=0.0)
         results.append(calculate_minion_offense(
             enhanced_source, enhanced, base_stats, level, count, rate_multiplier=enh_rate_mult,
             shotgun_hits=2, shotgun_falloff=0.0))          # through + return = 2 full-damage hits
@@ -229,6 +246,10 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             ultimate_source, ultimate, base_stats, level, 1, shotgun_hits=7, shotgun_falloff=0.0,
             penetrates=True,
         )
+        if not result.hit_forms:
+            result.nyi.append(
+                "Lightning Surge (Ultimate) per-cast damage is unavailable because this build's Magus base stats "
+                "did not produce a damage form.")
         natural_rate = result.skills_per_second
         rate_scale = casts_per_second / natural_rate if natural_rate > 0 else 0.0
         result.skills_per_second = casts_per_second
@@ -253,9 +274,10 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         note = "Owner-tested; bolt travel distance, travel time, and chain targeting radius are estimates, not independently verified."
         summary = {
             "name": ability_label(ultimate),
-            "damage_per_cast": result.hit_forms[0].avg_hit_with_crit * result.hit_forms[0].hits_per_fire,
+            "damage_per_cast": (result.hit_forms[0].avg_hit_with_crit * result.hit_forms[0].hits_per_fire
+                                if result.hit_forms else 0.0),
             "damage_per_cast_vs_target": (result.hit_forms[0].dps_vs_target / casts_per_second
-                                          if casts_per_second > 0 else 0.0),
+                                          if result.hit_forms and casts_per_second > 0 else 0.0),
             "hits_per_cast": 7,
             "hits_per_target": 7,
             "chains_per_cast": 7,
@@ -274,6 +296,14 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
             "verification_note": note,
         }
         result.minion_ultimate = summary
+        # This skill's Full Bloom requirement remains a real activation caveat even though its
+        # per-cast damage form is now available to Iris's merged rotation.
+        full_bloom_caveat = "Lightning Surge (Ultimate) only fires in Full Bloom."
+        result.nyi.append(full_bloom_caveat)
+        for form in result.hit_forms:
+            form.nyi.append(full_bloom_caveat)
+        for row in result.damage_rows:
+            row.nyi.append(full_bloom_caveat)
         if cooldown_unavailable:
             summary["cooldown_unavailable"] = True
         breakdown = asdict(result)
@@ -282,6 +312,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         ultimate_summary = summary
 
     combined = combine_minion_forms(owner.get("name") or "Thunder Magus", results, count)
+    combined.nyi.extend(pool_fold_nyi)
     # Surface the Spirit Magus Growth state (glossary 759) for the minion info panel. Physique & Skill Area are
     # display-only (don't change single-target hit DPS); the DPS-relevant stage bonuses are already folded above.
     combined.spirit_magi_growth = growth
@@ -291,6 +322,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     combined.spirit_magi_enhanced_chance = enh_chance
     combined.spirit_magi_max = count
     combined.minion_empower = empower_display
+    combined.minion_skill_forms = skill_forms
+    combined.minion_enhanced_rate_multiplier = enhanced_rate_factor
     combined.minion_ultimate = ultimate_summary
     combined.minion_skill_casts = skill_casts
     return combined
