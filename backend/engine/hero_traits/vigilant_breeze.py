@@ -266,12 +266,88 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
     } if ultimate else {})
     return {"selected_skill": selected_skill, "skill_name": resolved.get("name"), "role": role,
             "available": True, "cast_time": base_time, "cooldown": cooldown,
+            "speed_kind": which,
             "casts_per_second": rate, "damage_in_default_total": False,
             "enhanced_chance": enhanced_chance, "skill_forms": skill_forms,
             "enhanced_casts_per_second": (rate * enhanced_chance if role == "base skill" and enhanced else 0.0),
             "ultimate_damage_pools": ultimate_damage_pools,
             "life_cost_pct_max_per_cast": float(life_cost_pct_max_per_cast),
             "breeze_per_cast": int(breeze_per_cast)}
+
+
+def apply_merged_empower_to_contract(dispatch, minion_result):
+    """Apply the Magus module's Empower uptime, speed buffs, and cast-slot loss to Iris's selected skill rate.
+
+    The selected skill remains Base or Ultimate; Empower is always an independent cooldown action. Modules expose
+    uptime/buff values through `minion_empower` and cast timing through their Empower summary, skill-cast data, or
+    Empower hit form. The shared slot-loss rule follows Thunder/Rock: half the Empower cast time per cooldown.
+    """
+    if not dispatch.get("available") or dispatch.get("role") not in {"base skill", "ultimate"}:
+        return dispatch
+    empower = getattr(minion_result, "minion_empower", None)
+    if not isinstance(empower, dict):
+        return dispatch
+
+    cast_time = empower.get("cast_time")
+    cooldown = empower.get("cooldown")
+    cast_slot_factor = empower.get("cast_slot_factor")
+    timing_available = cast_slot_factor is not None
+    skill_casts = getattr(minion_result, "minion_skill_casts", None) or {}
+    empower_cast = skill_casts.get("empower") if isinstance(skill_casts, dict) else None
+    if isinstance(empower_cast, dict):
+        # Rock exposes the rotation's raw Empower cast time and effective cooldown here.
+        cast_time = empower_cast.get("base_cast_time", empower_cast.get("cast_time", cast_time))
+        cooldown = empower_cast.get("cooldown", cooldown)
+        timing_available = True
+    elif cast_slot_factor is None:
+        empower_name = empower.get("name")
+        for form in getattr(minion_result, "hit_forms", ()) or ():
+            if getattr(form, "name", None) == empower_name:
+                cast_time = getattr(form, "effective_cast_time", cast_time)
+                cooldown = getattr(form, "effective_cooldown", cooldown)
+                timing_available = True
+                break
+
+    try:
+        cast_time = max(0.0, float(cast_time or 0.0))
+        cooldown = max(0.0, float(cooldown or 0.0))
+        cast_slot_factor = (max(0.0, float(cast_slot_factor)) if cast_slot_factor is not None
+                            else max(0.0, 1.0 - 0.5 * cast_time / cooldown) if cooldown > 0 else 1.0)
+    except (TypeError, ValueError):
+        cast_time = cooldown = 0.0
+        cast_slot_factor = 1.0
+        timing_available = False
+
+    speed_kind = dispatch.get("speed_kind")
+    speed_stat = f"{speed_kind}_speed"
+    speed_multiplier = 1.0
+    buffs = empower.get("buffs") or []
+    for buff in buffs:
+        if isinstance(buff, dict) and buff.get("stat") == speed_stat:
+            try:
+                speed_multiplier *= max(0.0, 1.0 + float(buff.get("value", 0.0) or 0.0))
+            except (TypeError, ValueError):
+                continue
+
+    base_rate = float(dispatch.get("casts_per_second", 0.0) or 0.0)
+    rate_multiplier = speed_multiplier * cast_slot_factor
+    dispatch["base_casts_per_second"] = base_rate
+    dispatch["empower_uptime"] = float(empower.get("uptime", 0.0) or 0.0)
+    dispatch["empower_effect"] = float(empower.get("empower_effect", 1.0) or 1.0)
+    dispatch["empower_buffs"] = buffs
+    dispatch["empower_cast_time"] = cast_time
+    dispatch["empower_cooldown"] = cooldown
+    dispatch["empower_casts_per_second"] = 1.0 / cooldown if cooldown > 0 else 0.0
+    dispatch["empower_cast_slot_factor"] = cast_slot_factor
+    dispatch["empower_cast_slot_status"] = "working" if timing_available else "NYI"
+    dispatch["empower_rate_multiplier"] = rate_multiplier
+    dispatch["casts_per_second"] = base_rate * rate_multiplier
+    for form in dispatch.get("skill_forms", ()):
+        form["casts_per_second"] *= rate_multiplier
+    if dispatch.get("role") == "base skill":
+        dispatch["enhanced_casts_per_second"] = float(
+            dispatch.get("enhanced_casts_per_second", 0.0) or 0.0) * rate_multiplier
+    return dispatch
 
 
 def apply_merging_stream_origins(*, source, condition_state, growth, magus_skill_tags=None):

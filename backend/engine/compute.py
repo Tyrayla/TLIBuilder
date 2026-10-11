@@ -2358,6 +2358,7 @@ def compute(
                 _stream_nyi_targets = []
                 _drain_rate = 0.0
                 _whisper_heal_rate = 0.0
+                _whisper_interval = _whisper_pct = 0.0
                 if _is_magus:
                     _growth_input = (
                         float(condition_state.get("vigilant_breeze_current_stacks", 0.0) or 0.0)
@@ -2412,10 +2413,6 @@ def compute(
                             and _iris_dispatch.get("available")):
                         _whisper_interval = float(condition_state.get("vigilant_breeze_whisper_interval", 0.0) or 0.0)
                         _whisper_pct = float(condition_state.get("vigilant_breeze_whisper_heal_pct", 0.0) or 0.0)
-                        if _whisper_interval > 0:
-                            _whisper_heal_rate = min(
-                                _iris_dispatch.get("enhanced_casts_per_second", 0.0),
-                                1.0 / _whisper_interval) * _whisper_pct
                 # Reconjuring is shared Spirit Magus behavior. Run the shared life-cycle
                 # model for every Magus; Iris only supplies the Vigilant life drain and
                 # Breeze's Whisper healing when its trait is active.
@@ -2446,6 +2443,20 @@ def compute(
                 # (like a player multi-form skill), so the frontend's form dropdown / % of Total / combined view work.
                 result = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)
                 if _iris_dispatch and _merged:
+                    # The selected skill replaces Base/Enhanced only. Each Magus still casts its own Empower on
+                    # cooldown; use that module's uptime, speed-buff values, and Empower cast timing for dispatch.
+                    _iris_dispatch = _vigilant_breeze.apply_merged_empower_to_contract(_iris_dispatch, result)
+                    if _whisper_interval > 0 and _iris_dispatch.get("available"):
+                        _whisper_heal_rate = min(
+                            _iris_dispatch.get("enhanced_casts_per_second", 0.0),
+                            1.0 / _whisper_interval) * _whisper_pct
+                        _iris_cycle = spirit_magus_reconjuring_cycle(
+                            drain_pct_per_second=_drain_rate,
+                            regen_pct_per_second=_regen_rate,
+                            regen_speed_inc=eff.total("minion_life_regen_speed_inc"),
+                            drain_heal_pct_per_second=_whisper_heal_rate,
+                            other_reconjuring_heal_pct_per_second=eff.total("minion_reconjuring_life_regen_inc"),
+                        )
                     # Selected-skill damage belongs to each Magus module. Until implemented, do not
                     # present the ordinary rotation as if it continued while Vigilant is active.
                     result.total_dps = result.total_dps_vs_target = result.skills_per_second = 0.0
@@ -2456,6 +2467,19 @@ def compute(
                             f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
                             f"{_iris_dispatch['casts_per_second']:.3f} casts/s; selected-skill damage "
                             "is pending that Magus module. Normal rotation is replaced while merged.")
+                        if _iris_dispatch.get("empower_cooldown", 0.0) > 0:
+                            if _iris_dispatch.get("empower_cast_slot_status") == "NYI":
+                                result.nyi.append(
+                                    f"Empower remains active while merged at "
+                                    f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s and "
+                                    f"{_iris_dispatch['empower_uptime']:.1%} buff uptime; cast-slot loss is NYI "
+                                    "because this Magus module does not expose Empower cast timing.")
+                            else:
+                                result.nyi.append(
+                                    f"Empower remains active while merged: "
+                                    f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s, "
+                                    f"{_iris_dispatch['empower_uptime']:.1%} buff uptime, and "
+                                    f"{_iris_dispatch['empower_cast_slot_factor']:.1%} selected-skill cast-slot factor.")
                     else:
                         result.nyi.append(
                             "Vigilant selected skill is unavailable: "

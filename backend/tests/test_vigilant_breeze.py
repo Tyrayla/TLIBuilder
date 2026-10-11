@@ -355,6 +355,41 @@ def test_selected_skill_contract_returns_per_cast_rate_and_keeps_ultimate_out_of
     assert tango["breeze_per_cast"] == 4
 
 
+def test_merged_selected_skill_keeps_empower_buff_and_pays_empower_cast_slot():
+    source = BuildSource()
+    base = {"name": "Base Strike", "cast_speed": "2 s", "cooldown": "1 s",
+            "skill_tags": ["Base Skill", "Attack", "Physical"]}
+    dispatch = vb.selected_skill_contract(
+        selected_skill="Base Skill", minion_skills=[base], source=source,
+    )
+    empower_output = SimpleNamespace(
+        minion_empower={
+            "uptime": 0.60,
+            "empower_effect": 1.20,
+            "cooldown": 5.0,
+            "buffs": [
+                {"stat": "attack_speed", "value": 0.35 * 1.20 * 0.60},
+                {"stat": "damage", "value": 0.20},
+            ],
+        },
+        minion_skill_casts={"empower": {"base_cast_time": 1.0, "cast_time": 0.8, "cooldown": 5.0}},
+        hit_forms=[],
+    )
+
+    adjusted = vb.apply_merged_empower_to_contract(dispatch, empower_output)
+
+    # Base rate 0.5/s; Empower's +25.2% Attack Speed and half-cast slot loss (1s/5s) both apply.
+    assert adjusted["base_casts_per_second"] == pytest.approx(0.5)
+    assert adjusted["empower_uptime"] == pytest.approx(0.60)
+    assert adjusted["empower_effect"] == pytest.approx(1.20)
+    assert adjusted["empower_casts_per_second"] == pytest.approx(0.20)
+    assert adjusted["empower_cast_slot_factor"] == pytest.approx(0.90)
+    assert adjusted["empower_rate_multiplier"] == pytest.approx(1.252 * 0.90)
+    assert adjusted["casts_per_second"] == pytest.approx(0.5 * 1.252 * 0.90)
+    assert adjusted["skill_forms"][0]["casts_per_second"] == pytest.approx(0.5 * 1.252 * 0.90)
+    assert adjusted["empower_buffs"] == empower_output.minion_empower["buffs"]
+
+
 @pytest.mark.parametrize(("enhanced_chance", "base_rate", "enhanced_rate"), [
     (0.0, 0.5, 0.0),
     (1.0, 0.0, 0.5),
@@ -453,6 +488,16 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     assert merged_magus["selected_skill_damage_status"] == "NYI"
     assert merged_magus["selected_skill_damage_pending"] is True
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
+    empower = merged_magus["minion_empower"]
+    dispatch = merged_magus["iris_skill_dispatch"]
+    attack_speed_buff = next(buff["value"] for buff in empower["buffs"]
+                             if buff["stat"] == "attack_speed")
+    assert dispatch["empower_uptime"] == pytest.approx(empower["uptime"])
+    assert dispatch["empower_cast_slot_factor"] == pytest.approx(empower["cast_slot_factor"])
+    assert dispatch["empower_rate_multiplier"] == pytest.approx(
+        (1.0 + attack_speed_buff) * empower["cast_slot_factor"])
+    assert dispatch["casts_per_second"] == pytest.approx(
+        dispatch["base_casts_per_second"] * dispatch["empower_rate_multiplier"])
 
     unmerged = calculate(False)
     unmerged_magus = unmerged["minion_offense"]["summon_thunder_magus"]
@@ -488,6 +533,11 @@ def test_compute_whisper_heals_enhanced_base_casts_but_not_selected_ultimate():
     ultimate = calculate("Ultimate")
     assert base["iris_skill_dispatch"]["enhanced_casts_per_second"] > 0
     assert base["reconjuring_cycle"]["drain_heal_pct_per_second"] > 0
+    whisper_tier = vb._tier([1, 5, 1, 1], vb._SLOT_45)
+    assert base["reconjuring_cycle"]["drain_heal_pct_per_second"] == pytest.approx(
+        min(base["iris_skill_dispatch"]["enhanced_casts_per_second"],
+            1.0 / vb._WHISPER_INTERVAL[whisper_tier]) * vb._WHISPER_HEAL[whisper_tier])
+    assert base["iris_skill_dispatch"]["empower_rate_multiplier"] != 1.0
     assert ultimate["iris_skill_dispatch"]["enhanced_casts_per_second"] == 0
     assert ultimate["reconjuring_cycle"]["drain_heal_pct_per_second"] == 0
 

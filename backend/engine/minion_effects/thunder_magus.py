@@ -135,6 +135,9 @@ def handler(source, owner, base_stats, level, count):
     cast_slot_factor = (1.0 - _CAST_SLOT_EFFICIENCY * (_emp_cast_time / _cd_eff)
                         if (_emp_cast_time > 0 and _cd_eff > 0) else 1.0)
     cast_slot_factor = max(0.0, cast_slot_factor)
+    if empower_display is not None:
+        empower_display["cast_time"] = _emp_cast_time
+        empower_display["cast_slot_factor"] = cast_slot_factor
 
     results = []
     base = by_role.get("Base")
