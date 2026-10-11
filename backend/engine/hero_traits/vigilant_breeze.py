@@ -189,13 +189,10 @@ def stash(*, source, ls_state, **_):
 
 
 def normalize_selected_skill_role(selected_skill):
-    role = str(selected_skill or "").rsplit("(", 1)[-1].rstrip(") ").lower()
-    role = {"base": "base skill", "ultimate": "ultimate"}.get(role, role)
-    if str(selected_skill or "").lower() in {"base", "base skill"}:
-        role = "base skill"
-    if str(selected_skill or "").lower() in {"ultimate", "ultimate skill"}:
-        role = "ultimate"
-    return role
+    raw = str(selected_skill or "").strip().lower()
+    role = raw.rsplit("(", 1)[-1].rstrip(") ").strip()
+    return {"base": "base skill", "base skill": "base skill",
+            "ultimate": "ultimate", "ultimate skill": "ultimate"}.get(role, role)
 
 
 def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100.0, ultimate_cooldown_zero=False,
@@ -218,11 +215,11 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
 
     if role not in {"base skill", "ultimate"}:
         return {"selected_skill": selected_skill, "role": role, "available": False,
-                "damage_in_default_total": False}
+                "damage_in_default_total": False, "reason": "selected skill role is unsupported"}
     resolved = find_skill(role)
     if not resolved:
         return {"selected_skill": selected_skill, "role": role, "available": False,
-                "damage_in_default_total": False}
+                "damage_in_default_total": False, "reason": f"{role} is unavailable for this Magus"}
     tags = {str(t).lower() for t in (resolved.get("skill_tags") or [])}
     is_spell = "spell" in tags
     which = "cast" if is_spell else "attack"
@@ -235,7 +232,7 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
     ultimate_speed_key = f"minion_ultimate_{which}_speed_additional"
     rate = ((1.0 / base_time) * (1.0 + source.total(_MINION_SPEED_INC[which]))
             * _speed_add_product(source, _MINION_SPEED_ADD[which])
-            * (_speed_add_product(source, ultimate_speed_key) if ultimate else 1.0)) if base_time > 0 else 0.0
+            * (_speed_add_product(source, ultimate_speed_key) if ultimate else 1.0))
     cooldown = _parse_cast_time(resolved.get("cooldown", "")) or 0.0
     if role == "ultimate" and ultimate_cooldown_zero:
         cooldown = 0.0

@@ -46,23 +46,37 @@ def _minion_owner_max_count(source: BuildSource, owner: dict, level: int, slot: 
 
 
 def _spirit_magi_base_active_count(skills_by_id, skills_input, main_skill, main_enabled, main_slot,
-                                   configured_active: int) -> int:
-    """Apply the existing per-owner active-minion cap consistently to the Reunion count."""
+                                   configured_active: int, shared_bonus: int = 0) -> int:
+    """Apply per-owner active limits, then allocate shared capacity bonuses only into available room."""
     if skills_by_id is None:
         return 0
-    total = 0
+    capacities = []
     for sk in skills_input or []:
         if sk.get("slot") == main_slot or not sk.get("enabled", True):
             continue
         owner = skills_by_id.get(sk.get("skill_id"))
         if owner and owner.get("minion_skills") and _is_spirit_magus(owner):
-            capacity = _minion_base_count(owner, int(sk.get("level", 1)))
-            total += min(capacity, configured_active) if configured_active > 0 else capacity
+            capacities.append(_minion_base_count(owner, int(sk.get("level", 1))))
     if main_skill and main_enabled:
         owner = skills_by_id.get(main_skill.skill_id)
         if owner and owner.get("minion_skills") and _is_spirit_magus(owner):
-            capacity = _minion_base_count(owner, main_skill.level)
-            total += min(capacity, configured_active) if configured_active > 0 else capacity
+            capacities.append(_minion_base_count(owner, main_skill.level))
+
+    counts = [min(capacity, configured_active) if configured_active > 0 else capacity
+              for capacity in capacities]
+    remaining = max(0, int(shared_bonus))
+    if configured_active <= 0:
+        if counts:
+            counts[0] += remaining
+    else:
+        for index, capacity in enumerate(capacities):
+            room = max(0, configured_active - counts[index])
+            granted = min(remaining, room)
+            counts[index] += granted
+            remaining -= granted
+            if remaining <= 0:
+                break
+    total = sum(counts)
     return total
 
 # Support ids that turn a Spell into a Tangle (the skill is then cast by attached tangles, not the player).
@@ -628,7 +642,9 @@ def compute(
                             and len(build_input.trait_slot_levels or []) > 2
                             and int(build_input.trait_slot_levels[2]) > 0)
         if _reunion_enabled:
-            _spirit_magi_active_capacity += 1
+            _spirit_magi_active_capacity = _spirit_magi_base_active_count(
+                skills_by_id, skills_input, build_input.main_skill, main_enabled, main_slot,
+                _configured_active, shared_bonus=1)
         condition_state["vigilant_breeze_total_magi"] = min(5, _spirit_magi_active_capacity)
 
     from engine.minion_offense import to_minion_stat as _to_minion_stat
@@ -636,8 +652,9 @@ def compute(
     # `active_minions` config: default = the summon-cap total (base "up to N"), so "when you have N Minion(s)" gear
     # gates against the real count by default; the user can lower it in Config to model fewer active minions (which
     # scales minion DPS in the minion pass below). Injected before the loop so the in-loop aggregator sees it.
-    if skills_by_id is not None and not condition_state.get("active_minions"):
-        _base_total = 0
+    _active_minions_was_defaulted = not bool(condition_state.get("active_minions"))
+    _base_total = 0
+    if skills_by_id is not None and _active_minions_was_defaulted:
         for _sk in (skills_input or []):
             _sd = skills_by_id.get(_sk["skill_id"])
             if _sd and _sd.get("minion_skills"):
@@ -901,8 +918,14 @@ def compute(
                 skills_by_id, skills_input, build_input.main_skill, main_enabled,
                 main_slot, int(condition_state.get("active_minions") or 0))
             if _base_active_magi:
-                _merged_capacity = _base_active_magi + int(round(
+                _shared_max_bonus = int(round(
                     source.total("max_spirit_magi_flat") + source.total("extra_max_minions_flat")))
+                if _active_minions_was_defaulted:
+                    condition_state["active_minions"] = float(_base_total + max(0, _shared_max_bonus))
+                _merged_capacity = _spirit_magi_base_active_count(
+                    skills_by_id, skills_input, build_input.main_skill, main_enabled,
+                    main_slot, int(condition_state.get("active_minions") or 0),
+                    shared_bonus=_shared_max_bonus)
                 condition_state["vigilant_breeze_total_magi"] = min(5, _merged_capacity)
 
         # Warcry Power is the greater of target rarity and the build's minimum-enemies value, capped at
@@ -2301,6 +2324,20 @@ def compute(
             sd = skills_by_id.get(sk["skill_id"])
             if sd and sd.get("minion_skills"):
                 _owners.append((sd, sk["level"], sk["slot"]))
+        _reunion_max_count_by_owner = {}
+        if _reunion_enabled:
+            _remaining_shared_bonus = max(0, int(round(
+                source.total("max_spirit_magi_flat") + source.total("extra_max_minions_flat"))))
+            _active_cap_for_bonus = int(condition_state.get("active_minions") or 0)
+            for _owner, _owner_level, _owner_slot in _owners:
+                if not _is_spirit_magus(_owner):
+                    continue
+                _base_count = _minion_base_count(_owner, _owner_level)
+                _bonus_room = (_remaining_shared_bonus if _active_cap_for_bonus <= 0 else
+                               max(0, _active_cap_for_bonus - min(_base_count, _active_cap_for_bonus)))
+                _owner_bonus = min(_remaining_shared_bonus, _bonus_room)
+                _reunion_max_count_by_owner[_owner["item_id"]] = _base_count + _owner_bonus
+                _remaining_shared_bonus -= _owner_bonus
         for owner, level, slot in _owners:
             abilities = owner.get("minion_skills") or []
             _is_magus = _is_spirit_magus(owner)
@@ -2399,7 +2436,10 @@ def compute(
                     drain_heal_pct_per_second=_whisper_heal_rate,
                     other_reconjuring_heal_pct_per_second=eff.total("minion_reconjuring_life_regen_inc"),
                 )
-                _max_count = _minion_owner_max_count(source, owner, level, slot)
+                _max_count = (_reunion_max_count_by_owner.get(owner["item_id"])
+                              if _reunion_enabled else None)
+                if _max_count is None:
+                    _max_count = _minion_owner_max_count(source, owner, level, slot)
                 # Active count = the user's `active_minions` (Config), capped at the max; 0/unset → the full max.
                 # Fewer active minions → lower DPS (the count folds into the totals via cast_multiplier).
                 _active = int(condition_state.get("active_minions") or 0)
@@ -2413,10 +2453,16 @@ def compute(
                     result.total_dps = result.total_dps_vs_target = result.skills_per_second = 0.0
                     result.hit_forms = []
                     result.damage_rows = []
-                    result.nyi.append(
-                        f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
-                        f"{_iris_dispatch.get('casts_per_second', 0.0):.3f} casts/s; selected-skill damage "
-                        "is pending that Magus module. Normal rotation is replaced while merged.")
+                    if _iris_dispatch.get("available"):
+                        result.nyi.append(
+                            f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
+                            f"{_iris_dispatch['casts_per_second']:.3f} casts/s; selected-skill damage "
+                            "is pending that Magus module. Normal rotation is replaced while merged.")
+                    else:
+                        result.nyi.append(
+                            "Vigilant selected skill is unavailable: "
+                            f"{_iris_dispatch.get('reason') or 'the selected role is unsupported for this Magus'}. "
+                            "Normal rotation remains replaced while merged.")
                     if _tango and _iris_dispatch.get("available"):
                         result.nyi.append(
                             "Whirlwind Tango per-cast Life cost is exposed in the dispatch payload but excluded "

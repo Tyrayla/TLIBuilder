@@ -505,6 +505,18 @@ def test_reunion_count_uses_per_owner_active_minion_cap():
         skills_by_id, skills_input, main_skill, True, 1, 1) == 2
     assert _spirit_magi_base_active_count(
         skills_by_id, skills_input, main_skill, True, 1, 0) == 5
+    assert _spirit_magi_base_active_count(
+        skills_by_id, skills_input, main_skill, True, 1, 1, shared_bonus=1) == 2
+    assert _spirit_magi_base_active_count(
+        skills_by_id, skills_input, main_skill, True, 1, 2, shared_bonus=1) == 4
+    assert _spirit_magi_base_active_count(
+        skills_by_id, skills_input, main_skill, True, 1, 0, shared_bonus=1) == 6
+    one_each = {key: {**owner, "detailed_description": []}
+                for key, owner in skills_by_id.items()}
+    assert _spirit_magi_base_active_count(
+        one_each, skills_input, main_skill, True, 1, 1, shared_bonus=2) == 2
+    assert _spirit_magi_base_active_count(
+        one_each, skills_input, main_skill, True, 1, 2, shared_bonus=2) == 4
     assert _spirit_magi_base_active_count(None, skills_input, main_skill, True, 1, 0) == 0
 
 
@@ -525,6 +537,17 @@ def test_happiest_reunion_count_includes_gear_max_magi():
 
     # Base cap 1 + gear +1 + Happiest Reunion +1.
     assert magus["iris_merged_magi_count"] == 3
+
+    two_magi_limited = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 5, 1],
+        advanced_trait_selections=["Happiest Reunion"], gear=gear,
+        skills=[{"slot": 1, "skill_id": "summon_thunder_magus", "level": 20},
+                {"slot": 2, "skill_id": "summon_rock_magus", "level": 20}],
+        extra_conditions={"vigilant_breeze_active": True, "active_minions": 1},
+    )
+    limited = engine_stats(EngineStatsRequest(**two_magi_limited))["minion_offense"]
+    # Each owner is at its configured active cap, so shared gear/Reunion capacity adds no active Magi.
+    assert limited["summon_thunder_magus"]["iris_merged_magi_count"] == 2
 
 
 def test_missing_magus_life_data_skips_flat_regen_and_flags_nyi(monkeypatch):
@@ -552,6 +575,32 @@ def test_missing_magus_life_data_skips_flat_regen_and_flags_nyi(monkeypatch):
     )
     magus = engine_stats(EngineStatsRequest(**with_flat_regen))["minion_offense"]["summon_thunder_magus"]
     assert any("base Life is unavailable" in item for item in magus["nyi"])
+
+
+def test_unavailable_selected_skill_reason_is_reported_in_compute(monkeypatch):
+    import copy
+    import server
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    real_get_skills_data = server._get_skills_data
+
+    def get_skills_without_ultimate_cast_time(season):
+        skills = copy.deepcopy(real_get_skills_data(season))
+        ultimate = next(ability for ability in skills["summon_thunder_magus"]["minion_skills"]
+                        if "ultimate" in {str(tag).lower() for tag in ability.get("skill_tags", [])})
+        ultimate["cast_speed"] = None
+        return skills
+
+    monkeypatch.setattr(server, "_get_skills_data", get_skills_without_ultimate_cast_time)
+    request = make_request(
+        "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_skill": "Ultimate"},
+    )
+    magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    assert any("selected skill cast time is unavailable" in item for item in magus["nyi"])
+    assert not any("0.000 casts/s" in item for item in magus["nyi"])
 
 
 def test_non_iris_spirit_magus_exposes_shared_growth_and_reconjuring_formula_without_dps_penalty():
