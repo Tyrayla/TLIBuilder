@@ -2008,6 +2008,33 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 1px;
 }
 
+.merged-magi-rotation { margin-top: 6px; }
+.merged-magi-rotation-toggle {
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--fg-body);
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.merged-magi-rotation-toggle:focus-visible { outline: 2px solid #c0a0ff; outline-offset: 2px; }
+.merged-magi-rotation-list {
+  padding: 4px 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 /* ── Import / Export Screen ────────────────────────────────── */
 
 .import-export-screen {

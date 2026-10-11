@@ -53,26 +53,30 @@ describe('Merged Magi Rotation in Config', () => {
     act(() => { vigilantView = TestRenderer.create(<BuildOverviewScreen />) })
     const labels = vigilantView.root.findAllByProps({ className: 'cond-label' }).map(node => node.children.join(''))
     expect(labels).toContain('Vigilant (Iris Merged)')
-    const rotationHeader = vigilantView.root.findAllByProps({
-      className: 'cond-card-header cond-card-header--clickable',
-    }).find(node => node.findAllByType('span').some(span => span.children.join('') === 'Merged Magi Rotation'))
-    expect(rotationHeader?.props['aria-expanded']).toBe(false)
+    const rotationButton = vigilantView.root.findAllByType('button')
+      .find(node => node.findAllByType('span').some(span => span.children.join('') === 'Merged Magi Rotation'))
+    expect(rotationButton?.props['aria-expanded']).toBe(false)
+    expect(rotationButton?.parent?.props.className).toBe('merged-magi-rotation')
+    const containingCards = vigilantView.root.findAllByProps({ className: 'cond-card' })
+      .filter(card => card.findAllByType('button').includes(rotationButton!))
+    expect(containingCards).toHaveLength(1)
     act(() => { vigilantView.unmount() })
   })
 
   it('opens the collapsed checklist with Base off and Ultimate plus Empower on, and stores a change', () => {
     let view!: TestRenderer.ReactTestRenderer
     act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
-    const header = view.root.findAllByProps({
-      className: 'cond-card-header cond-card-header--clickable',
-    }).find(node => node.findAllByType('span').some(span => span.children.join('') === 'Merged Magi Rotation'))!
-    expect(header.props['aria-expanded']).toBe(false)
-    const rotationPanel = header.parent!
-    expect(rotationPanel.findAllByType('label').map(label => label.children.join(''))).toEqual([])
+    const button = view.root.findAllByType('button')
+      .find(node => node.findAllByType('span').some(span => span.children.join('') === 'Merged Magi Rotation'))!
+    expect(button.props['aria-expanded']).toBe(false)
+    expect(button.parent?.props.className).toBe('merged-magi-rotation')
+    expect(view.root.findAllByProps({ className: 'cond-card' }).filter(card =>
+      card.findAllByType('button').includes(button),
+    )).toHaveLength(1)
 
-    act(() => { header.props.onClick() })
-    expect(header.props['aria-expanded']).toBe(true)
-    const checks = rotationPanel.findAllByProps({ className: 'cond-check' })
+    act(() => { button.props.onClick() })
+    expect(button.props['aria-expanded']).toBe(true)
+    const checks = button.parent!.findAllByProps({ className: 'cond-check' })
     expect(checks.map(input => input.props.checked)).toEqual([false, true, true])
     act(() => { checks[0].props.onChange({ target: { checked: true } }) })
     expect(useBuildStore.getState().conditionState.vigilant_breeze_spam_base).toBe(true)

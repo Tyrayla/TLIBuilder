@@ -59,12 +59,11 @@ function ConditionSourceTooltip({ label, source, className }: { label: string; s
 
 // Config panel: accent left-border + cool-charcoal uppercase header, matching the Stats screen's StatPanel.
 // Collapsible only when Settings → Display "Collapsible panels" is on (mirrors the Stats screen). Default expanded.
-function ConfigPanel({ title, accent, headerColor, full, forceCollapsible = false, defaultCollapsed = false, children }: {
-  title: React.ReactNode; accent: string; headerColor?: string; full?: boolean
-  forceCollapsible?: boolean; defaultCollapsed?: boolean; children: React.ReactNode
+function ConfigPanel({ title, accent, headerColor, full, children }: {
+  title: React.ReactNode; accent: string; headerColor?: string; full?: boolean; children: React.ReactNode
 }) {
-  const collapsible = useUiPrefs(s => s.collapsiblePanels) || forceCollapsible
-  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const collapsible = useUiPrefs(s => s.collapsiblePanels)
+  const [collapsed, setCollapsed] = useState(false)
   const showCollapsed = collapsible && collapsed
   return (
     <div className={`cond-card${full ? ' cond-card--full' : ''}`} style={{ borderLeftColor: accent }}>
@@ -226,6 +225,7 @@ export default function BuildOverviewScreen() {
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
   const [showAll, setShowAll] = useState(false)
+  const [mergedRotationCollapsed, setMergedRotationCollapsed] = useState(true)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
   const warcryConflict = useBuildStore(
@@ -365,17 +365,8 @@ export default function BuildOverviewScreen() {
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 
-  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
-  const renderCategoryPanel = (
-    cat: string,
-    visibleItems: ConditionDef[],
-    isEnemy: boolean,
-    panelOptions: { forceCollapsible?: boolean; defaultCollapsed?: boolean } = {},
-  ) => (
-    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)} {...panelOptions}>
-      {isEnemy && <EnemyTargetFields />}
-      {isEnemy && <EnemyIncomingFields />}
-      {visibleItems.map(cond => {
+  // Shared row renderer lets the Hero Trait panel place rotation conditions inside its own body.
+  const renderConditionRow = (cond: ConditionDef): React.ReactNode => {
         const isComputed = cond.source === 'computed_stat'
         // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).
         // `auto.value` is the engine's intent; it's reported even when the user has overridden it, so a cleared
@@ -466,12 +457,32 @@ export default function BuildOverviewScreen() {
             {autoGoverns && <AutoBadge source={auto.source} />}
           </label>
         )
-      })}
-      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0
-        && renderCategoryPanel('Merged Magi Rotation', mergedMagiRotation, false, {
-          forceCollapsible: true,
-          defaultCollapsed: true,
-        })}
+  }
+
+  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
+  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
+    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
+      {isEnemy && <EnemyTargetFields />}
+      {isEnemy && <EnemyIncomingFields />}
+      {visibleItems.map(renderConditionRow)}
+      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0 && (
+        <div className="merged-magi-rotation">
+          <button
+            type="button"
+            className="merged-magi-rotation-toggle"
+            aria-expanded={!mergedRotationCollapsed}
+            onClick={() => setMergedRotationCollapsed(collapsed => !collapsed)}
+          >
+            <span>Merged Magi Rotation</span>
+            <span aria-hidden="true">{mergedRotationCollapsed ? '+' : '−'}</span>
+          </button>
+          {!mergedRotationCollapsed && (
+            <div className="merged-magi-rotation-list">
+              {mergedMagiRotation.map(renderConditionRow)}
+            </div>
+          )}
+        </div>
+      )}
     </ConfigPanel>
   )
 
