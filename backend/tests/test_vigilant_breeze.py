@@ -454,6 +454,32 @@ def test_tango_base_fills_uncapped_ultimate_time_after_empower_slot_once():
     assert rotation["casts_per_second"] == pytest.approx(0.54)
 
 
+def test_base_and_ultimate_rotation_exposes_enhanced_rate_multiplier_for_whisper():
+    abilities = [
+        {"name": "Base Bolt", "cast_speed": "2 s", "cooldown": "0 s",
+         "skill_tags": ["Base Skill", "Spell", "Lightning"]},
+        {"name": "Enhanced Bolt", "cast_speed": "2 s", "cooldown": "0 s",
+         "skill_tags": ["Enhanced Skill", "Spell", "Lightning"]},
+        {"name": "Towering Mountains", "cast_speed": "1 s", "cooldown": "8 s",
+         "skill_tags": ["Ultimate", "Spell", "Physical"]},
+    ]
+    minion_result = SimpleNamespace(minion_enhanced_rate_multiplier=1.72)
+
+    rotation = vb.merged_rotation_contract(
+        base_enabled=True, ultimate_enabled=True, empower_enabled=False,
+        minion_skills=abilities, source=BuildSource(), growth=100,
+        minion_result=minion_result,
+        enhanced_chance=0.20,
+    )
+
+    # Ultimate occupies 0.125s/s, leaving 0.4375 Base casts/s; Whisper must see
+    # 0.4375 x 20% Enhanced chance x 1.72 Thunder fast-insert = 0.1505 heals/s.
+    assert rotation["enhanced_casts_per_second"] == pytest.approx(0.1505)
+    enhanced = next(form for form in rotation["skill_forms"]
+                    if form["role"] == "enhanced skill")
+    assert enhanced["casts_per_second"] == pytest.approx(0.1505)
+
+
 def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
     base = {"name": "Base Strike", "cast_speed": "2 s", "cooldown": "1 s",
             "skill_tags": ["Base Skill", "Attack", "Physical"]}

@@ -438,10 +438,11 @@ def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled,
             base_rate = min(base_rate, 1.0 / base_cooldown)
         base["casts_per_second"] = base_rate
         chance = float(base.get("enhanced_chance", 0.0) or 0.0)
-        base["enhanced_casts_per_second"] = base_rate * chance
+        enhanced_rate_multiplier = float(base.get("enhanced_rate_multiplier", 1.0) or 1.0)
+        base["enhanced_casts_per_second"] = base_rate * chance * enhanced_rate_multiplier
         for form in base.get("skill_forms", ()):
             form["casts_per_second"] = base_rate * (
-                chance * float(base.get("enhanced_rate_multiplier", 1.0) or 1.0)
+                chance * enhanced_rate_multiplier
                 if form.get("role") == "enhanced skill" else 1.0 - chance)
 
     skill_forms = [form for rotation in rotations for form in rotation.get("skill_forms", ())]
