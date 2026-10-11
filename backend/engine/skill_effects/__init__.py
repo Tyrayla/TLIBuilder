@@ -17,8 +17,9 @@ from engine.skill_effects import berserking_blade as _bb, focused_slash as _fs, 
 from engine.skill_effects import howling_gale as _hg, icebound_beam as _ib, chromatic_shot as _cs
 from engine.skill_effects import groundshaker as _gs, activation_medium as _am, split_shot as _ss
 from engine.skill_effects import flame_slash as _fl
+from engine.skill_effects import ring_of_blades as _rob
 
-_MODULES = (_bb, _fs, _ms, _hg, _ib, _cs, _gs, _am, _ss, _fl)
+_MODULES = (_bb, _fs, _ms, _hg, _ib, _cs, _gs, _am, _ss, _fl, _rob)
 
 # Support ids handled bespoke/deferred — their specific line is skipped by the generic resolver (the
 # universal +20% rank line still applies).
