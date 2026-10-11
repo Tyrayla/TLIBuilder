@@ -335,8 +335,20 @@ export default function BuildOverviewScreen() {
   // Frostbitten, ailment stacks, enemy proximity/life, …) move to a "Debuffs" group; the "Enemy" group is kept
   // for the injected offense/defense config (target dummy + incoming skill), which renders even with zero
   // conditions via isEnemy. Display-only remap — condition keys are unchanged, so engine gating is unaffected.
+  const spiritMagiRotationKeys = new Set([
+    'vigilant_breeze_spam_base', 'vigilant_breeze_spam_ultimate', 'vigilant_breeze_spam_empower',
+  ])
+  const spiritMagiRotation: ConditionDef[] = []
   const condCategories: [string, ConditionDef[]][] = (conditionsData ? Object.entries(conditionsData) : [])
-    .map(([cat, items]) => (cat === 'Enemy' ? ['Debuffs', items] : [cat, items]) as [string, ConditionDef[]])
+    .map(([cat, items]) => {
+      const kept = items.filter(condition => {
+        if (!spiritMagiRotationKeys.has(condition.key)) return true
+        spiritMagiRotation.push(condition)
+        return false
+      })
+      return [cat === 'Enemy' ? 'Debuffs' : cat, kept] as [string, ConditionDef[]]
+    })
+  if (spiritMagiRotation.length) condCategories.push(['Spirit Magi Rotation', spiritMagiRotation])
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 

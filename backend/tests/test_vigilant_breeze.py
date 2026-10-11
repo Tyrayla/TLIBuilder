@@ -432,6 +432,51 @@ def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
     assert adjusted["casts_per_second"] == pytest.approx(0.5)
 
 
+@pytest.mark.parametrize(("base_on", "ultimate_on", "empower_on", "expected_total",
+                          "expected_base", "expected_ultimate", "expected_empower"), [
+    (False, False, False, 0.0, 0.0, 0.0, 0.0),
+    (False, False, True, 0.0, 0.0, 0.0, 0.2),
+    (False, True, False, 0.125, 0.0, 0.125, 0.0),
+    (False, True, True, 0.125, 0.0, 0.125, 0.2),
+    (True, False, False, 0.5, 0.5, 0.0, 0.0),
+    (True, False, True, 0.5634, 0.5634, 0.0, 0.2),
+    (True, True, False, 0.5, 0.375, 0.125, 0.0),
+    (True, True, True, 0.5634, 0.4384, 0.125, 0.2),
+])
+def test_merged_rotation_checkbox_combinations_have_expected_cadences(
+        base_on, ultimate_on, empower_on, expected_total, expected_base,
+        expected_ultimate, expected_empower):
+    abilities = [
+        {"name": "Base Strike", "cast_speed": "2 s", "cooldown": "0 s",
+         "skill_tags": ["Base Skill", "Attack", "Physical"]},
+        {"name": "Towering Mountains", "cast_speed": "2 s", "cooldown": "8 s",
+         "skill_tags": ["Ultimate", "Attack", "Physical"]},
+    ]
+    result = SimpleNamespace(minion_empower={
+        "uptime": 0.60, "empower_effect": 1.20, "cooldown": 5.0,
+        "cast_slot_factor": 0.90,
+        "buffs": [{"stat": "attack_speed", "value": 0.252}],
+    })
+
+    rotation = vb.merged_rotation_contract(
+        base_enabled=base_on,
+        ultimate_enabled=ultimate_on,
+        empower_enabled=empower_on,
+        minion_skills=abilities,
+        source=BuildSource(),
+        growth=100,
+        minion_result=result,
+    )
+
+    form_rates = {form["role"]: form["casts_per_second"] for form in rotation["skill_forms"]}
+    assert rotation["casts_per_second"] == pytest.approx(expected_total)
+    assert form_rates.get("base skill", 0.0) == pytest.approx(expected_base)
+    assert form_rates.get("ultimate", 0.0) == pytest.approx(expected_ultimate)
+    assert rotation["empower_casts_per_second"] == pytest.approx(expected_empower)
+    assert rotation["selected_skills"] == ([role for enabled, role in [
+        (base_on, "base skill"), (ultimate_on, "ultimate")] if enabled])
+
+
 @pytest.mark.parametrize(("enhanced_chance", "base_rate", "enhanced_rate"), [
     (0.0, 0.5, 0.0),
     (1.0, 0.0, 0.5),
@@ -526,7 +571,8 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     assert merged_magus["vigilant_merged"] is True
     assert merged_magus["total_dps"] == 0.0
     assert "normal rotation is replaced" in " ".join(merged_magus["nyi"]).lower()
-    assert merged_magus["iris_skill_dispatch"]["role"] == "ultimate"
+    assert merged_magus["iris_skill_dispatch"]["role"] == "rotation"
+    assert merged_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
     assert merged_magus["selected_skill_damage_status"] == "NYI"
     assert merged_magus["selected_skill_damage_pending"] is True
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
@@ -556,7 +602,7 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     reunion_magus = reunion["minion_offense"]["summon_thunder_magus"]
     # Thunder has one base summon at this level; Happiest Reunion adds one map-cap Magus.
     assert reunion_magus["iris_merged_magi_count"] == 2
-    assert reunion_magus["iris_skill_dispatch"]["role"] == "ultimate"
+    assert reunion_magus["iris_skill_dispatch"]["selected_skills"] == ["ultimate"]
     assert reunion_magus["selected_skill_damage_status"] == "NYI"
 
 
@@ -568,7 +614,12 @@ def test_compute_whisper_heals_enhanced_base_casts_but_not_selected_ultimate():
         request = make_request(
             "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 5, 1, 1],
             advanced_trait_selections=["Breeze's Whisper"],
-            extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_skill": selected},
+            extra_conditions={
+                "vigilant_breeze_active": True,
+                "vigilant_breeze_spam_base": selected == "Base Skill",
+                "vigilant_breeze_spam_ultimate": selected == "Ultimate",
+                "vigilant_breeze_spam_empower": True,
+            },
         )
         return engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
@@ -583,6 +634,33 @@ def test_compute_whisper_heals_enhanced_base_casts_but_not_selected_ultimate():
     assert base["iris_skill_dispatch"]["empower_rate_multiplier"] != 1.0
     assert ultimate["iris_skill_dispatch"]["enhanced_casts_per_second"] == 0
     assert ultimate["reconjuring_cycle"]["drain_heal_pct_per_second"] == 0
+
+
+def test_no_damage_skill_selection_reports_zero_and_empower_checkbox_controls_buff():
+    from server import EngineStatsRequest, engine_stats
+    from tests.mock_build import make_request
+
+    def calculate(empower_enabled):
+        request = make_request(
+            "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
+            extra_conditions={
+                "vigilant_breeze_active": True,
+                "vigilant_breeze_spam_base": False,
+                "vigilant_breeze_spam_ultimate": False,
+                "vigilant_breeze_spam_empower": empower_enabled,
+            },
+        )
+        return engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
+
+    empower_on = calculate(True)
+    empower_off = calculate(False)
+    assert empower_on["total_dps"] == 0.0
+    assert "No Base Skill or Ultimate is selected" in " ".join(empower_on["nyi"])
+    assert empower_on["iris_skill_dispatch"]["selected_skills"] == []
+    assert empower_on["iris_skill_dispatch"]["empower_casts_per_second"] == pytest.approx(0.1)
+    assert empower_off["total_dps"] == 0.0
+    assert empower_off["minion_empower"] is None
+    assert empower_off["iris_skill_dispatch"]["empower_casts_per_second"] == 0.0
 
 
 def test_vigilant_merge_is_derived_for_each_magus_with_reunion_and_toggle(monkeypatch):
@@ -709,7 +787,10 @@ def test_compute_forwards_breeze_and_reunion_damage_into_magus_pools(monkeypatch
         "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[5, 1, 5, 1],
         advanced_trait_selections=["Happiest Reunion"],
         extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_use_max_stacks": False,
-                          "vigilant_breeze_stacks": 2, "vigilant_breeze_skill": "Ultimate"},
+                          "vigilant_breeze_stacks": 2,
+                          "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": True},
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
@@ -763,7 +844,10 @@ def test_unavailable_selected_skill_reason_is_reported_in_compute(monkeypatch):
     monkeypatch.setattr(server, "_get_skills_data", get_skills_without_ultimate_cast_time)
     request = make_request(
         "summon_thunder_magus", 20, trait_id="vigilant_breeze", trait_slot_levels=[1, 1, 1, 1],
-        extra_conditions={"vigilant_breeze_active": True, "vigilant_breeze_skill": "Ultimate"},
+        extra_conditions={"vigilant_breeze_active": True,
+                          "vigilant_breeze_spam_base": False,
+                          "vigilant_breeze_spam_ultimate": True,
+                          "vigilant_breeze_spam_empower": True},
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 

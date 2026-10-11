@@ -351,6 +351,8 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
     dispatch["empower_cast_slot_factor"] = cast_slot_factor
     dispatch["empower_cast_slot_status"] = "working" if timing_available else "NYI"
     dispatch["empower_rate_multiplier"] = rate_multiplier
+    dispatch["empower_speed_multiplier"] = speed_multiplier
+    dispatch["empower_enabled"] = True
     uncapped_rate = float(dispatch.get("casts_per_second_before_cooldown", base_rate) or 0.0)
     dispatch["casts_per_second"] = min(uncapped_rate * rate_multiplier, cooldown_cap)
     if dispatch.get("role") == "base skill":
@@ -363,6 +365,99 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
         for form in dispatch.get("skill_forms", ()):
             form["casts_per_second"] = dispatch["casts_per_second"]
     return dispatch
+
+
+def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled, minion_skills,
+                             source, growth, minion_result, ultimate_cooldown_zero=False,
+                             life_cost_pct_max_per_cast=0.0, breeze_per_cast=0):
+    """Build a merged Magus rotation from the Base, Ultimate, and Empower checkboxes."""
+    rotations = []
+    if base_enabled:
+        rotations.append(selected_skill_contract(
+            selected_skill="Base Skill", minion_skills=minion_skills, source=source, growth=growth,
+        ))
+    if ultimate_enabled:
+        rotations.append(selected_skill_contract(
+            selected_skill="Ultimate", minion_skills=minion_skills, source=source, growth=growth,
+            ultimate_cooldown_zero=ultimate_cooldown_zero,
+            life_cost_pct_max_per_cast=life_cost_pct_max_per_cast,
+            breeze_per_cast=breeze_per_cast,
+        ))
+
+    if empower_enabled:
+        rotations = [apply_merged_empower_to_contract(rotation, minion_result)
+                     for rotation in rotations]
+    else:
+        for rotation in rotations:
+            rotation.update({"empower_enabled": False, "empower_cast_slot_status": "disabled",
+                             "empower_cast_slot_factor": 1.0, "empower_speed_multiplier": 1.0,
+                             "empower_rate_multiplier": 1.0, "empower_uptime": 0.0,
+                             "empower_casts_per_second": 0.0, "empower_buffs": []})
+
+    base = next((r for r in rotations if r.get("role") == "base skill"), None)
+    ultimate = next((r for r in rotations if r.get("role") == "ultimate"), None)
+    if base and ultimate:
+        # Ultimate uses its cooldown first. Base fills the remaining cast time after Ultimate and
+        # the once-per-cooldown Empower slot. This both-checked schedule is OWNER TO CONFIRM.
+        ultimate_rate = ultimate["casts_per_second"]
+        ultimate_speed = float(ultimate.get("empower_speed_multiplier", 1.0) or 1.0)
+        ultimate_raw_rate = float(ultimate.get("casts_per_second_before_cooldown", 0.0) or 0.0)
+        ultimate_cast_time = (1.0 / (ultimate_raw_rate * ultimate_speed)
+                              if ultimate_raw_rate > 0 and ultimate_speed > 0 else 0.0)
+        empower_slot_loss = (max(0.0, 1.0 - float(ultimate.get("empower_cast_slot_factor", 1.0) or 0.0))
+                             if empower_enabled else 0.0)
+        base_available_fraction = max(0.0, 1.0 - ultimate_rate * ultimate_cast_time - empower_slot_loss)
+        base_raw_rate = float(base.get("casts_per_second_before_cooldown", 0.0) or 0.0)
+        base_speed = float(base.get("empower_speed_multiplier", 1.0) or 1.0)
+        base_rate = base_raw_rate * base_speed * base_available_fraction
+        base_cooldown = float(base.get("cooldown", 0.0) or 0.0)
+        if base_cooldown > 0:
+            base_rate = min(base_rate, 1.0 / base_cooldown)
+        base["casts_per_second"] = base_rate
+        chance = float(base.get("enhanced_chance", 0.0) or 0.0)
+        base["enhanced_casts_per_second"] = base_rate * chance
+        for form in base.get("skill_forms", ()):
+            form["casts_per_second"] = base_rate * (
+                chance if form.get("role") == "enhanced skill" else 1.0 - chance)
+
+    skill_forms = [form for rotation in rotations for form in rotation.get("skill_forms", ())]
+    total_rate = sum(float(r.get("casts_per_second", 0.0) or 0.0) for r in rotations)
+    empower_data = (rotations[0] if rotations else {})
+    if not rotations and empower_enabled:
+        empower_data = getattr(minion_result, "minion_empower", None) or {}
+        empower_cooldown = float(empower_data.get("cooldown", 0.0) or 0.0)
+        empower_data = {
+            "empower_enabled": True,
+            "empower_uptime": float(empower_data.get("uptime", 0.0) or 0.0),
+            "empower_cooldown": empower_cooldown,
+            "empower_casts_per_second": 1.0 / empower_cooldown if empower_cooldown > 0 else 0.0,
+            "empower_cast_slot_status": "working" if empower_cooldown > 0 else "NYI",
+            "empower_cast_slot_factor": 1.0,
+            "empower_buffs": empower_data.get("buffs", []),
+        }
+    elif not rotations:
+        empower_data = {"empower_enabled": False, "empower_cast_slot_status": "disabled",
+                        "empower_cast_slot_factor": 1.0, "empower_casts_per_second": 0.0,
+                        "empower_uptime": 0.0, "empower_buffs": []}
+
+    primary = base or ultimate or (rotations[0] if rotations else {})
+    return {
+        "available": bool(rotations) and all(r.get("available") for r in rotations), "role": "rotation",
+        "selected_skills": [r["role"] for r in rotations],
+        "skill_name": " + ".join(r.get("skill_name") or r["role"] for r in rotations),
+        "speed_kind": primary.get("speed_kind"),
+        "casts_per_second": total_rate, "skill_forms": skill_forms,
+        "enhanced_casts_per_second": base.get("enhanced_casts_per_second", 0.0) if base else 0.0,
+        "empower_enabled": empower_enabled, "empower_uptime": empower_data.get("empower_uptime", 0.0),
+        "empower_cooldown": empower_data.get("empower_cooldown", 0.0),
+        "empower_casts_per_second": empower_data.get("empower_casts_per_second", 0.0),
+        "empower_cast_slot_status": empower_data.get("empower_cast_slot_status", "disabled"),
+        "empower_cast_slot_factor": empower_data.get("empower_cast_slot_factor", 1.0),
+        "empower_rate_multiplier": empower_data.get("empower_rate_multiplier", 1.0),
+        "empower_buffs": empower_data.get("empower_buffs", []),
+        "reason": "; ".join(str(r.get("reason")) for r in rotations if r.get("reason")),
+        "rotations": rotations,
+    }
 
 
 def apply_merging_stream_origins(*, source, condition_state, growth, magus_skill_tags=None):

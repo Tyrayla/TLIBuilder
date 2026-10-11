@@ -2392,25 +2392,15 @@ def compute(
                         _stream_nyi_targets = _vigilant_breeze.apply_merging_stream_origins(
                             source=eff, condition_state=condition_state, growth=_growth,
                             magus_skill_tags=_magus_skill_tags)
-                    _selected = condition_state.get("vigilant_breeze_skill", "Ultimate")
-                    _role = _vigilant_breeze.normalize_selected_skill_role(_selected)
+                    _spam_base = bool(condition_state.get("vigilant_breeze_spam_base", False))
+                    _spam_ultimate = bool(condition_state.get("vigilant_breeze_spam_ultimate", True))
+                    _spam_empower = bool(condition_state.get("vigilant_breeze_spam_empower", True))
                     _tango = (_merged and bool(condition_state.get("vigilant_breeze_whirlwind_tango"))
-                              and _role == "ultimate")
-                    if _merged:
-                        _iris_dispatch = _vigilant_breeze.selected_skill_contract(
-                            selected_skill=_selected, minion_skills=abilities, source=eff, growth=_growth,
-                            ultimate_cooldown_zero=_tango,
-                            life_cost_pct_max_per_cast=(
-                                float(condition_state.get("vigilant_breeze_whirlwind_life_cost_pct_max_per_cast", 0.0) or 0.0)
-                                if _tango else 0.0),
-                            breeze_per_cast=(
-                                int(condition_state.get("vigilant_breeze_whirlwind_breeze_gain", 0) or 0) if _tango else 0),
-                        )
+                              and _spam_ultimate)
                     _drain_rate = (float(condition_state.get("vigilant_breeze_life_cost_pct_max_per_sec", 0.20) or 0.20)
                                    if _merged else 0.0)
                     if (_iris_active and condition_state.get("vigilant_breeze_whisper_active")
-                            and _merged and _role == "base skill" and _iris_dispatch
-                            and _iris_dispatch.get("available")):
+                            and _merged and _spam_base):
                         _whisper_interval = float(condition_state.get("vigilant_breeze_whisper_interval", 0.0) or 0.0)
                         _whisper_pct = float(condition_state.get("vigilant_breeze_whisper_heal_pct", 0.0) or 0.0)
                 # Reconjuring is shared Spirit Magus behavior. Run the shared life-cycle
@@ -2442,10 +2432,32 @@ def compute(
                 # A bespoke module returns ONE OffenseResult whose hit_forms ARE the minion's damage abilities
                 # (like a player multi-form skill), so the frontend's form dropdown / % of Total / combined view work.
                 result = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)
-                if _iris_dispatch and _merged:
-                    # The selected skill replaces Base/Enhanced only. Each Magus still casts its own Empower on
-                    # cooldown; use that module's uptime, speed-buff values, and Empower cast timing for dispatch.
-                    _iris_dispatch = _vigilant_breeze.apply_merged_empower_to_contract(_iris_dispatch, result)
+                if _is_magus and _merged:
+                    _iris_dispatch = _vigilant_breeze.merged_rotation_contract(
+                        base_enabled=_spam_base,
+                        ultimate_enabled=_spam_ultimate,
+                        empower_enabled=_spam_empower,
+                        minion_skills=abilities,
+                        source=eff,
+                        growth=_growth,
+                        minion_result=result,
+                        ultimate_cooldown_zero=_tango,
+                        life_cost_pct_max_per_cast=(
+                            float(condition_state.get("vigilant_breeze_whirlwind_life_cost_pct_max_per_cast", 0.0) or 0.0)
+                            if _tango else 0.0),
+                        breeze_per_cast=(
+                            int(condition_state.get("vigilant_breeze_whirlwind_breeze_gain", 0) or 0)
+                            if _tango else 0),
+                    )
+                    if not _spam_empower:
+                        result.nyi = [line for line in result.nyi if "empower" not in line.lower()]
+                        result.minion_empower = None
+                        _skill_casts = getattr(result, "minion_skill_casts", None)
+                        if isinstance(_skill_casts, dict):
+                            result.minion_skill_casts = {
+                                key: value for key, value in _skill_casts.items()
+                                if str(key).lower() != "empower"
+                            }
                     if _whisper_interval > 0 and _iris_dispatch.get("available"):
                         _whisper_heal_rate = min(
                             _iris_dispatch.get("enhanced_casts_per_second", 0.0),
@@ -2462,26 +2474,31 @@ def compute(
                     result.total_dps = result.total_dps_vs_target = result.skills_per_second = 0.0
                     result.hit_forms = []
                     result.damage_rows = []
-                    if _iris_dispatch.get("available"):
+                    if not _spam_base and not _spam_ultimate:
                         result.nyi.append(
-                            f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
-                            f"{_iris_dispatch['casts_per_second']:.3f} casts/s; selected-skill damage "
+                            "No Base Skill or Ultimate is selected in Spirit Magi Rotation; "
+                            "merged Magus damage is 0.")
+                    elif _iris_dispatch.get("available"):
+                        _rotation_names = " + ".join(_iris_dispatch["selected_skills"])
+                        result.nyi.append(
+                            f"Vigilant rotation uses {_rotation_names} at "
+                            f"{_iris_dispatch['casts_per_second']:.3f} combined casts/s; selected-skill damage "
                             "is pending that Magus module. Normal rotation is replaced while merged.")
-                        if _iris_dispatch.get("empower_cast_slot_status") == "NYI":
-                            result.nyi.append(
-                                "Empower remains active while merged, but selected-skill cast-slot loss is NYI "
-                                "because this Magus module does not expose Empower cast timing.")
-                        elif _iris_dispatch.get("empower_cooldown", 0.0) > 0:
-                            result.nyi.append(
-                                f"Empower remains active while merged: "
-                                f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s, "
-                                f"{_iris_dispatch['empower_uptime']:.1%} buff uptime, and "
-                                f"{_iris_dispatch['empower_cast_slot_factor']:.1%} selected-skill cast-slot factor.")
                     else:
                         result.nyi.append(
-                            "Vigilant selected skill is unavailable: "
-                            f"{_iris_dispatch.get('reason') or 'the selected role is unsupported for this Magus'}. "
-                            "Normal rotation remains replaced while merged.")
+                            "A selected Spirit Magus skill is unavailable"
+                            + (f": {_iris_dispatch.get('reason')}" if _iris_dispatch.get("reason") else ".")
+                            + " Merged Magus damage is 0 until the selected role is supported by its Magus module.")
+                    if _spam_empower and _iris_dispatch.get("empower_cast_slot_status") == "NYI":
+                        result.nyi.append(
+                            "Empower remains active while merged, but selected-skill cast-slot loss is NYI "
+                            "because this Magus module does not expose Empower cast timing.")
+                    elif _spam_empower and _iris_dispatch.get("empower_cooldown", 0.0) > 0:
+                        result.nyi.append(
+                            f"Empower remains active while merged: "
+                            f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s, "
+                            f"{_iris_dispatch['empower_uptime']:.1%} buff uptime, and "
+                            f"{_iris_dispatch['empower_cast_slot_factor']:.1%} selected-skill cast-slot factor.")
                     if _tango and _iris_dispatch.get("available"):
                         result.nyi.append(
                             "Whirlwind Tango per-cast Life cost is exposed in the dispatch payload but excluded "
@@ -2516,8 +2533,9 @@ def compute(
                     if _iris_dispatch and _merged:
                         minion_payload["iris_skill_dispatch"] = _iris_dispatch
                         minion_payload["iris_merged_magi_count"] = int(_merged_count)
-                        minion_payload["selected_skill_damage_status"] = "NYI"
-                        minion_payload["selected_skill_damage_pending"] = True
+                        if _iris_dispatch["selected_skills"]:
+                            minion_payload["selected_skill_damage_status"] = "NYI"
+                            minion_payload["selected_skill_damage_pending"] = True
                 if _is_magus:
                     minion_payload["vigilant_merged"] = _merged
                     minion_payload["vigilant_merge_reason"] = (
@@ -2532,11 +2550,16 @@ def compute(
                         "Happiest Reunion" if _merged and _reunion else
                         "controlled Magus" if _merged else None)
                     if _merged:
-                        minion_payload["selected_skill_damage_status"] = "NYI"
-                        minion_payload["selected_skill_damage_pending"] = True
-                        minion_payload["nyi"].append(
-                            "Vigilant replaces this Magus's normal rotation with the selected skill; "
-                            "selected-skill damage is pending its Magus module.")
+                        if _spam_base or _spam_ultimate:
+                            minion_payload["selected_skill_damage_status"] = "NYI"
+                            minion_payload["selected_skill_damage_pending"] = True
+                            minion_payload["nyi"].append(
+                                "Vigilant replaces this Magus's normal rotation with the checked Spirit Magi "
+                                "Rotation skills; selected-skill damage is pending its Magus module.")
+                        else:
+                            minion_payload["nyi"].append(
+                                "No Base Skill or Ultimate is selected in Spirit Magi Rotation; "
+                                "merged Magus damage is 0.")
                 minion_offense[owner["item_id"]] = minion_payload
 
     source._recording = False
