@@ -398,7 +398,8 @@ def merged_rotation_contract(*, base_enabled, ultimate_enabled, empower_enabled,
     ultimate = next((r for r in rotations if r.get("role") == "ultimate"), None)
     if base and ultimate:
         # Ultimate uses its cooldown first. Base fills the remaining cast time after Ultimate and
-        # the once-per-cooldown Empower slot. This both-checked schedule is OWNER TO CONFIRM.
+        # the once-per-cooldown Empower slot. The owner confirmed Ultimate priority and Base
+        # filling the remaining time when both damage skills are enabled.
         ultimate_rate = ultimate["casts_per_second"]
         ultimate_speed = float(ultimate.get("empower_speed_multiplier", 1.0) or 1.0)
         ultimate_raw_rate = float(ultimate.get("casts_per_second_before_cooldown", 0.0) or 0.0)
