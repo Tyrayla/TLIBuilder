@@ -12,13 +12,12 @@ Kit (from _skills.json / Help DB):
   • Thundercloud Surge (Empower) — a self-buff (Euphoria +35% additional Attack Speed; +25% additional damage
     at Growth Stage 4+). No direct hit; folded into the attacks at its TRUE uptime (6 s buff ÷ 10 s cd = 60%),
     since there are no realistic minion CDR / buff-duration sources (buff × uptime = the DPS-weighted average).
-  • Lightning Surge (Ultimate) — only fires in Full Bloom, which requires Iris (Growing Breeze). Left NYI until
-    Iris/Full Bloom is modelled (Tyra's call).
+  • Lightning Surge (Ultimate) — seven full chain hits per target per cast; surfaced only as an Iris per-cast form.
 
 Growth Stage 5 grants +50% additional damage — applied to all the attacks. All damage is Physical, 100%
 converted to Lightning by the owner (nets to Lightning; the coefficient already lands on the Lightning tag).
 """
-from dataclasses import replace
+from dataclasses import asdict, replace
 
 from engine.models import SourceEntry
 
@@ -42,6 +41,7 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     from engine.minion_offense import (
         calculate_minion_offense, nyi_offense, spirit_magi_growth, growth_stage, combine_minion_forms,
         spirit_magi_physique_inc, spirit_magi_skill_area_inc, fold_spirit_magi_pools, ability_label,
+        _speed_add_product,
     )
     by_role: dict[str, dict] = {}
     for a in owner.get("minion_skills") or []:
@@ -59,6 +59,8 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     # be dropped — fold them into the generic minion pools so a magus consumes them. Also folds the per-Growth
     # pools (Talons of Abyss) scaled by this magus's Growth.
     fold_spirit_magi_pools(buffed, growth)
+    # Iris-selected forms use persistent stats, not the Magus's normal Empower rotation.
+    cast_source = replace(buffed, _entries=list(buffed._entries), source_log=list(buffed.source_log))
 
     def _add(stat: str, amt: float, text: str) -> None:
         buffed.add_with_source(stat, amt, SourceEntry(
@@ -124,6 +126,9 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
         }
     if stage >= 5:
         _add("minion_dmg_additional", 0.50, "Growth Stage 5: +50% additional damage")
+        cast_source.add_with_source("minion_dmg_additional", 0.50, SourceEntry(
+            stat="minion_dmg_additional", amount=0.50, source_type="minion", label="Growth Stage 5",
+            source_name="Growth Stage 5", text="Growth Stage 5: +50% additional damage"))
 
     # Empower cast-slot: the magus visibly stops attacking to cast Thundercloud Surge, losing its cast time each
     # cooldown. Scales BOTH Base and Enhanced rates down by (1 − cast_time ÷ effective_cooldown). CDR shortens the
@@ -184,11 +189,97 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
                  + "Uptime responds to Minion Cooldown Recovery Speed / Skill Effect Duration."]
         results.append(r)
     ultimate = by_role.get("Ultimate")
+    ultimate_summary = None
+    skill_casts = {}
     if ultimate:
-        r = nyi_offense(ultimate, level)
-        r.nyi = ["Lightning Surge (Ultimate) only fires in Full Bloom, which requires Iris (Growing Breeze). "
-                 "NYI until Iris / Full Bloom is modelled."]
-        results.append(r)
+        from engine.compute import _source_log_stat_map
+        from engine.skill_resolver import _parse_cast_time
+
+        ultimate_source = replace(cast_source, _entries=list(cast_source._entries),
+                                  source_log=list(cast_source.source_log))
+        for stat, amount in (
+            ("minion_dmg_inc", source.total("spirit_magi_ultimate_dmg_inc")),
+            ("minion_dmg_additional", source.total("spirit_magi_ultimate_dmg_additional")),
+        ):
+            if amount:
+                ultimate_source.add_with_source(stat, amount, SourceEntry(
+                    stat=stat, amount=amount, source_type="minion", label="Spirit Magus Ultimate",
+                    source_name="Spirit Magus Ultimate", text="Spirit Magus Ultimate damage pool"))
+
+        base_cast_time = _parse_cast_time(ultimate.get("cast_speed", "")) or 0.0
+        base_cooldown = _parse_cast_time(ultimate.get("cooldown", "")) or 0.0
+        ultimate_as_inc = source.total("minion_ultimate_attack_speed_additional")
+        speed_factor = ((1.0 + ultimate_source.total("minion_attack_speed_inc"))
+                        * _speed_add_product(ultimate_source, "minion_attack_speed_additional")
+                        * (1.0 + ultimate_as_inc))
+        effective_cast_time = (base_cast_time / speed_factor
+                               if base_cast_time > 0 and speed_factor > 0 else 0.0)
+        cdr = source.total("minion_cdr_speed_inc") + source.total("spirit_magi_cdr_speed_inc")
+        recovery_factor = 1.0 + cdr
+        cooldown_unavailable = base_cooldown > 0 and recovery_factor <= 0
+        effective_cooldown = (base_cooldown / recovery_factor
+                              if base_cooldown > 0 and not cooldown_unavailable else 0.0)
+        interval = max(effective_cast_time, effective_cooldown)
+        casts_per_second = 1.0 / interval if interval > 0 and not cooldown_unavailable else 0.0
+
+        # The data tags the converted hit as Lightning, so the existing Thunder path uses Lightning pools
+        # and target resistance for its 100% Physical-to-Lightning conversion. The shared calculator keeps
+        # base_damage_coefficient (base damage scaling) separate from per-level added-damage effectiveness.
+        result = calculate_minion_offense(
+            ultimate_source, ultimate, base_stats, level, 1, shotgun_hits=7, shotgun_falloff=0.0,
+            penetrates=True,
+        )
+        natural_rate = result.skills_per_second
+        rate_scale = casts_per_second / natural_rate if natural_rate > 0 else 0.0
+        result.skills_per_second = casts_per_second
+        result.total_dps *= rate_scale
+        result.total_dps_vs_target *= rate_scale
+        result.base_cast_time = base_cast_time
+        for form in result.hit_forms:
+            form.fires_per_sec = casts_per_second
+            form.base_cast_time = base_cast_time
+            form.base_cooldown = base_cooldown
+            form.effective_cast_time = effective_cast_time
+            form.effective_cooldown = effective_cooldown
+            form.dps_contribution *= rate_scale
+            form.dps_vs_target *= rate_scale
+        for row in result.damage_rows:
+            row.dps_final *= rate_scale
+            row.dps_vs_target_final *= rate_scale
+            row.dps_by_type_vs_target = {dtype: value * rate_scale
+                                         for dtype, value in row.dps_by_type_vs_target.items()}
+            row.pct_of_total = 100.0 if result.total_dps_vs_target > 0 else 0.0
+
+        note = "Owner-tested; bolt travel distance, travel time, and chain targeting radius are estimates, not independently verified."
+        summary = {
+            "name": ability_label(ultimate),
+            "damage_per_cast": result.hit_forms[0].avg_hit_with_crit * result.hit_forms[0].hits_per_fire,
+            "damage_per_cast_vs_target": (result.hit_forms[0].dps_vs_target / casts_per_second
+                                          if casts_per_second > 0 else 0.0),
+            "hits_per_cast": 7,
+            "hits_per_target": 7,
+            "chains_per_cast": 7,
+            "chain_interval_seconds": 0.25,
+            "bolt_travel_distance_m_estimate": 6.0,
+            "bolt_travel_time_seconds_estimate": 1.0,
+            "chain_targeting_radius_m_estimate": 12.0,
+            "max_targets": 8.0 + source.total("minion_projectile_quantity_flat"),
+            "projectile_speed_affects_bolt": False,
+            "base_cast_time": base_cast_time,
+            "cast_time": effective_cast_time,
+            "base_cooldown": base_cooldown,
+            "cooldown": effective_cooldown,
+            "casts_per_second": casts_per_second,
+            "included_in_default_dps": False,
+            "verification_note": note,
+        }
+        result.minion_ultimate = summary
+        if cooldown_unavailable:
+            summary["cooldown_unavailable"] = True
+        breakdown = asdict(result)
+        breakdown["stat_map"] = _source_log_stat_map(ultimate_source)
+        skill_casts["ultimate"] = {**summary, "role": "Ultimate", "hit_breakdown": breakdown}
+        ultimate_summary = summary
 
     combined = combine_minion_forms(owner.get("name") or "Thunder Magus", results, count)
     # Surface the Spirit Magus Growth state (glossary 759) for the minion info panel. Physique & Skill Area are
@@ -200,4 +291,6 @@ def handler(source, owner, base_stats, level, count, *, condition_state=None):
     combined.spirit_magi_enhanced_chance = enh_chance
     combined.spirit_magi_max = count
     combined.minion_empower = empower_display
+    combined.minion_ultimate = ultimate_summary
+    combined.minion_skill_casts = skill_casts
     return combined
