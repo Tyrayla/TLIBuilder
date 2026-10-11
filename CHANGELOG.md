@@ -5,6 +5,9 @@
 ### Bug fixes
 - **Removed a false "Skill override 'mana_boil' was authored for SS12 ... re-validate" warning.** The web app ships only the current season's data, so the check had no earlier season to compare against and warned on every load. The Mana Boil correction carries its own reference text now, so the warning appears only if Mana Boil's data actually changes.
 
+### Engine & DPS
+- **Rock Magus now models its Base and Enhanced rotation, Gold Rush uptime, and separate per-cast forms for all four skills.** Default DPS uses the unmerged rotation; Ultimate damage stays separate for Iris selection. The model awaits in-game DPS verification.
+
 ## [0.6.10] - 2026-10-10
 
 ### Engine & DPS
@@ -22,9 +25,6 @@
 ### Features
 - Flame Slash's Config now lets you choose how many Steep Strike fire torrents hit the target. Auto uses each slot's full torrent count, and Shotgunning shows the selected hits. Inverted Blaze's returning hits default to and are capped by the torrents that hit.
 - **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Torrent Hits and Torrent Return Hits use numeric fields; each shows Auto only while an override is set, and clearing the field restores its automatic value. This model awaits in-game verification.
-
-### Engine & DPS
-- **Rock Magus now models its Base and Enhanced rotation, Gold Rush uptime, and separate per-cast forms for all four skills.** Default DPS uses the unmerged rotation; Ultimate damage stays separate for Iris selection. The model awaits in-game DPS verification.
 
 ## [0.6.9] - 2026-10-03
 
