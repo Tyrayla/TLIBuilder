@@ -384,10 +384,52 @@ def test_merged_selected_skill_keeps_empower_buff_and_pays_empower_cast_slot():
     assert adjusted["empower_effect"] == pytest.approx(1.20)
     assert adjusted["empower_casts_per_second"] == pytest.approx(0.20)
     assert adjusted["empower_cast_slot_factor"] == pytest.approx(0.90)
+    assert adjusted["empower_cast_slot_factor"] < 1.0
     assert adjusted["empower_rate_multiplier"] == pytest.approx(1.252 * 0.90)
-    assert adjusted["casts_per_second"] == pytest.approx(0.5 * 1.252 * 0.90)
-    assert adjusted["skill_forms"][0]["casts_per_second"] == pytest.approx(0.5 * 1.252 * 0.90)
+    assert adjusted["casts_per_second"] == pytest.approx(0.5634)
+    assert adjusted["skill_forms"][0]["casts_per_second"] == pytest.approx(0.5634)
     assert adjusted["empower_buffs"] == empower_output.minion_empower["buffs"]
+
+
+def test_empower_speed_and_cast_slot_do_not_exceed_merged_ultimate_cooldown():
+    base = {"name": "Base Strike", "cast_speed": "2 s", "cooldown": "1 s",
+            "skill_tags": ["Base Skill", "Attack", "Physical"]}
+    ultimate = {"name": "Towering Mountains", "cast_speed": "2 s", "cooldown": "8 s",
+                "skill_tags": ["Ultimate", "Attack", "Physical"]}
+    dispatch = vb.selected_skill_contract(
+        selected_skill="Ultimate", minion_skills=[base, ultimate], source=BuildSource(),
+    )
+    empower_output = SimpleNamespace(
+        minion_empower={
+            "uptime": 0.60, "empower_effect": 1.20, "cooldown": 5.0,
+            "buffs": [{"stat": "attack_speed", "value": 0.252}],
+        },
+        minion_skill_casts={"empower": {"base_cast_time": 1.0, "cooldown": 5.0}},
+        hit_forms=[],
+    )
+
+    adjusted = vb.apply_merged_empower_to_contract(dispatch, empower_output)
+
+    # Ultimate's 8s fixed cooldown caps at 0.125/s. Its idle time absorbs Empower's cast,
+    # so neither the speed buff nor cast-slot cost may move it above or below that ceiling.
+    assert adjusted["base_casts_per_second"] == pytest.approx(0.125)
+    assert adjusted["empower_cast_slot_factor"] == pytest.approx(0.90)
+    assert adjusted["empower_cast_slot_factor"] < 1.0
+    assert adjusted["casts_per_second"] == pytest.approx(0.125)
+    assert adjusted["skill_forms"][0]["casts_per_second"] == pytest.approx(0.125)
+
+
+def test_missing_empower_timing_marks_merged_dispatch_cast_slot_nyi():
+    base = {"name": "Base Strike", "cast_speed": "2 s", "cooldown": "1 s",
+            "skill_tags": ["Base Skill", "Attack", "Physical"]}
+    dispatch = vb.selected_skill_contract(
+        selected_skill="Base Skill", minion_skills=[base], source=BuildSource(),
+    )
+
+    adjusted = vb.apply_merged_empower_to_contract(dispatch, SimpleNamespace())
+
+    assert adjusted["empower_cast_slot_status"] == "NYI"
+    assert adjusted["casts_per_second"] == pytest.approx(0.5)
 
 
 @pytest.mark.parametrize(("enhanced_chance", "base_rate", "enhanced_rate"), [
@@ -490,14 +532,15 @@ def test_compute_replaces_rotation_only_while_merged_and_suppresses_player_origi
     assert merged_magus["reconjuring_cycle"]["damage_uptime"] == pytest.approx(0.625)
     empower = merged_magus["minion_empower"]
     dispatch = merged_magus["iris_skill_dispatch"]
-    attack_speed_buff = next(buff["value"] for buff in empower["buffs"]
-                             if buff["stat"] == "attack_speed")
+    selected_speed_stat = f"{dispatch['speed_kind']}_speed"
+    selected_speed_buff = next(buff["value"] for buff in empower["buffs"]
+                               if buff["stat"] == selected_speed_stat)
     assert dispatch["empower_uptime"] == pytest.approx(empower["uptime"])
     assert dispatch["empower_cast_slot_factor"] == pytest.approx(empower["cast_slot_factor"])
+    assert dispatch["empower_cast_slot_factor"] < 1.0
     assert dispatch["empower_rate_multiplier"] == pytest.approx(
-        (1.0 + attack_speed_buff) * empower["cast_slot_factor"])
-    assert dispatch["casts_per_second"] == pytest.approx(
-        dispatch["base_casts_per_second"] * dispatch["empower_rate_multiplier"])
+        (1.0 + selected_speed_buff) * empower["cast_slot_factor"])
+    assert dispatch["casts_per_second"] == pytest.approx(0.125)
 
     unmerged = calculate(False)
     unmerged_magus = unmerged["minion_offense"]["summon_thunder_magus"]

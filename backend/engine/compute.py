@@ -2467,19 +2467,16 @@ def compute(
                             f"Vigilant selects {_iris_dispatch.get('skill_name') or _selected} at "
                             f"{_iris_dispatch['casts_per_second']:.3f} casts/s; selected-skill damage "
                             "is pending that Magus module. Normal rotation is replaced while merged.")
-                        if _iris_dispatch.get("empower_cooldown", 0.0) > 0:
-                            if _iris_dispatch.get("empower_cast_slot_status") == "NYI":
-                                result.nyi.append(
-                                    f"Empower remains active while merged at "
-                                    f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s and "
-                                    f"{_iris_dispatch['empower_uptime']:.1%} buff uptime; cast-slot loss is NYI "
-                                    "because this Magus module does not expose Empower cast timing.")
-                            else:
-                                result.nyi.append(
-                                    f"Empower remains active while merged: "
-                                    f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s, "
-                                    f"{_iris_dispatch['empower_uptime']:.1%} buff uptime, and "
-                                    f"{_iris_dispatch['empower_cast_slot_factor']:.1%} selected-skill cast-slot factor.")
+                        if _iris_dispatch.get("empower_cast_slot_status") == "NYI":
+                            result.nyi.append(
+                                "Empower remains active while merged, but selected-skill cast-slot loss is NYI "
+                                "because this Magus module does not expose Empower cast timing.")
+                        elif _iris_dispatch.get("empower_cooldown", 0.0) > 0:
+                            result.nyi.append(
+                                f"Empower remains active while merged: "
+                                f"{_iris_dispatch['empower_casts_per_second']:.3f} casts/s, "
+                                f"{_iris_dispatch['empower_uptime']:.1%} buff uptime, and "
+                                f"{_iris_dispatch['empower_cast_slot_factor']:.1%} selected-skill cast-slot factor.")
                     else:
                         result.nyi.append(
                             "Vigilant selected skill is unavailable: "

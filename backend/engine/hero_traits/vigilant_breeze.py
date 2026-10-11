@@ -233,6 +233,7 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
     rate = ((1.0 / base_time) * (1.0 + source.total(_MINION_SPEED_INC[which]))
             * _speed_add_product(source, _MINION_SPEED_ADD[which])
             * (_speed_add_product(source, ultimate_speed_key) if ultimate else 1.0))
+    rate_before_cooldown = rate
     cooldown = _parse_cast_time(resolved.get("cooldown", "")) or 0.0
     if role == "ultimate" and ultimate_cooldown_zero:
         cooldown = 0.0
@@ -267,7 +268,8 @@ def selected_skill_contract(*, selected_skill, minion_skills, source, growth=100
     return {"selected_skill": selected_skill, "skill_name": resolved.get("name"), "role": role,
             "available": True, "cast_time": base_time, "cooldown": cooldown,
             "speed_kind": which,
-            "casts_per_second": rate, "damage_in_default_total": False,
+            "casts_per_second": rate, "casts_per_second_before_cooldown": rate_before_cooldown,
+            "damage_in_default_total": False,
             "enhanced_chance": enhanced_chance, "skill_forms": skill_forms,
             "enhanced_casts_per_second": (rate * enhanced_chance if role == "base skill" and enhanced else 0.0),
             "ultimate_damage_pools": ultimate_damage_pools,
@@ -286,6 +288,9 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
         return dispatch
     empower = getattr(minion_result, "minion_empower", None)
     if not isinstance(empower, dict):
+        dispatch["empower_cast_slot_status"] = "NYI"
+        dispatch["empower_cast_slot_factor"] = 1.0
+        dispatch["empower_rate_multiplier"] = 1.0
         return dispatch
 
     cast_time = empower.get("cast_time")
@@ -331,6 +336,11 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
 
     base_rate = float(dispatch.get("casts_per_second", 0.0) or 0.0)
     rate_multiplier = speed_multiplier * cast_slot_factor
+    cooldown_cap = (1.0 / float(dispatch["cooldown"])
+                    if float(dispatch.get("cooldown", 0.0) or 0.0) > 0 else float("inf"))
+    # Empower's cast slot consumes available casting time, not cooldown idle time. Apply its
+    # factor to the uncapped casting rate, then apply the fixed-cooldown cap. Cooldown idle time
+    # therefore absorbs the Empower cast until the remaining casting time becomes the limit.
     dispatch["base_casts_per_second"] = base_rate
     dispatch["empower_uptime"] = float(empower.get("uptime", 0.0) or 0.0)
     dispatch["empower_effect"] = float(empower.get("empower_effect", 1.0) or 1.0)
@@ -341,12 +351,17 @@ def apply_merged_empower_to_contract(dispatch, minion_result):
     dispatch["empower_cast_slot_factor"] = cast_slot_factor
     dispatch["empower_cast_slot_status"] = "working" if timing_available else "NYI"
     dispatch["empower_rate_multiplier"] = rate_multiplier
-    dispatch["casts_per_second"] = base_rate * rate_multiplier
-    for form in dispatch.get("skill_forms", ()):
-        form["casts_per_second"] *= rate_multiplier
+    uncapped_rate = float(dispatch.get("casts_per_second_before_cooldown", base_rate) or 0.0)
+    dispatch["casts_per_second"] = min(uncapped_rate * rate_multiplier, cooldown_cap)
     if dispatch.get("role") == "base skill":
-        dispatch["enhanced_casts_per_second"] = float(
-            dispatch.get("enhanced_casts_per_second", 0.0) or 0.0) * rate_multiplier
+        chance = float(dispatch.get("enhanced_chance", 0.0) or 0.0)
+        dispatch["enhanced_casts_per_second"] = dispatch["casts_per_second"] * chance
+        for form in dispatch.get("skill_forms", ()):
+            form_chance = chance if form.get("role") == "enhanced skill" else 1.0 - chance
+            form["casts_per_second"] = dispatch["casts_per_second"] * form_chance
+    else:
+        for form in dispatch.get("skill_forms", ()):
+            form["casts_per_second"] = dispatch["casts_per_second"]
     return dispatch
 
 
