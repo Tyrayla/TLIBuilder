@@ -2,17 +2,21 @@
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-11
+
 ### Engine & DPS
-- Thunder Magus's Lightning Surge now has a per-cast damage breakdown for Iris selection. It hits each target seven times per cast and stays out of unmerged DPS. Bolt travel and chain targeting distances are owner estimates that still need independent verification.
-- Ghost Slaughter now grants Skill Area, additional Attack Damage, and an additional Ailment Damage stat per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The engine does not yet calculate ailment DPS. These linear formulas await in-game verification.
-- Ring of Blades now calculates DPS from its orbiting blades. Projectile Speed, Blade Formation, Razor Edge, and the supported damage bonuses affect the result.
+- **Ring of Blades now calculates damage from its orbiting blades.** Projectile Speed, Blade Formation, Razor Edge, and supported damage bonuses affect the result. The model awaits in-game verification.
+- **Fervor now scales the bonuses from Ghost Slaughter and Ralph's Footsteps.** Ghost Slaughter grants Skill Area, Attack Damage, and Ailment Damage per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. Ailment DPS is not modeled, and the formulas await in-game verification.
+- **Rock Magus now models its Base and Enhanced rotation.** The calculation includes Gold Rush uptime and shows separate damage for its four skills. The model awaits in-game verification.
+- **Erosion Magus now calculates damage for its skills and Empowered forms.** The model includes its damage-over-time effects and Stage 4 spike uptime. The damage estimates await in-game verification.
+- **Thunder Magus's Lightning Surge Ultimate now has a per-cast damage breakdown.** Choose it for a merged Magus slot when configuring Iris's Merged Magi Rotation. It counts seven hits per target and remains separate from unmerged DPS. Bolt travel and chain targeting distances remain estimates. The Ultimate damage form awaits in-game verification.
+
+### Hero traits
+- **Iris's Vigilant Breeze trait now has Merged Magi Rotation controls.** Select Vigilant, choose which Magus occupies each slot, and mark its Base, Ultimate, and Empower forms in the rotation. These controls appear when you select the trait. The model applies 16% additional damage per Breeze stack and accounts for Growth, Reconjuring, and Happiest Reunion. Breeze gain and maximum-stack assumptions still await in-game verification.
 
 ### Bug fixes
-- Minion Elemental Damage now affects Fire, Cold, and Lightning hits only. Physical and Erosion hits no longer receive this bonus.
-- **Removed a false "Skill override 'mana_boil' was authored for SS12 ... re-validate" warning.** The web app ships only the current season's data, so the check had no earlier season to compare against and warned on every load. The Mana Boil correction carries its own reference text now, so the warning appears only if Mana Boil's data actually changes.
-
-### Engine & DPS
-- **Rock Magus now models its Base and Enhanced rotation, Gold Rush uptime, and separate per-cast forms for all four skills.** Default DPS uses the unmerged rotation; Ultimate damage stays separate for Iris selection. The model awaits in-game DPS verification.
+- **Minion Elemental Damage now affects Fire, Cold, and Lightning hits only.** Physical and Erosion hits no longer receive this bonus.
+- **Mana Boil no longer triggers a false season warning.** The app compares its current data with the correction's reference text, so it warns only when Mana Boil's data changes.
 
 ## [0.6.10] - 2026-10-10
 
