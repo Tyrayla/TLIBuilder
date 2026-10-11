@@ -23,7 +23,7 @@ def _role(ability: dict) -> str:
     return next((role for tag, role in _ROLE_TAGS.items() if tag in tags), "")
 
 
-def handler(source, owner, base_stats, level, count):
+def handler(source, owner, base_stats, level, count, *, condition_state=None):
     from engine.minion_offense import (
         ability_label,
         calculate_minion_offense,
@@ -36,7 +36,8 @@ def handler(source, owner, base_stats, level, count):
     from engine.skill_resolver import _parse_cast_time
 
     abilities = {_role(skill): skill for skill in owner.get("minion_skills") or []}
-    conditions = getattr(source, "condition_state", {}) or {}
+    conditions = (condition_state if condition_state is not None
+                  else getattr(source, "condition_state", {})) or {}
 
     def enemy_weight() -> float:
         explicit = conditions.get("enemy_count_weight")

@@ -189,6 +189,32 @@ def test_rock_magus_harvest_time_makes_empower_instant_and_restores_attack_slot(
     assert linked.minion_skill_casts["empower"]["cast_time"] == 0.0
 
 
+def test_rock_magus_handler_accepts_shared_condition_state_and_legacy_calls():
+    import engine.minion_effects  # noqa: F401
+    from engine.minion_offense import MINION_MODULES
+
+    handler = MINION_MODULES["summon_rock_magus"]
+    base_stats = {"base_damage_by_level": {"1": 10}}
+    owner = _owner()
+    source = BuildSource()
+    source.add("spirit_magi_initial_growth_flat", 300)
+    source.condition_state = {"enemy_count_weight": 1}
+
+    # Existing direct callers omit the keyword and retain the source's Normal enemy state.
+    legacy = handler(source, owner, base_stats, 1, 1)
+    assert legacy.minion_empower["empower_effect"] == pytest.approx(1.0)
+    assert legacy.minion_empower["cast_slot_factor"] == pytest.approx(0.97)
+
+    # The shared compute caller passes its current Boss and Harvest Time state explicitly.
+    shared = handler(
+        source, owner, base_stats, 1, 1,
+        condition_state={"enemy_count_weight": 5, "_engine_harvest_time_linked": True},
+    )
+    assert shared.minion_empower["empower_effect"] == pytest.approx(2.2)
+    assert shared.minion_empower["cast_slot_factor"] == pytest.approx(1.0)
+    assert shared.minion_skill_casts["empower"]["cast_time"] == 0.0
+
+
 def test_rock_magus_towering_mount_whole_attack_speed_step_avoids_float_truncation():
     from engine.minion_effects.rock_magus import _whole_attack_speed_percent_steps
 
