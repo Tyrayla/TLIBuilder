@@ -873,6 +873,8 @@ export interface MinionSkillCast {
   cooldown: number
   casts_per_second: number
   included_in_default_dps: false
+  // Full source-backed hit calculation for direct-damage forms selected in the Form dropdown.
+  hit_breakdown?: OffenseResult | null
 }
 
 export interface HitFormResult {

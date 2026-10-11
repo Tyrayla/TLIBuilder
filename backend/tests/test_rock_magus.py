@@ -38,7 +38,6 @@ def test_rock_magus_shares_base_and_enhanced_cadence_and_reports_hits():
     assert forms["Rock Blast (Enhanced)"].fires_per_sec == 0.0
     assert forms["Rock Blast (Enhanced)"].hits_per_fire == 3
     assert forms["Gold Rush (Empower)"].nyi
-    assert forms["Towering Mountains (Ultimate)"].nyi
     assert result.minion_ultimate["hits_per_cast"] == 2
     assert result.minion_ultimate["base_cast_time"] == 1.5
     assert result.minion_ultimate["base_cooldown"] == 8.0
@@ -51,6 +50,18 @@ def test_rock_magus_shares_base_and_enhanced_cadence_and_reports_hits():
     assert result.minion_skill_casts["base"]["casts_per_second"] == pytest.approx(1.25)
     assert result.minion_skill_casts["enhanced"]["casts_per_second"] == pytest.approx(2.5)
     assert result.minion_skill_casts["ultimate"]["casts_per_second"] == pytest.approx(0.125)
+    assert result.minion_skill_casts["ultimate"]["name"] == "Towering Mountains (Ultimate)"
+    assert "Towering Mountains (Ultimate)" not in [form.name for form in result.hit_forms]
+    from dataclasses import asdict
+    ultimate = asdict(result)["minion_skill_casts"]["ultimate"]["hit_breakdown"]
+    assert ultimate["hit_forms"][0]["name"] == "Towering Mountains (Ultimate)"
+    assert ultimate["hit_forms"][0]["hits_per_fire"] == 2
+    assert ultimate["total_dps"] == pytest.approx(ultimate["hit_forms"][0]["dps_contribution"])
+    assert ultimate["damage_rows"][0]["dps_vs_target_final"] == pytest.approx(ultimate["total_dps_vs_target"])
+    assert any(
+        source["label"] == "Towering Mountains"
+        for source in ultimate["stat_map"]["minion_dmg_additional"]["sources"]
+    )
 
 
 def test_rock_magus_ultimate_reads_spirit_magus_cdr_and_tango_zeroes_merged_cooldown():

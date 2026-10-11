@@ -3,7 +3,7 @@
 Ability coefficients and timing come from the current canonical SS13 skill data.
 Growth stages and shared Spirit Magus pools use the helpers in minion_offense.
 """
-from dataclasses import replace
+from dataclasses import asdict, replace
 from math import floor
 
 from engine.models import SourceEntry
@@ -50,6 +50,10 @@ def handler(source, owner, base_stats, level, count):
     stage = growth_stage(growth)
     enhanced_chance = max(0.0, min(1.0, source.total("spirit_magi_enhanced_skill_chance")
                                  + (0.30 if stage >= 2 else 0.0)))
+    # Owner's single unverified check at 18% Enhanced chance: roughly 120 in-game DPS vs 108
+    # in the engine (baseline 90 in game vs 85 in the engine), suggesting fast-insert F ~= 0.17.
+    # One point is not enough to fit Rock's cadence; leave that Thunder-calibrated mechanic out
+    # until more measurements exist.
 
     buffed = replace(source, _entries=list(source._entries), source_log=list(source.source_log))
     fold_spirit_magi_pools(buffed, growth)
@@ -242,6 +246,24 @@ def handler(source, owner, base_stats, level, count):
         ultimate_result = calculate_minion_offense(
             ultimate_source, ultimate, base_stats, level, 1, shotgun_hits=2, shotgun_falloff=0.0,
         )
+        natural_rate = ultimate_result.skills_per_second
+        rate_scale = ultimate_rate / natural_rate if natural_rate > 0 else 0.0
+        ultimate_result.skills_per_second = ultimate_rate
+        ultimate_result.total_dps *= rate_scale
+        ultimate_result.total_dps_vs_target *= rate_scale
+        ultimate_result.base_cast_time = ultimate_time
+        for form in ultimate_result.hit_forms:
+            form.fires_per_sec = ultimate_rate
+            form.dps_contribution *= rate_scale
+            form.dps_vs_target *= rate_scale
+        for row in ultimate_result.damage_rows:
+            row.dps_final *= rate_scale
+            row.dps_vs_target_final *= rate_scale
+            row.dps_by_type_vs_target = {
+                dtype: value * rate_scale for dtype, value in row.dps_by_type_vs_target.items()
+            }
+            row.pct_of_total = 100.0 if ultimate_result.total_dps_vs_target > 0 else 0.0
+        ultimate_result.multistrike_repeat_aps *= rate_scale
         if ultimate_result.hit_forms:
             per_cast = ultimate_result.hit_forms[0]
             ultimate_summary = {
@@ -262,12 +284,16 @@ def handler(source, owner, base_stats, level, count):
         if ultimate_summary is None:
             record_cast("Ultimate", ultimate, ultimate_result, source_for_cast=ultimate_source, hits=2)
         else:
-            skill_casts["ultimate"] = {**ultimate_summary, "role": "Ultimate"}
-        ultimate_form = nyi_offense(ultimate, level)
-        ultimate_form.nyi = ["Towering Mountains per-cast damage is shown separately. "
-                             "It contributes to default DPS only when an Iris trait selects this Ultimate."]
-        results.append(ultimate_form)
+            from engine.compute import _source_log_stat_map
 
+            ultimate_result.minion_ultimate = ultimate_summary
+            ultimate_breakdown = asdict(ultimate_result)
+            ultimate_breakdown["stat_map"] = _source_log_stat_map(ultimate_source)
+            skill_casts["ultimate"] = {
+                **ultimate_summary,
+                "role": "Ultimate",
+                "hit_breakdown": ultimate_breakdown,
+            }
     combined = combine_minion_forms(owner.get("name") or "Rock Magus", results, count)
     combined.spirit_magi_growth = growth
     combined.spirit_magi_stage = stage
