@@ -81,6 +81,8 @@ def handler(source, owner, base_stats, level, count):
         duration_base = float(empower.get("duration") or 0.0)
         cooldown_base = _parse_cast_time(empower.get("cooldown", "")) or 0.0
         cast_time = _parse_cast_time(empower.get("cast_speed", "")) or 0.0
+        if conditions.get("_engine_harvest_time_linked"):
+            cast_time = 0.0
         duration_inc = source.total("minion_skill_effect_duration_inc")
         cdr_inc = source.total("minion_cdr_speed_inc") + source.total("spirit_magi_cdr_speed_inc")
         duration = duration_base * (1.0 + duration_inc)
@@ -107,6 +109,7 @@ def handler(source, owner, base_stats, level, count):
             "base_duration": duration_base, "duration": duration,
             "cdr_inc": cdr_inc, "duration_inc": duration_inc,
             "uptime": empower_uptime,
+            "cast_slot_factor": cast_slot_factor,
             "buffs": [{"label": "Damage", "stat": "damage",
                        "base": 0.06 * affected * empower_effect,
                        "value": 0.06 * affected * empower_effect * empower_uptime,
@@ -128,6 +131,8 @@ def handler(source, owner, base_stats, level, count):
         speed_add_key = "minion_attack_speed_additional" if speed_kind == "attack" else "minion_cast_speed_additional"
         speed_factor = (1.0 + source.total(speed_inc_key)) * _speed_add_product(source_for_cast, speed_add_key)
         cast_time = cast_time_base / speed_factor if cast_time_base and speed_factor > 0 else 0.0
+        if role == "Empower" and conditions.get("_engine_harvest_time_linked"):
+            cast_time = 0.0
         cdr_inc = source.total("minion_cdr_speed_inc") + source.total("spirit_magi_cdr_speed_inc")
         cooldown = cooldown_base / (1.0 + cdr_inc) if cooldown_base else 0.0
         rate = 1.0 / max(cast_time, cooldown) if max(cast_time, cooldown) > 0 else 0.0

@@ -845,6 +845,7 @@ export interface MinionEmpower {
   duration: number             // effective = base × (1 + Minion Skill Effect Duration)
   duration_inc: number
   uptime: number               // clamp(duration ÷ cooldown, ≤1)
+  cast_slot_factor?: number    // attack time left after paying the Empower cast slot
   buffs: MinionEmpowerBuff[]
 }
 

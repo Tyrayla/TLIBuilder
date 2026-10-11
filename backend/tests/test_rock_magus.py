@@ -170,6 +170,25 @@ def test_gold_rush_stage_four_boss_uses_existing_enemy_selector_for_empower_effe
             == no_empower.minion_skill_casts["enhanced"]["damage_per_cast"])
 
 
+def test_rock_magus_harvest_time_makes_empower_instant_and_restores_attack_slot():
+    import engine.minion_effects  # noqa: F401
+    from engine.minion_offense import MINION_MODULES
+
+    handler = MINION_MODULES["summon_rock_magus"]
+    base_stats = {"base_damage_by_level": {"1": 10}}
+    normal = handler(BuildSource(), _owner(), base_stats, 1, 1)
+
+    linked_source = BuildSource()
+    linked_source.condition_state = {"_engine_harvest_time_linked": True}
+    linked = handler(linked_source, _owner(), base_stats, 1, 1)
+
+    # Gold Rush normally pays 0.6 s of the 10 s cycle: 1 - 0.5 * 0.6 / 10 = 0.97.
+    assert normal.minion_empower["cast_slot_factor"] == 0.97
+    assert normal.minion_skill_casts["empower"]["cast_time"] == 0.6
+    assert linked.minion_empower["cast_slot_factor"] == 1.0
+    assert linked.minion_skill_casts["empower"]["cast_time"] == 0.0
+
+
 def test_rock_magus_towering_mount_whole_attack_speed_step_avoids_float_truncation():
     from engine.minion_effects.rock_magus import _whole_attack_speed_percent_steps
 
