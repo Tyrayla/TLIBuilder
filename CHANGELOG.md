@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Engine & DPS
+- Ghost Slaughter now grants Skill Area, additional Attack Damage, and an additional Ailment Damage stat per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. The engine does not yet calculate ailment DPS. These linear formulas await in-game verification.
 - Ring of Blades now calculates DPS from its orbiting blades. Projectile Speed, Blade Formation, Razor Edge, and the supported damage bonuses affect the result.
 
 ### Bug fixes
