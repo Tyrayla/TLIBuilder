@@ -73,6 +73,8 @@ class BuildSource:
     target_config: dict | None = None
     # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc: {enemyId, skillId, kind, damage:{<type>_hit/_dot}}.
     enemy_config: dict | None = None
+    # Scenario inputs needed by bespoke minion modules (e.g. weighted enemy type).
+    condition_state: dict[str, float | bool | str] = field(default_factory=dict)
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -126,6 +128,7 @@ class BuildSource:
             # fell back to the Lv85 dummy constants and ignored the editable target / enemy settings.
             target_config=self.target_config,
             enemy_config=self.enemy_config,
+            condition_state=self.condition_state,
         )
 
     def total(self, stat: str) -> float:

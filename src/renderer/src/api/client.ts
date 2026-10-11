@@ -845,7 +845,37 @@ export interface MinionEmpower {
   duration: number             // effective = base × (1 + Minion Skill Effect Duration)
   duration_inc: number
   uptime: number               // clamp(duration ÷ cooldown, ≤1)
+  cast_slot_factor?: number    // attack time left after paying the Empower cast slot
   buffs: MinionEmpowerBuff[]
+}
+
+export interface MinionUltimate {
+  name: string
+  damage_per_cast: number
+  damage_per_cast_vs_target: number
+  hits_per_cast: number
+  base_cast_time: number
+  cast_time: number
+  base_cooldown: number
+  cooldown: number
+  casts_per_second: number
+  included_in_default_dps: false
+}
+
+export interface MinionSkillCast {
+  name: string
+  role: 'Base' | 'Enhanced' | 'Empower' | 'Ultimate'
+  damage_per_cast: number
+  damage_per_cast_vs_target: number
+  hits_per_cast: number
+  base_cast_time: number
+  cast_time: number
+  base_cooldown: number
+  cooldown: number
+  casts_per_second: number
+  included_in_default_dps: false
+  // Full source-backed hit calculation for direct-damage forms selected in the Form dropdown.
+  hit_breakdown?: OffenseResult | null
 }
 
 export interface HitFormResult {
@@ -1080,6 +1110,8 @@ export interface OffenseResult {
   spirit_magi_max?: number
   // A minion Empower buff (e.g. Thundercloud Surge) surfaced like a player empower skill. Null for non-empower.
   minion_empower?: MinionEmpower | null
+  minion_ultimate?: MinionUltimate | null
+  minion_skill_casts?: Record<string, MinionSkillCast>
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

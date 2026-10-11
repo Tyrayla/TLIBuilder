@@ -2060,6 +2060,12 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         )}
       </StatPanel>
 
+      {minion && offense.minion_ultimate?.name === offense.skill_name && (
+        <div style={{ fontSize: 11, color: '#8a9', margin: '2px 0 8px' }}>
+          Not in default DPS unless Iris selects this skill.
+        </div>
+      )}
+
       {!partial && (
         <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
           <DamageBreakdownTable offense={offense} minion={minion} />
@@ -2084,11 +2090,14 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               const totalFires = rateForms.reduce((s, f) => s + f.fires_per_sec, 0)
               const totalHits = rateForms.reduce((s, f) => s + f.fires_per_sec * (f.hits_per_fire || 1), 0)
               const encP = offense.spirit_magi_enhanced_chance ?? 0    // Enhanced (replace) chance, for labels
+              const hasThunderFastInsert = /thunder magus/i.test(offense.skill_name)
               const perFormFires: ExtraRow[] = rateForms.map(f => {
                 const isEnh = /enhanced/i.test(f.name)
                 const sn = encP > 0
                   ? (isEnh
-                      ? `${dec(encP * 100)}% Enhanced chance + fast-insert (fires fast after a Base)`
+                      ? hasThunderFastInsert
+                        ? `${dec(encP * 100)}% Enhanced chance + fast-insert (fires fast after a Base)`
+                        : `${dec(encP * 100)}% Enhanced chance (replaces Base)`
                       : `Base share = 1 − ${dec(encP * 100)}% Enhanced`)
                   : 'firing rate'
                 return { value: `${dec(f.fires_per_sec)}/s`, stat: f.name, source: 'Form', sourceName: sn }
@@ -2096,12 +2105,13 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               const perFormHits: ExtraRow[] = rateForms.map(f => ({
                 value: `${dec(f.fires_per_sec)}/s × ${f.hits_per_fire || 1} = ${dec(f.fires_per_sec * (f.hits_per_fire || 1))}/s`,
                 stat: f.name, source: 'Form', sourceName: `${f.hits_per_fire || 1} hit${(f.hits_per_fire || 1) === 1 ? '' : 's'}/fire` }))
-              // Minions swing at a shared cadence, but an Enhanced skill REPLACES the Base skill on proc and (for
-              // Thunder) fires with a short recovery right after a Base — so Enhanced lands ABOVE its raw chance
-              // (the "fast insert"). Both forms are further scaled by the Empower cast-slot. Spell out that here
-              // so the per-form rates (which sum to the total) aren't a black box.
+              // Spirit Magi share a cadence and Enhanced REPLACES Base on proc. Thunder Magus also gets its
+              // measured fast-insert rate; other Magi use the raw chance weighting until they have measurements.
+              // Both forms are further scaled by the Empower cast-slot.
               const attackFormula = rateForms.length > 1
-                ? `${rateFormula} = shared cadence. Enhanced REPLACES Base at its chance; it fires faster right after a Base (fast-insert) so it lands above its raw chance. Both × the Empower cast-slot. Per-form rows sum to the total.`
+                ? hasThunderFastInsert
+                  ? `${rateFormula} = shared cadence. Enhanced REPLACES Base at its chance; it fires faster right after a Base (fast-insert) so it lands above its raw chance. Both × the Empower cast-slot. Per-form rows sum to the total.`
+                  : `${rateFormula} = shared cadence. Enhanced REPLACES Base at its chance. Form rates use raw chance weighting and the Empower cast-slot. Per-form rows sum to the total.`
                 : rateFormula
               return (
                 <>
@@ -3828,9 +3838,21 @@ export default function PlayerStatsScreen() {
   // Form filter (Phase 1 = display-only): when a single form is selected, show just its damage by filtering
   // hit_forms and scaling the headline DPS to that form's share of the combined total (so it reconciles with
   // the shown numbers). Phase 2 swaps this for a true engine recompute (forced forms, Chilling Spike split).
-  const formNames = shownOffense?.hit_forms?.map(f => f.name) ?? []
+  const formNames = [...new Set([
+    ...(shownOffense?.hit_forms?.map(f => f.name) ?? []),
+    ...(Object.values(shownOffense?.minion_skill_casts ?? {}).map(form => form.name)),
+  ])]
   const displayOffense = useMemo(() => {
-    if (!shownOffense || !selectedForm) return shownOffense
+    if (!shownOffense) return shownOffense
+    const selectedUltimate = shownOffense.minion_skill_casts?.ultimate
+    const ultimateBreakdown = selectedUltimate?.hit_breakdown
+    if (selectedForm && selectedForm === selectedUltimate?.name && ultimateBreakdown) {
+      return {
+        ...ultimateBreakdown,
+        minion_ultimate: shownOffense.minion_ultimate,
+      }
+    }
+    if (!selectedForm) return shownOffense
     const idx = shownOffense.hit_forms.findIndex(f => f.name === selectedForm)
     if (idx < 0) return shownOffense
     const form = shownOffense.hit_forms[idx]

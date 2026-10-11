@@ -65,6 +65,54 @@ def test_base_skill_pipeline_math():
     assert o.total_dps_vs_target == pytest.approx(o.total_dps * 0.49)  # fire dummy mitigation
 
 
+def test_minion_damage_type_pools_match_the_hit_type():
+    """Type pools follow the hit's post-conversion damage type; elemental means Fire/Cold/Lightning only.
+
+    The literal expected pools below are hand-calculated from the supplied source amounts. The +39% generic and
+    +45% elemental lines match the owner's Rock Magus regression setup. The elemental pool is deliberately large
+    so a missing elemental tag fails loudly for Physical and Erosion.
+    """
+    source = BuildSource()
+    source.add("minion_dmg_inc", 0.39)
+    source.add("minion_elemental_dmg_inc", 0.45)
+    source.add("minion_physical_dmg_inc", 0.20)
+    source.add("minion_erosion_dmg_inc", 0.30)
+    source.add("minion_fire_dmg_inc", 0.05)
+    source.add("minion_cold_dmg_inc", 0.06)
+    source.add("minion_lightning_dmg_inc", 0.07)
+    source.add("minion_dmg_additional", 0.10)
+    source.add("minion_physical_dmg_additional", 0.20)
+    source.add("minion_cold_dmg_additional", 0.30)
+
+    skills = {
+        "physical": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Physical"]},
+        "erosion": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Erosion"]},
+        "fire": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Fire"]},
+        "cold": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Cold"]},
+        "lightning": {**_BASE_SKILL, "skill_tags": ["Base Skill", "Spell", "Lightning"]},
+    }
+    expected_inc = {"physical": 0.59, "erosion": 0.69, "fire": 0.89, "cold": 0.90, "lightning": 0.91}
+    expected_add = {"physical": 1.32, "erosion": 1.10, "fire": 1.10, "cold": 1.43, "lightning": 1.10}
+    for damage_type, skill in skills.items():
+        result = calculate_minion_offense(source, skill, _BASE_STATS, level=20, minion_count=1)
+        assert result.type_inc[damage_type] == pytest.approx(expected_inc[damage_type])
+        assert result.type_add[damage_type] == pytest.approx(expected_add[damage_type])
+
+
+def test_engine_stats_thunder_magus_uses_elemental_and_lightning_pools():
+    """The public endpoint applies both matching pools to Thunder Magus's Lightning hits."""
+    from server import engine_stats, EngineStatsRequest
+    from tests.mock_build import make_request
+
+    request = make_request("summon_thunder_magus", 20, custom_mods=[
+        "+39% Minion Damage", "+45% Minion Elemental Damage", "+12% Minion Lightning Damage",
+    ])
+    result = engine_stats(EngineStatsRequest(**request))
+    offense = result["minion_offense"]["summon_thunder_magus"]
+    assert offense["generic_inc"] == pytest.approx(0.39)
+    assert offense["type_inc"]["lightning"] == pytest.approx(0.96)  # 39% generic +45% elemental +12% lightning
+
+
 def test_ultimate_cooldown_caps_rate():
     o = calculate_minion_offense(_src_with_minion_mods(), _ULTIMATE, _BASE_STATS, level=20)
     assert o.skills_per_second == pytest.approx(0.125)  # 1/8 cooldown caps the cast rate
