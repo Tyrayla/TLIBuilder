@@ -1,5 +1,6 @@
 import { api } from '../api/client'
 import { normalizeError, TliError } from '../errors/tliError'
+import { AccountApiError, fetchNamedLink } from '../api/accounts'
 
 /**
  * Thrown when an import input is a share link but the linked build could not be
@@ -25,7 +26,59 @@ export class ShareFetchError extends TliError {
  * the same field.
  */
 export async function resolveImportInput(input: string): Promise<string> {
+  return (await resolveImportSource(input)).code
+}
+
+/** A named link whose owner removed it. Shown as its own message instead of "invalid link". */
+export class NamedLinkRemovedError extends ShareFetchError {
+  constructor() {
+    super(new TliError({
+      code: 'TLI-SHARE-001',
+      title: 'This build was removed',
+      message: 'This build was removed by its owner.',
+      operation: 'share.import.named-link',
+      retryable: false,
+    }))
+    this.name = 'NamedLinkRemovedError'
+  }
+}
+
+const NAMED_LINK_PATH = /^\/u\/([a-z0-9_.]{2,24}-\d{4})\/([a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?)\/?$/
+
+/** `https://<host>/u/<name>-<tag>/<slug>` → its parts, or null for anything else. */
+export function parseNamedLinkUrl(input: string): { handle: string; slug: string } | null {
+  let url: URL
+  try { url = new URL(input.trim()) } catch { return null }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+  const match = NAMED_LINK_PATH.exec(url.pathname)
+  return match ? { handle: match[1], slug: match[2] } : null
+}
+
+/**
+ * Like resolveImportInput, but also reports the game data version a named link was saved under so the
+ * importer can warn when it differs from the current one. Raw codes and anonymous share links carry none.
+ */
+export async function resolveImportSource(
+  input: string,
+  deps: { fetchNamed?: (handle: string, slug: string) => Promise<{ name: string; code: string; dataVersion: string | null }> } = {},
+): Promise<{ code: string; dataVersion: string | null }> {
   const trimmed = input.trim()
+
+  const named = parseNamedLinkUrl(trimmed)
+  if (named) {
+    try {
+      const fetchNamed = deps.fetchNamed ?? fetchNamedLink
+      const result = await fetchNamed(named.handle, named.slug)
+      return { code: result.code, dataVersion: result.dataVersion }
+    } catch (e) {
+      if (e instanceof AccountApiError && e.code === 'removed_by_owner') throw new NamedLinkRemovedError()
+      throw new ShareFetchError(e)
+    }
+  }
+  return { code: await resolveShareOrRaw(trimmed), dataVersion: null }
+}
+
+async function resolveShareOrRaw(trimmed: string): Promise<string> {
 
   // Treat the input as a share URL only if it looks like an http(s) URL AND
   // matches /b/<id>; otherwise treat it as a raw code.

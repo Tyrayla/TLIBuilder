@@ -12,6 +12,9 @@ vi.stubGlobal('window', new EventTarget())
 // CoverageLegend relies on the app build's automatic JSX runtime (no React import), which this vitest
 // setup doesn't provide; it's unrelated to closing the modal, so render nothing in its place.
 vi.mock('../components/CoverageLegend', () => ({ CoverageLegend: () => null }))
+// The account panel checks sign-in over the network when Settings opens; that is covered by its own tests,
+// and a unit test must never call the hosted service.
+vi.mock('../components/accounts/AccountPanel', () => ({ default: () => null }))
 
 function press(key: string) {
   window.dispatchEvent(Object.assign(new Event('keydown'), { key }))

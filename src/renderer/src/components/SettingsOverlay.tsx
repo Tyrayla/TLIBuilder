@@ -3,6 +3,7 @@ import { IS_WEB } from '../api/client'
 import { useUiPrefs, UI_SCALE_MIN, UI_SCALE_MAX } from '../store/uiPrefsStore'
 import { CoverageLegend } from './CoverageLegend'
 import { useEscapeToClose } from './useEscapeToClose'
+import PrivacySection from './accounts/PrivacySection'
 
 type Channel = 'stable' | 'nightly'
 
@@ -168,6 +169,7 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           </section>
+          <PrivacySection />
           <section className="settings-section">
             <h4 className="settings-section-title">Help</h4>
             <div className="settings-row">

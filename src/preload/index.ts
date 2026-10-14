@@ -6,6 +6,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('api-request', { method, path, body }),
   reportRequest: (body: unknown): Promise<{ ok: boolean; status: number; data: unknown }> =>
     ipcRenderer.invoke('report-request', body),
+  // Hosted accounts: the main process owns the session token; the renderer only sees results.
+  accountRequest: (method: string, path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: unknown }> =>
+    ipcRenderer.invoke('account-request', method, path, body),
+  accountSignIn: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('account-sign-in'),
+  accountSignOut: (): Promise<void> => ipcRenderer.invoke('account-sign-out'),
+  accountReauth: (authorizeUrl: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('account-reauth', authorizeUrl),
+  syncRecordsRead: (): Promise<unknown[]> => ipcRenderer.invoke('sync-records-read'),
+  syncRecordsPut: (record: unknown): Promise<void> => ipcRenderer.invoke('sync-records-put', record),
+  syncRecordsRemove: (localBuildId: string): Promise<void> => ipcRenderer.invoke('sync-records-remove', localBuildId),
   getIsDev: (): Promise<boolean> => ipcRenderer.invoke('get-is-dev'),
   isVerbose: process.env.VERBOSE === 'true',
   notifyDirty: (dirty: boolean) => ipcRenderer.send('dirty-change', dirty),

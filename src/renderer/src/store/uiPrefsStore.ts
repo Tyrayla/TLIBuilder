@@ -64,6 +64,10 @@ interface UiPrefsStore {
   // Build sidebar width in px (user-draggable). Persisted across sessions.
   sidebarWidth: number
   setSidebarWidth: (px: number) => void
+  // Privacy: report anonymous build-composition counts (canonical catalog ids only, no account or
+  // device identifier). Default ON per the hosted-accounts plan; the Privacy settings section turns it off.
+  shareCompositionStats: boolean
+  setShareCompositionStats: (on: boolean) => void
 }
 
 export const UI_SCALE_MIN = 0.8
@@ -101,6 +105,8 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setUiScale: (uiScale) => set({ uiScale }),
       sidebarWidth: 155,
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
+      shareCompositionStats: true,
+      setShareCompositionStats: (shareCompositionStats) => set({ shareCompositionStats }),
     }),
     {
       name: 'tli-ui-prefs',

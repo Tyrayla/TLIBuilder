@@ -1,0 +1,149 @@
+{
+  "description": "Shared semantic_hash vectors. input_json is the decoded top-level JSON text of a tli1 code. Remove top-level id/createdAt/updatedAt, canonicalize (sorted keys at every depth, compact separators, UTF-8 without ASCII escaping, numbers written as JavaScript JSON.stringify writes them: integer-valued floats and -0 as 0 digits only), then SHA-256 the UTF-8 bytes. Numbers outside the safe range or with exponents are deliberately not covered; the app never emits them. Vectors after the first nine were added by the service worker; their canonical text and hash were produced by the JavaScript canonicalizer from utils/sync.ts. `rejected` lists inputs outside the number domain that the service must refuse (the app need not handle them).",
+  "vectors": [
+    {
+      "name": "plain",
+      "input_json": "{\"v\":2,\"name\":\"Fire\",\"id\":\"abc\",\"createdAt\":1,\"updatedAt\":2}",
+      "canonical": "{\"name\":\"Fire\",\"v\":2}",
+      "sha256": "d31e80e46237e0994f8394fe2f67944bb7f5aba9947e6f312b1da3cb7c4b66cb"
+    },
+    {
+      "name": "key-order",
+      "input_json": "{\"name\":\"Fire\",\"characterLevel\":90,\"v\":2}",
+      "canonical": "{\"characterLevel\":90,\"name\":\"Fire\",\"v\":2}",
+      "sha256": "fcd2dc7325024affb64e4f1c516dae64f474699530d511c6939c8ea63f884ce3"
+    },
+    {
+      "name": "nested-and-arrays",
+      "input_json": "{\"v\":2,\"gear\":[{\"b\":1,\"a\":{\"z\":true,\"y\":null}},{\"slot\":\"x\"}]}",
+      "canonical": "{\"gear\":[{\"a\":{\"y\":null,\"z\":true},\"b\":1},{\"slot\":\"x\"}],\"v\":2}",
+      "sha256": "2453b506b85f8e5902392212b056c6892c53cf6af24c1fc716eddb7ad9491d7f"
+    },
+    {
+      "name": "unicode-raw",
+      "input_json": "{\"v\":2,\"name\":\"Ünï – 火\",\"notes\":\"line1\\nline2 \\\"q\\\"\"}",
+      "canonical": "{\"name\":\"Ünï – 火\",\"notes\":\"line1\\nline2 \\\"q\\\"\",\"v\":2}",
+      "sha256": "27ffe428ffbcd1e8981afe3416d9e503a95368f5f1e4108e07c0465298a3cf1e"
+    },
+    {
+      "name": "unicode-escaped-input",
+      "input_json": "{\"v\":2,\"name\":\"\\u00dcn\\u00ef \\u2013 \\u706b\"}",
+      "canonical": "{\"name\":\"Ünï – 火\",\"v\":2}",
+      "sha256": "158744fd5278db53ed69c21e36654974da9419c4e3f7e63cc5f92c8ed881d64e"
+    },
+    {
+      "name": "integer-valued-float",
+      "input_json": "{\"v\":2,\"characterLevel\":90.0,\"x\":1.0,\"y\":-0.0}",
+      "canonical": "{\"characterLevel\":90,\"v\":2,\"x\":1,\"y\":0}",
+      "sha256": "301ab75939af287d3322daafb401fcd8115c84e6f10313427824d775d0f6786d"
+    },
+    {
+      "name": "fractions",
+      "input_json": "{\"v\":2,\"a\":0.1,\"b\":1.5,\"c\":-2.25}",
+      "canonical": "{\"a\":0.1,\"b\":1.5,\"c\":-2.25,\"v\":2}",
+      "sha256": "ab8881192fd1f5377fa28ebc511ac84bf36c3475364b20a9b7557f16fe6973fd"
+    },
+    {
+      "name": "nested-id-kept",
+      "input_json": "{\"v\":2,\"slots\":[{\"id\":\"inner\",\"updatedAt\":5}],\"id\":\"outer\"}",
+      "canonical": "{\"slots\":[{\"id\":\"inner\",\"updatedAt\":5}],\"v\":2}",
+      "sha256": "8bbf9080b859aea72fabc7e157fb88e4a6d7686a9046daab0d4310657a61b56d"
+    },
+    {
+      "name": "empty-containers",
+      "input_json": "{\"v\":2,\"a\":[],\"b\":{}}",
+      "canonical": "{\"a\":[],\"b\":{},\"v\":2}",
+      "sha256": "715fd60a3b51e7e3df070d093992af90b284b14544046488db0577e02e41caa0"
+    },
+    {
+      "name": "utf16-key-order",
+      "input_json": "{\"v\":2,\"😀\":1,\"￿\":2,\"a\":3,\"\":4}",
+      "canonical": "{\"a\":3,\"v\":2,\"😀\":1,\"\":4,\"￿\":2}",
+      "sha256": "13ca0c510c78f66e545ea9a4f29deb7367ab6b476d29765427bd50402f73e8c6"
+    },
+    {
+      "name": "non-bmp-value",
+      "input_json": "{\"v\":2,\"name\":\"😀 𝕏 x\"}",
+      "canonical": "{\"name\":\"😀 𝕏 x\",\"v\":2}",
+      "sha256": "05525d1280e483a69f9bc7d19cd7f6b76aa7cd0fa567ebcd5e346aefe246616b"
+    },
+    {
+      "name": "control-and-separators",
+      "input_json": "{\"v\":2,\"n\":\"a\\u0000b\\u001f\\u007f  \\b\\f\\t\\\\ /\"}",
+      "canonical": "{\"n\":\"a\\u0000b\\u001f  \\b\\f\\t\\\\ /\",\"v\":2}",
+      "sha256": "1c86ff1be317a2b5207289a1380cd5f24892eb15c5e019398a74262ab859fe7d"
+    },
+    {
+      "name": "lone-surrogate",
+      "input_json": "{\"v\":2,\"n\":\"\\ud800 x \\udc00\"}",
+      "canonical": "{\"n\":\"\\ud800 x \\udc00\",\"v\":2}",
+      "sha256": "f2751db2c232896aed85ac99dad0a7c55ee4fa84a7c25485531044167fc93ad1"
+    },
+    {
+      "name": "negative-zero-literal",
+      "input_json": "{\"v\":2,\"a\":-0,\"b\":-0.0,\"c\":0.0}",
+      "canonical": "{\"a\":0,\"b\":0,\"c\":0,\"v\":2}",
+      "sha256": "b456177ec88288f0a58921ec196c10f74d8e3b98b1f9ae098a10590e2e64d878"
+    },
+    {
+      "name": "exponent-and-small",
+      "input_json": "{\"v\":2,\"a\":1e-7,\"b\":0.000001,\"c\":1.5e-9,\"d\":123456789.125,\"e\":2e0,\"f\":1E2}",
+      "canonical": "{\"a\":1e-7,\"b\":0.000001,\"c\":1.5e-9,\"d\":123456789.125,\"e\":2,\"f\":100,\"v\":2}",
+      "sha256": "93e06322cd7dc795bf7167ff62faf0473cec3e03ba8f0120847f6a8b0f2b320b"
+    },
+    {
+      "name": "max-safe-integer",
+      "input_json": "{\"v\":2,\"a\":9007199254740991,\"b\":-9007199254740991,\"c\":9007199254740990.0}",
+      "canonical": "{\"a\":9007199254740991,\"b\":-9007199254740991,\"c\":9007199254740990,\"v\":2}",
+      "sha256": "f74ce9aa460ad39608acfb0d53ce3e2d4dab3887c01c05bbf6fdf8e96af318fa"
+    },
+    {
+      "name": "null-and-missing",
+      "input_json": "{\"v\":2,\"a\":null,\"b\":[null,{\"c\":null}]}",
+      "canonical": "{\"a\":null,\"b\":[null,{\"c\":null}],\"v\":2}",
+      "sha256": "ffa36127bbc271ac407ec467df0938cab0ead109031fe6fd2790a03fc4a16899"
+    },
+    {
+      "name": "duplicate-key-last-wins",
+      "input_json": "{\"v\":2,\"a\":1,\"a\":2}",
+      "canonical": "{\"a\":2,\"v\":2}",
+      "sha256": "737242bd51c3e8ecddd3f4aa7091f7daa78ae877e684e3744da9f2c534748ef3"
+    },
+    {
+      "name": "nested-technical-keys-kept",
+      "input_json": "{\"v\":2,\"id\":\"top\",\"createdAt\":5,\"x\":{\"id\":\"n\",\"createdAt\":1,\"updatedAt\":2}}",
+      "canonical": "{\"v\":2,\"x\":{\"createdAt\":1,\"id\":\"n\",\"updatedAt\":2}}",
+      "sha256": "db282585b844d1fb1358b5c5f1c299cd6c56fa902695a8da1c6e05d6c7815049"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "nan",
+      "input_json": "{\"v\":2,\"a\":NaN}"
+    },
+    {
+      "name": "infinity",
+      "input_json": "{\"v\":2,\"a\":Infinity}"
+    },
+    {
+      "name": "neg-infinity",
+      "input_json": "{\"v\":2,\"a\":-Infinity}"
+    },
+    {
+      "name": "overflow-literal",
+      "input_json": "{\"v\":2,\"a\":1e400}"
+    },
+    {
+      "name": "unsafe-integer",
+      "input_json": "{\"v\":2,\"a\":9007199254740993}"
+    },
+    {
+      "name": "unsafe-integer-valued-float",
+      "input_json": "{\"v\":2,\"a\":1e21}"
+    },
+    {
+      "name": "big-negative-integer",
+      "input_json": "{\"v\":2,\"a\":-9007199254740992}"
+    }
+  ]
+}

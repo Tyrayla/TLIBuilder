@@ -6,6 +6,17 @@ import { useReferenceStore } from '../store/referenceStore'
 import SettingsOverlay from '../components/SettingsOverlay'
 import LoadingState from '../components/LoadingState'
 import logoSrc from '../assets/logo.png'
+import { getAccountsApi } from '../api/accounts'
+import { useAccountStore } from '../store/accountStore'
+import { getCloudSync } from '../utils/cloudSyncRuntime'
+import { defaultSyncRecordStore } from '../utils/syncRecords'
+import { computeLibraryStatuses, type LibraryStatus } from '../utils/librarySync'
+import { semanticBuildHash } from '../utils/sync'
+import BuildCloudControls from '../components/accounts/BuildCloudControls'
+import CloudLibraryOverlay from '../components/accounts/CloudLibraryOverlay'
+import AccountMenu from '../components/accounts/AccountMenu'
+import ProfileOverlay from '../components/accounts/ProfileOverlay'
+import { useCloudActions } from '../components/accounts/useCloudActions'
 
 interface Props {
   onNewBuild: (folderId?: string) => void
@@ -109,6 +120,10 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
 
   const [aboutOpen, setAboutOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const accountStatus = useAccountStore(s => s.status)
+  // Web OAuth returns to a fresh page. Signup resumes in the profile dialog.
+  useEffect(() => { if (accountStatus === 'signup') setProfileOpen(true) }, [accountStatus])
 
   // Open an external link on either platform: desktop routes through the IPC openExternal (system browser),
   // web falls back to window.open (where window.api doesn't exist).
@@ -153,6 +168,49 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }
 
   useEffect(() => { loadAll() }, [])
+  useEffect(() => {
+    const refresh = () => loadAll()
+    window.addEventListener('tli-local-builds-changed', refresh)
+    return () => window.removeEventListener('tli-local-builds-changed', refresh)
+  }, [])
+
+  // ── Optional cloud sync ─────────────────────────────────────────────────────
+  // Everything below is inert for a guest. Status is passive: it is read when the library opens and after
+  // an explicit sync action, never while a build is being edited.
+  const accountUserId = useAccountStore(s => s.account?.userId ?? null)
+  const [cloudStatuses, setCloudStatuses] = useState<Map<string, LibraryStatus>>(new Map())
+  const [cloudLibraryOpen, setCloudLibraryOpen] = useState(false)
+
+  const refreshCloudStatuses = React.useCallback(async (list: Build[]) => {
+    const byId = new Map(list.filter(b => b.id).map(b => [b.id as string, b]))
+    const statuses = await computeLibraryStatuses({
+      localBuildIds: [...byId.keys()],
+      activeUserId: accountUserId,
+      records: await defaultSyncRecordStore().all(),
+      listCloud: () => getAccountsApi().listCloudBuilds(),
+      readLocalHash: async (id) => semanticBuildHash((await api.encodeBuildCode(byId.get(id) as Build)).code),
+    })
+    setCloudStatuses(statuses)
+  }, [accountUserId])
+
+  useEffect(() => {
+    if (loading) return
+    void refreshCloudStatuses(builds)
+  }, [builds, loading, refreshCloudStatuses])
+
+  const cloud = useCloudActions({
+    sync: getCloudSync(),
+    onChanged: loadAll,
+    requestSignIn: () => setProfileOpen(true),
+    linkPathFor: (cloudBuildId) =>
+      [...cloudStatuses.values()].find(s => s.cloud?.cloudBuildId === cloudBuildId)?.cloud?.namedLink?.urlPath ?? null,
+    heroTraits,
+    currentDataVersion: () => useReferenceStore.getState().season,
+    localSavedAtFor: (id) => {
+      const updated = builds.find(b => b.id === id)?.updatedAt
+      return typeof updated === 'number' ? updated : null
+    },
+  })
 
   useEffect(() => {
     // Desktop reads the version via IPC; the web build has no IPC, so it uses the version baked in at build
@@ -424,6 +482,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       if (httpErrorStatus(r.reason) === 404) succeeded.push(id)
       else failed.push(id)
     })
+    // A deleted local build loses its sync record. The cloud copy stays until the user deletes it there.
+    await Promise.allSettled(succeeded.map(id => getCloudSync().onLocalBuildDeleted(id)))
     // Reflect whatever DID succeed locally right away, regardless of overall outcome.
     if (succeeded.length > 0) {
       const assignments = { ...manifest.assignments }
@@ -482,7 +542,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   return (
     <div className="screen build-select">
       <div className="build-select-top">
-        <div className="build-select-corner">
+        <div className="build-select-left">
           {devMode && (
             <button
               className="btn btn-sm build-select-devtools"
@@ -492,23 +552,29 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               Dev Tools
             </button>
           )}
+          {/* Keep all build-creation actions together at the left edge. */}
+          <div className="build-select-actions build-select-create-cluster">
+            <button className="btn btn-secondary btn-sm build-select-import" onClick={openImport}>Import Code</button>
+            <div className="build-select-create-row">
+              <button className="btn btn-secondary" onClick={openCreateFolder}>+ New Folder</button>
+              <button className="btn btn-primary" onClick={() => onNewBuild(currentFolderId ?? undefined)}>+ New Build</button>
+            </div>
+          </div>
+        </div>
+        <div className="build-select-center">
+          <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
           <button
             className="btn btn-sm build-select-discord"
             onClick={() => openExternal('https://discord.gg/7hEySM4WYx')}
           >
-            Join the Discord to share feedback or bugs you find!
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19.7 5.1a17 17 0 0 0-4.2-1.3l-.6 1.2a15.5 15.5 0 0 0-5.8 0l-.6-1.2a17 17 0 0 0-4.2 1.3C1.7 9 1 12.8 1.4 16.6a17 17 0 0 0 5.2 2.7l1.1-1.8-1.7-.8.4-.3c3.6 1.7 7.6 1.7 11.2 0l.4.3-1.7.8 1.1 1.8a17 17 0 0 0 5.2-2.7c.5-4.4-.8-8.1-3.2-11.5ZM8.8 14.2c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
+            </svg>
+            <span>Join the Discord to share feedback or bugs you find!</span>
           </button>
         </div>
-        <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
-        {/* Create cluster: the three "add a build" actions, grouped as one unit — Import Code on top,
-            + New Folder / + New Build together in a row beneath it. + New Build stays the sole primary
-            (filled/accent) action; the other two read as secondary. */}
-        <div className="build-select-actions build-select-create-cluster">
-          <button className="btn btn-secondary btn-sm build-select-import" onClick={openImport}>Import Code</button>
-          <div className="build-select-create-row">
-            <button className="btn btn-secondary" onClick={openCreateFolder}>+ New Folder</button>
-            <button className="btn btn-primary" onClick={() => onNewBuild(currentFolderId ?? undefined)}>+ New Build</button>
-          </div>
+        <div className="build-select-account-control">
+          <AccountMenu onOpenProfile={() => setProfileOpen(true)} onOpenCloudLibrary={() => setCloudLibraryOpen(true)} />
         </div>
       </div>
 
@@ -637,6 +703,14 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
                   })()}
                   <span className="build-pts">{totalPoints(build)} pts</span>
                 </div>
+                {!selectMode && (
+                  <BuildCloudControls
+                    status={cloudStatuses.get(build.id as string)}
+                    onUpload={() => void cloud.startUpload(build.id as string)}
+                    onDownload={() => void cloud.startDownload(build.id as string)}
+                    onLinkUpdate={() => void cloud.startLinkUpdate(build.id as string)}
+                  />
+                )}
               </div>
             )
           })}
@@ -703,7 +777,22 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
         </div>
       </div>
 
-      {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsOverlay
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {profileOpen && <ProfileOverlay
+        onClose={() => setProfileOpen(false)}
+        onOpenCloudLibrary={() => { setProfileOpen(false); setCloudLibraryOpen(true) }}
+      />}
+      {cloudLibraryOpen && (
+        <CloudLibraryOverlay
+          onClose={() => setCloudLibraryOpen(false)}
+          onChanged={loadAll}
+        />
+      )}
+      {cloud.dialog}
 
       {aboutOpen && (
         <div className="modal-backdrop" onClick={() => setAboutOpen(false)}>
