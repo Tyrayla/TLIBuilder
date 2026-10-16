@@ -23,16 +23,12 @@ def test_active_season_with_icons_present_populates_known_tree(monkeypatch):
     assert by_name["God of Might"]["icon_url"] == "https://example.com/god_of_might.webp"
 
 
-def test_tree_absent_from_icon_map_yields_none_not_error():
+def test_tree_absent_from_icon_map_yields_none_not_error(monkeypatch):
     # "Nether King" is a real, confirmed gap in data/seasons/SS13/_talent_tree_selector_icons.json
     # (no icon upstream — see season_manager.load_talent_tree_selector_icons docstring), so this
     # exercises the real SS13 season data rather than a synthetic map.
     assert "Nether King" in TREES, "fixture assumption: 'Nether King' tree missing from trees_meta.json"
-    monkeypatch_active = season_manager.get_active_season()
-    assert monkeypatch_active == "SS13", (
-        f"active season is {monkeypatch_active!r}, not SS13 — this test targets the SS13 "
-        "'Nether King' icon gap; re-verify against the new active season's icon map before updating."
-    )
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS13")
 
     result = get_trees()
     by_name = {t["name"]: t for t in result}

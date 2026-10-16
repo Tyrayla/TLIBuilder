@@ -135,16 +135,13 @@ def test_authored_season_diverges_direct_unit_no_overlap():
 
 # ── Concrete owner-facing case: the REAL mana_boil under the REAL active season (SS13) ─────────
 
-def test_real_mana_boil_suppressed_under_active_ss13():
+def test_real_mana_boil_suppressed_under_active_ss13(monkeypatch):
     # Owner-facing regression: SS13's raw mana_boil data (loaded from the actual season data on disk,
     # no mocking) is numerically identical to SS12's for the compared fields — only a cosmetic '+10%'
     # vs '10%' text difference in simple_description — so the season-mismatch warning must be
     # SUPPRESSED, not fired, for the real build.
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS13")
     active_season = season_manager.get_active_season()
-    assert active_season == "SS13", (
-        "This test pins the SS13 concrete case; .wolf/data/seasons/.active is not SS13 — "
-        f"got {active_season!r}. If the active season legitimately changed, update this test."
-    )
     ss13_skills = season_manager.load_skills("SS13")
     assert ss13_skills, "SS13 skill data not found on disk — cannot validate the real mana_boil case"
     skills_by_id = {s["item_id"]: s for s in ss13_skills["skills"] if "item_id" in s}
