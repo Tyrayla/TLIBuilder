@@ -25,8 +25,9 @@ applied unconditionally, so the engine never over-counts a gated bonus. (Plan v1
 from __future__ import annotations
 import re
 
-# "(Max Divinity Effect: 1)" trailer present on the canonical line of every talent — strip before parse.
-_MAX_DIV_RE = re.compile(r"\s*\(Max Divinity Effect:[^)]*\)\s*$", re.I)
+# TLIDB uses both "Max Divinity Effect" and SS14's "Max Active Divinity" for the once-per-divinity cap.
+# Strip either identity/display suffix before parsing the actual modifier.
+_MAX_DIV_RE = re.compile(r"\s*\(Max\s+(?:Active\s+)?Divinity(?:\s+Effect)?\s*:[^)]*\)\s*$", re.I)
 
 # "Changes the base effect of <X> to: <Y>" — the override marker. <X> maps to a flag the aggregator
 # reads; the re-based magnitude itself is encoded in the aggregator (not parsed from <Y>).

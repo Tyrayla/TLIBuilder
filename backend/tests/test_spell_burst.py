@@ -173,10 +173,12 @@ class TestCombinedModel:
         assert o["total_dps_vs_target"] == pytest.approx(o["spell_burst_dps_vs_target"])
 
     def test_manual_beats_auto_via_between_casts(self):
-        # Same M/charge: manual adds the between-burst casts on top of the same burst component → higher total.
-        manual = _offense(max_burst=3)
-        auto = _offense(max_burst=3, conds={"spell_burst_auto_trigger": True})
-        assert manual["spell_burst_dps_vs_target"] == pytest.approx(auto["spell_burst_dps_vs_target"])
+        # Manual may lose some burst rate to 30 Hz cast-tick rounding, depending on the season's base cast speed.
+        # This setup still leaves enough casts between bursts for manual mode to win on total DPS.
+        fast_cast = {"cast_speed_inc": 2.0}
+        manual = _offense(max_burst=3, extra_gear=fast_cast)
+        auto = _offense(max_burst=3, conds={"spell_burst_auto_trigger": True}, extra_gear=fast_cast)
+        assert manual["non_spell_burst_dps_vs_target"] > 0
         assert manual["total_dps_vs_target"] > auto["total_dps_vs_target"]
 
     def test_burst_pool_lifts_only_burst_part(self):
@@ -517,7 +519,7 @@ class TestDestinyKismets:
         assert d["offense"]["spell_burst_count"] == 3           # halved (6 → 3) — the run-on's first clause resolved
         # the AS/CS-per-burst-recently clause derives a stack count from the burst rate (feedback), surfaced as auto
         auto = d.get("auto_conditions") or {}
-        assert auto.get("spell_burst_stacks_recently", {}).get("value", 0) > 0
+        assert auto.get("spell_burst_stacks_recently", {}).get("value") == 1
 
 
 class TestLooseEndsParser:

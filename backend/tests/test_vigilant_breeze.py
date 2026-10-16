@@ -867,7 +867,9 @@ def test_whirlwind_tango_merged_ultimate_uses_zero_cooldown_cadence_and_real_dam
 
     assert magus["iris_skill_dispatch"]["skill_forms"][0]["casts_per_second"] == pytest.approx(0.6466666666666666)
     assert magus["iris_skill_dispatch"]["rotations"][0]["cooldown"] == 0.0
-    assert magus["total_dps"] == pytest.approx(1485.03665625)
+    # Towering Mountains deals 3,674.3175 per cast; at 0.404166... casts/s, Whirlwind Tango's
+    # source penalty (−60% additional Spirit Magus Skill Damage) gives 3,674.3175 × 0.404166... × 0.4.
+    assert magus["total_dps"] == pytest.approx(594.0146625)
     assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.4041666666666666)
     assert any("per-cast Life cost is exposed" in note for note in magus["nyi"])
 
@@ -964,15 +966,15 @@ def test_thunder_merged_ultimate_whirlwind_tango_uses_cast_time_cadence():
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
-    # Tango removes the 8 s cooldown, so the 1.5 s cast time sets 2/3 casts/s.
-    # 6,479.025 × 2/3 × 0.625 Reconjuring uptime = 2,699.59375 DPS.
+    # Tango removes the 8 s cooldown, so the 1.5 s cast time sets 2/3 casts/s. The source's
+    # −60% additional Spirit Magus Skill Damage gives 6,479.025 × 2/3 × 0.625 × 0.4 = 1,079.8375 DPS.
     assert magus["minion_ultimate"]["hits_per_target"] == 7
     assert magus["minion_ultimate"]["base_cooldown"] == pytest.approx(8.0)
     assert magus["minion_ultimate"]["base_cast_time"] == pytest.approx(1.5)
     assert magus["iris_skill_dispatch"]["rotations"][0]["cooldown"] == 0.0
     assert magus["iris_skill_dispatch"]["casts_per_second"] == pytest.approx(2 / 3)
     assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(5 / 12)
-    assert magus["total_dps"] == pytest.approx(2699.59375)
+    assert magus["total_dps"] == pytest.approx(1079.8375)
 
 
 def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monkeypatch):

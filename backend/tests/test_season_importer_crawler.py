@@ -1,5 +1,5 @@
 import pytest
-from tools.season_importer import _make_display_name_key, import_crawler_tree
+from tools.season_importer import _effect_line, _make_display_name_key, import_crawler_tree
 
 
 # ── _make_display_name_key ──────────────────────────────────────────────────
@@ -55,6 +55,12 @@ def test_max_rank_stored_as_max_rank():
     assert "max_points" not in result["nodes"][0]
 
 
+def test_max_active_divinity_suffix_is_structured_for_ss14():
+    effect = _effect_line("Shadow Quantity +1 (Max Active Divinity: 1)")
+    assert effect["text"] == "Shadow Quantity +1 (Max Active Divinity: 1)"
+    assert effect["max_divinity_effect"] == 1
+
+
 def test_connections_from_prerequisites():
     node_a = {
         "talent_id": "01010100", "name": "A", "type": "micro_talent",
@@ -71,6 +77,25 @@ def test_connections_from_prerequisites():
     assert len(conns) == 1
     assert conns[0]["from"] == "alchemist_c0_r0"
     assert conns[0]["to"] == "alchemist_c1_r0"
+
+
+def test_trait_replacement_talent_keeps_its_prerequisite_connection():
+    parent = {
+        **_MINIMAL_NODE,
+        "talent_id": "32030100", "name": "Parent", "column": 3, "row": 1,
+        "prerequisites": [],
+    }
+    replacement = {
+        **_MINIMAL_NODE,
+        "talent_id": "32050101", "name": "Replacement", "column": 5, "row": 1,
+        "type": "legendary_medium_talent",
+        "effects": ["+3 % Attack Speed Source:Hero Trait -Prophecy of Revelation"],
+        "prerequisites": ["32030100"],
+    }
+
+    result = import_crawler_tree({"nodes": [parent, replacement]}, "Arcanist")
+
+    assert result["connections"] == [{"from": "arcanist_c2_r0", "to": "arcanist_c4_r0"}]
 
 
 def test_missing_crawler_connections_preserve_existing_edges_with_valid_endpoints():

@@ -1,6 +1,6 @@
 {
-  "affix_count": 298,
-  "identity_count": 175,
+  "affix_count": 296,
+  "identity_count": 173,
   "note": "Frozen additional-damage identity partition. Gate for the modifier-identity migration (docs/MODIFIER_UUID_REVIEW.md). Regenerate ONLY on an intended data change.",
   "partition": {
     "additional active skill damage": [
@@ -75,8 +75,8 @@
     "additional damage against frozen enemies": [
       "+10 % additional damage against Frozen enemies"
     ],
-    "additional damage against low life enemies max divinity effect": [
-      "+25 % additional damage against Low Life enemies (Max Divinity Effect: 1)"
+    "additional damage against low life enemies max active divinity": [
+      "+25 % additional damage against Low Life enemies (Max Active Divinity: 1)"
     ],
     "additional damage and minion damage when equipped with boots": [
       "+5 % additional damage and Minion Damage when equipped with Boots",
@@ -220,9 +220,6 @@
       "+10 % additional Erosion Area Damage against Elites",
       "+20 % additional Erosion Area Damage against Elites"
     ],
-    "additional evasion on spell damage max divinity effect": [
-      "+20 % additional Evasion on Spell Damage (Max Divinity Effect: 1)"
-    ],
     "additional fire damage": [
       "+(60–70) % additional Fire Damage",
       "+(90–100) % additional Fire Damage",
@@ -290,6 +287,9 @@
       "(-20–-1) % additional min damage",
       "(-30–-6) % additional min damage"
     ],
+    "additional minion damage": [
+      "+5 % additional Minion Damage"
+    ],
     "additional minion damage for every minion you have stacks up to times": [
       "+(10–12) % additional Minion Damage for every Minion you have. Stacks up to 6 times",
       "+20 % additional Minion Damage for every Minion you have. Stacks up to 6 times"
@@ -345,9 +345,6 @@
       "+1 % additional Spell Damage for every (75–100) Max Mana owned, up to 70 %",
       "+2 % additional Spell Damage for every (75–100) Max Mana owned, up to 105 %"
     ],
-    "additional spell damage max divinity effect": [
-      "+8 % additional Spell Damage (Max Divinity Effect: 1)"
-    ],
     "additional spell damage when not at full mana": [
       "+(30–40) % additional Spell Damage when not at Full Mana",
       "+(50–60) % additional Spell Damage when not at Full Mana"
@@ -359,9 +356,6 @@
     "additional spirit magus skill damage": [
       "+(26–40) % additional Spirit Magus Skill Damage",
       "+(34–52) % additional Spirit Magus Skill Damage"
-    ],
-    "additional spirit magus skill damage max divinity effect": [
-      "-40 % additional Spirit Magus Skill Damage (Max Divinity Effect: 1)"
     ],
     "additional spirit magus ultimate damage and ailment damage dealt by ultimate": [
       "+(10–21) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate .",

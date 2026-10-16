@@ -334,3 +334,60 @@ def test_reimport_refreshes_youga_tree_content_without_replacing_authored_layout
     assert merged["alternate_spacetime_effects"] == [{
         "skill": "Chromatic Shot", "lines": ["While active, +1% additional Cold Damage"],
     }]
+
+
+def test_youga_rank_effects_and_artificial_moon_stay_separate_on_reimport():
+    ranks = [
+        (100, 36), (120, 39), (140, 42), (160, 45), (180, 48),
+    ]
+    levels = []
+    for rank, (bonus, cap) in enumerate(ranks, 1):
+        effect_lines = [
+            f"{bonus}% of bonuses, up to {cap}%",
+            "Non-Main Skills cannot be tangled or trigger Spell Burst",
+        ]
+        if rank == 5:
+            effect_lines.extend([
+                "Artificial Moon:",
+                "+1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
+                "+20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
+            ])
+        effect_lines.append(
+            "Tanglable Main Active Spell Skills are supported by Clockwork Core, replacing the support skill in the second support skill slot of that skill"
+        )
+        levels.append({"level": rank, "description": " ".join(effect_lines), "effect_lines": effect_lines})
+
+    incoming = import_crawler_hero_trait({
+        "name": "The Ultimate One",
+        "max_level": 12,
+        "traits": [{
+            "name": "I Am the Ultimate One", "required_level": 1,
+            "levels": levels, "description": None, "icon_url": "",
+        }],
+        "glossary": [],
+    })
+    previous = [{
+        "trait_id": "the_ultimate_one", "allocation_mode": "tree", "tree_root_id": "authored-root",
+        "tree_nodes": [{"node_id": "authored-root", "name": "I Am the Ultimate One",
+                        "column": 4, "row": 3, "x": .514, "y": .53, "effects": []}],
+        "tree_connections": [],
+    }]
+
+    merged = merge_hero_traits(previous, incoming)[0]
+    root = merged["tree_nodes"][0]
+    assert [line_text(effect) for effect in incoming["levels"][4]["effects"]] == [
+        "180% of bonuses, up to 48%",
+        "Non-Main Skills cannot be tangled or trigger Spell Burst",
+        "Tanglable Main Active Spell Skills are supported by Clockwork Core, replacing the support skill in the second support skill slot of that skill",
+    ]
+    assert [line_text(effect) for effect in incoming["artificial_moon"]["effects"]] == [
+        "Artificial Moon: +1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
+        "Artificial Moon: +20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
+    ]
+    assert root["effects"] == [
+        "(100%/120%/140%/160%/180%) of bonuses, up to (36%/39%/42%/45%/48%)",
+        "Non-Main Skills cannot be tangled or trigger Spell Burst",
+        "Tanglable Main Active Spell Skills are supported by Clockwork Core, replacing the support skill in the second support skill slot of that skill",
+        "Artificial Moon: +1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
+        "Artificial Moon: +20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
+    ]

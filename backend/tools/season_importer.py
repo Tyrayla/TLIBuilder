@@ -6,10 +6,13 @@ import re
 
 from engine.modifier_lines import slim
 
-# "(Max Divinity Effect: N)" — identity/display-bearing suffix marking a once-per-Divinity-Slate cap.
+# "(Max Divinity Effect: N)" / "(Max Active Divinity: N)" — identity/display-bearing suffix
+# marking a once-per-Divinity-Slate cap.
 # It STAYS in the stored text; we also parse N structurally so the engine can enforce the cap from a
 # field instead of regex-matching English at aggregation time.
-_MAX_DIV_N_RE = re.compile(r"\(Max Divinity Effect:\s*(\d+)[^)]*\)\s*$", re.I)
+_MAX_DIV_N_RE = re.compile(
+    r"\(Max\s+(?:Active\s+)?Divinity(?:\s+Effect)?\s*:\s*(\d+)[^)]*\)\s*$", re.I
+)
 _HERO_TRAIT_SOURCE_RE = re.compile(r"\s*Source:\s*Hero Trait\s*-\s*(.+?)\s*$", re.I)
 _TRAIT_SOURCE_METADATA = {
     "prophecy of revelation": {"trait_id": "wisdom_of_the_gods", "unlock_level": 60},
@@ -132,6 +135,14 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
 
         pos = (col - 1, row - 1)
         node_id = f"{tree_slug}_c{pos[0]}_r{pos[1]}"
+        # A trait replacement occupies the same position as a regular node,
+        # but its prerequisites still describe an edge in the shared tree.
+        # Capture the edge before the variant branch below continues.
+        for prereq_tid in (node.get("prerequisites") or []):
+            prereq_id = tid_to_node_id.get(prereq_tid)
+            if prereq_id:
+                edge_set.add(frozenset({prereq_id, node_id}))
+
         variant = _trait_variant(node)
         existing = regular_nodes_by_pos.get(pos)
         if variant:
@@ -171,11 +182,6 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
         if existing:
             base_node["trait_variants"] = existing.get("trait_variants", [])
         regular_nodes_by_pos[pos] = base_node
-
-        for prereq_tid in (node.get("prerequisites") or []):
-            prereq_id = tid_to_node_id.get(prereq_tid)
-            if prereq_id:
-                edge_set.add(frozenset({prereq_id, node_id}))
 
     regular_nodes = sorted(regular_nodes_by_pos.values(), key=lambda n: (n["column"], n["row"]))
     for n in regular_nodes:

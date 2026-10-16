@@ -93,6 +93,18 @@ class TestEffectClassify:
 
 
 class TestResolveSources:
+    def test_ss14_max_active_divinity_suffix_core_talent_resolves(self):
+        trees = _trees()
+        trees["onslaughter"]["core_talents"][1]["effects"] = [
+            "+12 % additional Max Mana (Max Active Divinity: 1)",
+        ]
+        slots = [{"treeName": "Onslaughter", "nodeStates": {},
+                  "coreTalentSelections": {"12": "onslaughter_mana"}}]
+        contribs, _, statuses = resolve_core_talents(
+            slots, [], [], trees, _blends(), parse_mod, translate_cond)
+        assert [(c["stat_key"], c["amount"]) for c in contribs] == [("max_mana_inc", 0.12)]
+        assert statuses[0]["resolved"] is True
+
     def test_safeguard_field_mixed_damage_taken_line_stays_unresolved(self):
         # Do not parse only the final amount and discard the first modifier and its outside-field scope.
         text = "-8% additional damage taken and -10.5% additional damage taken from enemies outside the Safeguard Field."
