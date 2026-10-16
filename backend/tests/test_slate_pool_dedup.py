@@ -53,6 +53,17 @@ def test_nether_king_all_effect_distinct_core_talents_survive(monkeypatch):
     assert max(counts.values()) > 10
 
 
+def test_ss14_nether_king_pool_has_all_crawled_choices(monkeypatch):
+    """The SS14 page exposes 116 unpositioned Nether King pool choices; all must reach the player's slate picker."""
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS14")
+
+    pool = _collect_pool(["Nether King"])
+    core = _core_for(pool, "Nether King")
+
+    assert len(core) == 116
+    assert len({choice["key"] for choice in core}) == 116
+
+
 def test_genuine_duplicate_core_talent_still_collapses(monkeypatch):
     """A TRUE duplicate — same raw_key AND same effects — still collapses to a single pool entry; the dedup
     fix must not over-preserve. A sibling that shares the raw_key but carries DIFFERENT effects survives

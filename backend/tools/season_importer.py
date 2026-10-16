@@ -57,6 +57,9 @@ _CRAWLER_TYPE_MAP = {
     "medium_talent":           "Medium Talent",
     "legendary_medium_talent": "Legendary Medium Talent",
 }
+_NETHER_KING_POOL_TYPES = {
+    "micro_talent", "medium_talent", "legendary_medium_talent", "ultimate_talent",
+}
 
 
 def _make_display_name_key(tree_name: str, talent_name: str) -> str:
@@ -94,6 +97,22 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
     for node in raw_nodes:
         ntype = node.get("type", "")
         col, row = node.get("column"), node.get("row")
+
+        # Nether King's Divinity page is a flat slate-option pool, not a positioned tree. Older crawls
+        # labeled these rows core_talent; SS14 labels them by pool rarity and leaves coordinates empty.
+        # Keep them in core_talents because _collect_pool exposes this source as the Nether King core pool.
+        if (tree_name.casefold() == "nether king" and col is None and row is None
+                and ntype in _NETHER_KING_POOL_TYPES):
+            raw_name = node.get("name", "")
+            core_talents.append({
+                "display_name_key": _make_display_name_key(tree_name, raw_name),
+                "name": raw_name,
+                "uuid": node.get("uuid"),
+                "effects": [_effect_line(e) for e in (node.get("effects") or [])],
+                "pts_required": node.get("pts_required"),
+                "icon_url": node.get("icon_url", ""),
+            })
+            continue
 
         if ntype == "core_talent":
             raw_name = node.get("name", "")

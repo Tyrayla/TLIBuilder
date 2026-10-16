@@ -101,6 +101,33 @@ def test_core_talents_fields():
     assert ct["icon_url"] == "https://cdn.example.com/core.png"
 
 
+def test_nether_king_unpositioned_pool_rows_become_distinct_core_choices():
+    rows = [
+        {"talent_id": f"9000000{i}", "name": name, "type": kind,
+         "column": None, "row": None, "max_rank": 1,
+         "effects": [effect], "pts_required": None, "icon_url": "", "prerequisites": []}
+        for i, (name, kind, effect) in enumerate([
+            ("Micro Nether King Talent Node", "micro_talent", "+5% damage"),
+            ("Medium Nether King Talent Node", "medium_talent", "+10% damage"),
+            ("Legendary Medium Nether King Talent Node", "legendary_medium_talent", "+15% damage"),
+            ("Ultimate Nether King Talent Node", "ultimate_talent", "+20% damage"),
+        ])
+    ]
+
+    result = import_crawler_tree({"nodes": rows}, "Nether King")
+
+    assert result["nodes"] == []
+    assert [ct["effects"][0]["text"] for ct in result["core_talents"]] == [
+        "+5% damage", "+10% damage", "+15% damage", "+20% damage",
+    ]
+    assert {ct["display_name_key"] for ct in result["core_talents"]} == {
+        "nether_king_micro_nether_king_talent_node",
+        "nether_king_medium_nether_king_talent_node",
+        "nether_king_legendary_medium_nether_king_talent_node",
+        "nether_king_ultimate_nether_king_talent_node",
+    }
+
+
 def test_glossary_list_to_dict():
     glossary = [
         {"term_id": "719", "name": "Tenacity Blessing", "description": "Stacks of tenacity."},
