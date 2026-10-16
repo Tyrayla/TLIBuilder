@@ -17,6 +17,7 @@ class ConditionDef:
     value_type: Literal["boolean", "numeric", "enum"] = "boolean"
     enum_values: tuple[str, ...] = ()     # for value_type == "enum": the selectable options (a dropdown)
     default_enum: str = ""                 # default selected option for an enum condition
+    options_source: str | None = None       # dynamic enum options derived from current build state
     numeric_min: float = 0
     numeric_max: float | None = None
     min_base: float = 0

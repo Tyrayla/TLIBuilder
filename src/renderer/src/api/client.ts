@@ -650,7 +650,7 @@ export interface ConditionDef {
   is_derived?: boolean
   source?: string
   trait_id?: string | null   // hero-trait conditions: shown only when this trait is selected (or Show all)
-  options_source?: string | null // dynamic enum option provider, e.g. available Spirit Magus slots
+  options_source?: string | null // enum choices derived from current build state, e.g. available Spirit Magus slots
 }
 
 export interface ConditionSourceEntry {
@@ -841,13 +841,43 @@ export interface MinionEmpower {
   empower_effect: number       // 1 + Spirit Magi Empower Effect (multiplier on the buff magnitudes)
   empower_effect_inc: number   // the raw additional Empower Effect (spirit_magi_empower_effect_additional)
   base_cooldown: number
-  cooldown: number             // effective = base ÷ (1 + Minion CDR)
+  cooldown: number             // effective = base ÷ (1 + Minion CDR + Spirit Magus CDR)
   cdr_inc: number
   base_duration: number
   duration: number             // effective = base × (1 + Minion Skill Effect Duration)
   duration_inc: number
   uptime: number               // clamp(duration ÷ cooldown, ≤1)
+  cast_slot_factor?: number    // attack time left after paying the Empower cast slot
   buffs: MinionEmpowerBuff[]
+}
+
+export interface MinionUltimate {
+  name: string
+  damage_per_cast: number
+  damage_per_cast_vs_target: number
+  hits_per_cast: number
+  base_cast_time: number
+  cast_time: number
+  base_cooldown: number
+  cooldown: number
+  casts_per_second: number
+  included_in_default_dps: false
+}
+
+export interface MinionSkillCast {
+  name: string
+  role: 'Base' | 'Enhanced' | 'Empower' | 'Ultimate'
+  damage_per_cast: number
+  damage_per_cast_vs_target: number
+  hits_per_cast: number
+  base_cast_time: number
+  cast_time: number
+  base_cooldown: number
+  cooldown: number
+  casts_per_second: number
+  included_in_default_dps: false
+  // Full source-backed hit calculation for direct-damage forms selected in the Form dropdown.
+  hit_breakdown?: OffenseResult | null
 }
 
 export interface HitFormResult {
@@ -866,6 +896,10 @@ export interface HitFormResult {
   // every use, a "burst" form once per RESET cycle. hits_per_fire = projectiles/blades per occurrence.
   fires_per_sec: number
   hits_per_fire: number
+  base_cast_time: number
+  base_cooldown: number
+  effective_cast_time: number
+  effective_cooldown: number
   shotgun_falloff: number   // same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
   shotgun_mult: number      // total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
   base_min_by_type: Record<string, number>   // this form's intrinsic base (multi-form spells)
@@ -902,6 +936,8 @@ export interface DamageRow {
 }
 
 export interface OffenseResult {
+  owner_slot?: number
+  vigilant_merged?: boolean
   skill_name: string
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
@@ -1078,6 +1114,8 @@ export interface OffenseResult {
   spirit_magi_max?: number
   // A minion Empower buff (e.g. Thundercloud Surge) surfaced like a player empower skill. Null for non-empower.
   minion_empower?: MinionEmpower | null
+  minion_ultimate?: MinionUltimate | null
+  minion_skill_casts?: Record<string, MinionSkillCast>
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number
@@ -1352,7 +1390,7 @@ export interface StatSheetResponse {
   referenced_conditions?: string[]
   // Engine-activated (not user-set) conditions → {value, source}. Config shows these checked + locked with
   // an "auto" badge that names the source (e.g. Splendor inflicting Numbed/Frostbite/Ignite).
-  auto_conditions?: Record<string, { value: number | boolean | null; source: string; slot_values?: Record<string, number> }>
+  auto_conditions?: Record<string, { value: number | boolean | null; source: string }>
 
   offense?: OffenseResult | null
   defense?: DefenseResult | null
@@ -1374,6 +1412,8 @@ export interface StatSheetResponse {
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
+  // Exact slot selected by the engine for main_skill; used to keep slot-based Magus defaults aligned.
+  main_skill_slot?: number | null
   // Per-minion-owner offense ({owner_id: OffenseResult}) for slotted minion owners (Spirit Magi / Synthetic
   // Troops / Modularization). ONE OffenseResult per owner whose hit_forms are the minion's damage abilities
   // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
@@ -1674,6 +1714,9 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
 
 export interface SeasonSummary {
   name: string
+  label?: string            // display name from the season's optional _season.json; falls back to `name`
+  status?: string | null    // e.g. "pre-season"
+  note?: string | null      // short explanation shown as a tooltip
   trees: string[]
   node_counts: Record<string, number>
   new_god_count: number | null
@@ -1724,6 +1767,8 @@ export interface HeroTraitTreeNode {
   y?: number   // 0..1, top→bottom
   effects: string[]
   icon_url?: string | null   // render via iconUrl('hero_trait', icon_url) → bundled webp
+  subtitle?: string          // in-game node header (e.g. "Spacetime Dictator")
+  unlock_level?: number | null   // character level the node unlocks at; recorded in data, not shown or enforced (same as Selena 2)
 }
 
 export interface AlternateSpacetimeEffect {
@@ -1750,7 +1795,7 @@ export interface HeroTrait {
   tree_root_id?: string
   tree_nodes?: HeroTraitTreeNode[]
   tree_connections?: { from: string; to: string }[]
-  // Alternate Spacetime Youga has a separate list of skill-specific effects in the source data.
+  // Youga 3 (The Ultimate One) only � display-only source reference for "Selves of All Realms" effects.
   alternate_spacetime_header?: string
   alternate_spacetime_effects?: AlternateSpacetimeEffect[]
   // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
@@ -1826,12 +1871,17 @@ export const FATE_MICRO_LIMIT = 9
 export const FATE_MEDIUM_LIMIT = 4
 
 // The "(lo–hi)" roll-range pattern shared by the fate helpers below.
-const FATE_RANGE_RE = /\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g
+const FATE_RANGE_RE = /\(([+-]?\d+(?:\.\d+)?)\s*(?:\u2013|-)\s*([+-]?\d+(?:\.\d+)?)\)/g
+
+// A fresh global copy of the roll-range pattern, for callers that walk matches (keeps lastIndex private).
+export function fateRangeRegex(): RegExp {
+  return new RegExp(FATE_RANGE_RE.source, 'g')
+}
 
 // Each "(lo–hi)" roll range in a fate effect, in order, with the decimal precision of its bounds.
 export function fateRanges(effectText: string): { lo: number; hi: number; dp: number }[] {
   const out: { lo: number; hi: number; dp: number }[] = []
-  const re = new RegExp(FATE_RANGE_RE.source, 'g')
+  const re = fateRangeRegex()
   let m: RegExpExecArray | null
   while ((m = re.exec(effectText || ''))) {
     const dp = Math.max((m[1].split('.')[1] || '').length, (m[2].split('.')[1] || '').length)
@@ -1848,6 +1898,23 @@ export function fateEffectWithValues(effectText: string, rolledValues?: (number 
     const chosen = rolledValues?.[i++]
     const val = (chosen === null || chosen === undefined) ? parseFloat(b) : chosen
     return String(Number.isInteger(val) ? val : Math.round(val * 100) / 100)
+  })
+}
+
+// Round each numeric modifier independently with exact decimal arithmetic; half values round away from zero.
+const MICRO_FATE_VALUE_RE = /([+-]?\d+(?:\.\d+)?)(?=\s*(?:%|Strength\b|Dexterity\b|Intelligence\b|Command\b|initial Growth\b))/g
+function scaleMicroFateEffectText(text: string, multiplierPercent: number): string {
+  if (multiplierPercent === 100) return text
+  return text.replace(MICRO_FATE_VALUE_RE, (value) => {
+    const negative = value.startsWith('-')
+    const unsigned = value.replace(/^[+-]/, '')
+    const [whole, fraction = ''] = unsigned.split('.')
+    const numerator = BigInt(whole + fraction) * BigInt(multiplierPercent)
+    const divisor = 10n ** BigInt(fraction.length + 2)
+    const scaledWhole = numerator / divisor
+    const remainder = numerator % divisor
+    const rounded = scaledWhole + (remainder * 2n >= divisor ? 1n : 0n)
+    return (negative ? '-' : value.startsWith('+') ? '+' : '') + rounded
   })
 }
 
@@ -1869,9 +1936,12 @@ export function buildSpiritEffects(
   const dualCount: Record<string, number> = {}
   for (const f of allInstalled) if (f.kind === 'dual_kismet') dualCount[f.shortName] = (dualCount[f.shortName] || 0) + 1
 
-  const emitFate = (f: InstalledFate) => {
-    if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired → no effect
-    effects.push({ text: fateEffectWithValues(f.effectText, f.rolledValues), source: `Fate: ${f.shortName}` })
+  const emitFate = (f: InstalledFate, microFateMultiplierPercent = 100) => {
+    if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired fate has no effect
+    if (f.kind === 'kismet' && f.shortName === 'Star Trail') return
+    const resolvedText = fateEffectWithValues(f.effectText, f.rolledValues)
+    const text = f.kind === 'micro_fate' ? scaleMicroFateEffectText(resolvedText, microFateMultiplierPercent) : resolvedText
+    effects.push({ text, source: `Fate: ${f.shortName}` })
   }
 
   selected.forEach((sel, si) => {
@@ -1879,11 +1949,24 @@ export function buildSpiritEffects(
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) return
     const src = spirit.name
+    const nativeStarTrails = Object.entries(fates).filter(([key, fate]) => {
+      if (!key.startsWith(String(si) + ':') || fate.kind !== 'kismet' || fate.shortName !== 'Star Trail') return false
+      const slotIndex = Number(key.slice(String(si).length + 1))
+      return Number.isInteger(slotIndex) && spirit.slots[slotIndex]?.ring === 'mid'
+    }).length
+    const undeterminedFate = undetermined[si]
+    const undeterminedStarTrails = undeterminedFate?.slots.reduce((count, fate, slotIndex) =>
+      count + (slotIndex >= undeterminedFate.extraMicro && fate?.kind === 'kismet' && fate.shortName === 'Star Trail' ? 1 : 0), 0) ?? 0
+    // +45 % per Star Trail comes from game text. The cap of three is an assumed working value
+    // (unverified; no source states a limit; owner has never seen more than three used).
+    // Additive stacking (1 + 0.45n) is modeled, not measured. Rounding to whole numbers is likewise an assumption
+    // (half values round away from zero). See data/verification/fates-kismets.json.
+    const microFateMultiplierPercent = 100 + 45 * Math.min(nativeStarTrails + undeterminedStarTrails, 3)
     // Inner/mid nodes: emit the installed fate's effect, else the node's own effect lines. Outer = rank modifiers.
     spirit.slots.forEach((slot, i) => {
       if (slot.ring === 'outer') return
       const f = fates[`${si}:${i}`]
-      if (f) emitFate(f)
+      if (f) emitFate(f, microFateMultiplierPercent)
       else for (const t of slot.effect) effects.push({ text: t, source: src })
     })
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
@@ -1899,7 +1982,7 @@ export function buildSpiritEffects(
       // Every empty extra slot grants the same generic +6% Damage / +6% Minion Damage regardless of micro/medium
       // (tier only governs size + what can be socketed, per Tyra).
       u.slots.forEach(f => {
-        if (f) emitFate(f)
+        if (f) emitFate(f, microFateMultiplierPercent)
         else {
           effects.push({ text: '+6 % Damage', source: 'Pact: Undetermined' })
           effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })

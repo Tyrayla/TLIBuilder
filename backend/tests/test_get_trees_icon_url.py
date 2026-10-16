@@ -29,6 +29,8 @@ def test_tree_absent_from_icon_map_yields_none_not_error(monkeypatch):
     # exercises the real SS13 season data rather than a synthetic map.
     assert "Nether King" in TREES, "fixture assumption: 'Nether King' tree missing from trees_meta.json"
     monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS13")
+    icons = season_manager.load_talent_tree_selector_icons("SS13")
+    assert icons and "Nether_King" not in icons, "SS13 Nether King icon-gap fixture has changed"
 
     result = get_trees()
     by_name = {t["name"]: t for t in result}

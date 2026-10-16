@@ -359,6 +359,18 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     the ORIGINAL full text (incl. scope words) so the additional pool's affix-identity keeps scoped mods as
     distinct multiplicative factors."""
     stripped = text.strip()
+    # Graft line: the leading Reconjuring qualifier is consumed by the Magus lifecycle model, not a player
+    # condition. Keep this pool distinct from ordinary minion Life Regeneration so it applies only during the
+    # Reconjuring heal window.
+    reconjuring_regen = re.fullmatch(
+        r"\s*while\s+reconjuring\s*,\s*spirit\s+magi\s+regenerate\s+"
+        r"\(?\s*(\d+(?:\.\d+)?)\s*(?:[-–]\s*(\d+(?:\.\d+)?))?\s*\)?\s*%\s+life\s+per\s+second\s*",
+        stripped, re.I)
+    if reconjuring_regen:
+        lo = float(reconjuring_regen.group(1))
+        hi = float(reconjuring_regen.group(2)) if reconjuring_regen.group(2) else lo
+        return [{"stat_key": "minion_reconjuring_life_regen_inc",
+                 "amount": ((lo + hi) / 2.0) / 100.0, "text": stripped}]
     # "Spirit Magi … additional Empower Skill Effect" → the magi Empower Effect (else the leading "Spirit Magi"
     # strip leaves "additional Empower Skill Effect" and it leaks to the PLAYER's empower_effect_additional).
     if re.search(r'spirit\s+mag(?:i|us)', stripped, re.I):
@@ -623,6 +635,13 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     _tc = re.sub(r'\(\s*([+\-]?\d+(?:\.\d+)?)\s*[-–]\s*([+\-]?\d+(?:\.\d+)?)\s*\)',
                  lambda mm: f"{(float(mm.group(1)) + float(mm.group(2))) / 2:g}", t)
 
+    # Onslaughter's Well Matched prefixes its maximum offensive modifier with "Deals up to".
+    # Core-talent resolution peels the nearby-enemy condition before calling this parser.
+    m = re.match(r'^deals\s+up\s+to\s+\+?([\d.]+)\s*%\s+additional\s+attack\s+damage$', _tc, re.I)
+    if m:
+        # Applies the maximum value. Distance falloff is not modeled (unverified approximation).
+        return [{"stat_key": "attack_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
     # Flat PHYSICAL damage per N consumed (Blade-dancer's Fingers = Life→Attacks; Glacier Caster Shield =
     # Mana→Attacks+Spells). "Adds A - B Physical Damage to <Attacks|Spells|Attacks and Spells> for every N
     # <Life|Mana> consumed recently. Stacks up to Z." Normalize per-1-unit (flat/N); the "Stacks up to Z" cap is
@@ -684,9 +703,16 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": "crit_rating_inc", "amount": _v, "text": t},
                 {"stat_key": "crit_dmg_inc", "amount": _v, "text": t}]
 
-    # "(-X – -Y)% additional damage taken" (Crimson King's gated defensive line; gate split off upstream). Negative =
-    # the WEARER takes less. TRACKED ONLY — folds into the existing dmg_taken_additional pool (like Tenacity
-    # blessings) but is NOT wired into any defensive/EHP calc yet (Tyra: stat tracking only). Skip enemy-vuln phrasings.
+    # Well Matched says the player takes less damage "from enemies". The core-talent resolver peels its proximity
+    # condition before parsing, leaving this exact residual phrase. Anchor it so compound season skill text cannot
+    # lose another modifier or its scope. Resolve it before the enemy-vulnerability fallback.
+    m = re.match(r'^(-?[\d.]+)\s*%\s*additional\s+damage\s+taken\s+from\s+enemies$', _tc, re.I)
+    if m:
+        # Applies the maximum value. Distance falloff is not modeled (unverified approximation).
+        return [{"stat_key": "dmg_taken_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Other negative "additional damage taken" lines describe damage taken by the wearer. Skip enemy-vulnerability
+    # phrasings, which are handled by the outgoing damage path below.
     if "enem" not in t.lower():
         m = re.search(r'(-?[\d.]+)\s*%\s*additional\s+damage\s+taken', _tc, re.I)
         if m:

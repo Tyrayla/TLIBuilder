@@ -7,6 +7,7 @@ import pytest
 from engine.core_talent_resolver import resolve_core_talents, _classify_effect, _split_condition
 from engine.aggregator import aggregate
 from engine.models import BuildInput
+from engine.mod_parser import _parse_custom_mod_text
 
 
 # ── Lightweight injected resolvers (mirror the server's _parse_custom_mod_text / _translate_condition_expr
@@ -92,6 +93,12 @@ class TestEffectClassify:
 
 
 class TestResolveSources:
+    def test_safeguard_field_mixed_damage_taken_line_stays_unresolved(self):
+        # Do not parse only the final amount and discard the first modifier and its outside-field scope.
+        text = "-8% additional damage taken and -10.5% additional damage taken from enemies outside the Safeguard Field."
+
+        assert _parse_custom_mod_text(text) == []
+
     def test_tree_override(self):
         slots = [{"treeName": "Onslaughter", "nodeStates": {}, "coreTalentSelections": {"12": "onslaughter_sacrifice"}}]
         _c, flags, _s = _resolve(slots=slots)
@@ -127,6 +134,48 @@ class TestResolveSources:
         _c, flags, statuses = _resolve(slots=slots, gear=[{"contributions": [], "belt_blend": "350003"}])
         assert flags == {"core_sacrifice"}
         assert [s["name"] for s in statuses] == ["Sacrifice"]
+
+    def test_well_matched_separates_outgoing_attack_bonus_from_incoming_damage_reduction(self):
+        from server import _parse_custom_mod_text, _translate_condition_expr
+
+        effects = [
+            "Deals up to +40 % additional Attack Damage to enemies in proximity , and this damage reduces as the distance from the enemy grows",
+            "-15 % additional damage taken from enemies in proximity , and this damage reduces as the distance from the enemy grows (Max Divinity Effect: 1)",
+        ]
+        trees = {"onslaughter": {
+            "tree_name": "Onslaughter",
+            "core_talents": [{
+                "display_name_key": "onslaughter_well_matched",
+                "name": "Well Matched",
+                "effects": effects,
+            }],
+        }}
+        slots = [{"treeName": "Onslaughter", "nodeStates": {},
+                  "coreTalentSelections": {"24": "onslaughter_well_matched"}}]
+
+        contribs, _flags, statuses = resolve_core_talents(
+            slots, [], [], trees, {"blends": []},
+            _parse_custom_mod_text, _translate_condition_expr,
+        )
+
+        by_stat = {c["stat_key"]: c for c in contribs}
+        assert by_stat["attack_dmg_additional"]["amount"] == pytest.approx(0.40)
+        assert by_stat["attack_dmg_additional"]["condition_expr"] == "enemy_in_proximity"
+        assert by_stat["dmg_taken_additional"]["amount"] == pytest.approx(-0.15)
+        assert by_stat["dmg_taken_additional"]["condition_expr"] == "enemy_in_proximity"
+
+        source = aggregate(
+            BuildInput(slots=[], slates=[], season="SS13",
+                       condition_state={"enemy_in_proximity": True},
+                       core_talent_contributions=contribs),
+            {}, {}, active_booleans=frozenset({"enemy_in_proximity"}), numeric_vals={},
+        )
+        assert source.total("attack_dmg_additional") == pytest.approx(0.40)
+        assert source.total("dmg_taken_additional") == pytest.approx(-0.15)
+        from engine.defense import _dmg_taken_factor
+        assert _dmg_taken_factor(source, "physical", is_dot=False) == pytest.approx(0.85)
+        assert "enemy_nearby_dmg_taken_additional" not in by_stat
+        assert [s["resolved"] for s in statuses] == [True, True]
 
 
 class TestAggregatorOverrides:

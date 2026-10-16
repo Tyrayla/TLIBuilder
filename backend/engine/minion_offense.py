@@ -14,6 +14,7 @@ Base Damage / Life come from data/seasons/<S>/_minion_base_stats.json (hand-ente
 """
 from __future__ import annotations
 import functools
+import math
 import re
 from collections import defaultdict
 from dataclasses import replace
@@ -134,18 +135,35 @@ _SPIRIT_MAGI_FOLD = {
 }
 
 
-def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
+def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> list[str]:
     """Fold `spirit_magi_*` damage/crit pools into the generic `minion_*` pools IN PLACE. Call on a source COPY a
     magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
     otherwise drop on the `spirit_magi` tag) actually apply to the magus. Also folds the per-Growth pools (Talons
     of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth, and
-    Troublemaker's dmg + Attack/Cast Speed per 100 Growth."""
+    Troublemaker's dmg + Attack/Cast Speed per 100 Growth. Additional-damage entries retain their source identity
+    so the standard offense pool can multiply distinct affixes instead of merging their amounts into one sum."""
     def _add(dst: str, amt: float, text: str) -> None:
         if amt:
             source.add_with_source(dst, amt, SourceEntry(
                 stat=dst, amount=amt, source_type="minion", label="Spirit Magi", source_name="Spirit Magi", text=text))
 
+    nyi: list[str] = []
     for src_key, dst_key in _SPIRIT_MAGI_FOLD.items():
+        if src_key == "spirit_magi_dmg_additional":
+            entries = [entry for entry in tuple(source.source_log) if entry.stat == src_key]
+            untracked = source.total(src_key) - sum(entry.amount for entry in entries)
+            if untracked < -1e-12:
+                # Preserve the summed pool if source-log accounting ever diverges. This loses distinct-source
+                # multiplication for this Magus, so surface the fallback instead of crashing engine_stats.
+                _add(dst_key, max(0.0, source.total(src_key)), "Spirit Magi additional damage (clamped fallback)")
+                nyi.append("Spirit Magi additional damage source log did not balance; used a non-negative summed "
+                           "fallback (distinct-source multiplication NYI for this Magus).")
+            else:
+                for entry in entries:
+                    source.add_with_source(dst_key, entry.amount, replace(entry, stat=dst_key))
+            if untracked > 1e-12:
+                _add(dst_key, untracked, "Spirit Magi additional damage (untracked source)")
+            continue
         _add(dst_key, source.total(src_key), f"Spirit Magi {src_key.replace('spirit_magi_', '').replace('_', ' ')}")
 
     # Per-Growth folds (Talons of Abyss): per-unit stat × floor(growth / divisor).
@@ -166,6 +184,7 @@ def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
         _add("minion_cast_speed_additional",
              source.total("minion_cast_speed_additional_per_100_growth") * (growth // 100),
              "Troublemaker: Cast Speed per 100 Growth")
+    return nyi
 
 
 def _minion_target_mitigation(source: BuildSource, dtype: str) -> float:
@@ -280,6 +299,18 @@ def _resolve_coefficient(minion_skill: dict, level: int, season: str | None = No
     return _coefficient_at(coeff, level)
 
 
+def _added_effectiveness_at(minion_skill: dict, level: int) -> float:
+    """Resolve per-level added damage effectiveness when the catalog provides it."""
+    for row in minion_skill.get("progression") or []:
+        if int(row.get("level", 0)) == int(level):
+            for key, value in (row.get("values") or {}).items():
+                if str(key).lower() in {"effectiveness of added damage", "added damage effectiveness"}:
+                    parsed = _parse_pct(value)
+                    if parsed > 0:
+                        return parsed
+    return _parse_pct(minion_skill.get("effectiveness_of_added_damage"))
+
+
 def _parse_pct(val) -> float:
     if val is None:
         return 0.0
@@ -318,8 +349,52 @@ def _primary_dtype(tags_lower: set[str]) -> str:
 # + talent/gear/Iris growth mods.
 
 def spirit_magi_growth(source: BuildSource) -> float:
-    """A Spirit Magus's Growth: base 100 (Stage 1) + initial-growth mods, clamped to [100, 1000]."""
+    """A Spirit Magus's innate Growth plus its per-Magus bonuses, clamped to [100, 1000]."""
     return max(100.0, min(1000.0, 100.0 + source.total("spirit_magi_initial_growth_flat")))
+
+
+def apply_spirit_magi_growth(source: BuildSource, *, breeze_stacks: float = 0.0) -> float:
+    """Apply per-Magus Growth effects, then return the clamped Growth value.
+
+    Growth is shared Spirit Magus behavior. Iris 2 supplies the optional
+    Artificial Moon Breeze-stack input; it does not own the Growth calculation.
+    """
+    if breeze_stacks > 0:
+        amount = float(breeze_stacks) * 6.0
+        source.add_with_source("spirit_magi_initial_growth_flat", amount, SourceEntry(
+            stat="spirit_magi_initial_growth_flat", amount=amount, source_type="minion",
+            label="Artificial Moon", source_name="Iris Vigilant Breeze",
+            text=f"Artificial Moon: +6 Growth × {float(breeze_stacks):g} Breeze stacks"))
+    return spirit_magi_growth(source)
+
+
+def spirit_magus_reconjuring_cycle(*, drain_pct_per_second: float = 0.0, heal_seconds: float = 3.0,
+                                   regen_pct_per_second: float = 0.0, regen_speed_inc: float = 0.0,
+                                   drain_heal_pct_per_second: float = 0.0,
+                                   other_reconjuring_heal_pct_per_second: float = 0.0) -> dict:
+    """Shared Spirit Magus life-cycle model; all rates are fractions of Max Life per second.
+
+    Life Regeneration applies during both phases. Life Regain is deliberately excluded.
+    """
+    drain = max(0.0, float(drain_pct_per_second))
+    ordinary_heal = max(0.0, float(regen_pct_per_second)) * (1.0 + float(regen_speed_inc))
+    drain_heal = ordinary_heal + max(0.0, float(drain_heal_pct_per_second))
+    net_drain = drain - drain_heal
+    heal_rate = (1.0 / float(heal_seconds) if heal_seconds > 0 else 0.0)
+    heal_rate += ordinary_heal + max(0.0, float(other_reconjuring_heal_pct_per_second))
+    if net_drain <= 0:
+        return {"drain_seconds": 0.0, "reconjuring_seconds": 0.0, "cycle_seconds": 0.0,
+                "damage_uptime": 1.0, "drain_pct_per_second": drain,
+                "drain_heal_pct_per_second": drain_heal,
+                "heal_pct_per_second": heal_rate}
+    drain_duration = 1.0 / net_drain
+    reconjuring_duration = (1.0 / heal_rate) if heal_rate > 0 else math.inf
+    cycle = drain_duration + reconjuring_duration
+    uptime = drain_duration / cycle if math.isfinite(cycle) and cycle > 0 else 0.0
+    return {"drain_seconds": drain_duration, "reconjuring_seconds": reconjuring_duration,
+            "cycle_seconds": cycle, "damage_uptime": uptime,
+            "drain_pct_per_second": drain, "drain_heal_pct_per_second": drain_heal,
+            "heal_pct_per_second": heal_rate}
 
 
 def growth_stage(growth: float) -> int:
@@ -340,7 +415,8 @@ def spirit_magi_skill_area_inc(stage: int) -> float:
     return stage * 0.10
 
 
-def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool, is_spell: bool) -> float:
+def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool, is_spell: bool,
+                       *, include_generic: bool = True) -> float:
     """Per-affix additional product for minion damage. `generic_only`=True → only stats with NO damage-type tag
     (the 'all types' factor); False → the full product applicable to `dtype_tag` (generic + type-specific). A
     `spell`/`attack`-tagged stat is included only when it matches the ability's category (`is_spell`)."""
@@ -354,6 +430,8 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
         if not _skill_type_ok(tags, is_spell):
             continue
         if generic_only and _has_dtype_tags(tags):
+            continue
+        if not generic_only and not include_generic and not _has_dtype_tags(tags):
             continue
         if not generic_only and not _applies(tags, dtype_tag):
             continue
@@ -373,6 +451,8 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
         if not _skill_type_ok(tags, is_spell):
             continue
         if generic_only and _has_dtype_tags(tags):
+            continue
+        if not generic_only and not include_generic and not _has_dtype_tags(tags):
             continue
         if not generic_only and not _applies(tags, dtype_tag):
             continue
@@ -507,9 +587,12 @@ def calculate_minion_offense(
     minion_count: int = 1,
     rate_multiplier: float = 1.0,
     *,
-    shotgun_hits: int = 1,
+    shotgun_hits: float = 1,
     shotgun_falloff: float = 0.0,
     penetrates: bool = False,
+    added_damage_effectiveness: float | None = None,
+    intrinsic_convert: dict[str, dict[str, float]] | None = None,
+    apply_cooldown_recovery_to_rate: bool = False,
 ) -> OffenseResult:
     """Compute ONE minion ability's DPS as a full `OffenseResult` (so the frontend reuses the player panels).
     A BUILDING BLOCK for bespoke minion modules — NOT called for unmodelled minions (compute stubs those NYI).
@@ -560,7 +643,8 @@ def calculate_minion_offense(
         r.nyi = [f"{name}: no '% of Base Damage' coefficient (pure buff/utility ability — no hit modelled)"]
         return r
 
-    effectiveness = _parse_pct(minion_skill.get("effectiveness_of_added_damage"))
+    effectiveness = (added_damage_effectiveness if added_damage_effectiveness is not None
+                     else _added_effectiveness_at(minion_skill, effective_level))
 
     # Base (single shared value on the primary type) + added flat per type.
     base_hit = shared_base * coeff / 100.0
@@ -600,6 +684,33 @@ def calculate_minion_offense(
     target_mitigation_by_type: dict[str, float] = {}   # armour/resist half of enemy_mult (this minion's OWN pen)
     enemy_vuln_by_type: dict[str, float] = {}          # vulnerability-product half of enemy_mult
     enemy_vuln_sources_by_type: dict[str, list[str]] = {}  # stat keys _enemy_vuln_mult consulted, per type
+    conversion_active = bool(intrinsic_convert)
+    if conversion_active:
+        # Use the same conversion priority, cap, and path bonuses as player hit damage.
+        from engine.offense import _conversion_fracs, _apply_conversion
+        convert, adds = _conversion_fracs(source, intrinsic_convert)
+        path_inc_cache: dict[frozenset[str], float] = {}
+        path_add_cache: dict[frozenset[str], float] = {}
+        def path_inc(path_tags):
+            if path_tags not in path_inc_cache:
+                path_inc_cache[path_tags] = sum(
+                    source.total(k) for k, tags in _MINION_INC_STATS
+                    if (tags & _DTYPE_TAG_SET & path_tags) and _skill_type_ok(tags, is_spell))
+            return path_inc_cache[path_tags]
+        def path_add(path_tags):
+            if path_tags in path_add_cache:
+                return path_add_cache[path_tags]
+            product = _minion_additional(source, path_tags, generic_only=False, is_spell=is_spell,
+                                         include_generic=False)
+            path_add_cache[path_tags] = product
+            return product
+        converted_min = _apply_conversion({t: (v, v) for t, v in flat_min.items()}, path_inc, path_add,
+                                          generic_inc, generic_add, convert, adds)
+        converted_max = _apply_conversion({t: (v, v) for t, v in flat_max.items()}, path_inc, path_add,
+                                          generic_inc, generic_add, convert, adds)
+        flat_min = defaultdict(float, {t: v[0] for t, v in converted_min.items()})
+        flat_max = defaultdict(float, {t: v[0] for t, v in converted_max.items()})
+
     for t in {*flat_min, *flat_max}:
         if flat_min.get(t, 0.0) == 0.0 and flat_max.get(t, 0.0) == 0.0:
             continue
@@ -609,8 +720,8 @@ def calculate_minion_offense(
         add = _minion_additional(source, t_tag, generic_only=False, is_spell=is_spell) * extra_add_factor
         type_inc[t] = inc
         type_add[t] = add
-        hit_min[t] = flat_min.get(t, 0.0) * (1.0 + inc) * add * above_mult   # above-max skill-level multiplier
-        hit_max[t] = flat_max.get(t, 0.0) * (1.0 + inc) * add * above_mult
+        hit_min[t] = flat_min.get(t, 0.0) * (1.0 if conversion_active else (1.0 + inc) * add) * above_mult
+        hit_max[t] = flat_max.get(t, 0.0) * (1.0 if conversion_active else (1.0 + inc) * add) * above_mult
         target_mitigation_by_type[t] = _minion_target_mitigation(source, t)
         enemy_vuln_by_type[t] = _enemy_vuln_mult(source, t, is_spell)
         enemy_vuln_sources_by_type[t] = _enemy_vuln_source_keys(t, is_spell)
@@ -631,12 +742,23 @@ def calculate_minion_offense(
     # Rate: cast/attack time + minion speed pools, cooldown-capped.
     base_time = _parse_cast_time(minion_skill.get("cast_speed", "")) or 0.0
     rate = 0.0
+    effective_time = base_time
     if base_time > 0:
         which = "cast" if is_spell else "attack"
-        rate = (1.0 / base_time) * (1.0 + source.total(_MINION_SPEED_INC[which])) * _speed_add_product(source, _MINION_SPEED_ADD[which])
+        speed = (1.0 + source.total(_MINION_SPEED_INC[which])) * _speed_add_product(source, _MINION_SPEED_ADD[which])
+        rate = (1.0 / base_time) * speed
+        effective_time = base_time / max(speed, 1e-9)
     cooldown = _parse_cast_time(minion_skill.get("cooldown", "")) or 0.0
+    cdr = source.total("minion_cdr_speed_inc")
+    recovery_factor = 1.0 + cdr
+    cooldown_unavailable = cooldown > 0 and recovery_factor <= 0
+    effective_cooldown = cooldown / recovery_factor if cooldown > 0 and not cooldown_unavailable else 0.0
     if cooldown > 0:
-        rate = min(rate, 1.0 / cooldown) if rate > 0 else 1.0 / cooldown
+        rate_cooldown = effective_cooldown if apply_cooldown_recovery_to_rate else cooldown
+        if cooldown_unavailable:
+            rate = 0.0
+        else:
+            rate = min(rate, 1.0 / rate_cooldown) if rate > 0 else 1.0 / rate_cooldown
     rate *= max(0.0, rate_multiplier)   # Base/Enhanced share split (a bespoke module passes 1−chance / chance)
 
     # Same-target Shotgun (Enhanced-only): N projectiles converge on one enemy; each extra hit deals (1−falloff).
@@ -698,10 +820,14 @@ def calculate_minion_offense(
         damage_by_type=damage_by_type, avg_hit_pre_crit=avg_pre, avg_hit_with_crit=avg_pre * crit_factor * double_factor,
         dps_contribution=per_minion_dps, dps_vs_target=per_minion_vs,
         hit_min_by_type=dict(hit_min), hit_max_by_type=dict(hit_max), fires_per_sec=rate,
+        base_cast_time=base_time, base_cooldown=cooldown,
+        effective_cast_time=effective_time, effective_cooldown=effective_cooldown,
         hits_per_fire=shots, shotgun_falloff=shotgun_falloff, shotgun_mult=shotgun_mult,
         base_min_by_type=dict(base_min), base_max_by_type=dict(base_max),
     )
-    nyi = ["Conversion (owner phys→element line), Persistent/domain per-second damage, and ailment/DoT are NYI"]
+    nyi = ["Persistent/domain per-second damage and ailment/DoT are NYI"]
+    if cooldown_unavailable:
+        nyi.append("Minion cooldown recovery is at or below -100%; effective cooldown is reported as 0 and firing rate is disabled.")
     if penetrates:
         nyi.append(f"{name}: Projectiles always Penetrate and track the enemy — multi-target / clear utility, "
                    "no single-target DPS effect (surfaced, not dropped).")

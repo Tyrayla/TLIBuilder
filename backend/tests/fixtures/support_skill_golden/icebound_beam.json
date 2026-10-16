@@ -614,8 +614,6 @@
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
-      "dmg_max_additional",
-      "dmg_min_additional",
       "spell_dmg_additional",
       "projectile_dmg_additional",
       "channeled_dmg_additional",
@@ -632,6 +630,8 @@
       {
         "avg_hit_pre_crit": 1398.1297705773895,
         "avg_hit_with_crit": 1502.9895033706937,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "cold": 309.0
         },
@@ -646,6 +646,8 @@
         },
         "dps_contribution": 5235.639110840854,
         "dps_vs_target": 2571.1901794895057,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 3.483483483483483,
         "form_type": "additive",
@@ -672,6 +674,8 @@
       {
         "avg_hit_pre_crit": 4183.228324024002,
         "avg_hit_with_crit": 4496.970448325802,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "cold": 928.0
         },
@@ -686,6 +690,8 @@
         },
         "dps_contribution": 5326.141576035124,
         "dps_vs_target": 2615.6103613807404,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
@@ -712,6 +718,8 @@
       {
         "avg_hit_pre_crit": 4183.228324024002,
         "avg_hit_with_crit": 4496.970448325802,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "cold": 928.0
         },
@@ -726,6 +734,8 @@
         },
         "dps_contribution": 2161.786874978962,
         "dps_vs_target": 1061.6300878545358,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
@@ -768,6 +778,8 @@
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "minion_empower": null,
+    "minion_skill_casts": null,
+    "minion_ultimate": null,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,
@@ -869,8 +881,6 @@
       "cold": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "projectile_dmg_additional",
         "cold_dmg_additional",
@@ -881,8 +891,6 @@
       "fire": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "projectile_dmg_additional",
         "fire_dmg_additional",
@@ -893,8 +901,6 @@
       "lightning": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "projectile_dmg_additional",
         "lightning_dmg_additional",
@@ -905,13 +911,9 @@
       "physical": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "projectile_dmg_additional",
         "physical_dmg_additional",
-        "physical_dmg_min_additional",
-        "physical_dmg_max_additional",
         "channeled_dmg_additional",
         "at_center_dmg_additional"
       ]
@@ -1289,8 +1291,6 @@
       "generic_add_keys": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "projectile_dmg_additional",
         "channeled_dmg_additional",
@@ -1307,6 +1307,8 @@
         {
           "avg_hit_pre_crit": 1398.1297705773895,
           "avg_hit_with_crit": 1502.9895033706937,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "cold": 309.0
           },
@@ -1321,6 +1323,8 @@
           },
           "dps_contribution": 5235.639110840854,
           "dps_vs_target": 2571.1901794895057,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 3.483483483483483,
           "form_type": "additive",
@@ -1347,6 +1351,8 @@
         {
           "avg_hit_pre_crit": 4183.228324024002,
           "avg_hit_with_crit": 4496.970448325802,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "cold": 928.0
           },
@@ -1361,6 +1367,8 @@
           },
           "dps_contribution": 5326.141576035124,
           "dps_vs_target": 2615.6103613807404,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
@@ -1387,6 +1395,8 @@
         {
           "avg_hit_pre_crit": 4183.228324024002,
           "avg_hit_with_crit": 4496.970448325802,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "cold": 928.0
           },
@@ -1401,6 +1411,8 @@
           },
           "dps_contribution": 2161.786874978962,
           "dps_vs_target": 1061.6300878545358,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
@@ -1443,6 +1455,8 @@
       "mercury_baptism_dps": 0.0,
       "mercury_baptism_fraction": 0.0,
       "minion_empower": null,
+      "minion_skill_casts": null,
+      "minion_ultimate": null,
       "multistrike_avg_count": 0.0,
       "multistrike_chain": [],
       "multistrike_chance": 0.0,
@@ -1544,8 +1558,6 @@
         "cold": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "projectile_dmg_additional",
           "cold_dmg_additional",
@@ -1556,8 +1568,6 @@
         "fire": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "projectile_dmg_additional",
           "fire_dmg_additional",
@@ -1568,8 +1578,6 @@
         "lightning": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "projectile_dmg_additional",
           "lightning_dmg_additional",
@@ -1580,13 +1588,9 @@
         "physical": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "projectile_dmg_additional",
           "physical_dmg_additional",
-          "physical_dmg_min_additional",
-          "physical_dmg_max_additional",
           "channeled_dmg_additional",
           "at_center_dmg_additional"
         ]

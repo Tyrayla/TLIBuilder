@@ -23,6 +23,11 @@ from persistence import season_manager
 
 _SEASON = "SS13"
 
+# SS14 is currently the SS13 dataset relabelled "Pre-Season" (+ the Youga 3 trait), so the SS13 mana_boil
+# crawler text is still what the active season serves. When real SS14 data lands, re-confirm the raw text
+# and narrow this set.
+_SS13_DATA_SEASONS = ("SS13", "SS14")
+
 
 @pytest.fixture(autouse=True)
 def _use_ss13_for_mana_boil_regression(monkeypatch):
@@ -40,7 +45,7 @@ class TestGetSkillsAppliesOverrides:
 
     def test_mana_boil_detailed_description_has_corrected_consume_line(self):
         result = get_skills()
-        assert result["season"] == "SS13"
+        assert result["season"] == _SEASON
         by_id = {s["item_id"]: s for s in result["skills"]}
         assert "mana_boil" in by_id, "mana_boil missing from GET /api/skills output"
         mb = by_id["mana_boil"]

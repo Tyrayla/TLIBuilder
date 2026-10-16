@@ -2,12 +2,39 @@
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-11
+
+### Engine & DPS
+- **Ring of Blades now calculates damage from its orbiting blades.** Projectile Speed, Blade Formation, Razor Edge, and supported damage bonuses affect the result. The model awaits in-game verification.
+- **Fervor now scales the bonuses from Ghost Slaughter and Ralph's Footsteps.** Ghost Slaughter grants Skill Area, Attack Damage, and Ailment Damage per Fervor Rating. Ralph's Footsteps grants Movement Speed per Fervor Rating. Fervor Effect scales each bonus. Ailment DPS is not modeled, and the formulas await in-game verification.
+- **Rock Magus now models its Base and Enhanced rotation.** The calculation includes Gold Rush uptime and shows separate damage for its four skills. The model awaits in-game verification.
+- **Erosion Magus now calculates damage for its Base and Enhanced rotation.** Enhanced casts replace Base casts at your Enhanced chance and hit twice. Withering Payback's +20% additional Erosion damage, averaged over its buff uptime, is included, and its cast time is counted (waived with Harvest Time). Physical damage converts to Erosion, and all four skills, including World of Thorns, show separate per-cast damage. The model awaits in-game verification.
+- **Thunder Magus's Lightning Surge Ultimate now has a per-cast damage breakdown.** It hits each target seven times and stays out of unmerged DPS; Iris's Merged Magi Rotation can use it. Bolt travel and chain targeting distances are estimates. The Ultimate damage awaits in-game verification.
+
+### Hero traits
+- **Iris's Vigilant Breeze trait now has a Merged Magi Rotation.** Pick which of your Spirit Magi Iris is merged with (the dropdown shows each Magus with its skill slot), then tick which skills it keeps casting: Base Skill, Ultimate and Empower. The Ultimate takes priority whenever it is ready, Base fills the remaining time, and Empower keeps its buff and cast time. Merged Magi now deal damage from those skills, with +16% additional damage per Breeze stack, plus Growth, Reconjuring and Happiest Reunion (which merges all your Magi). These controls only appear when the trait is selected. Everything in this model awaits in-game verification.
+
 ### Bug fixes
+- **Minion Elemental Damage now affects Fire, Cold, and Lightning hits only.** Physical and Erosion hits no longer receive this bonus.
+- **Mana Boil no longer triggers a false season warning.** The app compares its current data with the correction's reference text, so it warns only when Mana Boil's data changes.
+
+## [0.6.10] - 2026-10-10
+
+### Engine & DPS
+- **Well Matched is now modeled.** It grants up to +40% additional Attack Damage and -15% additional damage taken from enemies. Builder applies the maximum values while an enemy is in proximity. Distance falloff is not modeled and remains unverified.
+
+### Hero traits
+- **Youga's third trait, The Ultimate One, can be selected.** The 11-node tree is browsable and allocatable with your Hero Memories, along with the 19 Alternate Spacetime skill effects as reference text. The trait does not change your DPS yet. Builder now defaults to the SS14 Pre-Season dataset, which is the SS13 data plus this trait, so your existing builds and calculations are unchanged.
+
+### Bug fixes
+- Fixed Impermanence lowering Thunder Spike DPS by applying minimum and maximum damage bonuses to the entire hit. These bonuses now change their respective damage endpoints and follow Physical damage through conversion. In-game verification of Impermanence remains open.
 - Periodic Burst now averages its Attack and Cast Speed buff over its duration and interval and applies it to all skills when attached to a Mobility skill.
 - Willpower now appears for Thunder Spike, and Periodic Burst appears for Spiral Strike in the support picker.
 - Willpower no longer adds an extra unconditional damage multiplier on top of its stack bonus.
--
-- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Config shows each slot's automatic return count; enter a global override or choose Auto to restore per-slot counts. This model awaits in-game verification.
+
+### Features
+- Flame Slash's Config now lets you choose how many Steep Strike fire torrents hit the target. Auto uses each slot's full torrent count, and Shotgunning shows the selected hits. Inverted Blaze's returning hits default to and are capped by the torrents that hit.
+- **Flame Slash now calculates Sweep Slash and Steep Strike damage**, including Area-scaled fire torrents, Immediate Threat's distance bonus, and Inverted Blaze's returning hits. Torrent Hits and Torrent Return Hits use numeric fields; each shows Auto only while an override is set, and clearing the field restores its automatic value. This model awaits in-game verification.
 
 ## [0.6.9] - 2026-10-03
 

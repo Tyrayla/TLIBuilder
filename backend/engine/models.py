@@ -73,6 +73,8 @@ class BuildSource:
     target_config: dict | None = None
     # Incoming-hit enemy skill for the defensive Max-Hit / EHP calc: {enemyId, skillId, kind, damage:{<type>_hit/_dot}}.
     enemy_config: dict | None = None
+    # Scenario inputs needed by bespoke minion modules (e.g. weighted enemy type).
+    condition_state: dict[str, float | bool | str] = field(default_factory=dict)
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -126,6 +128,7 @@ class BuildSource:
             # fell back to the Lv85 dummy constants and ignored the editable target / enemy settings.
             target_config=self.target_config,
             enemy_config=self.enemy_config,
+            condition_state=self.condition_state,
         )
 
     def total(self, stat: str) -> float:
@@ -241,6 +244,7 @@ class StatResult:
     support_slots:       list[dict] | None = None  # per-support effective-level display summaries
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
+    main_skill_slot:     int | None = None       # engine-selected active slot backing main_skill, when resolved
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     minion_offense:      dict | None = None       # {owner_id: OffenseResult dict} per slotted minion owner — ONE result whose hit_forms are the minion's damage abilities (NYI/supported=False unless the owner has a bespoke module)
     spirit_offense:      dict | None = None       # {"seething_spirit": OffenseResult dict} — Seething Silhouette's Seething Spirit, a second independent calculate_offense() on the player's own main-skill stats + its own modifiers; None unless granted

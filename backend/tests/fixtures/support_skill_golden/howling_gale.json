@@ -515,8 +515,6 @@
     "generic_add_keys": [
       "hit_dmg_additional",
       "dmg_additional",
-      "dmg_max_additional",
-      "dmg_min_additional",
       "spell_dmg_additional",
       "area_dmg_additional",
       "channeled_dmg_additional",
@@ -533,6 +531,8 @@
       {
         "avg_hit_pre_crit": 7224.0333829945685,
         "avg_hit_with_crit": 7765.835886719161,
+        "base_cast_time": 0.0,
+        "base_cooldown": 0.0,
         "base_max_by_type": {
           "physical": 913.0
         },
@@ -546,6 +546,8 @@
         },
         "dps_contribution": 22399.76149998097,
         "dps_vs_target": 11127.128851270396,
+        "effective_cast_time": 0.0,
+        "effective_cooldown": 0.0,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 2.8843979999999996,
         "form_type": "additive",
@@ -586,6 +588,8 @@
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "minion_empower": null,
+    "minion_skill_casts": null,
+    "minion_ultimate": null,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,
@@ -684,8 +688,6 @@
       "fire": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "fire_dmg_additional",
@@ -696,8 +698,6 @@
       "lightning": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "lightning_dmg_additional",
@@ -708,13 +708,9 @@
       "physical": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "physical_dmg_additional",
-        "physical_dmg_min_additional",
-        "physical_dmg_max_additional",
         "channeled_dmg_additional",
         "at_center_dmg_additional"
       ]
@@ -996,8 +992,6 @@
       "generic_add_keys": [
         "hit_dmg_additional",
         "dmg_additional",
-        "dmg_max_additional",
-        "dmg_min_additional",
         "spell_dmg_additional",
         "area_dmg_additional",
         "channeled_dmg_additional",
@@ -1014,6 +1008,8 @@
         {
           "avg_hit_pre_crit": 7224.0333829945685,
           "avg_hit_with_crit": 7765.835886719161,
+          "base_cast_time": 0.0,
+          "base_cooldown": 0.0,
           "base_max_by_type": {
             "physical": 913.0
           },
@@ -1027,6 +1023,8 @@
           },
           "dps_contribution": 22399.76149998097,
           "dps_vs_target": 11127.128851270396,
+          "effective_cast_time": 0.0,
+          "effective_cooldown": 0.0,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 2.8843979999999996,
           "form_type": "additive",
@@ -1067,6 +1065,8 @@
       "mercury_baptism_dps": 0.0,
       "mercury_baptism_fraction": 0.0,
       "minion_empower": null,
+      "minion_skill_casts": null,
+      "minion_ultimate": null,
       "multistrike_avg_count": 0.0,
       "multistrike_chain": [],
       "multistrike_chance": 0.0,
@@ -1165,8 +1165,6 @@
         "fire": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "area_dmg_additional",
           "fire_dmg_additional",
@@ -1177,8 +1175,6 @@
         "lightning": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "area_dmg_additional",
           "lightning_dmg_additional",
@@ -1189,13 +1185,9 @@
         "physical": [
           "hit_dmg_additional",
           "dmg_additional",
-          "dmg_max_additional",
-          "dmg_min_additional",
           "spell_dmg_additional",
           "area_dmg_additional",
           "physical_dmg_additional",
-          "physical_dmg_min_additional",
-          "physical_dmg_max_additional",
           "channeled_dmg_additional",
           "at_center_dmg_additional"
         ]

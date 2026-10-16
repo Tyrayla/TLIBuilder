@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -9,6 +10,7 @@ import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
 import { TARGET_LEVELS, presetTargetConfig, NONPHYS_ARMOR_FACTOR, type TargetLevel } from '../utils/targetPresets'
 import { ENEMY_REGISTRY, findEnemy, configForSelection } from '../utils/enemyPresets'
 import type { EnemyDamage } from '../api/client'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 
 // Categories whose conditions always show (player-side scenario inputs relevant to any build).
 const ALWAYS_SHOW_CATEGORIES = new Set([
@@ -29,6 +31,32 @@ const CATEGORY_ACCENT: Record<string, string> = {
 }
 const accentFor = (cat: string): string => CATEGORY_ACCENT[cat] ?? '#7a6cc8'
 
+function conditionSource(conditionKey: string): string | undefined {
+  if (conditionKey === 'flame_slash_torrent_hits') return 'Flame Slash'
+  if (conditionKey === 'inverted_blaze_returns') return 'Flame Slash (Inverted Blaze)'
+  return undefined
+}
+
+function ConditionLabel({ condition, className }: { condition: ConditionDef; className: string }) {
+  const source = conditionSource(condition.key)
+  if (!source) return <span className={className}>{condition.label}</span>
+  return <ConditionSourceTooltip label={condition.label} source={source} className={className} />
+}
+
+function ConditionSourceTooltip({ label, source, className }: { label: string; source: string; className: string }) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'top', trigger: 'hover', interactive: false, openDelay: 120 })
+  return (
+    <>
+      <span className={className} {...tip.triggerProps}>{label}</span>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip" {...tip.floatingProps}>{source}</div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
+
 // Config panel: accent left-border + cool-charcoal uppercase header, matching the Stats screen's StatPanel.
 // Collapsible only when Settings → Display "Collapsible panels" is on (mirrors the Stats screen). Default expanded.
 function ConfigPanel({ title, accent, headerColor, full, children }: {
@@ -42,7 +70,15 @@ function ConfigPanel({ title, accent, headerColor, full, children }: {
       <div className={`cond-card-header${collapsible ? ' cond-card-header--clickable' : ''}`}
         style={headerColor ? { color: headerColor } : undefined}
         onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
-        role={collapsible ? 'button' : undefined}>
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        onKeyDown={collapsible ? event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setCollapsed(c => !c)
+          }
+        } : undefined}
+        aria-expanded={collapsible ? !collapsed : undefined}>
         <span>{title}</span>
         {collapsible && <span className="cond-card-collapse">{collapsed ? '+' : '−'}</span>}
       </div>
@@ -181,6 +217,7 @@ export default function BuildOverviewScreen() {
   const traitId = useBuildStore(s => s.traitId)
   const equippedSkills = useBuildStore(s => s.skills)
   const mainSkill = useBuildStore(s => s.mainSkill)
+  const engineMainSkillSlot = useBuildStore(s => s.computedStats.main_skill_slot)
   const gear = useBuildStore(s => s.gear)
   // Condition keys any build mod references (stable ref — only changes when stats recompute, so no render loop).
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
@@ -191,6 +228,7 @@ export default function BuildOverviewScreen() {
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
   const [showAll, setShowAll] = useState(false)
+  const [mergedRotationCollapsed, setMergedRotationCollapsed] = useState(true)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
   const warcryConflict = useBuildStore(
@@ -259,6 +297,8 @@ export default function BuildOverviewScreen() {
   //  - Otherwise, keep showing anything the user explicitly toggled on.
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
+    // Vigilant Breeze controls are exclusive to that selected trait, even in Show all mode.
+    if (c.trait_id === 'vigilant_breeze' && traitId !== 'vigilant_breeze') return false
     if (showAll) return true
     if (c.key in autoConditions) return true   // engine auto-activated it → always surface so the user sees it
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
@@ -316,26 +356,33 @@ export default function BuildOverviewScreen() {
   // Frostbitten, ailment stacks, enemy proximity/life, …) move to a "Debuffs" group; the "Enemy" group is kept
   // for the injected offense/defense config (target dummy + incoming skill), which renders even with zero
   // conditions via isEnemy. Display-only remap — condition keys are unchanged, so engine gating is unaffected.
+  const mergedMagiRotationKeys = new Set([
+    'vigilant_breeze_spam_base', 'vigilant_breeze_spam_ultimate', 'vigilant_breeze_spam_empower',
+  ])
+  const mergedMagiRotation: ConditionDef[] = []
   const condCategories: [string, ConditionDef[]][] = (conditionsData ? Object.entries(conditionsData) : [])
-    .map(([cat, items]) => (cat === 'Enemy' ? ['Debuffs', items] : [cat, items]) as [string, ConditionDef[]])
+    .map(([cat, items]) => {
+      const kept = items.filter(condition => {
+        if (!mergedMagiRotationKeys.has(condition.key)) return true
+        mergedMagiRotation.push(condition)
+        return false
+      })
+      return [cat === 'Enemy' ? 'Debuffs' : cat, kept] as [string, ConditionDef[]]
+    })
+  if (mergedMagiRotation.length && !condCategories.some(([cat]) => cat === 'Hero Trait')) {
+    condCategories.push(['Hero Trait', []])
+  }
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
 
-  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
-  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
-    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
-      {isEnemy && <EnemyTargetFields />}
-      {isEnemy && <EnemyIncomingFields />}
-      {visibleItems.map(cond => {
+  // Shared row renderer lets the Hero Trait panel place rotation conditions inside its own body.
+  const renderConditionRow = (cond: ConditionDef): React.ReactNode => {
         const isComputed = cond.source === 'computed_stat'
         // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).
         // `auto.value` is the engine's intent; it's reported even when the user has overridden it, so a cleared
         // field can fall back to it. A manual value (in conditionState) always wins over the auto value, and
         // overriding releases the lock — so the auto badge/lock only apply while the user hasn't set it.
         const auto = autoConditions[cond.key]
-        const slotHint = auto?.slot_values
-          ? Object.entries(auto.slot_values).map(([slot, value]) => `Slot ${slot}: ${value}`).join(' · ')
-          : undefined
         const isOverridden = conditionState[cond.key] !== undefined
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
@@ -345,11 +392,13 @@ export default function BuildOverviewScreen() {
           if (dynamicOpts && opts.length === 0) return null
           const stored = conditionState[cond.key]
           const mainMagusSlot = cond.options_source === 'spirit_magus_slots'
-            ? [...equippedSkills]
-              .filter(skill => skill.slot >= 1 && skill.enabled !== false)
-              .sort((a, b) => a.slot - b.slot)
-              .find(skill => skill.item_id === mainSkill?.skill_id
-                && skill.skill_tags.includes('Spirit Magus'))?.slot
+            ? (engineMainSkillSlot != null && opts.some(option => option.value === String(engineMainSkillSlot))
+              ? engineMainSkillSlot
+              : [...equippedSkills]
+                .filter(skill => skill.slot >= 1 && skill.enabled !== false)
+                .sort((a, b) => a.slot - b.slot)
+                .find(skill => skill.item_id === mainSkill?.skill_id
+                  && skill.skill_tags.includes('Spirit Magus'))?.slot)
             : undefined
           const sel = typeof stored === 'string' && opts.some(option => option.value === stored)
             ? stored
@@ -360,7 +409,7 @@ export default function BuildOverviewScreen() {
                 : opts[0]?.value ?? ''))
           return (
             <div key={cond.key} className="cond-item">
-              <span className="cond-label">{cond.label}</span>
+              <ConditionLabel condition={cond} className="cond-label" />
               <select className="cond-stack-input" style={{ marginLeft: 'auto', maxWidth: '55%' }}
                 value={sel} onChange={e => setEnum(cond.key, e.target.value)}>
                 {opts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -373,7 +422,7 @@ export default function BuildOverviewScreen() {
             const val = (conditionState[cond.key] as number) ?? 0
             return (
               <div key={cond.key} className="cond-item cond-item--derived">
-                <span className="cond-label cond-label--derived">{cond.label}</span>
+                <ConditionLabel condition={cond} className="cond-label cond-label--derived" />
                 <span className="cond-derived-hint">{val}{cond.unit ? ` ${cond.unit}` : ''}</span>
               </div>
             )
@@ -382,9 +431,9 @@ export default function BuildOverviewScreen() {
             const mx = getNumericMax(cond)
             const t = `Set automatically by ${auto.source}` + (mx != null ? ` · Max ${mx}${cond.unit ? ` ${cond.unit}` : ''}` : '')
             return (
-              <div key={cond.key} className="cond-item cond-item--derived" title={t}>
-                <span className="cond-label">{cond.label}</span>
-                <span className="cond-derived-hint">{slotHint ?? Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
+              <div key={cond.key} className="cond-item cond-item--derived" title={conditionSource(cond.key) ? undefined : t}>
+                <ConditionLabel condition={cond} className="cond-label" />
+                <span className="cond-derived-hint">{auto.value == null ? 'Auto' : Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
                 <AutoBadge source={auto.source} />
               </div>
             )
@@ -393,12 +442,13 @@ export default function BuildOverviewScreen() {
             key={cond.key}
             cond={cond}
             // User value wins; otherwise the engine auto value; otherwise the catalog default.
-            value={(conditionState[cond.key] as number) ?? (auto?.value != null ? Number(auto.value) : undefined) ?? (auto?.slot_values ? undefined : cond.default_value ?? 0)}
+            value={(conditionState[cond.key] as number) ?? (auto?.value != null ? Number(auto.value) : undefined) ?? (auto ? undefined : cond.default_value ?? 0)}
             // Clearing the field falls back to the auto value when one exists (so an overridden auto-set
             // condition returns to its engine default, not the catalog default of 0).
             defaultOverride={auto?.value != null ? Number(auto.value) : undefined}
-            onReset={auto?.slot_values ? () => clearOverride(cond.key) : undefined}
-            autoHint={slotHint}
+            onReset={auto ? () => clearOverride(cond.key) : undefined}
+            hasOverride={Object.prototype.hasOwnProperty.call(conditionState, cond.key)}
+            resetTitle={cond.key === 'flame_slash_torrent_hits' ? 'Clear the override and use the automatic torrent count' : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
@@ -413,7 +463,7 @@ export default function BuildOverviewScreen() {
           return (
             <div key={cond.key} className="cond-item cond-item--derived">
               <span className={`cond-derived-dot ${isActive ? 'cond-derived-dot--on' : ''}`} />
-              <span className="cond-label cond-label--derived">{cond.label}</span>
+              <ConditionLabel condition={cond} className="cond-label cond-label--derived" />
               <span className="cond-derived-hint">{isActive ? 'active' : 'inactive'}</span>
             </div>
           )
@@ -431,11 +481,36 @@ export default function BuildOverviewScreen() {
               disabled={autoLocked}
               onChange={e => { if (!autoLocked) setBoolean(cond.key, e.target.checked) }}
             />
-            <span className="cond-label">{cond.label}</span>
+            <ConditionLabel condition={cond} className="cond-label" />
             {autoGoverns && <AutoBadge source={auto.source} />}
           </label>
         )
-      })}
+  }
+
+  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
+  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
+    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
+      {isEnemy && <EnemyTargetFields />}
+      {isEnemy && <EnemyIncomingFields />}
+      {visibleItems.map(renderConditionRow)}
+      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0 && (
+        <div className="merged-magi-rotation">
+          <button
+            type="button"
+            className="merged-magi-rotation-toggle"
+            aria-expanded={!mergedRotationCollapsed}
+            onClick={() => setMergedRotationCollapsed(collapsed => !collapsed)}
+          >
+            <span>Merged Magi Rotation</span>
+            <span aria-hidden="true">{mergedRotationCollapsed ? '+' : '−'}</span>
+          </button>
+          {!mergedRotationCollapsed && (
+            <div className="merged-magi-rotation-list">
+              {mergedMagiRotation.map(renderConditionRow)}
+            </div>
+          )}
+        </div>
+      )}
     </ConfigPanel>
   )
 
@@ -513,7 +588,8 @@ export default function BuildOverviewScreen() {
       place({ order: -1, weight: visibleItems.length + 6, node: renderCategoryPanel(cat, visibleItems, isEnemy) }, 2)
       return
     }
-    if (visibleItems.length === 0) return
+    if (visibleItems.length === 0
+      && !(cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0)) return
     restPanels.push({ order: idx, weight: visibleItems.length + 1,
       node: renderCategoryPanel(cat, visibleItems, false) })
   })
@@ -606,19 +682,23 @@ interface NumericRowProps {
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
   onReset?: () => void
-  autoHint?: string
+  hasOverride?: boolean
+  resetTitle?: string
   // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
   // resolved cap as a placeholder/hint instead of a bare confusing 0.
   zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, autoHint }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax, onReset, hasOverride, resetTitle }: NumericRowProps) {
+  const integerHitCount = cond.key === 'flame_slash_torrent_hits' || cond.key === 'inverted_blaze_returns'
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
   const def = defaultOverride ?? cond.default_value ?? min
   // A "0 = max" sentinel shows blank when at 0, so the resolved cap (placeholder) reads instead of a bare 0.
-  const blankForSentinel = (v: number | undefined) => (v === undefined || (zeroMeansMax && v === 0) ? '' : String(v))
+  const blankForSentinel = (v: number | undefined) => (
+    v === undefined || (zeroMeansMax && v === 0) ? '' : String(integerHitCount ? Math.trunc(v) : v)
+  )
   const [raw, setRaw] = useState(blankForSentinel(value))
 
   useEffect(() => { setRaw(blankForSentinel(value)) }, [value, zeroMeansMax])
@@ -629,8 +709,9 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
       if (onReset) { onReset(); setRaw(blankForSentinel(defaultOverride)); return }
       onChange(def); setRaw(blankForSentinel(def)); return
     }
-    const n = parseFloat(str)
-    if (isNaN(n)) { setRaw(blankForSentinel(value)); return }
+    const parsed = parseFloat(str)
+    if (isNaN(parsed)) { setRaw(blankForSentinel(value)); return }
+    const n = integerHitCount ? Math.trunc(parsed) : parsed
     const clamped = max !== null ? Math.min(Math.max(n, min), max) : Math.max(n, min)
     onChange(clamped)
     setRaw(blankForSentinel(clamped))
@@ -645,30 +726,32 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
   const showSentinelHint = zeroMeansMax && raw.trim() === '' && max != null
 
   return (
-    <div className="cond-stack-row" title={rowTitle}>
-      <span className="cond-stack-label">{cond.label}</span>
-      <div className="cond-stack-controls">
-        <input
-          type="number"
-          className="cond-stack-input"
-          value={raw}
-          min={min}
-          max={max ?? undefined}
-          placeholder={autoHint && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
-          onChange={e => setRaw(e.target.value)}
-          onBlur={e => commit(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
-        />
-        {showSentinelHint && (
-          <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
-            all {max} attached
-          </span>
-        )}
-        {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
-        {onReset && <button type="button" className="cond-stack-input" onClick={onReset}>Auto</button>}
+    <div className="cond-stack-row" title={conditionSource(cond.key) ? undefined : rowTitle}>
+      <div className="cond-stack-main">
+        <ConditionLabel condition={cond} className="cond-stack-label" />
+        <div className="cond-stack-controls">
+          <input
+            type="number"
+            className="cond-stack-input"
+            value={raw}
+            min={min}
+            max={max ?? undefined}
+            step={integerHitCount ? 1 : undefined}
+            placeholder={onReset && value === undefined ? 'Auto' : zeroMeansMax && max != null ? String(max) : undefined}
+            onChange={e => setRaw(e.target.value)}
+            onBlur={e => commit(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
+          />
+          {showSentinelHint && (
+            <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
+              all {max} attached
+            </span>
+          )}
+          {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
+          {onReset && hasOverride && <button type="button" className="cond-stack-input" title={resetTitle} onClick={onReset}>Auto</button>}
+        </div>
       </div>
-      {autoHint && <span className="cond-derived-hint">{autoHint}</span>}
-      {clamp && (
+      {clamp && clamp.applied !== clamp.requested && (
         <div style={{ fontSize: 10, color: '#ff9800', padding: '2px 12px 4px' }}>
           ⚠ capped at {clamp.applied}
         </div>
