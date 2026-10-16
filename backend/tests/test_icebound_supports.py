@@ -30,8 +30,13 @@ def _gear(**stats):
 
 
 def _offense(level=16, supports=None, conds=None, gear=None):
-    r = engine_stats(EngineStatsRequest(**make_request(
-        "icebound_beam", level, attached_supports=supports, extra_conditions=conds, gear=gear)))
+    previous = season_manager.get_active_season()
+    season_manager.set_active_season("SS13")
+    try:
+        r = engine_stats(EngineStatsRequest(**make_request(
+            "icebound_beam", level, attached_supports=supports, extra_conditions=conds, gear=gear)))
+    finally:
+        season_manager.set_active_season(previous)
     d = r.model_dump() if hasattr(r, "model_dump") else r
     return d["offense"]
 

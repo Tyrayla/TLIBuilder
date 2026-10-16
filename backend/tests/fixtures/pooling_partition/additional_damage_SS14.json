@@ -1,6 +1,6 @@
 {
-  "affix_count": 272,
-  "identity_count": 168,
+  "affix_count": 273,
+  "identity_count": 169,
   "note": "Frozen additional-damage identity partition. Gate for the modifier-identity migration (docs/MODIFIER_UUID_REVIEW.md). Regenerate ONLY on an intended data change.",
   "partition": {
     "additional active skill damage": [
@@ -70,6 +70,9 @@
       "+20 % additional damage against Cursed enemies",
       "+30 % additional damage against Cursed enemies",
       "+8 % additional damage against Cursed enemies"
+    ],
+    "additional damage against enemies at low life or full life while having at least stack s of tenacity blessing max active divinity source hero trait -prophecy of revelation": [
+      "+60 % additional damage against enemies at Low Life or Full Life while having at least 10 stack(s) of Tenacity Blessing (Max Active Divinity: 1) Source:Hero Trait -Prophecy of Revelation"
     ],
     "additional damage against frostbitten enemies": [
       "+(36–48) % additional Damage against Frostbitten enemies"

@@ -50,7 +50,12 @@ def _support(item_id, *, rank=5, level=1, slot=1, **extra):
 
 def _offense(*, level=16, gear=None, supports=None, **extra):
     request = make_request(_SKILL, level, attached_supports=supports, gear=gear or [], **extra)
-    response = engine_stats(EngineStatsRequest(**request))
+    previous = season_manager.get_active_season()
+    season_manager.set_active_season("SS13")
+    try:
+        response = engine_stats(EngineStatsRequest(**request))
+    finally:
+        season_manager.set_active_season(previous)
     return response.model_dump() if hasattr(response, "model_dump") else response
 
 

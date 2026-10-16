@@ -180,9 +180,12 @@ def test_thunder_wood_lucky_no_scale():
 
 # ── Support gems ─────────────────────────────────────────────────────────────
 def test_support_gem_charge_per_second():
-    sup = [{"item_id": "hyper_metabolism", "slot": 2, "level": 1, "enabled": True}]
-    s = _summary(_resp(elixirs=["swiftness_dew"], supports=sup), "Swiftness Dew")
-    assert s["charge_per_second"] == pytest.approx(0.5)
+    def charge_at(level):
+        sup = [{"item_id": "hyper_metabolism", "slot": 2, "level": level, "enabled": True}]
+        return _summary(_resp(elixirs=["swiftness_dew"], supports=sup), "Swiftness Dew")["charge_per_second"]
+
+    assert charge_at(1) == pytest.approx(0.5)
+    assert charge_at(20) == pytest.approx(0.975)
 
 
 def test_support_gem_max_charges():

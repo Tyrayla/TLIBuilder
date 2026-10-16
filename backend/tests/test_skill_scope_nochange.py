@@ -14,6 +14,7 @@ import os
 import pytest
 
 from server import engine_stats, EngineStatsRequest
+from persistence import season_manager
 
 _GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "scope_golden")
 
@@ -94,7 +95,9 @@ def _run(name: str) -> dict:
 
 
 @pytest.mark.parametrize("name", sorted(_REQUESTS))
-def test_no_change_vs_golden(name):
+def test_no_change_vs_golden(name, monkeypatch):
+    # The fixtures lock the explicitly documented SS12 baseline, independent of the CI-selected season.
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS12")
     os.makedirs(_GOLDEN_DIR, exist_ok=True)
     path = os.path.join(_GOLDEN_DIR, f"{name}.json")
     current = _run(name)
