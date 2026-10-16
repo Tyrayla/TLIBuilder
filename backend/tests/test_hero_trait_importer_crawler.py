@@ -1,6 +1,6 @@
 import pytest
 from engine.modifier_lines import line_text
-from tools.hero_trait_importer import import_crawler_hero_trait, import_crawler_hero_traits
+from tools.hero_trait_importer import import_crawler_hero_trait, import_crawler_hero_traits, merge_hero_traits
 
 _ANGER = {
     "name": "Anger",
@@ -282,3 +282,52 @@ def test_dance_of_the_deep_full_layout_takes_tree_schema_path():
     hub = r["tree_nodes"][0]
     assert (hub["column"], hub["row"], hub["x"], hub["y"]) == (4, 0, 0.5, 0.1)
     assert len(r["tree_connections"]) == 8
+
+
+def test_reimport_refreshes_youga_tree_content_without_replacing_authored_layout():
+    existing = [{
+        "trait_id": "the_ultimate_one",
+        "allocation_mode": "tree",
+        "tree_root_id": "authored-root",
+        "tree_nodes": [
+            {"node_id": "authored-root", "name": "I Am the Ultimate One", "column": 4,
+             "row": 3, "x": 0.514, "y": 0.53, "effects": ["old root text"]},
+            {"node_id": "authored-choice", "name": "I Hold All in My Grasp", "column": 2,
+             "row": 1, "x": 0.2, "y": 0.3, "effects": ["old choice text"]},
+        ],
+        "tree_connections": [{"from": "authored-root", "to": "authored-choice"}],
+        "alternate_spacetime_header": "Alternate Spacetime Youga Effects (19 Skill Effects)",
+        "alternate_spacetime_effects": [{"skill": "existing choice", "lines": ["keep this"]}],
+    }]
+    incoming = import_crawler_hero_trait({
+        "name": "The Ultimate One",
+        "max_level": 12,
+        "traits": [
+            {"name": "I Am the Ultimate One", "required_level": 1,
+             "levels": [{"level": 1, "description": "base effect"}],
+             "description": None, "icon_url": ""},
+            {"name": "I Hold All in My Grasp", "required_level": 45,
+             "levels": [{"level": 1, "description": "Spacetime Dictator"}],
+             "description": None, "icon_url": "new-icon"},
+        ],
+        "glossary": [],
+        "alternate_spacetime_effects": [{
+            "skill_name": "Chromatic Shot",
+            "effects": [{"text": "While active, +1% additional Cold Damage"}],
+        }],
+    })
+
+    merged = merge_hero_traits(existing, incoming)[0]
+
+    assert merged["tree_root_id"] == "authored-root"
+    assert merged["tree_connections"] == [{"from": "authored-root", "to": "authored-choice"}]
+    choice = next(node for node in merged["tree_nodes"] if node["name"] == "I Hold All in My Grasp")
+    assert (choice["node_id"], choice["column"], choice["row"], choice["x"], choice["y"]) == (
+        "authored-choice", 2, 1, 0.2, 0.3,
+    )
+    assert choice["effects"] == ["Spacetime Dictator"]
+    assert choice["icon_url"] == "new-icon"
+    assert merged["alternate_spacetime_header"] == "Alternate Spacetime Youga Effects (1 Skill Effects)"
+    assert merged["alternate_spacetime_effects"] == [{
+        "skill": "Chromatic Shot", "lines": ["While active, +1% additional Cold Damage"],
+    }]

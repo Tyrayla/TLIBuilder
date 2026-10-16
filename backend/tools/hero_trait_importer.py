@@ -9,12 +9,38 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
     The incoming entry overwrites any existing entry with the same trait_id.
     """
     by_id: dict[str, dict] = {t["trait_id"]: t for t in existing}
+    previous = by_id.get(incoming["trait_id"])
+    if previous and previous.get("allocation_mode") == "tree":
+        # Tree geometry and edges are hand-authored in canonical season data. Refresh node
+        # content from the crawl, but retain those stable node IDs, positions, and connections.
+        incoming = deepcopy(incoming)
+        source_nodes = incoming.get("tree_nodes") or incoming.get("advanced_traits") or []
+        source_by_name = {node.get("name"): node for node in source_nodes if node.get("name")}
+        nodes = deepcopy(previous.get("tree_nodes") or [])
+        for node in nodes:
+            source = source_by_name.get(node.get("name"))
+            if source:
+                if "effects" in source:
+                    node["effects"] = [line_text(effect) for effect in source["effects"]]
+                for field in ("icon_url", "unlock_level"):
+                    if field in source:
+                        node[field] = deepcopy(source[field])
+        incoming.update({
+            "allocation_mode": previous["allocation_mode"],
+            "tree_root_id": previous.get("tree_root_id"),
+            "tree_nodes": nodes,
+            "tree_connections": deepcopy(previous.get("tree_connections") or []),
+        })
+        for field in ("alternate_spacetime_header", "alternate_spacetime_effects"):
+            if field not in incoming and field in previous:
+                incoming[field] = deepcopy(previous[field])
     by_id[incoming["trait_id"]] = incoming
     return list(by_id.values())
 
 
 # ── Crawler-format importer ────────────────────────────────────────────────
 
+from copy import deepcopy
 import re as _re
 import warnings
 from collections import Counter as _Counter
@@ -293,6 +319,18 @@ def import_crawler_hero_trait(data: dict) -> dict:
         "max_level": data.get("max_level"),
         "glossary": glossary,
     }
+    alternate_effects = data.get("alternate_spacetime_effects") or []
+    if alternate_effects:
+        result["alternate_spacetime_header"] = (
+            f"Alternate Spacetime Youga Effects ({len(alternate_effects)} Skill Effects)"
+        )
+        result["alternate_spacetime_effects"] = [
+            {
+                "skill": effect.get("skill_name", ""),
+                "lines": [line_text(line) for line in (effect.get("effects") or []) if line_text(line).strip()],
+            }
+            for effect in alternate_effects
+        ]
     tree_fields = (
         _dance_of_the_deep_tree_fields(advanced_traits, levels, am_effects, name, icon_url)
         if trait_id == _DANCE_OF_THE_DEEP_TREE_ROOT else None
