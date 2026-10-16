@@ -19,6 +19,16 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
         nodes = deepcopy(previous.get("tree_nodes") or [])
         for node in nodes:
             source = source_by_name.get(node.get("name"))
+            # A tree's always-active root is the imported base trait, not one of its advanced nodes.
+            # Keep its effect text data-derived too; layout IDs/coordinates remain authored separately.
+            if node.get("node_id") == previous.get("tree_root_id") and incoming.get("levels"):
+                root_effects = [
+                    line_text(effect)
+                    for level in incoming["levels"]
+                    for effect in level.get("effects", [])
+                ]
+                if root_effects:
+                    node["effects"] = list(dict.fromkeys(root_effects))
             if source:
                 if "effects" in source:
                     node["effects"] = [line_text(effect) for effect in source["effects"]]

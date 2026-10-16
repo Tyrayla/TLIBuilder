@@ -321,6 +321,9 @@ def test_reimport_refreshes_youga_tree_content_without_replacing_authored_layout
 
     assert merged["tree_root_id"] == "authored-root"
     assert merged["tree_connections"] == [{"from": "authored-root", "to": "authored-choice"}]
+    root = next(node for node in merged["tree_nodes"] if node["node_id"] == "authored-root")
+    assert root["effects"] == ["base effect"]
+    assert (root["column"], root["row"], root["x"], root["y"]) == (4, 3, 0.514, 0.53)
     choice = next(node for node in merged["tree_nodes"] if node["name"] == "I Hold All in My Grasp")
     assert (choice["node_id"], choice["column"], choice["row"], choice["x"], choice["y"]) == (
         "authored-choice", 2, 1, 0.2, 0.3,
