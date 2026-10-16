@@ -409,7 +409,10 @@ def tree_search(q: str = ""):
             continue
         count = 0
         for n in data.get("nodes", []):
-            hay = " ".join(n.get("effects", [])).lower()
+            lines = list(n.get("effects", []))
+            for variant in n.get("trait_variants") or []:
+                lines.extend(variant.get("effects", []))
+            hay = " ".join(lines).lower()
             if all(w in hay for w in words):
                 count += 1
         for ct in data.get("core_talents", []):
@@ -428,6 +431,7 @@ def get_tree(name: str):
     tree = _build_tree(name)
 
     effects_by_id: dict[str, list[str]] = {}
+    trait_variants_by_id: dict[str, list[dict]] = {}
     active = season_manager.get_active_season()
     if active:
         slug = _tree_name_to_slug(name)
@@ -435,6 +439,8 @@ def get_tree(name: str):
         if season_data:
             for sn in season_data.get("nodes", []):
                 effects_by_id[sn["id"]] = sn.get("effects", [])
+                if sn.get("trait_variants"):
+                    trait_variants_by_id[sn["id"]] = sn["trait_variants"]
 
     nodes = []
     for n in tree.nodes.values():
@@ -446,6 +452,7 @@ def get_tree(name: str):
             "node_type": n.node_type.value,
             "current_points": n.current_points,
             "effects": effects_by_id.get(n.id, []),
+            **({"trait_variants": trait_variants_by_id[n.id]} if n.id in trait_variants_by_id else {}),
             "icon_url": n.icon_url,
         })
 
@@ -1020,6 +1027,9 @@ def engine_stats(req: EngineStatsRequest):
     node_contributions, _node_statuses = resolve_nodes(
         slots, slates, season_trees, _parse_custom_mod_text, _translate_condition_expr,
         prisms=req.prisms,
+        trait_id=req.trait_id,
+        trait_slot_levels=req.trait_slot_levels,
+        advanced_trait_selections=req.advanced_trait_selections,
     )
     core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}, **prism_set_conditions}
     # Seed player level (for per-level scaling like Brutality) unless the user set it explicitly.
@@ -1318,6 +1328,8 @@ def get_conditions():
         elif c.value_type == "enum":
             entry["enum_values"] = list(c.enum_values)
             entry["default_enum"] = c.default_enum
+            if c.options_source:
+                entry["options_source"] = c.options_source
         else:
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":
@@ -1577,7 +1589,8 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
         raise HTTPException(400, f"Unknown tree '{tree_name}'")
 
     tree_slug = _tree_name_to_slug(tree_name)
-    data = import_crawler_tree(req.crawler_data, tree_name)
+    previous = season_manager.load_season_tree(req.season_name, tree_slug, raw=True)
+    data = import_crawler_tree(req.crawler_data, tree_name, existing_data=previous)
     data["season"] = req.season_name
     season_manager.save_season_tree(req.season_name, tree_name, tree_slug, data)
 

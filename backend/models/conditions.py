@@ -29,6 +29,7 @@ class ConditionDef:
     visible: bool = True
     source: str = "user"
     trait_id: str | None = None   # set on hero-trait conditions; UI shows them only for the selected trait
+    options_source: str | None = None  # dynamic enum option provider, e.g. selected Spirit Magus skills
 
 
 def _load() -> tuple[list[ConditionDef], dict[str, str], dict[str, list[str]]]:

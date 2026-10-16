@@ -73,6 +73,18 @@ def test_connections_from_prerequisites():
     assert conns[0]["to"] == "alchemist_c1_r0"
 
 
+def test_missing_crawler_connections_preserve_existing_edges_with_valid_endpoints():
+    node_b = {**_MINIMAL_NODE, "talent_id": "01030100", "column": 3, "row": 1}
+    existing = {"connections": [
+        {"from": "alchemist_c1_r0", "to": "alchemist_c2_r0"},
+        {"from": "alchemist_c8_r8", "to": "alchemist_c9_r9"},
+    ]}
+
+    result = import_crawler_tree({"nodes": [_MINIMAL_NODE, node_b]}, "Alchemist", existing)
+
+    assert result["connections"] == [{"from": "alchemist_c1_r0", "to": "alchemist_c2_r0"}]
+
+
 def test_core_talents_fields():
     core = {
         "talent_id": "01000000", "name": "Power Surge", "type": "core_talent",
@@ -100,3 +112,58 @@ def test_glossary_list_to_dict():
     assert g["719"]["name"] == "Tenacity Blessing"
     assert "720" in g
     assert g["720"]["description"] == "Stacks of agility."
+
+
+def test_empty_crawled_glossary_keeps_existing_definitions():
+    existing = {"glossary": {
+        "719": {"name": "Tenacity Blessing", "description": "Existing definition."},
+    }}
+
+    result = import_crawler_tree({"nodes": [], "glossary": []}, "Alchemist", existing)
+
+    assert result["glossary"]["719"] == {
+        "name": "Tenacity Blessing", "description": "Existing definition."
+    }
+
+
+def test_trait_replacement_talents_share_one_node_and_keep_both_variants():
+    base = {
+        **_MINIMAL_NODE,
+        "talent_id": "32050100",
+        "name": "Legendary Medium Talent",
+        "type": "legendary_medium_talent",
+        "column": 5,
+        "row": 1,
+        "pts_required": 12,
+        "effects": ["+10 % Attack and Cast Speed when at Full Mana", "+15 % Max Mana"],
+    }
+    revelation = {
+        **base,
+        "talent_id": "32050101",
+        "effects": [
+            "+3 % Attack and Cast Speed for each stack of Max Focus Blessing while at Full Mana . "
+            "Stacks up to 18 time(s) Source:Hero Trait -Prophecy of Revelation"
+        ],
+    }
+
+    result = import_crawler_tree({"nodes": [base, revelation]}, "Arcanist")
+
+    assert len(result["nodes"]) == 1
+    node = result["nodes"][0]
+    assert node["id"] == "arcanist_c4_r0"
+    assert [effect["text"] for effect in node["effects"]] == [
+        "+10 % Attack and Cast Speed when at Full Mana",
+        "+15 % Max Mana",
+    ]
+    assert node["trait_variants"] == [{
+        "trait_id": "wisdom_of_the_gods",
+        "unlock_level": 60,
+        "advanced_selection": "Prophecy of Revelation",
+        "effects": [{
+            "text": "+3 % Attack and Cast Speed for each stack of Max Focus Blessing while at Full Mana . "
+                    "Stacks up to 18 time(s)",
+            "uuid": None,
+            "pooling_uuid": None,
+            "modifier_id": None,
+        }],
+    }]

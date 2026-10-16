@@ -11,6 +11,7 @@ import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
+import AlternateSpacetimeEffects from '../components/AlternateSpacetimeEffects'
 import LoadingState from '../components/LoadingState'
 import { ModifierBadge, useTextModifierStatus } from '../components/ModifierBadge'
 import { CoverageBadge } from '../components/CoverageBadge'
@@ -102,7 +103,9 @@ function getAffixNames(pool: HeroMemoryAffix[], source: string): string[] {
   const names: string[] = []
   for (const entry of pool) {
     if (entry.source !== source) continue
-    const name = getAffixName(entry.modifier)
+    // SS14 revival rows no longer expose tier columns. Keep each exact row selectable instead of
+    // collapsing unrelated or unordered value variants into an invented tier ladder.
+    const name = entry.tier_known === false ? entry.modifier : getAffixName(entry.modifier)
     if (!seen.has(name)) { seen.add(name); names.push(name) }
   }
   return names
@@ -110,8 +113,8 @@ function getAffixNames(pool: HeroMemoryAffix[], source: string): string[] {
 
 function getTierOptions(pool: HeroMemoryAffix[], source: string, affixName: string): HeroMemoryAffix[] {
   return pool
-    .filter(e => e.source === source && getAffixName(e.modifier) === affixName)
-    .sort((a, b) => a.tier - b.tier)
+    .filter(e => e.source === source && (e.tier_known === false ? e.modifier : getAffixName(e.modifier)) === affixName)
+    .sort((a, b) => (a.tier ?? Number.MAX_SAFE_INTEGER) - (b.tier ?? Number.MAX_SAFE_INTEGER))
 }
 
 // Optional leading '-' on each bound so negative ranges (the base-slot penalty mod's "(-60–-55) %") are
@@ -157,7 +160,7 @@ function buildTierRanges(entries: HeroMemoryAffix[]): TierRangeInfo[] {
   return withValues.map(({ entry, min, max }) => {
     const width = Math.max(1, max - min + 1)
     const seg: TierRangeInfo = {
-      tier: entry.tier,
+      tier: entry.tier ?? 1,
       min,
       max,
       modifier: entry.modifier,
@@ -506,7 +509,7 @@ function TierSlider({ tiers, curTier, curValue, dp, onPick }: {
 // Moon: Origin") store their real wording in `description`; carrying it on the selection lets the base-slot
 // enabler parser (parseBaseSlotEnabler) read the type / rarity cap / penalty after save/load/import.
 function withRevivalDescription(sel: MemorySlotSelection, pool: HeroMemoryAffix[]): MemorySlotSelection {
-  const name = getAffixName(sel.modifier)
+  const name = sel.tierKnown === false ? sel.modifier : getAffixName(sel.modifier)
   const match = pool.find(a => getAffixName(a.modifier) === name)
   const desc = match?.description
   return desc && desc !== sel.modifier ? { ...sel, description: desc } : { ...sel, description: undefined }
@@ -525,12 +528,13 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
   onChange: (sel: MemorySlotSelection | null) => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
-  const selectedName = current ? getAffixName(current.modifier) : ''
+  const selectedName = current ? (current.tierKnown === false ? current.modifier : getAffixName(current.modifier)) : ''
   // Drop names taken by other rows, but always keep this row's own current selection so it stays visible.
   const names = getAffixNames(pool, source)
     .filter(n => n === selectedName || !excludeNames?.has(n))
   // Only tiers this rarity can reach (e.g. an epic memory can't roll a T0 = ultimate-only tier).
-  const tierEntries = selectedName ? getTierOptions(pool, source, selectedName).filter(e => e.tier >= (minTier ?? 0)) : []
+  const tierEntries = selectedName ? getTierOptions(pool, source, selectedName)
+    .filter(e => e.tier_known === false || (e.tier ?? 0) >= (minTier ?? 0)) : []
   const tierRanges = buildTierRanges(tierEntries)
   const sliderMax = tierRanges.length > 0 ? tierRanges[tierRanges.length - 1].endPos : 0
 
@@ -552,20 +556,23 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
 
   const handleNameChange = (name: string) => {
     if (!name) { onChange(null); return }
-    const entries = getTierOptions(pool, source, name).filter(e => e.tier >= (minTier ?? 0))
+    const entries = getTierOptions(pool, source, name)
+      .filter(e => e.tier_known === false || (e.tier ?? 0) >= (minTier ?? 0))
     if (entries.length === 0) { onChange(null); return }
     // Multi-range combo affix (independent rolls): pick the best reachable tier (smallest tier number) and
     // default each roll to its max (best), captured in rolledValues.
     if (memoryRangeCount(entries[0].modifier) >= 2) {
-      const best = entries.reduce((a, b) => (a.tier <= b.tier ? a : b))
-      onChange({ modifier: best.modifier, tier: best.tier, rolledValue: null, rolledValues: memoryRangeBounds(best.modifier).map(b => b.max) })
+      const best = entries.reduce((a, b) => ((a.tier ?? Infinity) <= (b.tier ?? Infinity) ? a : b))
+      onChange({ modifier: best.modifier, tier: best.tier ?? 1, tierKnown: best.tier_known !== false,
+        rolledValue: null, rolledValues: memoryRangeBounds(best.modifier).map(b => b.max) })
       return
     }
     const ranges = buildTierRanges(entries)
     const best = ranges[ranges.length - 1]
     const pos = Math.floor((best.startPos + best.endPos) / 2)
     const { tier, value, modifier } = posToTierValue(ranges, pos)
-    onChange({ modifier, tier, rolledValue: hasRange(modifier) ? value : null })
+    onChange({ modifier, tier, tierKnown: entries.find(e => e.modifier === modifier)?.tier_known !== false,
+      rolledValue: hasRange(modifier) ? value : null })
   }
 
   // Click-to-edit an exact roll: pick the tier whose value range holds V (prefer the higher tier on overlap),
@@ -577,7 +584,8 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
       ? containing.reduce((a, b) => (b.max >= a.max ? b : a))                     // higher tier on overlap
       : tierRanges.reduce((a, b) => (Math.abs(b.max - v) < Math.abs(a.max - v) ? b : a))  // nearest
     const clamped = Math.min(target.max, Math.max(target.min, v))
-    onChange({ modifier: target.modifier, tier: target.tier, rolledValue: hasRange(target.modifier) ? clamped : null })
+    onChange({ modifier: target.modifier, tier: target.tier, tierKnown: current?.tierKnown,
+      rolledValue: hasRange(target.modifier) ? clamped : null })
   }
   const editDp = Math.max(0, ...tierRanges.flatMap(r => [r.min, r.max].map(n => (String(n).split('.')[1] || '').length)))
   const editRange: [number, number] = tierRanges.length
@@ -600,7 +608,8 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
     const bounds = memoryRangeBounds(entry.modifier)
     const prev = current?.rolledValues ?? []
     const next = bounds.map((b, i) => { const v = prev[i]; return v == null ? b.max : Math.min(b.max, Math.max(b.min, v)) })
-    onChange({ modifier: entry.modifier, tier: entry.tier, rolledValue: null, rolledValues: next })
+    onChange({ modifier: entry.modifier, tier: entry.tier ?? 1, tierKnown: entry.tier_known !== false,
+      rolledValue: null, rolledValues: next })
   }
 
   return (
@@ -617,13 +626,19 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
             <div className="memory-tier-slider-row">
               {/* Base stat (hideSlider): value is driven by the memory level, shown read-only — no tier slider.
                   A single fixed value also has no positions to slide (sliderMax === 0). */}
-              {!hideSlider && sliderMax > 0 && (
+              {!hideSlider && sliderMax > 0 && current!.tierKnown !== false && (
                 <TierSlider tiers={tierRanges} curTier={current!.tier} curValue={currentTierInfo.value} dp={editDp}
-                  onPick={(tier, value, modifier) => onChange({ modifier, tier, rolledValue: hasRange(modifier) ? value : null })} />
+                  onPick={(tier, value, modifier) => onChange({ modifier, tier, tierKnown: true,
+                    rolledValue: hasRange(modifier) ? value : null })} />
+              )}
+              {!hideSlider && sliderMax > 0 && current!.tierKnown === false && (
+                <input type="range" className="gear-affix-slider" min={editRange[0]} max={editRange[1]}
+                  step={editDp > 0 ? 1 / Math.pow(10, editDp) : 1} value={currentTierInfo.value}
+                  onChange={e => onChange({ ...current!, rolledValue: Number(e.target.value) })} />
               )}
               {/* Fixed-width value column so digit changes never reflow the slider (a reflow source of the flash). */}
               <span className="memory-affix-value-col">
-                {!hideSlider && sliderMax > 0
+                  {!hideSlider && sliderMax > 0 && current!.tierKnown !== false
                   ? <EditableRollValue value={currentTierInfo.value} dp={editDp} range={editRange} color={color} onCommit={commitValue} />
                   : (() => {
                       // For the base stat, show the level-driven value from the modifier text; otherwise (a
@@ -645,13 +660,13 @@ function AffixRow({ label, pool, source, current, excludeNames, color, hideSlide
             // Per-range label = the stat text following each range token (drop leading %, trailing "+").
             const labels = current.modifier.split(/\(-?\d+(?:\.\d+)?[–\-]-?\d+(?:\.\d+)?\)/).slice(1)
               .map(s => s.replace(/^\s*%?\s*/, '').replace(/\s*\+\s*$/, '').trim())
-            const tierOpts = [...tierEntries].sort((a, b) => a.tier - b.tier)
+            const tierOpts = [...tierEntries].sort((a, b) => (a.tier ?? Number.MAX_SAFE_INTEGER) - (b.tier ?? Number.MAX_SAFE_INTEGER))
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
                 {tierOpts.length > 1 && (
                   <select className="gear-placeholder-select" value={current.tier}
-                    onChange={e => { const t = tierOpts.find(x => x.tier === Number(e.target.value)); if (t) changeTier(t) }}>
-                    {tierOpts.map(t => <option key={t.tier} value={t.tier}>{`T${t.tier}`}</option>)}
+                    onChange={e => { const t = tierOpts.find(x => (x.tier ?? 1) === Number(e.target.value)); if (t) changeTier(t) }}>
+                    {tierOpts.map((t, i) => <option key={`${t.tier ?? 'unknown'}-${i}`} value={t.tier ?? 1}>{t.tier_known === false ? 'Unranked' : `T${t.tier}`}</option>)}
                   </select>
                 )}
                 {bounds.map((b, i) => {
@@ -1654,6 +1669,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
             </div>
             )}
           </div>
+
+          <AlternateSpacetimeEffects
+            header={selectedTrait.alternate_spacetime_header}
+            effects={selectedTrait.alternate_spacetime_effects}
+          />
 
           {/* Artificial Moon — only at base level 5 */}
           {showArtificialMoon && (

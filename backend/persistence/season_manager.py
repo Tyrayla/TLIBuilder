@@ -19,6 +19,9 @@ def _normalize_tree_lines(data: dict) -> dict:
     for n in data.get("nodes") or []:
         if "effects" in n:
             n["effects"] = line_texts(n.get("effects"))
+        for variant in n.get("trait_variants") or []:
+            if "effects" in variant:
+                variant["effects"] = line_texts(variant.get("effects"))
     for c in data.get("core_talents") or []:
         if "effects" in c:
             c["effects"] = line_texts(c.get("effects"))
