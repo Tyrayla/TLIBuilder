@@ -23,15 +23,15 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
             # Keep its effect text data-derived too; layout IDs/coordinates remain authored separately.
             if node.get("node_id") == previous.get("tree_root_id") and incoming.get("levels"):
                 rank_effects = [
-                    [line_text(effect) for effect in level.get("effects", []) if line_text(effect).strip()]
+                    [line_text(effect) for effect in level.get("effects", [])]
                     for level in incoming["levels"]
                 ]
                 width = max((len(effects) for effects in rank_effects), default=0)
                 root_effects = []
                 for index in range(width):
                     tier_lines = [effects[index] if index < len(effects) else "" for effects in rank_effects]
-                    present = [line for line in tier_lines if line]
-                    root_effects.extend(_collapse_tiers(present))
+                    if any(line.strip() for line in tier_lines):
+                        root_effects.extend(_collapse_tiers(tier_lines, preserve_empty=True))
                 root_effects.extend(line_text(effect) for effect in incoming.get("artificial_moon", {}).get("effects", []))
                 if root_effects:
                     node["effects"] = list(dict.fromkeys(root_effects))
@@ -67,11 +67,17 @@ _HERO_RE = _re.compile(r"HeroTraits/([^/]+)/")
 _AM_RE = _re.compile(r"Artificial Moon:\s*.+", _re.I)
 
 
-def _collapse_tiers(descs: list[str]) -> list[str]:
+def _collapse_tiers(descs: list[str], *, preserve_empty: bool = False) -> list[str]:
     """Collapse a node's per-level descriptions into ONE rank-accurate line using `(a/b/c/d/e)` tier syntax that the
     resolvers already understand (resolveLevel in the UI, _expandTraitTier in the engine), so a per-rank node shows
-    only its selected tier instead of dumping every tier. Single/empty -> as-is."""
-    descs = [d.strip() for d in descs if d and d.strip()]
+    only its selected tier instead of dumping every tier. With preserve_empty, blank ranks remain empty choices in
+    the slash group so a later rank's effect cannot slide into an earlier rank."""
+    if preserve_empty:
+        descs = [(d or "").strip() for d in descs]
+        if not any(descs):
+            return []
+    else:
+        descs = [d.strip() for d in descs if d and d.strip()]
     if len(descs) <= 1:
         return descs
     toks = [d.split() for d in descs]            # whitespace-normalized tokens

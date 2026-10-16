@@ -391,3 +391,32 @@ def test_youga_rank_effects_and_artificial_moon_stay_separate_on_reimport():
         "Artificial Moon: +1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
         "Artificial Moon: +20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
     ]
+
+
+def test_tree_root_import_keeps_missing_rank_effects_aligned():
+    ranks = [
+        ["+10 % Damage", "+1 Armor"],
+        ["", "+2 Armor"],
+        ["+30 % Damage", "+3 Armor"],
+        ["", "+4 Armor"],
+        ["+50 % Damage", "+5 Armor"],
+    ]
+    incoming = {
+        "trait_id": "sample_trait",
+        "levels": [{"effects": effects} for effects in ranks],
+    }
+    previous = [{
+        "trait_id": "sample_trait",
+        "allocation_mode": "tree",
+        "tree_root_id": "root",
+        "tree_nodes": [{"node_id": "root", "name": "Root", "effects": ["old"]}],
+        "tree_connections": [],
+    }]
+
+    merged = merge_hero_traits(previous, incoming)[0]
+    root = merged["tree_nodes"][0]
+
+    assert root["effects"] == [
+        "(+10 % Damage//+30 % Damage//+50 % Damage)",
+        "(+1/+2/+3/+4/+5) Armor",
+    ]
