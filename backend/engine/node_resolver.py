@@ -58,7 +58,8 @@ def _effective_node_effects(node: dict, trait_id: str | None, advanced_trait_sel
     """Select an imported replacement only when its trait, pick, and memory-backed tier are active."""
     picks = set(advanced_trait_selections or [])
     for variant in node.get("trait_variants") or []:
-        if variant.get("trait_id") != trait_id or variant.get("advanced_selection") not in picks:
+        variant_trait_id = variant.get("trait_id")
+        if variant_trait_id is None or variant_trait_id != trait_id or variant.get("advanced_selection") not in picks:
             continue
         unlock_level = variant.get("unlock_level")
         if unlock_level is not None:

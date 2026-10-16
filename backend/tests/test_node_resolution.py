@@ -70,6 +70,27 @@ class TestRankScaling:
 
 
 class TestHeroTraitTalentVariants:
+    def test_unmapped_variant_stays_inactive_without_a_trait_id(self):
+        node = {
+            "id": "arcanist_c4_r0",
+            "node_type": "Legendary Medium Talent",
+            "effects": ["+10 % Attack Damage"],
+            "trait_variants": [{
+                "trait_id": None,
+                "unlock_level": None,
+                "advanced_selection": "Unmapped Variant",
+                "effects": ["+99 % Attack Damage"],
+            }],
+        }
+        trees = _tree("Arcanist", [node])
+
+        contributions, _ = resolve_nodes(
+            [_slot("Arcanist", "arcanist_c4_r0", 1)], [], trees, pm, tc,
+            advanced_trait_selections=["Unmapped Variant"],
+        )
+
+        assert _amounts(contributions)["attack_dmg_inc"] == pytest.approx(0.10)
+
     def test_revelation_replaces_the_normal_talent_only_for_the_selected_trait(self):
         node = {
             "id": "arcanist_c4_r0",
