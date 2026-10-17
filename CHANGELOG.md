@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.6.12] - 2026-10-16
+
+### Season data
+- **Season 14 data now includes imported craft affixes, glossary entries, hero-trait ranks and effects, talent variants and connections, and season-specific records.**
+
+### Hero traits
+- **Youga's The Ultimate One tree now reads rank effects from season data.** Its node positions and connections remain hand-authored.
+
+### Bug fixes
+- **Fixed Spell Burst calculation convergence, Max Active Divinity parsing, SS14 support-level scaling, and rank alignment for hero-trait root effects.**
+
 ## [0.6.11] - 2026-10-11
 
 ### Engine & DPS
