@@ -6,21 +6,27 @@ from tests.mock_build import make_request, weapon
 from engine.models import BuildSource
 from engine.offense import calculate_offense
 from engine.skill_resolver import ResolvedSkill, SkillHitForm
+from persistence import season_manager
 
 
 def _result(enabled, *, lo=100, hi=200, mods=(), skill="thunder_spike", crit=0,
             supports=(), conditions=None):
-    return engine_stats(EngineStatsRequest(**make_request(
-        skill, 20, char_level=1, dual_wield=False,
-        gear=[weapon("weapon1", "Endpoint sword", lo, hi, 1, crit)],
-        custom_mods=list(mods),
-        attached_supports=list(supports), extra_conditions=conditions,
-        slots=[{"treeName": "Goddess of Hunting", "nodeStates": {},
-                "coreTalentSelections": {"0": "goddess_of_hunting_impermanence"} if enabled else {}},
-               None, None, None],
-        target_config={"level": 1, "armor": 0, "fireRes": 0, "coldRes": 0,
-                       "lightningRes": 0, "erosionRes": 0},
-    )))
+    previous = season_manager.get_active_season()
+    season_manager.set_active_season("SS13")
+    try:
+        return engine_stats(EngineStatsRequest(**make_request(
+            skill, 20, char_level=1, dual_wield=False,
+            gear=[weapon("weapon1", "Endpoint sword", lo, hi, 1, crit)],
+            custom_mods=list(mods),
+            attached_supports=list(supports), extra_conditions=conditions,
+            slots=[{"treeName": "Goddess of Hunting", "nodeStates": {},
+                    "coreTalentSelections": {"0": "goddess_of_hunting_impermanence"} if enabled else {}},
+                   None, None, None],
+            target_config={"level": 1, "armor": 0, "fireRes": 0, "coldRes": 0,
+                           "lightningRes": 0, "erosionRes": 0},
+        )))
+    finally:
+        season_manager.set_active_season(previous)
 
 
 def test_thunder_spike_impermanence_reshapes_converted_endpoints():

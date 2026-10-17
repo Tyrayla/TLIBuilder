@@ -51,6 +51,22 @@ def test_source_and_type_stored():
         assert a["affix_type"] == "Base Affix"
 
 
+def test_ss14_base_affixes_preserve_each_crawled_tier():
+    data = {
+        "name": "STR Gloves",
+        "base_affixes": [
+            {"Tier": "2", "Modifier": {"text": "+(54–74) Max Life", "uuid": "uuid-t2", "pooling_uuid": "pool-t2", "modifier_id": "1504000"}},
+            {"Tier": "1", "Modifier": {"text": "+(76–99) Max Life", "uuid": "uuid-t1", "pooling_uuid": "pool-t1", "modifier_id": "1504000"}},
+        ],
+    }
+
+    affixes = [a for a in import_crawler_craft_base_type(data)["affixes"] if a["affix_type"] == "Base Affix"]
+    assert [a["tier"] for a in affixes] == ["2", "1"]
+    assert [a["raw_text"] for a in affixes] == ["+(54–74) Max Life", "+(76–99) Max Life"]
+    assert [a["uuid"] for a in affixes] == ["uuid-t2", "uuid-t1"]
+    assert all(a["source"] == "STR Gloves" for a in affixes)
+
+
 _SWORD_WITH_SUFFIX_TIERS = {
     "name": "One-Handed Sword",
     "all_affixes": [
@@ -71,6 +87,28 @@ def test_craft_suffix_affixes_gives_full_tiers():
     # Three tiers from craft_suffix_affixes — NOT the single all_affixes fallback.
     assert sorted(a["tier"] for a in suffix) == ["0", "1", "2"]
     assert all(a["source"] == "One-Handed Sword" for a in suffix)
+
+
+def test_ss14_craft_affix_t_column_preserves_all_tiers():
+    data = {
+        "name": "STR Gloves",
+        "craft_affixes": [
+            {"T": "0+", "Modifier": "+(109–122) % damage", "Library": "Basic Affix"},
+            {"T": "0", "Modifier": "+(73–94) % damage", "Library": "Basic Affix"},
+            {"T": "1", "Modifier": "+(51–72) % damage", "Library": "Basic Affix"},
+            {"T": "7", "Modifier": "+(10–20) % damage", "Library": "Basic Affix"},
+        ],
+        "craft_suffix_affixes": [
+            {"T": "0+", "Modifier": "+(76–85) % Affliction Effect", "Library": "Basic Affix"},
+            {"T": "7", "Modifier": "+(10–15) % Affliction Effect", "Library": "Basic Affix"},
+        ],
+    }
+
+    result = import_crawler_craft_base_type(data)
+    prefix = [a for a in result["affixes"] if a["affix_type"] == "Basic Pre-fix"]
+    suffix = [a for a in result["affixes"] if a["affix_type"] == "Basic Suffix"]
+    assert [a["tier"] for a in prefix] == ["0+", "0", "1", "7"]
+    assert [a["tier"] for a in suffix] == ["0+", "7"]
 
 
 def test_craft_suffix_library_maps_to_suffix_type():

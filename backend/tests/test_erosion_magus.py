@@ -32,13 +32,13 @@ def test_erosion_magus_reports_default_damage_and_separate_ultimate():
     assert forms["World of Thorns"].avg_hit_pre_crit == pytest.approx(6894.0 * 1.12)
     assert forms["World of Thorns"].hits_per_fire == 1
     assert forms["World of Thorns"].fires_per_sec == 0.0
-    assert forms["World of Thorns"].base_cast_time == pytest.approx(1.5)
+    assert forms["World of Thorns"].base_cast_time == pytest.approx(0.67)
     assert forms["World of Thorns"].base_cooldown == pytest.approx(8.0)
-    assert forms["World of Thorns"].effective_cast_time == pytest.approx(1.5)
+    assert forms["World of Thorns"].effective_cast_time == pytest.approx(0.67)
     assert forms["World of Thorns"].effective_cooldown == pytest.approx(8.0)
-    assert forms["Scattered Mud"].effective_cast_time == pytest.approx(0.8)
-    assert forms["Bleak Grass"].base_cast_time == pytest.approx(0.8)
-    assert forms["Withering Payback"].effective_cast_time == pytest.approx(0.6)
+    assert forms["Scattered Mud"].effective_cast_time == pytest.approx(1.25)
+    assert forms["Bleak Grass"].base_cast_time == pytest.approx(1.25)
+    assert forms["Withering Payback"].effective_cast_time == pytest.approx(1.67)
     assert forms["Withering Payback"].effective_cooldown == pytest.approx(10.0)
     assert result.total_dps == pytest.approx(forms["Scattered Mud"].dps_contribution)
 
@@ -71,13 +71,13 @@ def test_bleak_grass_uses_level_effectiveness_and_owner_hit_counts():
     assert forms["Bleak Grass"].hits_per_fire == 2  # spike + explosion; full damage, zero falloff.
     assert forms["Bleak Grass"].shotgun_mult == pytest.approx(2.0)
     assert forms["Bleak Grass"].shotgun_falloff == 0.0
-    # Informational slot factor for Iris: 1 - 0.5 × 0.6s / 10s = 0.97.
-    # Unmerged rates pay the Empower cast-slot cost: 1.25 × the 70% / 30% replacement split × 0.97.
-    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.97)
-    assert result.minion_empower["effective_cast_time"] == pytest.approx(0.6)
+    # SS14 Withering Payback takes 1.67s to cast: 1 - 0.5 × 1.67s / 10s = 0.9165.
+    # Unmerged rates pay that cast-slot cost after the 70% / 30% replacement split.
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.9165)
+    assert result.minion_empower["effective_cast_time"] == pytest.approx(1.67)
     assert result.minion_empower["effective_cooldown"] == pytest.approx(10.0)
-    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.7 / 0.8 * 0.97)
-    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.3 / 0.8 * 0.97)
+    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.7 / 1.25 * 0.9165)
+    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.3 / 1.25 * 0.9165)
 
 
 def test_gold_rush_empower_effect_uses_enemy_type_weight_and_uptime():
@@ -122,7 +122,7 @@ def test_harvest_time_makes_empower_cast_instant():
         source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1,
         condition_state={"_engine_harvest_time_linked": True})
     empower = _forms(result)["Withering Payback"]
-    assert empower.base_cast_time == pytest.approx(0.6)
+    assert empower.base_cast_time == pytest.approx(1.67)
     assert empower.effective_cast_time == 0.0
     assert result.minion_empower["cast_slot_factor"] == pytest.approx(1.0)
 
@@ -136,9 +136,9 @@ def test_erosion_empower_cast_slot_uses_effective_cast_time():
     result = MINION_MODULES[owner["item_id"]](
         source, owner, season_manager.load_minion_base_stats("SS14"), 20, 1)
 
-    # +50% minion cast speed makes Empower's 0.6s base cast 0.4s; 1 - 0.5 × 0.4 / 10 = 0.98.
-    assert _forms(result)["Withering Payback"].effective_cast_time == pytest.approx(0.4)
-    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.98)
+    # SS14's 1.67s cast becomes 1.67/1.5 = 1.1133s; 1 - 0.5 × 1.1133 / 10 = 0.9443.
+    assert _forms(result)["Withering Payback"].effective_cast_time == pytest.approx(1.67 / 1.5)
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(1.0 - 0.5 * (1.67 / 1.5) / 10.0)
 
 
 def test_erosion_owner_level_16_eighteen_percent_case_applies_empower_cast_slot():
@@ -151,11 +151,12 @@ def test_erosion_owner_level_16_eighteen_percent_case_applies_empower_cast_slot(
         source, owner, season_manager.load_minion_base_stats("SS14"), 16, 1)
     forms = _forms(result)
 
-    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.97)
-    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.82 / 0.8 * 0.97)
-    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.18 / 0.8 * 0.97)
-    # No-slot reference 118.579216 × 0.97 = 115.02183952 target DPS; displayed integer is 115.
-    assert round(forms["Scattered Mud"].dps_vs_target + forms["Bleak Grass"].dps_vs_target) == 115
+    assert result.minion_empower["cast_slot_factor"] == pytest.approx(0.9165)
+    assert forms["Scattered Mud"].fires_per_sec == pytest.approx(0.82 / 1.25 * 0.9165)
+    assert forms["Bleak Grass"].fires_per_sec == pytest.approx(0.18 / 1.25 * 0.9165)
+    # The hand-calculated no-slot SS13 reference is 118.579216 DPS at 0.8s; SS14's 1.25s
+    # cast time and 0.9165 Empower slot factor give 118.579216 × (0.8/1.25) × 0.9165 = 69.5538.
+    assert round(forms["Scattered Mud"].dps_vs_target + forms["Bleak Grass"].dps_vs_target) == 70
 
 
 def test_ultimate_per_cast_cooldown_uses_minion_and_spirit_magus_recovery():

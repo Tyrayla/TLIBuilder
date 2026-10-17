@@ -106,8 +106,8 @@ export function MemoryPreviewCard({ memory, icon, maxLevel, footer, valueScale }
     ? <span className="memory-card-wax" title="Base slot penalty">(-{penaltyPct}%)</span> : null
   const affixLine = (sel: MemorySlotSelection, key: string, penalized = false) => (
     <li key={key} className="memory-card-affix">
-      <span className="memory-card-tierbadge" style={{ color: tierColor(sel.tier ?? 0), borderColor: `${tierColor(sel.tier ?? 0)}66` }}>
-        T{sel.tier ?? 0}
+      <span className="memory-card-tierbadge" style={{ color: sel.tierKnown === false ? 'var(--fg-muted)' : tierColor(sel.tier ?? 0), borderColor: `${sel.tierKnown === false ? 'var(--fg-muted)' : tierColor(sel.tier ?? 0)}66` }}>
+        {sel.tierKnown === false ? '—' : `T${sel.tier ?? 0}`}
       </span>
       <span>{resolveMemoryEffect(sel)}{penalized ? penaltyTag : null}</span>
     </li>

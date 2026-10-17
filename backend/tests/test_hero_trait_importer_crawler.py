@@ -1,6 +1,6 @@
 import pytest
 from engine.modifier_lines import line_text
-from tools.hero_trait_importer import import_crawler_hero_trait, import_crawler_hero_traits
+from tools.hero_trait_importer import import_crawler_hero_trait, import_crawler_hero_traits, merge_hero_traits
 
 _ANGER = {
     "name": "Anger",
@@ -101,6 +101,28 @@ def test_artificial_moon_removed_from_level():
     r = import_crawler_hero_trait(_ANGER)
     # Level 5 description should have AM stripped
     assert "Artificial Moon" not in line_text(r["levels"][4]["effects"][0])
+
+
+def test_artificial_moon_rank_effect_keeps_empty_earlier_ranks():
+    incoming = import_crawler_hero_trait({
+        "name": "Ranked Moon",
+        "max_level": 3,
+        "traits": [{
+            "name": "Ranked Moon",
+            "required_level": 1,
+            "levels": [
+                {"level": 1, "effect_lines": ["Base effect", "Common tail"]},
+                {"level": 2, "effect_lines": ["Base effect", "Artificial Moon: +1 Moon", "Common tail"]},
+                {"level": 3, "effect_lines": ["Base effect", "Artificial Moon: +2 Moon", "Common tail"]},
+            ],
+            "description": None,
+        }],
+        "glossary": [],
+    })
+
+    assert [line_text(effect) for effect in incoming["artificial_moon"]["effects"]] == [
+        "(/Artificial Moon: +1 Moon/Artificial Moon: +2 Moon)",
+    ]
 
 
 def test_advanced_traits_count():
@@ -282,3 +304,141 @@ def test_dance_of_the_deep_full_layout_takes_tree_schema_path():
     hub = r["tree_nodes"][0]
     assert (hub["column"], hub["row"], hub["x"], hub["y"]) == (4, 0, 0.5, 0.1)
     assert len(r["tree_connections"]) == 8
+
+
+def test_reimport_refreshes_youga_tree_content_without_replacing_authored_layout():
+    existing = [{
+        "trait_id": "the_ultimate_one",
+        "allocation_mode": "tree",
+        "tree_root_id": "authored-root",
+        "tree_nodes": [
+            {"node_id": "authored-root", "name": "I Am the Ultimate One", "column": 4,
+             "row": 3, "x": 0.514, "y": 0.53, "effects": ["old root text"]},
+            {"node_id": "authored-choice", "name": "I Hold All in My Grasp", "column": 2,
+             "row": 1, "x": 0.2, "y": 0.3, "effects": ["old choice text"]},
+        ],
+        "tree_connections": [{"from": "authored-root", "to": "authored-choice"}],
+        "alternate_spacetime_header": "Alternate Spacetime Youga Effects (19 Skill Effects)",
+        "alternate_spacetime_effects": [{"skill": "existing choice", "lines": ["keep this"]}],
+    }]
+    incoming = import_crawler_hero_trait({
+        "name": "The Ultimate One",
+        "max_level": 12,
+        "traits": [
+            {"name": "I Am the Ultimate One", "required_level": 1,
+             "levels": [{"level": 1, "description": "base effect"}],
+             "description": None, "icon_url": ""},
+            {"name": "I Hold All in My Grasp", "required_level": 45,
+             "levels": [{"level": 1, "description": "Spacetime Dictator"}],
+             "description": None, "icon_url": "new-icon"},
+        ],
+        "glossary": [],
+        "alternate_spacetime_effects": [{
+            "skill_name": "Chromatic Shot",
+            "effects": [{"text": "While active, +1% additional Cold Damage"}],
+        }],
+    })
+
+    merged = merge_hero_traits(existing, incoming)[0]
+
+    assert merged["tree_root_id"] == "authored-root"
+    assert merged["tree_connections"] == [{"from": "authored-root", "to": "authored-choice"}]
+    root = next(node for node in merged["tree_nodes"] if node["node_id"] == "authored-root")
+    assert root["effects"] == ["base effect"]
+    assert (root["column"], root["row"], root["x"], root["y"]) == (4, 3, 0.514, 0.53)
+    choice = next(node for node in merged["tree_nodes"] if node["name"] == "I Hold All in My Grasp")
+    assert (choice["node_id"], choice["column"], choice["row"], choice["x"], choice["y"]) == (
+        "authored-choice", 2, 1, 0.2, 0.3,
+    )
+    assert choice["effects"] == ["Spacetime Dictator"]
+    assert choice["icon_url"] == "new-icon"
+    assert merged["alternate_spacetime_header"] == "Alternate Spacetime Youga Effects (1 Skill Effects)"
+    assert merged["alternate_spacetime_effects"] == [{
+        "skill": "Chromatic Shot", "lines": ["While active, +1% additional Cold Damage"],
+    }]
+
+
+def test_youga_rank_effects_and_artificial_moon_stay_separate_on_reimport():
+    ranks = [
+        (100, 36), (120, 39), (140, 42), (160, 45), (180, 48),
+    ]
+    levels = []
+    for rank, (bonus, cap) in enumerate(ranks, 1):
+        effect_lines = [
+            f"{bonus}% of bonuses, up to {cap}%",
+            "Non-Main Skills cannot be tangled or trigger Spell Burst",
+        ]
+        if rank == 5:
+            effect_lines.extend([
+                "Artificial Moon:",
+                "+1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
+                "+20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
+            ])
+        effect_lines.append(
+            "Tanglable Main Active Spell Skills are supported by Clockwork Core, replacing the support skill in the second support skill slot of that skill"
+        )
+        levels.append({"level": rank, "description": " ".join(effect_lines), "effect_lines": effect_lines})
+
+    incoming = import_crawler_hero_trait({
+        "name": "The Ultimate One",
+        "max_level": 12,
+        "traits": [{
+            "name": "I Am the Ultimate One", "required_level": 1,
+            "levels": levels, "description": None, "icon_url": "",
+        }],
+        "glossary": [],
+    })
+    previous = [{
+        "trait_id": "the_ultimate_one", "allocation_mode": "tree", "tree_root_id": "authored-root",
+        "tree_nodes": [{"node_id": "authored-root", "name": "I Am the Ultimate One",
+                        "column": 4, "row": 3, "x": .514, "y": .53, "effects": []}],
+        "tree_connections": [],
+    }]
+
+    merged = merge_hero_traits(previous, incoming)[0]
+    root = merged["tree_nodes"][0]
+    assert [line_text(effect) for effect in incoming["levels"][4]["effects"]] == [
+        "180% of bonuses, up to 48%",
+        "Non-Main Skills cannot be tangled or trigger Spell Burst",
+        "Tanglable Main Active Spell Skills are supported by Clockwork Core, replacing the support skill in the second support skill slot of that skill",
+    ]
+    assert [line_text(effect) for effect in incoming["artificial_moon"]["effects"]] == [
+        "Artificial Moon: +1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
+        "Artificial Moon: +20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
+    ]
+    assert root["effects"] == [
+        "(100%/120%/140%/160%/180%) of bonuses, up to (36%/39%/42%/45%/48%)",
+        "Non-Main Skills cannot be tangled or trigger Spell Burst",
+        "Tanglable Main Active Spell Skills are supported by Clockwork Core, replacing the support skill in the second support skill slot of that skill",
+        "Artificial Moon: +1 to Max Tangle Quantity for every +1 to Max Sentry Quantity",
+        "Artificial Moon: +20% additional Clockwork Core Damage for every +1 to Max Sentry Quantity",
+    ]
+
+
+def test_tree_root_import_keeps_missing_rank_effects_aligned():
+    ranks = [
+        ["+10 % Damage", "+1 Armor"],
+        ["", "+2 Armor"],
+        ["+30 % Damage", "+3 Armor"],
+        ["", "+4 Armor"],
+        ["+50 % Damage", "+5 Armor"],
+    ]
+    incoming = {
+        "trait_id": "sample_trait",
+        "levels": [{"effects": effects} for effects in ranks],
+    }
+    previous = [{
+        "trait_id": "sample_trait",
+        "allocation_mode": "tree",
+        "tree_root_id": "root",
+        "tree_nodes": [{"node_id": "root", "name": "Root", "effects": ["old"]}],
+        "tree_connections": [],
+    }]
+
+    merged = merge_hero_traits(previous, incoming)[0]
+    root = merged["tree_nodes"][0]
+
+    assert root["effects"] == [
+        "(+10 % Damage//+30 % Damage//+50 % Damage)",
+        "(+1/+2/+3/+4/+5) Armor",
+    ]

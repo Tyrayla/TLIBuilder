@@ -9,12 +9,54 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
     The incoming entry overwrites any existing entry with the same trait_id.
     """
     by_id: dict[str, dict] = {t["trait_id"]: t for t in existing}
+    previous = by_id.get(incoming["trait_id"])
+    if previous and previous.get("allocation_mode") == "tree":
+        # Tree geometry and edges are hand-authored in canonical season data. Refresh node
+        # content from the crawl, but retain those stable node IDs, positions, and connections.
+        incoming = deepcopy(incoming)
+        source_nodes = incoming.get("tree_nodes") or incoming.get("advanced_traits") or []
+        source_by_name = {node.get("name"): node for node in source_nodes if node.get("name")}
+        nodes = deepcopy(previous.get("tree_nodes") or [])
+        for node in nodes:
+            source = source_by_name.get(node.get("name"))
+            # A tree's always-active root is the imported base trait, not one of its advanced nodes.
+            # Keep its effect text data-derived too; layout IDs/coordinates remain authored separately.
+            if node.get("node_id") == previous.get("tree_root_id") and incoming.get("levels"):
+                rank_effects = [
+                    [line_text(effect) for effect in level.get("effects", [])]
+                    for level in incoming["levels"]
+                ]
+                width = max((len(effects) for effects in rank_effects), default=0)
+                root_effects = []
+                for index in range(width):
+                    tier_lines = [effects[index] if index < len(effects) else "" for effects in rank_effects]
+                    if any(line.strip() for line in tier_lines):
+                        root_effects.extend(_collapse_tiers(tier_lines, preserve_empty=True))
+                root_effects.extend(line_text(effect) for effect in incoming.get("artificial_moon", {}).get("effects", []))
+                if root_effects:
+                    node["effects"] = list(dict.fromkeys(root_effects))
+            if source:
+                if "effects" in source:
+                    node["effects"] = [line_text(effect) for effect in source["effects"]]
+                for field in ("icon_url", "unlock_level"):
+                    if field in source:
+                        node[field] = deepcopy(source[field])
+        incoming.update({
+            "allocation_mode": previous["allocation_mode"],
+            "tree_root_id": previous.get("tree_root_id"),
+            "tree_nodes": nodes,
+            "tree_connections": deepcopy(previous.get("tree_connections") or []),
+        })
+        for field in ("alternate_spacetime_header", "alternate_spacetime_effects"):
+            if field not in incoming and field in previous:
+                incoming[field] = deepcopy(previous[field])
     by_id[incoming["trait_id"]] = incoming
     return list(by_id.values())
 
 
 # ── Crawler-format importer ────────────────────────────────────────────────
 
+from copy import deepcopy
 import re as _re
 import warnings
 from collections import Counter as _Counter
@@ -25,11 +67,17 @@ _HERO_RE = _re.compile(r"HeroTraits/([^/]+)/")
 _AM_RE = _re.compile(r"Artificial Moon:\s*.+", _re.I)
 
 
-def _collapse_tiers(descs: list[str]) -> list[str]:
+def _collapse_tiers(descs: list[str], *, preserve_empty: bool = False) -> list[str]:
     """Collapse a node's per-level descriptions into ONE rank-accurate line using `(a/b/c/d/e)` tier syntax that the
     resolvers already understand (resolveLevel in the UI, _expandTraitTier in the engine), so a per-rank node shows
-    only its selected tier instead of dumping every tier. Single/empty -> as-is."""
-    descs = [d.strip() for d in descs if d and d.strip()]
+    only its selected tier instead of dumping every tier. With preserve_empty, blank ranks remain empty choices in
+    the slash group so a later rank's effect cannot slide into an earlier rank."""
+    if preserve_empty:
+        descs = [(d or "").strip() for d in descs]
+        if not any(descs):
+            return []
+    else:
+        descs = [d.strip() for d in descs if d and d.strip()]
     if len(descs) <= 1:
         return descs
     toks = [d.split() for d in descs]            # whitespace-normalized tokens
@@ -223,22 +271,76 @@ def import_crawler_hero_trait(data: dict) -> dict:
     # Build levels; extract Artificial Moon text when found. Stored effects are slim modifier-line
     # dicts; the AM split CHANGES the wording, so both halves become uuid-less lines (carry rule).
     am_effects: list[dict] = []
+    am_by_rank: list[list[str]] = []
     levels: list[dict] = []
-    for lv in (base.get("levels") or []):
+    base_levels = base.get("levels") or []
+    rank_source_lines = [
+        [line_text(line).strip() for line in (lv.get("effect_lines") or []) if line_text(line).strip()]
+        for lv in base_levels
+    ]
+    am_indices: dict[int, set[int]] = {}
+    if any(any(line.lower().startswith("artificial moon:") for line in lines) for lines in rank_source_lines):
+        common_suffix = 0
+        while all(len(lines) > common_suffix for lines in rank_source_lines):
+            suffix_line = rank_source_lines[0][-1 - common_suffix]
+            if not suffix_line or any(lines[-1 - common_suffix] != suffix_line for lines in rank_source_lines[1:]):
+                break
+            common_suffix += 1
+        for rank_index, lines in enumerate(rank_source_lines):
+            marker = next((i for i, line in enumerate(lines) if line.lower().startswith("artificial moon:")), None)
+            if marker is not None:
+                end = max(marker + 1, len(lines) - common_suffix)
+                am_indices[rank_index] = set(range(marker, end))
+
+    for rank_index, lv in enumerate(base_levels):
         raw_desc = lv.get("description", "")
         desc = line_text(raw_desc)
-        am_m = _AM_RE.search(desc)
-        if am_m and not am_effects:
-            am_effects = [slim(am_m.group(0))]
-            desc = desc[: am_m.start()].rstrip()
-            effect = slim(desc) if desc else None            # truncated wording → uuid-less
+        source_lines = lv.get("effect_lines")
+        if source_lines:
+            normal_lines = []
+            rank_am_lines = []
+            for line_index, source_line in enumerate(source_lines):
+                text = line_text(source_line).strip()
+                if not text:
+                    continue
+                if line_index in am_indices.get(rank_index, set()):
+                    if text.lower() == "artificial moon:":
+                        continue
+                    if not text.lower().startswith("artificial moon:"):
+                        text = f"Artificial Moon: {text}"
+                    rank_am_lines.append(text)
+                else:
+                    normal_lines.append(slim(source_line))
+            level_effects = normal_lines
+            am_by_rank.append(rank_am_lines)
         else:
-            effect = slim(raw_desc) if desc else None        # unsplit line → ids carry
+            am_m = _AM_RE.search(desc)
+            if am_m and not am_effects:
+                am_effects = [slim(am_m.group(0))]
+                desc = desc[: am_m.start()].rstrip()
+                effect = slim(desc) if desc else None            # truncated wording → uuid-less
+            else:
+                effect = slim(raw_desc) if desc else None        # unsplit line → ids carry
+            level_effects = [effect] if effect else []
         levels.append({
             "level": lv.get("level", 0),
-            "effects": [effect] if effect else [],
+            "effects": level_effects,
             "unlock_level": 1,
         })
+    if am_by_rank:
+        am_width = max((len(lines) for lines in am_by_rank), default=0)
+        for index in range(am_width):
+            tier_lines = [lines[index] if index < len(lines) else "" for lines in am_by_rank]
+            distinct_tiers = {line for line in tier_lines if line}
+            # Artificial Moon effects that appear only once (usually an unlock at rank 5) are
+            # independent effects, not a rank progression. Collapse only genuinely rank-varying
+            # effects, and retain blank ranks in those tiers so a later value cannot slide earlier.
+            collapsed = (
+                _collapse_tiers(tier_lines, preserve_empty=True)
+                if len(distinct_tiers) > 1
+                else list(distinct_tiers)
+            )
+            am_effects.extend(slim(line) for line in collapsed)
 
     # Advanced-node effects: nodes with a per-level `levels` array carry their text there (their top-level
     # `description` is null); others use `description`. Per-level descriptions are COLLAPSED into a single line
@@ -293,6 +395,18 @@ def import_crawler_hero_trait(data: dict) -> dict:
         "max_level": data.get("max_level"),
         "glossary": glossary,
     }
+    alternate_effects = data.get("alternate_spacetime_effects") or []
+    if alternate_effects:
+        result["alternate_spacetime_header"] = (
+            f"Alternate Spacetime Youga Effects ({len(alternate_effects)} Skill Effects)"
+        )
+        result["alternate_spacetime_effects"] = [
+            {
+                "skill": effect.get("skill_name", ""),
+                "lines": [line_text(line) for line in (effect.get("effects") or []) if line_text(line).strip()],
+            }
+            for effect in alternate_effects
+        ]
     tree_fields = (
         _dance_of_the_deep_tree_fields(advanced_traits, levels, am_effects, name, icon_url)
         if trait_id == _DANCE_OF_THE_DEEP_TREE_ROOT else None

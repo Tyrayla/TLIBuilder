@@ -15,7 +15,7 @@ from persistence import season_manager
 from server import _get_skills_data
 
 _GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "tooltip_golden")
-_SEASON = season_manager.get_active_season()
+_SEASON = "SS13"  # Existing snapshots were captured from SS13 data.
 _SKILLS_BY_ID = _get_skills_data(_SEASON) if _SEASON else {}
 
 

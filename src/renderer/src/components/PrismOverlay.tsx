@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import {
   iconUrl, PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls,
   EtherealCatalog, EtherealCatalogItem, EtherealConfig, PrismRarity,
@@ -363,6 +363,11 @@ function EtherealForm({ draft, ethereal, setDraft, actions }: {
           <div style={{ color: '#8a8fb0', fontSize: 11, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4 }}>Implicit</div>
           <div style={{ background: '#0d0f18', border: '1px solid #2a2e44', borderRadius: 4, padding: '6px 8px',
             fontSize: 12, color: '#bcc0dd' }}>{implicitSummary(item)}</div>
+          {item.implicit.kind === 'replace' && item.replace_description?.trim() && (
+            <div className="prism-replacement-effect" style={{ fontSize: 11.5, color: '#9fa4c2', lineHeight: 1.45, marginTop: 5 }}>
+              <span style={{ color: '#8a8fb0' }}>Effect: </span>{item.replace_description}
+            </div>
+          )}
           {isPhant && (
             <div style={{ fontSize: 10.5, color: '#6f7494', marginTop: 3 }}>
               Already reflected in the Slot 2 values below (Phantasmagoria rolls the boosted variants).

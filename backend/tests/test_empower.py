@@ -69,9 +69,9 @@ class TestCharges:
 
 
 class TestEmpowerSupports:
-    def _resolve(self, item_id, host, empower_slots, conds=None):
+    def _resolve(self, item_id, host, empower_slots, conds=None, level=1):
         return resolve_standard_supports(
-            [{"item_id": item_id, "slot": 2, "level": 1}], SBI, None, [], conds or {}, {2: "spell"},
+            [{"item_id": item_id, "slot": 2, "level": level}], SBI, None, [], conds or {}, {2: "spell"},
             source=BuildSource(), empower_slots=empower_slots, slot_skill={2: host})[0]
 
     def _eff(self, contribs):
@@ -87,10 +87,19 @@ class TestEmpowerSupports:
                                       conds={"well_fought_battle_stacks": 1}))
         assert eff == pytest.approx(0.0525, abs=1e-3)
 
+    def test_well_fought_battle_uses_equipped_level_progression(self):
+        eff = self._eff(self._resolve("well_fought_battle", "secret_origin_unleash", {2},
+                                      conds={"well_fought_battle_stacks": 1}, level=20))
+        assert eff == pytest.approx(0.10, abs=1e-3)
+
     def test_mass_effect_charge_scaled(self):
         # Black Hole has a cooldown (1 charge); Mass Effect adds +1 → 2 charges → 10.5% × 2 = 21%.
         eff = self._eff(self._resolve("mass_effect", "black_hole", {2}))
         assert eff == pytest.approx(0.21, abs=1e-3)
+
+    def test_mass_effect_uses_equipped_level_progression(self):
+        eff = self._eff(self._resolve("mass_effect", "black_hole", {2}, level=20))
+        assert eff == pytest.approx(0.40, abs=1e-3)
 
     def test_empower_only_gate(self):
         # Mass Effect on a non-empower host (empower_slots empty) is gated out — no contribution.

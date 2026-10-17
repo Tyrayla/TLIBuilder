@@ -5,6 +5,18 @@ import pytest
 from engine.hero_traits import has_module
 from engine.hero_traits import vigilant_breeze as vb
 from engine.models import BuildSource
+from persistence import season_manager
+
+
+@pytest.fixture
+def _ss13_skill_data():
+    """These numerical dispatch fixtures document the SS13 cast-time/base-damage contract."""
+    previous = season_manager.get_active_season()
+    season_manager.set_active_season("SS13")
+    try:
+        yield
+    finally:
+        season_manager.set_active_season(previous)
 
 
 def _amounts(result):
@@ -827,6 +839,7 @@ def test_erosion_merged_ultimate_and_empower_have_real_world_of_thorns_dps():
     assert not magus["hit_forms"][0]["nyi"]
 
 
+@pytest.mark.usefixtures("_ss13_skill_data")
 def test_merged_base_and_ultimate_partition_time_and_report_combined_damage():
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
@@ -851,6 +864,7 @@ def test_merged_base_and_ultimate_partition_time_and_report_combined_damage():
     assert magus["total_dps"] == pytest.approx(sum(form["dps_contribution"] for form in forms.values()))
 
 
+@pytest.mark.usefixtures("_ss13_skill_data")
 def test_whirlwind_tango_merged_ultimate_uses_zero_cooldown_cadence_and_real_damage():
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
@@ -867,7 +881,9 @@ def test_whirlwind_tango_merged_ultimate_uses_zero_cooldown_cadence_and_real_dam
 
     assert magus["iris_skill_dispatch"]["skill_forms"][0]["casts_per_second"] == pytest.approx(0.6466666666666666)
     assert magus["iris_skill_dispatch"]["rotations"][0]["cooldown"] == 0.0
-    assert magus["total_dps"] == pytest.approx(1485.03665625)
+    # Towering Mountains deals 3,674.3175 per cast; at 0.404166... casts/s, Whirlwind Tango's
+    # source penalty (−60% additional Spirit Magus Skill Damage) gives 3,674.3175 × 0.404166... × 0.4.
+    assert magus["total_dps"] == pytest.approx(594.0146625)
     assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(0.4041666666666666)
     assert any("per-cast Life cost is exposed" in note for note in magus["nyi"])
 
@@ -897,6 +913,7 @@ def test_happiest_reunion_reports_damage_for_each_merged_magus():
     assert minions["summon_erosion_magus"]["total_dps"] == pytest.approx(494.5969749558424)
 
 
+@pytest.mark.usefixtures("_ss13_skill_data")
 def test_only_selected_magus_count_uses_merged_rotation_and_remainder_keeps_normal_rotation(monkeypatch):
     import engine.compute as compute_module
     from server import EngineStatsRequest, engine_stats
@@ -923,6 +940,7 @@ def test_only_selected_magus_count_uses_merged_rotation_and_remainder_keeps_norm
     assert any("Merged rotation applies to 1 of 2 Magi" in note for note in magus["nyi"])
 
 
+@pytest.mark.usefixtures("_ss13_skill_data")
 def test_thunder_merged_ultimate_uses_real_seven_hit_per_cast_form():
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
@@ -950,6 +968,7 @@ def test_thunder_merged_ultimate_uses_real_seven_hit_per_cast_form():
     assert not any("per-cast form is pending" in note for note in magus["nyi"])
 
 
+@pytest.mark.usefixtures("_ss13_skill_data")
 def test_thunder_merged_ultimate_whirlwind_tango_uses_cast_time_cadence():
     from server import EngineStatsRequest, engine_stats
     from tests.mock_build import make_request
@@ -964,15 +983,15 @@ def test_thunder_merged_ultimate_whirlwind_tango_uses_cast_time_cadence():
     )
     magus = engine_stats(EngineStatsRequest(**request))["minion_offense"]["summon_thunder_magus"]
 
-    # Tango removes the 8 s cooldown, so the 1.5 s cast time sets 2/3 casts/s.
-    # 6,479.025 × 2/3 × 0.625 Reconjuring uptime = 2,699.59375 DPS.
+    # Tango removes the 8 s cooldown, so the 1.5 s cast time sets 2/3 casts/s. The source's
+    # −60% additional Spirit Magus Skill Damage gives 6,479.025 × 2/3 × 0.625 × 0.4 = 1,079.8375 DPS.
     assert magus["minion_ultimate"]["hits_per_target"] == 7
     assert magus["minion_ultimate"]["base_cooldown"] == pytest.approx(8.0)
     assert magus["minion_ultimate"]["base_cast_time"] == pytest.approx(1.5)
     assert magus["iris_skill_dispatch"]["rotations"][0]["cooldown"] == 0.0
     assert magus["iris_skill_dispatch"]["casts_per_second"] == pytest.approx(2 / 3)
     assert magus["hit_forms"][0]["fires_per_sec"] == pytest.approx(5 / 12)
-    assert magus["total_dps"] == pytest.approx(2699.59375)
+    assert magus["total_dps"] == pytest.approx(1079.8375)
 
 
 def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monkeypatch):
@@ -1020,6 +1039,7 @@ def test_thunder_merged_ultimate_consumes_a_generic_per_cast_hit_breakdown(monke
     assert not any("per-cast form is pending" in note for note in magus["nyi"])
 
 
+@pytest.mark.usefixtures("_ss13_skill_data")
 def test_thunder_merged_base_uses_module_chance_fast_insert_and_empower_checkbox(monkeypatch):
     from engine import minion_effects, minion_offense  # noqa: F401 - registers module handlers
     from server import EngineStatsRequest, engine_stats

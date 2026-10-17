@@ -56,19 +56,29 @@ def _support_text(data: dict) -> str:
     return " ".join(parts)
 
 
+def _support_progression_text(data: dict, level) -> str:
+    """Return the level-specific description when the crawler captured one."""
+    entry = _progression_for_tier(data.get("progression"), _tier_value(level))
+    values = (entry or {}).get("values") or {}
+    description = values.get("Descript")
+    return description if isinstance(description, str) else ""
+
+
 def _empower_support_contrib(item_id, data, sup, conds, source, skills_by_id, slot_skill):
     """Slot-local Empower Skill Effect from Mass Effect (per-charge × host charges, capped) or Well-Fought Battle
     (per-cast × user-set casts, default max). Returns a contrib dict or None. Per-unit value uses the displayed
-    (Lv1) value — level-scaling is approximate (flagged)."""
+    value from the equipped gem level's progression description when available."""
     txt = _support_text(data)
+    progression_text = _support_progression_text(data, sup.get("level"))
     slot = sup.get("slot", 1)
     name = data.get("name") or item_id
     if item_id == "mass_effect":
-        mper = _ME_PER_RE.search(txt)
+        mper = _ME_PER_RE.search(progression_text) or _ME_PER_RE.search(txt)
         if not mper:
             return None
         per = float(mper.group(1)) / 100.0
-        cap = (float(_ME_CAP_RE.search(txt).group(1)) / 100.0) if _ME_CAP_RE.search(txt) else per * 3
+        cap_match = _ME_CAP_RE.search(progression_text) or _ME_CAP_RE.search(txt)
+        cap = float(cap_match.group(1)) / 100.0 if cap_match else per * 3
         from engine.skill_charges import skill_base_charges
         host = skills_by_id.get((slot_skill or {}).get(slot)) or {}
         base_ch = skill_base_charges(host)
@@ -80,11 +90,12 @@ def _empower_support_contrib(item_id, data, sup, conds, source, skills_by_id, sl
         return {"stat_key": "empower_effect_inc", "amount": amt, "label": name, "slot": slot,
                 "text": f"+{amt * 100:.1f}% Empower Skill Effect (Mass Effect, {charges} charges) |mass_effect|me"}
     if item_id == "well_fought_battle":
-        wper = _WFB_PER_RE.search(txt)
+        wper = _WFB_PER_RE.search(progression_text) or _WFB_PER_RE.search(txt)
         if not wper:
             return None
         per = float(wper.group(1)) / 100.0
-        maxst = int(_WFB_MAX_RE.search(txt).group(1)) if _WFB_MAX_RE.search(txt) else 3
+        stack_match = _WFB_MAX_RE.search(progression_text) or _WFB_MAX_RE.search(txt)
+        maxst = int(stack_match.group(1)) if stack_match else 3
         raw = (conds or {}).get("well_fought_battle_stacks")
         stacks = maxst if raw is None else max(0, min(int(raw), maxst))
         amt = per * stacks
@@ -157,6 +168,11 @@ def _norm_line(s: str) -> str:
     return re.sub(r"[\s%]+", "", s or "").lower()
 
 
+def _norm_template_line(s: str) -> str:
+    """Normalize numeric values out of a line so current summary text matches its progression key."""
+    return re.sub(r"[^a-z]+", "", re.sub(r"\d+(?:\.\d+)?", "", s or "").lower())
+
+
 def _progression_value_for_line(prog_entry: dict, line: str) -> float | None:
     """The level-scaled numeric for `line` from a progression entry's `values` (keyed by the Lv1 line text).
     Falls back to the single value when the entry has exactly one (e.g. Multistrike's chance-only progression)."""
@@ -168,6 +184,13 @@ def _progression_value_for_line(prog_entry: dict, line: str) -> float | None:
                 return float(v)
             except (TypeError, ValueError):
                 return None
+    template = _norm_template_line(line)
+    template_matches = [v for k, v in vals.items() if template and _norm_template_line(k) == template]
+    if len(template_matches) == 1:
+        try:
+            return float(template_matches[0])
+        except (TypeError, ValueError):
+            return None
     if len(vals) == 1:
         try:
             return float(next(iter(vals.values())))

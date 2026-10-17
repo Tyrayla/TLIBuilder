@@ -70,7 +70,8 @@ def step_trees(season: str, crawl: str) -> str:
             skipped.append(tree_name or os.path.basename(path))
             continue
         tree_slug = tree_name.lower().replace(" ", "_")
-        parsed = import_crawler_tree(data, tree_name)
+        previous = season_manager.load_season_tree(season, tree_slug, raw=True)
+        parsed = import_crawler_tree(data, tree_name, existing_data=previous)
         parsed["season"] = season
         season_manager.save_season_tree(season, tree_name, tree_slug, parsed)
         imported.append(tree_name)

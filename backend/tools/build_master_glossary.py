@@ -35,9 +35,18 @@ def _category(fname: str) -> str:
 def _walk(node, fname, sink):
     if isinstance(node, dict):
         for k, v in node.items():
-            if k == "glossary" and isinstance(v, dict):
-                for gid, entry in v.items():
-                    if isinstance(entry, dict) and entry.get("name"):
+            if k in {"glossary", "hover_terms"}:
+                if isinstance(v, dict):
+                    entries = v.items()
+                elif isinstance(v, list):
+                    entries = (
+                        (entry.get("term_id") or entry.get("id"), entry)
+                        for entry in v if isinstance(entry, dict)
+                    )
+                else:
+                    entries = ()
+                for gid, entry in entries:
+                    if gid and isinstance(entry, dict) and entry.get("name"):
                         sink(str(gid), entry["name"].strip(),
                              (entry.get("description") or "").strip(), fname)
             else:

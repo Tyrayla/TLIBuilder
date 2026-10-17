@@ -18,10 +18,14 @@ export function scaleEffect(text: string, pts: number, mult = 1): string {
 
 export function NodeTooltipBody({ node, pts, mult = 1 }: { node: TreeNode; pts: number; mult?: number }) {
   const effects = node.effects ?? []
+  const traitVariants = node.trait_variants ?? []
   // Status keyed on the RAW (unscaled) effect text + node id, so it matches the node recipe.
   const statuses = useTextModifierStatuses(effects.map(text => ({ text, source: 'talent' as const, nodeId: node.id })))
-  if (effects.length === 0) return null
+  const variantStatuses = useTextModifierStatuses(traitVariants.flatMap((variant, variantIndex) =>
+    variant.effects.map(text => ({ text, source: 'talent' as const, nodeId: `${node.id}:variant:${variantIndex}` }))))
+  if (effects.length === 0 && traitVariants.length === 0) return null
   const atMax = pts >= node.max_points
+  let variantStatusIndex = 0
   return (
     <>
       {pts > 0 && effects.map((e, i) => (
@@ -42,6 +46,19 @@ export function NodeTooltipBody({ node, pts, mult = 1 }: { node: TreeNode; pts: 
           ))}
         </>
       )}
+      {traitVariants.map((variant, variantIndex) => (
+        <React.Fragment key={`trait-variant-${variantIndex}`}>
+          <div className="tooltip-next-level">Replaced with {variant.advanced_selection}</div>
+          {variant.effects.map((effect, effectIndex) => {
+            const index = variantStatusIndex++
+            return (
+              <div key={`trait-variant-${variantIndex}-${effectIndex}`} className="tooltip-stat-row">
+                {scaleEffect(effect, pts || 1, mult)}<ModifierBadge status={variantStatuses[index]} />
+              </div>
+            )
+          })}
+        </React.Fragment>
+      ))}
     </>
   )
 }

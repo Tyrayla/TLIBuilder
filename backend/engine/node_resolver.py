@@ -53,6 +53,25 @@ def _slug_from_node_id(node_id: str) -> str:
     return m.group(1) if m else ""
 
 
+def _effective_node_effects(node: dict, trait_id: str | None, advanced_trait_selections,
+                            trait_slot_levels) -> list[str]:
+    """Select an imported replacement only when its trait, pick, and memory-backed tier are active."""
+    picks = set(advanced_trait_selections or [])
+    for variant in node.get("trait_variants") or []:
+        variant_trait_id = variant.get("trait_id")
+        if variant_trait_id is None or variant_trait_id != trait_id or variant.get("advanced_selection") not in picks:
+            continue
+        unlock_level = variant.get("unlock_level")
+        if unlock_level is not None:
+            slot_index = 3 if unlock_level >= 75 else 2 if unlock_level >= 60 else 1
+            levels = trait_slot_levels or []
+            # Omitted levels retain the API's legacy default (enabled); explicit 0/negative levels are inactive.
+            if slot_index < len(levels) and levels[slot_index] < 1:
+                continue
+        return variant.get("effects") or []
+    return node.get("effects") or []
+
+
 def _resolve_node(node_id: str, effects, points: int, label: str, source_text_tag: str,
                   parse_mod, translate_cond, source_name: str | None = None) -> tuple[list[dict], list[dict]]:
     """Resolve one allocated node's effects at `points`. Mirrors core_talent_resolver._resolve_talent but
@@ -135,7 +154,8 @@ def resolve_effect_text_keys_strict(text, parse_mod, translate_cond) -> list[str
     return out
 
 
-def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms=None):
+def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms=None,
+                  trait_id=None, trait_slot_levels=None, advanced_trait_selections=None):
     """Resolve all allocated tree nodes (× points) + slate slots (× 1, Max-Divinity-deduped) + Prism reflected
     copies (source effect × tier roll × points) to contributions."""
     contribs: list[dict] = []
@@ -158,7 +178,8 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms
             if not node:
                 continue
             c, s = _resolve_node(
-                node_id, node.get("effects") or [], int(points), f"{tree_name} · {node_id}", "node",
+                node_id, _effective_node_effects(node, trait_id, advanced_trait_selections, trait_slot_levels), int(points),
+                f"{tree_name} · {node_id}", "node",
                 parse_mod, translate_cond, tree_name,
             )
             contribs.extend(c)
@@ -271,7 +292,8 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms
             mult = 1.0 + float(roll) / 100.0
             if mult <= 0:                                  # −100% (or lower) → no effect
                 continue
-            c, s = _resolve_node(f"{src['id']}::refl::{pos_key}", src.get("effects") or [], int(pts),
+            c, s = _resolve_node(f"{src['id']}::refl::{pos_key}",
+                                 _effective_node_effects(src, trait_id, advanced_trait_selections, trait_slot_levels), int(pts),
                                  f"{prism.get('treeName', '')} · Inverse Image ({src['id']})", "node",
                                  parse_mod, translate_cond)
             for x in c:

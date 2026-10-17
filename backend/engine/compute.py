@@ -1870,6 +1870,15 @@ def compute(
         if _as_per:
             snapshot = snapshot | frozenset({("_as_feedback_units", int(_prev_consumed_recently_life // (_as_unit or 1)))})
 
+        # Flash Flood's burst-rate feedback is damped across passes, but neither its rate nor its floored
+        # 4-second count is otherwise visible in the state snapshot. Without both, a slow SS14 cast can
+        # converge while the damped rate is still below the next integer boundary, leaving the count at 0.
+        if "spell_burst_stacks_recently" in source.referenced_conditions:
+            snapshot = snapshot | frozenset({
+                ("_spell_burst_feedback_rate", round(_prev_burst_rate, 2)),
+                ("_spell_burst_feedback_units", int(_prev_burst_rate * 4.0)),
+            })
+
         if snapshot == prev_snapshot:
             _converged_iters = iteration + 1
             break
