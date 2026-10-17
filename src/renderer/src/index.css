@@ -4191,6 +4191,14 @@ span.gear-affix-label {
 /* Fixed-trait aligned grid: columns = base + one per level; rows = label / above / memory / below. Using a
    grid (grid-auto-flow: column, 4 auto rows) syncs the memory row across all columns so the base trait and
    the 3 memory slots line up regardless of how many options each level shows. */
+.trait-main-row--tree-effects {
+  flex: 0 0 auto;
+  align-items: stretch;
+}
+.trait-main-row--tree-effects > .htt-row {
+  flex: 0 0 auto;
+  min-height: auto;
+}
 .trait-grid {
   display: grid;
   grid-auto-flow: column;
