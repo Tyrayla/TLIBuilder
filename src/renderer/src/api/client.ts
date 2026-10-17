@@ -540,6 +540,7 @@ export interface TreeNode {
   node_type: string
   current_points: number
   effects: string[]
+  trait_variants?: { trait_id: string | null; unlock_level: number | null; advanced_selection: string; effects: string[] }[]
   icon_url?: string | null   // CDN url; render via iconUrl('talent_tree', icon_url) → bundled webp
 }
 
@@ -636,7 +637,6 @@ export interface ConditionDef {
   value_type: 'boolean' | 'numeric' | 'enum'
   enum_values?: string[]        // value_type === 'enum': the selectable options (a dropdown)
   default_enum?: string         // value_type === 'enum': default selected option
-  options_source?: string       // enum choices derived from current build state
   numeric_min?: number
   numeric_max?: number | null
   min_base?: number
@@ -650,6 +650,7 @@ export interface ConditionDef {
   is_derived?: boolean
   source?: string
   trait_id?: string | null   // hero-trait conditions: shown only when this trait is selected (or Show all)
+  options_source?: string | null // enum choices derived from current build state, e.g. available Spirit Magus slots
 }
 
 export interface ConditionSourceEntry {
@@ -1770,6 +1771,11 @@ export interface HeroTraitTreeNode {
   unlock_level?: number | null   // character level the node unlocks at; recorded in data, not shown or enforced (same as Selena 2)
 }
 
+export interface AlternateSpacetimeEffect {
+  skill: string
+  lines: string[]
+}
+
 export interface HeroTrait {
   trait_id: string
   hero: string
@@ -1789,10 +1795,9 @@ export interface HeroTrait {
   tree_root_id?: string
   tree_nodes?: HeroTraitTreeNode[]
   tree_connections?: { from: string; to: string }[]
-  // Youga 3 (The Ultimate One) only — reference text for the skill effects active under "Selves of All Realms";
-  // display-only, none of it is modeled.
+  // Youga 3 (The Ultimate One) only � display-only source reference for "Selves of All Realms" effects.
   alternate_spacetime_header?: string
-  alternate_spacetime_effects?: { skill: string; lines: string[] }[]
+  alternate_spacetime_effects?: AlternateSpacetimeEffect[]
   // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
   coverage?: 'full' | 'partial' | 'none'
   // For 'partial': the mechanics/status lines NOT modeled — show in a tooltip.
@@ -2078,11 +2083,13 @@ export interface DestinyItem {
 }
 
 export interface HeroMemoryAffix {
-  tier: number
+  tier: number | null
   modifier: string
-  level: number
-  weight: number
+  level: number | null
+  weight: number | null
   source: string
+  type?: string | null
+  tier_known?: boolean
   // Full effect text for tier-0 named revival mods (e.g. "Artificial Moon: Origin"), whose `modifier` is only
   // the name — merged from the crawl glossary by the importer. Absent for mods whose `modifier` is already full text.
   description?: string
@@ -2107,6 +2114,7 @@ export const MEMORY_RARITY_COLORS: Record<MemoryRarity, string> = {
 export interface MemorySlotSelection {
   modifier: string
   tier: number
+  tierKnown?: boolean
   rolledValue: number | null
   // Multi-range affixes carry TWO+ INDEPENDENT rolls on one line (e.g. the combo mod "+(10–12)% Attack and
   // Cast Speed for Combo Starters +(31–40)% Critical Strike Damage for Combo Finishers" — the two halves are

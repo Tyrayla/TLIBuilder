@@ -326,8 +326,7 @@ export default function BuildOverviewScreen() {
 
   const dynamicEnumOptions: Record<string, { value: string; label: string }[]> = {
     spirit_magus_slots: equippedSkills
-      .filter(skill => skill.slot >= 1
-        && skill.enabled !== false && skill.skill_tags.includes('Spirit Magus'))
+      .filter(skill => skill.slot >= 1 && skill.enabled !== false && skill.skill_tags.includes('Spirit Magus'))
       .sort((a, b) => a.slot - b.slot)
       .map(skill => ({ value: String(skill.slot), label: `${skill.name} · Slot ${skill.slot}` })),
   }
@@ -407,8 +406,7 @@ export default function BuildOverviewScreen() {
               ? cond.default_enum
               : (mainMagusSlot != null && opts.some(option => option.value === String(mainMagusSlot))
                 ? String(mainMagusSlot)
-              : opts[0]?.value ?? '')
-              )
+                : opts[0]?.value ?? ''))
           return (
             <div key={cond.key} className="cond-item">
               <ConditionLabel condition={cond} className="cond-label" />

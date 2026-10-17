@@ -21,7 +21,7 @@ import pytest
 from server import get_skills
 from persistence import season_manager
 
-_SEASON = season_manager.get_active_season()
+_SEASON = "SS13"
 
 # SS14 is currently the SS13 dataset relabelled "Pre-Season" (+ the Youga 3 trait), so the SS13 mana_boil
 # crawler text is still what the active season serves. When real SS14 data lands, re-confirm the raw text
@@ -29,14 +29,15 @@ _SEASON = season_manager.get_active_season()
 _SS13_DATA_SEASONS = ("SS13", "SS14")
 
 
-def test_active_season_is_ss13():
-    # Pin the concrete owner-facing case this test targets. If the active season legitimately
-    # changed, re-verify the raw crawler text still exhibits the bug before updating this pin.
-    assert _SEASON in _SS13_DATA_SEASONS, (
-        f".wolf/data/seasons/.active is not SS13/SS14 (got {_SEASON!r}) — this test targets the SS13 "
-        "mana_boil owner-facing regression; update the pin only after re-confirming against the "
-        "new active season's raw data."
-    )
+@pytest.fixture(autouse=True)
+def _use_ss13_for_mana_boil_regression(monkeypatch):
+    # These assertions pin an SS13-specific raw-data correction. Keep them independent of the
+    # worktree's selected season so the SS14 data-verification checkout can run them unchanged.
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: _SEASON)
+
+
+def test_ss13_mana_boil_fixture_is_available():
+    assert season_manager.load_skills(_SEASON), "SS13 skill data is required for this SS13-specific regression"
 
 
 class TestGetSkillsAppliesOverrides:

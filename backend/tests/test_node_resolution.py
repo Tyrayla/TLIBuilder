@@ -51,6 +51,82 @@ class TestRankScaling:
         c, _ = resolve_nodes([_slot("Warrior", "warrior_c0_r0", 1)], [], trees, pm, tc)
         assert _amounts(c).get("attack_skill_level") == pytest.approx(1.0)
 
+    def test_ss14_max_active_divinity_suffix_still_resolves_talent_effect(self):
+        # SS14 TLIDB wording: Ronin's +1 Shadow Quantity carries this cap suffix.
+        node = {
+            "id": "ronin_c6_r2",
+            "node_type": "Legendary Medium Talent",
+            "effects": ["Shadow Quantity +1 (Max Active Divinity: 1)"],
+        }
+        trees = _tree("Ronin", [node])
+        c, statuses = resolve_nodes([_slot("Ronin", "ronin_c6_r2", 1)], [], trees, pm, tc)
+        assert _amounts(c).get("max_shadow_quantity_flat") == pytest.approx(1.0)
+        assert statuses == [{
+            "node_id": "ronin_c6_r2",
+            "text": "Shadow Quantity +1 (Max Active Divinity: 1)",
+            "resolved": True,
+            "kind": "stat",
+        }]
+
+
+class TestHeroTraitTalentVariants:
+    def test_unmapped_variant_stays_inactive_without_a_trait_id(self):
+        node = {
+            "id": "arcanist_c4_r0",
+            "node_type": "Legendary Medium Talent",
+            "effects": ["+10 % Attack Damage"],
+            "trait_variants": [{
+                "trait_id": None,
+                "unlock_level": None,
+                "advanced_selection": "Unmapped Variant",
+                "effects": ["+99 % Attack Damage"],
+            }],
+        }
+        trees = _tree("Arcanist", [node])
+
+        contributions, _ = resolve_nodes(
+            [_slot("Arcanist", "arcanist_c4_r0", 1)], [], trees, pm, tc,
+            advanced_trait_selections=["Unmapped Variant"],
+        )
+
+        assert _amounts(contributions)["attack_dmg_inc"] == pytest.approx(0.10)
+
+    def test_revelation_replaces_the_normal_talent_only_for_the_selected_trait(self):
+        node = {
+            "id": "arcanist_c4_r0",
+            "node_type": "Legendary Medium Talent",
+            "effects": ["+10 % Attack Damage"],
+            "trait_variants": [{
+                "trait_id": "wisdom_of_the_gods",
+                "unlock_level": 60,
+                "advanced_selection": "Prophecy of Revelation",
+                "effects": ["+20 % Attack Damage"],
+            }],
+        }
+        trees = _tree("Arcanist", [node])
+        slot = _slot("Arcanist", "arcanist_c4_r0", 1)
+
+        normal, _ = resolve_nodes([slot], [], trees, pm, tc)
+        wrong_trait, _ = resolve_nodes(
+            [slot], [], trees, pm, tc, trait_id="other_trait",
+            advanced_trait_selections=["Prophecy of Revelation"],
+        )
+        replaced, _ = resolve_nodes(
+            [slot], [], trees, pm, tc, trait_id="wisdom_of_the_gods",
+            trait_slot_levels=[1, 1, 2, 1],
+            advanced_trait_selections=["Prophecy of Revelation"],
+        )
+        inactive, _ = resolve_nodes(
+            [slot], [], trees, pm, tc, trait_id="wisdom_of_the_gods",
+            trait_slot_levels=[1, 1, 0, 1],
+            advanced_trait_selections=["Prophecy of Revelation"],
+        )
+
+        assert _amounts(normal)["attack_dmg_inc"] == pytest.approx(0.10)
+        assert _amounts(wrong_trait)["attack_dmg_inc"] == pytest.approx(0.10)
+        assert _amounts(replaced)["attack_dmg_inc"] == pytest.approx(0.20)
+        assert _amounts(inactive)["attack_dmg_inc"] == pytest.approx(0.10)
+
 
 class TestConditionalGating:
     def test_conditional_carries_gate(self):
@@ -115,6 +191,21 @@ class TestSlateMaxDivinityDedup:
             {"selectedNodeId": "warrior_c0_r0"}, {"selectedNodeId": "warrior_c0_r1"}]}], trees, pm, tc)
         # Only the first-seen instance applies; the second (same effect) is deduped → totals equal.
         assert _amounts(both).get("max_mana_inc") == pytest.approx(_amounts(only_a).get("max_mana_inc"))
+
+    def test_ss14_active_divinity_suffix_dedupes_across_slate_slots(self):
+        nodes = [
+            {"id": "warrior_c0_r0", "node_type": "Medium Talent",
+             "effects": ["+12 % Max Mana (Max Active Divinity: 1)"]},
+            {"id": "warrior_c0_r1", "node_type": "Medium Talent",
+             "effects": ["+8 % Max Mana (Max Active Divinity: 1)"]},
+        ]
+        trees = _tree("Warrior", nodes)
+        one, _ = resolve_nodes([], [{"kind": "base", "slots": [
+            {"selectedNodeId": "warrior_c0_r0"}]}], trees, pm, tc)
+        both, _ = resolve_nodes([], [{"kind": "base", "slots": [
+            {"selectedNodeId": "warrior_c0_r0"}, {"selectedNodeId": "warrior_c0_r1"}]}], trees, pm, tc)
+        assert _amounts(one).get("max_mana_inc") == pytest.approx(0.12)
+        assert _amounts(both).get("max_mana_inc") == pytest.approx(0.12)
 
 
 class TestCopySlateMediumTalents:

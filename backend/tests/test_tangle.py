@@ -12,14 +12,20 @@ import pytest
 from tests.mock_build import make_request, DUAL_WEAPONS
 from server import engine_stats, EngineStatsRequest
 from engine import mod_parser as mp
+from persistence import season_manager
 
 _SPELL = "chain_lightning"   # a Spell skill → eligible for Tangle
 _ACTIVATOR = [{"slot": 1, "item_id": "spell_tangle", "level": 20, "enabled": True}]
 
 
 def _offense(supports=None, gear=None, conds=None):
-    r = engine_stats(EngineStatsRequest(**make_request(
-        _SPELL, 20, attached_supports=supports, gear=gear, extra_conditions=conds)))
+    previous = season_manager.get_active_season()
+    season_manager.set_active_season("SS13")
+    try:
+        r = engine_stats(EngineStatsRequest(**make_request(
+            _SPELL, 20, attached_supports=supports, gear=gear, extra_conditions=conds)))
+    finally:
+        season_manager.set_active_season(previous)
     d = r.model_dump() if hasattr(r, "model_dump") else r
     return d["offense"]
 

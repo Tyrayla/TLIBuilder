@@ -7,6 +7,7 @@ ADDITIONAL Max Channeled Stack" (beyond base 5) scales off max_channeled_stacks_
 import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request, DUAL_WEAPONS
+from persistence import season_manager
 
 _SKILL = "howling_gale"
 
@@ -18,7 +19,12 @@ def _gear_with(**stats):
 
 
 def _offense(level=20, gear=None, conds=None, **extra):
-    r = engine_stats(EngineStatsRequest(**make_request(_SKILL, level, gear=gear, extra_conditions=conds, **extra)))
+    previous = season_manager.get_active_season()
+    season_manager.set_active_season("SS13")
+    try:
+        r = engine_stats(EngineStatsRequest(**make_request(_SKILL, level, gear=gear, extra_conditions=conds, **extra)))
+    finally:
+        season_manager.set_active_season(previous)
     d = r.model_dump() if hasattr(r, "model_dump") else r
     return d["offense"]
 

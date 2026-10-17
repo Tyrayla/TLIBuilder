@@ -71,6 +71,24 @@ def _interp_level_anchors(anchors: list[tuple[int, float]], level: int) -> float
             return v0 + (v1 - v0) * (level - l0) / (l1 - l0)
     (l0, v0), (l1, v1) = anchors[-2], anchors[-1]
     return v1 + (v1 - v0) * (level - l1) / (l1 - l0)
+
+
+def _restoration_signature(raw_line: str) -> tuple[tuple[str, str], ...] | None:
+    """Return the fully parsed pool/mode parts, or None when a restoration clause has unknown content."""
+    match = _RESTORE_LINE_RE.search(raw_line or "")
+    if not match:
+        return None
+    body = match.group(1)
+    parts = list(_RESTORE_PART_RE.finditer(body))
+    if not parts:
+        return None
+    residual = body
+    for part in reversed(parts):
+        residual = residual[:part.start()] + residual[part.end():]
+    residual = re.sub(r"\b(?:max|and)\b|[\s,.;:%]+", "", residual, flags=re.I)
+    if residual:
+        return None
+    return tuple(sorted((part.group(3).lower(), "pct" if part.group(2) else "flat") for part in parts))
 # "At 15 Charging Progress, gains 1 Charge" → the charging needed per charge (drives the charge-limited recast).
 _CHARGE_THRESHOLD_RE = re.compile(r"at\s+([\d.]+)\s+charging\s+progress\s*,?\s*gains?\s+\d*\s*charge", re.I)
 _BLUR_RE = re.compile(r"\bhas\s+blur\b", re.I)
@@ -152,15 +170,21 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
             continue
         slot = sup.get("slot", 1)
         data = (skills_by_id or {}).get(sup.get("item_id")) or {}
-        # Value from the gem's simple_description (Lv1 anchor — level-scaling of charge timing is approximate).
+        level = int(sup.get("level") or 1)
+        progression = data.get("progression") or []
+        entry = next((p for p in progression if isinstance(p, dict) and p.get("level") == level), None)
+        progression_text = ((entry or {}).get("values") or {}).get("Descript")
+        # Current summary text can show the highest level. Prefer the equipped level's progression description.
+        description_lines = ([progression_text] if isinstance(progression_text, str) and progression_text
+                             else data.get("simple_description") or [])
         val = 0.0
         if kind == "charge_per_second":
-            for l in data.get("simple_description") or []:
+            for l in description_lines:
                 m = re.search(r"([\d.]+)\s+charging\s+progress\s+every\s+second", _LV_ANNOT_RE.sub("", l), re.I)
                 if m:
                     val = float(m.group(1)); break
         elif kind == "max_charge":
-            for l in data.get("simple_description") or []:
+            for l in description_lines:
                 m = re.search(r"\+([\d.]+)\s+max\s+charges?", l, re.I)
                 if m:
                     val = float(m.group(1)); break
@@ -228,7 +252,17 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
         # a "Restores … within N s" line is captured (Compound Tonic = % Life + flat Mana) — none dropped.
         restoration: list[dict] = []
         _handled: set[str] = set()
-        for rawline in raw:
+        progression = skill.get("progression") or []
+        level_entry = next((p for p in progression if isinstance(p, dict) and p.get("level") == level), None)
+        level_description = ((level_entry or {}).get("values") or {}).get("Descript")
+        # The current detailed description may show the max-level value without level anchors. Use the
+        # equipped level's Descript line when present, retaining the legacy anchor interpolation fallback.
+        restore_lines = [line for line in raw if _RESTORE_LINE_RE.search(line or "")]
+        if isinstance(level_description, str):
+            per_level_lines = [m.group(0) for m in _RESTORE_LINE_RE.finditer(level_description)]
+            if per_level_lines:
+                restore_lines = per_level_lines
+        for rawline in restore_lines:
             stripped = _LV_ANNOT_RE.sub("", rawline or "").strip(" .")
             lm = _RESTORE_LINE_RE.search(stripped)
             if not lm:
@@ -250,7 +284,21 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
                     "base_window": float(window), "slot": slot, "text": stripped, "name": name,
                 })
             _handled.add(stripped)
-        nyi = [u for u in nyi if u not in _handled]
+        handled_signatures: dict[tuple[tuple[str, str], ...], int] = {}
+        for text in {item["text"] for item in restoration}:
+            signature = _restoration_signature(text)
+            if signature is not None:
+                handled_signatures[signature] = handled_signatures.get(signature, 0) + 1
+        remaining_nyi = []
+        for line in nyi:
+            if line in _handled:
+                continue
+            signature = _restoration_signature(line)
+            if signature is not None and handled_signatures.get(signature, 0):
+                handled_signatures[signature] -= 1
+                continue
+            remaining_nyi.append(line)
+        nyi = remaining_nyi
 
         # ── Licorice Note Ingredients: fold this scent-bottle elixir's equipped ingredient effects in as buffs ──
         # (already tier-expanded + prefix-stripped server-side). "(not affected by … Elixir Skills)" → no_scale.

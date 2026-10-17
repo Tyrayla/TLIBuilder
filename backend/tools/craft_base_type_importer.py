@@ -31,22 +31,40 @@ _SUFFIX_TYPES = {"Basic Suffix", "Advanced Suffix", "Ultimate Suffix"}
 _BASE_TYPES = {"Base Affix"}
 
 
+def _craft_tier(row: dict) -> str:
+    """Read the tier column from either the legacy `Tier` or SS14 `T` crawler shape."""
+    return str(row.get("Tier") or row.get("T") or "0")
+
+
 def import_crawler_craft_base_type(data: dict) -> dict:
     name = data.get("name", "")
     item_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
     affixes = []
 
-    # --- Base affixes from all_affixes (intrinsic item stats, single tier) ---
-    for a in (data.get("all_affixes") or []):
-        atype = a.get("Type", "")
-        if atype not in _BASE_TYPES:
-            continue
-        parsed = _parse_affix_line(a.get("Affix Effect", ""))
-        parsed["source"] = a.get("Source", "")
-        parsed["affix_type"] = atype
-        parsed["tier"] = "0"
-        affixes.append(parsed)
+    # --- Base affixes: SS14 has a dedicated tiered table; older crawls put these in all_affixes. ---
+    raw_base_affixes = data.get("base_affixes") or []
+    if raw_base_affixes:
+        for a in raw_base_affixes:
+            line = a.get("Modifier") if "Modifier" in a else a.get("Affix Effect", "")
+            if not line_text(line).strip():
+                continue
+            parsed = _parse_affix_line(line)
+            parsed["source"] = a.get("Source", name)
+            parsed["affix_type"] = "Base Affix"
+            parsed["tier"] = _craft_tier(a)
+            affixes.append(parsed)
+    else:
+        # Legacy all_affixes is a single-tier fallback; do not mix it with the dedicated SS14 table.
+        for a in (data.get("all_affixes") or []):
+            atype = a.get("Type", "")
+            if atype not in _BASE_TYPES:
+                continue
+            parsed = _parse_affix_line(a.get("Affix Effect", ""))
+            parsed["source"] = a.get("Source", "")
+            parsed["affix_type"] = atype
+            parsed["tier"] = "0"
+            affixes.append(parsed)
 
     # --- Craftable prefix-type affixes from craft_affixes (full tier data) ---
     for a in (data.get("craft_affixes") or []):
@@ -54,7 +72,7 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         affix_type = _LIBRARY_TO_TYPE.get(library)
         if not affix_type:
             continue
-        tier = str(a.get("Tier", "0"))
+        tier = _craft_tier(a)
         parsed = _parse_affix_line(a.get("Modifier", ""))
         # Normalize expression: fixed-value tiers produce "+#" while range tiers produce "+(#)".
         # Strip the parens so all tiers of the same modifier share one expression key.
@@ -74,7 +92,7 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         parsed["expression"] = _PAREN_HASH_RE.sub('#', parsed["expression"])
         parsed["source"] = name
         parsed["affix_type"] = affix_type
-        parsed["tier"] = str(a.get("Tier", "0"))
+        parsed["tier"] = _craft_tier(a)
         affixes.append(parsed)
 
     # --- Suffix affixes from all_affixes — FALLBACK only when the crawler emitted no suffix tier data

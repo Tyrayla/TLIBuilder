@@ -4461,6 +4461,45 @@ span.gear-affix-label {
 .trait-info-effects li { margin-bottom: 2px; }
 .trait-info-level-header { list-style: none; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #5555aa; margin-top: 6px; margin-bottom: 2px; margin-left: -14px; }
 
+/* Separate-source skill effects for Alternate Spacetime Youga; keep the long list collapsed by default. */
+.hero-trait-alternate-effects {
+  align-self: stretch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-abyss);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.hero-trait-alternate-effects summary {
+  padding: 9px 12px;
+  color: var(--fg);
+  cursor: pointer;
+  font-weight: 600;
+}
+.hero-trait-alternate-effects-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.hero-trait-alternate-effect {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-deep);
+}
+.hero-trait-alternate-effect h3 {
+  margin: 0 0 5px;
+  color: #7bd4d0;
+  font-size: 12px;
+}
+.hero-trait-alternate-effect p {
+  margin: 0 0 5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.hero-trait-alternate-effect p:last-child { margin-bottom: 0; }
+
 /* Artificial Moon strip */
 .trait-moon-row {
   display: flex;

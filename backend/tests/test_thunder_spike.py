@@ -961,7 +961,13 @@ class TestHighVoltageFloorStillWorksAfterDirectAssignSplit:
 
     def test_high_voltage_on_lightning_skill_keeps_flat_floor_1(self):
         high_voltage = _sup("high_voltage", "support_skill", level=1, rank=1, slot=1)
-        r = engine_stats(EngineStatsRequest(**make_request("chain_lightning", 14, gear=DUAL_WEAPONS,
+        # SS14 Chain Lightning has a slower 1.54s base cast than this test's older season data;
+        # +100% Cast Speed keeps the skill above 1 cast/s so the test distinguishes a flat floor from rate scaling.
+        fast_gear = DUAL_WEAPONS + [{"item_name": "Fast Ring", "contributions": [{
+            "stat": "cast_speed_inc", "display_value": 1.0, "unit": "", "slot": "ring",
+            "item_name": "Fast Ring", "text": "+100% Cast Speed",
+        }]}]
+        r = engine_stats(EngineStatsRequest(**make_request("chain_lightning", 14, gear=fast_gear,
                                                             attached_supports=[high_voltage])))
         d = r if isinstance(r, dict) else r.model_dump()
         auto = d.get("auto_conditions") or {}

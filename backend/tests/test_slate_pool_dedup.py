@@ -14,6 +14,7 @@ import json
 
 from persistence import season_manager
 from server import _collect_pool, _tree_name_to_slug
+from tools.season_importer import import_crawler_tree
 
 
 def _core_for(pool: dict, tree_name: str) -> list[dict]:
@@ -51,6 +52,38 @@ def test_nether_king_all_effect_distinct_core_talents_survive(monkeypatch):
         assert expected_key in key_set, f"missing expected key {expected_key!r}"
     # Only 4 distinct raw_keys in this tree, so at least one of them must repeat far past #2 to reach 92 total.
     assert max(counts.values()) > 10
+
+
+def test_ss14_nether_king_pool_has_all_crawled_choices(monkeypatch):
+    """The SS14 page exposes 116 unpositioned Nether King pool choices; all must reach the player's slate picker."""
+    pool_types = [
+        ("micro_talent", "Micro Nether King Talent Node"),
+        ("medium_talent", "Medium Nether King Talent Node"),
+        ("legendary_medium_talent", "Legendary Medium Nether King Talent Node"),
+        ("ultimate_talent", "Ultimate Nether King Talent Node"),
+    ]
+    rows = [
+        {
+            "talent_id": f"90000{i:03d}", "uuid": f"node-{i}", "name": name, "type": kind,
+            "column": None, "row": None, "max_rank": 1, "effects": [f"+{i + 1}% damage"],
+            "pts_required": None, "icon_url": None, "prerequisites": [],
+        }
+        for i in range(116)
+        for kind, name in [pool_types[i % len(pool_types)]]
+    ]
+    imported = import_crawler_tree({"nodes": rows}, "Nether King")
+    runtime_tree = season_manager._normalize_tree_lines(imported)
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS14")
+    monkeypatch.setattr(
+        season_manager, "load_season_tree",
+        lambda season, slug, raw=False: runtime_tree if slug == "nether_king" else None,
+    )
+
+    pool = _collect_pool(["Nether King"])
+    core = _core_for(pool, "Nether King")
+
+    assert len(core) == 116
+    assert len({choice["key"] for choice in core}) == 116
 
 
 def test_genuine_duplicate_core_talent_still_collapses(monkeypatch):

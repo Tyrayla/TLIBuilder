@@ -50,7 +50,24 @@ const XY_VH = 760
 // node down uniformly (spacing/arrangement unchanged), never touches the data's x/y values.
 const XY_TOP_PAD = 40
 
-function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatable, badge, resolveLevelAt, glossary, onClick, onContextMenu }: {
+export function resolveTreeNodeTooltip(trait: HeroTrait, node: HeroTraitTreeNode, level: number): {
+  effects: string[]; moonEffects?: string[]
+} {
+  const rank = Math.max(1, Math.min(5, Math.trunc(level)))
+  if (node.node_id === trait.tree_root_id) {
+    const rankEffects = trait.levels?.[rank - 1]?.effects
+    if (rankEffects?.length) {
+      return {
+        effects: rankEffects,
+        moonEffects: rank === 5 ? trait.artificial_moon?.effects : undefined,
+      }
+    }
+  }
+  return { effects: node.effects ?? [] }
+}
+
+function TreeNodeCircle({ trait, node, cx, cy, baseR, isRoot, isAllocated, isAllocatable, badge, resolveLevelAt, glossary, onClick, onContextMenu }: {
+  trait: HeroTrait
   node: HeroTraitTreeNode; cx: number; cy: number; baseR: number
   isRoot: boolean; isAllocated: boolean; isAllocatable: boolean; badge: number | null
   resolveLevelAt: number
@@ -62,6 +79,7 @@ function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatabl
   const icon = iconUrl('hero_trait', node.icon_url)
   const r = isRoot ? baseR + 6 : baseR
   const active = isRoot || isAllocated
+  const tooltipContent = resolveTreeNodeTooltip(trait, node, resolveLevelAt)
   // Warm red/orange glow ring, per state — root always reads as active; unreachable/locked nodes dim out.
   const stroke = isRoot ? '#ffc47a' : isAllocated ? '#ff7a3d' : isAllocatable ? '#a3502e' : '#3a2a26'
   const fill = active ? '#1c130f' : '#100c10'
@@ -110,7 +128,9 @@ function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatabl
       {tip.open && (
         <FloatingPortal>
           <div className="trait-info-card" {...tip.floatingProps}>
-            <TraitTooltipBody name={node.name} slotLevel={resolveLevelAt} effects={(node.effects ?? []).filter(l => !/^Unverified\b/i.test(l))}
+            <TraitTooltipBody name={node.name} slotLevel={resolveLevelAt}
+              effects={tooltipContent.effects.filter(l => !/^Unverified\b/i.test(l))}
+              moonEffects={tooltipContent.moonEffects?.filter(l => !/^Unverified\b/i.test(l))}
               subtitle={node.subtitle} glossary={glossary} />
           </div>
         </FloatingPortal>
@@ -126,7 +146,6 @@ export default function HeroTraitTree({
   const nodes = trait.tree_nodes ?? []
   const connections = trait.tree_connections ?? []
   const rootId = trait.tree_root_id ?? ''
-  const altEffects = trait.alternate_spacetime_effects ?? []
   const memoryTypes = useReferenceStore(s => s.heroMemories?.memory_types) ?? null
   // Base/Special slot (same rules as the fixed-trait grid): shown only while a revived memory's enabler mod is
   // equipped, to the LEFT of the Origin socket in the rail.
@@ -268,6 +287,7 @@ export default function HeroTraitTree({
           return (
             <TreeNodeCircle
               key={n.node_id}
+              trait={trait}
               node={n} cx={nodeX(n)} cy={nodeY(n)} baseR={nodeR}
               isRoot={isRoot} isAllocated={isAllocated} isAllocatable={isAllocatable} badge={badge}
               resolveLevelAt={nodeLevelAt}
@@ -279,17 +299,6 @@ export default function HeroTraitTree({
         })}
       </svg>
       {memoryRail}
-      {altEffects.length > 0 && (
-        <details className="htt-alt-effects" data-testid="htt-alt-effects">
-          <summary>{trait.alternate_spacetime_header ?? 'Alternate effects'}</summary>
-          {altEffects.map(e => (
-            <div key={e.skill} className="htt-alt-effect">
-              <strong>{e.skill}</strong>
-              {e.lines.map((ln, i) => <div key={i}>{ln}</div>)}
-            </div>
-          ))}
-        </details>
-      )}
     </div>
   )
 }

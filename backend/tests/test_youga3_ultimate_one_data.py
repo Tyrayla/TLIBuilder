@@ -49,26 +49,38 @@ def test_every_node_has_layout_and_connection_endpoints_exist():
 
 def test_node_text_is_verbatim_from_dataset():
     nodes = {n["node_id"]: n for n in _trait()["tree_nodes"]}
-    assert nodes["i_arrive_alongside_destiny"]["effects"][0] == "+28% Cooldown Recovery Speed"
+    assert nodes["i_arrive_alongside_destiny"]["effects"][0] == (
+        "(/+7 % Cooldown Recovery Speed/+14 % Cooldown Recovery Speed/"
+        "+21 % Cooldown Recovery Speed/+28 % Cooldown Recovery Speed) Spacetime Conqueror"
+    )
     assert nodes["i_come_to_claim_my_due"]["effects"][0] == (
-        'When projectiles are Recalled, gain 2 stacks of "Centralization", up to 54 stacks.'
+        "Upon Recall , Projectiles grant (1/1/2/2/2) stack(s) of Centralization , up to "
+        "(30/36/42/48/54) stack(s) Upon Recall , Projectiles extend Stasis Vault Duration by 1 s "
+        "if you have at least 20 stack(s) of Centralization . Interval: 0.5s"
     )
     assert nodes["i_come_to_claim_my_due"]["unlock_level"] == 75
 
 
 def test_root_and_late_nodes_carry_real_text_and_unlock_levels():
-    nodes = {n["node_id"]: n for n in _trait()["tree_nodes"]}
-    assert nodes["the_ultimate_one"]["unlock_level"] is None
-    assert nodes["the_ultimate_one"]["effects"][0] == (
-        'Your Main Active Spell Skill, if eligible for Tangle, is supported by "Clockwork Core", '
-        "replacing the Support Skill in its second support slot."
-    )
+    trait = _trait()
+    nodes = {n["node_id"]: n for n in trait["tree_nodes"]}
+    assert nodes["the_ultimate_one"]["unlock_level"] == 1
+    # The root tooltip uses the trait's rank data, not its hand-authored layout node summary.
+    root_rank_effects = [level["effects"][0] for level in trait["levels"]]
+    assert len(root_rank_effects) == 5
+    assert [effect.split(" % of bonuses")[0] for effect in root_rank_effects] == [
+        "100", "120", "140", "160", "180",
+    ]
+    assert "up to 36 %" in root_rank_effects[0]
+    assert "up to 48 %" in root_rank_effects[-1]
     assert nodes["i_will_hunt_you_down"]["unlock_level"] == 60
-    assert nodes["i_will_hunt_you_down"]["effects"][1] == (
-        'During "Recall", projectiles home in on enemies within "Stasis Vault".'
+    assert "Projectiles track enemies within the range of Stasis Vault when Recalled" in (
+        nodes["i_will_hunt_you_down"]["effects"][0]
     )
-    assert nodes["i_see_no_doomsday_today"]["unlock_level"] == 75
-    assert len(nodes["i_see_no_doomsday_today"]["effects"]) == 2
+    doomsday = nodes["i_see_no_doomsday_today"]
+    assert doomsday["unlock_level"] == 75
+    assert "70 % of Hit Damage taken is not settled immediately" in doomsday["effects"][0]
+    assert "Clockwork Core triggers Spacetime Inversion" in doomsday["effects"][0]
 
 
 def test_no_node_text_is_an_unverified_placeholder():
@@ -81,7 +93,8 @@ def test_alternate_spacetime_effects_cover_19_skills():
     assert len(effects) == 19
     by_skill = {e["skill"]: e["lines"] for e in effects}
     assert by_skill["Serpent Beam"] == [
-        'For each "Serpent Bind" inflicted recently, this skill\'s Combo Finisher deals +10% more damage, up to +140%.'
+        "While Selves of All Realms is active, +10% additional damage for this skill's Combo "
+        "Finisher for each time Serpent Bind was inflicted recently, up to +140%"
     ]
     assert len(by_skill["Chromatic Shot"]) == 3
 

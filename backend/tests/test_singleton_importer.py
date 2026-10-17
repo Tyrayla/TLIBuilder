@@ -176,11 +176,94 @@ def test_memory_revival_merges_tier0_glossary_description():
     assert "description" not in by_mod["+(75–80) % Elixir Skill Effect"]
 
 
+def test_memory_revival_imports_current_untiered_columns_without_inventing_tier_data():
+    data = {"entity_type": "memory_revival", "sections": [{
+        "header": "Memory Revival Affix /2",
+        "columns": ["Affix Effect", "Source", "Type"],
+        "items": [
+            {"Affix Effect": "+(98–100) to All Stats", "Source": "Memory Revival", "Type": "Revived Affix"},
+            {"Affix Effect": "+(72–75) to All Stats", "Source": "Memory Revival", "Type": "Revived Affix"},
+        ],
+    }]}
+    result = import_memory_revival(data, "SS14")
+    assert result["affix_count"] == 2
+    assert result["affixes"] == [
+        {"tier": None, "modifier": "+(98–100) to All Stats", "level": None, "weight": None,
+         "source": "Memory Revival", "type": "Revived Affix", "tier_known": False},
+        {"tier": None, "modifier": "+(72–75) to All Stats", "level": None, "weight": None,
+         "source": "Memory Revival", "type": "Revived Affix", "tier_known": False},
+    ]
+
+
 def test_tower_sequence_flattens():
     r = import_tower_sequence(_TOWER_DATA, "SS12")
     assert r["entry_count"] == 2
     assert r["entries"][0]["source"] == "Claw"
     assert "damage" in r["entries"][0]["affix"]
+
+
+def test_tower_sequence_expands_grouped_sources_and_appends_sequence_type():
+    data = {"entity_type": "tower_sequence", "sections": [{
+        "header": "TOWER Sequence /1", "columns": ["Affix Effect", "Source", "Type"],
+        "items": [{"Affix Effect": "+8 % additional damage", "Source": "Claw, Cane, Wand",
+                   "Type": "Intermediate Sequence 1|2|6"}],
+    }]}
+    result = import_tower_sequence(data, "SS14")
+    assert result["entry_count"] == 3
+    assert result["entries"] == [
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Claw"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Cane"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Wand"},
+    ]
+
+
+def test_ethereal_prism_reads_new_crawler_columns_and_gauge_sections():
+    data = {"entity_type": "ethereal_prism", "sections": [
+        {"header": "Base Affix /1", "items": [
+            {"Affix Effect": {"text": "+75 % to the effects of Random Affixes on this Prism"}},
+        ]},
+        {"header": "Random Affix /1", "items": [
+            {"Affix Effect": {"text": "The Effect Area expands to 3x3 Rectangle"}, "Type": "Random Affix"},
+        ]},
+        {"header": "Prism Gauge - Rare /1", "items": [
+            {"Affix Effect": {"text": "All Micro Talent within the area also gain: +6 % Attack Damage"},
+             "Type": "Prism Gauge - Rare"},
+        ]},
+        {"header": "Prism Gauge - Legendary /1", "items": [
+            {"Affix Effect": {"text": "Points can be allocated to all Medium Talent within the area 1 additional time(s)"},
+             "Type": "Prism Gauge - Legendary"},
+        ]},
+    ]}
+    result = import_ethereal_prism(data, "SS14")
+    assert result["base_affixes"] == ["+75 % to the effects of Random Affixes on this Prism"]
+    assert result["random_affixes"] == [
+        {"modifier": "The Effect Area expands to 3x3 Rectangle", "type": "Random Affix"},
+        {"modifier": "All Micro Talent within the area also gain: +6 % Attack Damage", "type": "Prism Gauge - Rare"},
+        {"modifier": "Points can be allocated to all Medium Talent within the area 1 additional time(s)",
+         "type": "Prism Gauge - Legendary"},
+    ]
+
+
+def test_ethereal_prism_import_preserves_linked_replacement_description():
+    data = {"entity_type": "ethereal_prism", "sections": [
+        {"header": "Base Affix /1", "items": [{
+            "Affix Effect": {"text": "Replaces the Core Talent on the Advanced Talent Panel with Self-Delusion"},
+            "hover_terms": [{
+                "term_id": "80001500", "name": "Self-Delusion",
+                "description": "+12% additional Erosion Damage; Crowd Control Effects inflicted are reflected back onto you",
+            }],
+        }]},
+        {"header": "Item /1", "items": [{
+            "name": "Ethereal Prism: Self-Delusion", "icon_url": "", "tags": ["Prism"],
+            "detail": [], "implicit": ["Replaces the Core Talent with Self-Delusion"], "glossary": [],
+        }]},
+    ]}
+    result = import_ethereal_prism(data, "SS14")
+    prism = result["items"][0]
+    assert prism["glossary"] == [{
+        "term_id": "80001500", "name": "Self-Delusion",
+        "description": "+12% additional Erosion Damage; Crowd Control Effects inflicted are reflected back onto you",
+    }]
 
 
 def test_multi_section_flattened():
