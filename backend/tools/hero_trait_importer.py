@@ -331,7 +331,16 @@ def import_crawler_hero_trait(data: dict) -> dict:
         am_width = max((len(lines) for lines in am_by_rank), default=0)
         for index in range(am_width):
             tier_lines = [lines[index] if index < len(lines) else "" for lines in am_by_rank]
-            am_effects.extend(slim(line) for line in _collapse_tiers([line for line in tier_lines if line]))
+            distinct_tiers = {line for line in tier_lines if line}
+            # Artificial Moon effects that appear only once (usually an unlock at rank 5) are
+            # independent effects, not a rank progression. Collapse only genuinely rank-varying
+            # effects, and retain blank ranks in those tiers so a later value cannot slide earlier.
+            collapsed = (
+                _collapse_tiers(tier_lines, preserve_empty=True)
+                if len(distinct_tiers) > 1
+                else list(distinct_tiers)
+            )
+            am_effects.extend(slim(line) for line in collapsed)
 
     # Advanced-node effects: nodes with a per-level `levels` array carry their text there (their top-level
     # `description` is null); others use `description`. Per-level descriptions are COLLAPSED into a single line

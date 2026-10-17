@@ -103,6 +103,28 @@ def test_artificial_moon_removed_from_level():
     assert "Artificial Moon" not in line_text(r["levels"][4]["effects"][0])
 
 
+def test_artificial_moon_rank_effect_keeps_empty_earlier_ranks():
+    incoming = import_crawler_hero_trait({
+        "name": "Ranked Moon",
+        "max_level": 3,
+        "traits": [{
+            "name": "Ranked Moon",
+            "required_level": 1,
+            "levels": [
+                {"level": 1, "effect_lines": ["Base effect", "Common tail"]},
+                {"level": 2, "effect_lines": ["Base effect", "Artificial Moon: +1 Moon", "Common tail"]},
+                {"level": 3, "effect_lines": ["Base effect", "Artificial Moon: +2 Moon", "Common tail"]},
+            ],
+            "description": None,
+        }],
+        "glossary": [],
+    })
+
+    assert [line_text(effect) for effect in incoming["artificial_moon"]["effects"]] == [
+        "(/Artificial Moon: +1 Moon/Artificial Moon: +2 Moon)",
+    ]
+
+
 def test_advanced_traits_count():
     r = import_crawler_hero_trait(_ANGER)
     assert len(r["advanced_traits"]) == 5
