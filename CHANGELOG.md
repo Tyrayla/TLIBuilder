@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Bug fixes
+- **Youga 3's effects panel no longer overlaps the hero memory rail.** The Hero Trait screen keeps the tree at its full height and scrolls the effects below it.
+
 ## [0.6.11] - 2026-10-11
 
 ### Engine & DPS

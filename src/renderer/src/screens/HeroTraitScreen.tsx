@@ -1501,7 +1501,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
 
       {selectedTrait ? (
         <div className="hero-trait-body">
-          <div className="trait-main-row">
+          <div className={`trait-main-row${selectedTrait.allocation_mode === 'tree' && selectedTrait.alternate_spacetime_effects?.length ? ' trait-main-row--tree-effects' : ''}`}>
 
             {/* Base trait — always selected. Tree-mode traits (Dance of the Deep and onward) hide this
                 column + the divider entirely: the base trait appears ONLY as the always-allocated root
