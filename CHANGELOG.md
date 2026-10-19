@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.6.13] - 2026-10-19
+
+### Season data
+- **Craft affix pools are complete again for all 38 equipment bases.** Since the Season 14 import, the Craft screen showed only part of each base's prefix and suffix pools (for example, One-Handed Sword listed 36 prefixes and 21 suffixes instead of 133 and 127). Every base now lists its full pools.
+
 ### Bug fixes
 - **Youga 3's effects panel no longer overlaps the hero memory rail.** The Hero Trait screen keeps the tree at its full height and scrolls the effects below it.
 
