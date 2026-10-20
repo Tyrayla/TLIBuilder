@@ -745,7 +745,11 @@ def aggregate(
                 from engine.offense import additional_total_product
                 global_dot_taken = affliction_base * additional_total_product(
                     source, "affliction_effect_additional")
-                true_flame = global_dot_taken * source.total("affliction_dot_to_fire_hit")
+                # True Flame is a core talent: it cannot stack (owner-confirmed), so a second copy from
+                # any source never adds to the conversion; only the largest single copy applies.
+                _tf_copies = [e.amount for e in source.source_log if e.stat == "affliction_dot_to_fire_hit"]
+                _tf_coeff = max(_tf_copies) if _tf_copies else source.total("affliction_dot_to_fire_hit")
+                true_flame = global_dot_taken * _tf_coeff
                 if true_flame:
                     source.add_with_source("true_flame_fire_hit_taken", true_flame, SourceEntry(
                         stat="true_flame_fire_hit_taken", amount=true_flame, source_type="condition",

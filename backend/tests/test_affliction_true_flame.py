@@ -329,3 +329,56 @@ def test_true_flame_scales_fire_hit_dps_exactly_once():
     # +50% increased and 20% additional Effect: 100% × 1.5 × 1.2 = 180% bonus, × 65% = 117%.
     effect = ["+50 % Affliction Effect", "20 % additional Affliction Effect"]
     assert dps([tf, *effect]) / dps(effect) == pytest.approx(2.17, rel=1e-9)
+
+
+_TF_RAW = ("[True Flame] When an enemy is Ignited , 65 % of the additional bonus to Damage Over Time "
+           "taken from Affliction is also applied to your Fire Hit Damage")
+_TF_PLAIN = _TF_RAW.split("] ", 1)[1]
+
+
+def _tf_response(gear: list[dict], custom_mods: list[str] | None = None) -> dict:
+    return _response("flame_slash", gear=gear, custom_mods=custom_mods or [],
+                     extra_conditions={"affliction_stacks": 100, "enemy_ignited": True})
+
+
+def _legendary(**extra) -> dict:
+    # The payload shape the app's buildGearPayload emits for a legendary "[True Flame] ..." affix:
+    # the bracket name rides in granted_talents AND the raw text lands in unresolved_texts.
+    return {"contributions": [], "item_name": "Mindflame", "slot": "helmet",
+            "unresolved_texts": [_TF_RAW], "granted_talents": ["True Flame"], **extra}
+
+
+def test_single_legendary_true_flame_is_counted_once():
+    # One item granting True Flame was ingested twice (core-talent grant AND plain gear affix text),
+    # which is where the owner's x1.3 conversion came from.
+    r = _tf_response([_legendary()])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(0.65)
+
+
+def test_magnus_mindflame_amulet_true_flame_is_not_doubled():
+    # Pinned from the owner's reported build (single Magnus' Mindflame amulet; showed x1.3 / 328.9%
+    # instead of x0.65 / 164.5%): the compound "True Flame ... +100 % Skill Area" affix.
+    text = _TF_RAW + " +100 % Skill Area"
+    amulet = {"contributions": [], "item_name": "Magnus' Mindflame", "slot": "amulet",
+              "unresolved_texts": [text], "granted_talents": ["True Flame"]}
+    r = _tf_response([amulet])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_same_item_dual_wield_does_not_repeat_true_flame():
+    # buildGearPayload re-emits the unresolved texts (without granted_talents) for the 2nd weapon slot.
+    second_slot_copy = {"contributions": [], "item_name": "Mindflame", "unresolved_texts": [_TF_RAW]}
+    r = _tf_response([_legendary(slot="weapon1"), second_slot_copy])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_true_flame_is_a_core_talent_and_never_stacks_across_sources():
+    # Core talents cannot stack (owner-confirmed): a granted talent plus an independent second source
+    # still applies a single 0.65, and DPS gets one x1.65 factor.
+    from tests.mock_build import DUAL_WEAPONS
+    r = _tf_response([*DUAL_WEAPONS, _legendary()], custom_mods=[_TF_PLAIN])
+    assert r["offense"]["affliction"]["true_flame_conversion"] == pytest.approx(0.65)
+    assert r["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(0.65)
+    base = _response("flame_slash", extra_conditions={"affliction_stacks": 100, "enemy_ignited": True})
+    assert r["offense"]["total_dps"] / base["offense"]["total_dps"] == pytest.approx(1.65, rel=1e-9)
