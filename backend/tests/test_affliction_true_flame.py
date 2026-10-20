@@ -310,3 +310,22 @@ def test_fire_hit_and_dot_have_separate_vulnerability_breakdowns():
     assert offense.enemy_vuln_by_form == {"hit:fire": pytest.approx(1.65), "dot:fire": pytest.approx(2.0)}
     assert "true_flame_fire_hit_taken" in offense.enemy_vuln_sources_by_form["hit:fire"]
     assert "affliction_dot_taken" in offense.enemy_vuln_sources_by_form["dot:fire"]
+
+
+def test_true_flame_scales_fire_hit_dps_exactly_once():
+    # Regression guard for the double-count suspicion: 100 Affliction × 1% = 100% DoT bonus,
+    # × 65% True Flame = a single x1.65 Fire-hit factor on total DPS (not 1.65^2, not 2.30).
+    tf = ("65 % of the additional bonus to Damage Over Time taken from Affliction is also applied "
+          "to your Fire Hit Damage")
+
+    def dps(mods: list[str], ignited: bool = True) -> float:
+        r = _response("flame_slash", custom_mods=mods,
+                      extra_conditions={"affliction_stacks": 100, "enemy_ignited": ignited})
+        return r["offense"]["total_dps"]
+
+    base = dps([])
+    assert dps([tf]) / base == pytest.approx(1.65, rel=1e-9)
+    assert dps([tf], ignited=False) / base == pytest.approx(1.0, rel=1e-9)
+    # +50% increased and 20% additional Effect: 100% × 1.5 × 1.2 = 180% bonus, × 65% = 117%.
+    effect = ["+50 % Affliction Effect", "20 % additional Affliction Effect"]
+    assert dps([tf, *effect]) / dps(effect) == pytest.approx(2.17, rel=1e-9)
