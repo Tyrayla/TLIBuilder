@@ -1058,10 +1058,33 @@ def engine_stats(req: EngineStatsRequest):
     _granted_core_names = {
         _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
     } & _resolved_core_names
+    # A compound legendary affix ("[True Flame] ... Fire Hit Damage +100 % Skill Area") carries ordinary mods
+    # AFTER the talent's own effect. Only the talent part is covered by the core-talent resolver, so keep the
+    # companion remainder and apply it once (a same-item dual-wield copy re-emits the same text: dedup it).
+    from engine.core_talent_resolver import core_talent_effects, companion_text
+    _core_catalog = core_talent_effects(season_trees, belt_blends_data) if _granted_core_names else {}
+    _companions_seen: set[tuple[str, str, str]] = set()
+
+    def _gear_texts_minus_core(gi: dict) -> list[str]:
+        kept: list[str] = []
+        for t in gi.get("unresolved_texts") or []:
+            name = _bracket_core_name(t)
+            if name not in _granted_core_names:
+                kept.append(t)
+                continue
+            rest = companion_text(t, _core_catalog.get(name))
+            if not rest:
+                continue   # only the talent (or not separable): the core-talent resolver owns it
+            key = (str(gi.get("item_name") or ""), name, _norm_core_name(rest))
+            if key not in _companions_seen:
+                _companions_seen.add(key)
+                kept.append(rest)
+        return kept
+
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
         if texts and _granted_core_names:
-            texts = [t for t in texts if _bracket_core_name(t) not in _granted_core_names]
+            texts = _gear_texts_minus_core(gi)
             if texts != (gi.get("unresolved_texts") or []):
                 gi = {**gi, "unresolved_texts": texts}
         if not texts:
