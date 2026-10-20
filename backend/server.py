@@ -1043,8 +1043,27 @@ def engine_stats(req: EngineStatsRequest):
     gear_resolved: list[dict] = []
     gear_mod_statuses: list[dict] = []
     affix_curses: list[dict] = []   # curses inflicted by gear affixes (craft bases / legendaries) → curse resolver
+    # A legendary "[Name] <effect>" affix grants a CORE TALENT; resolve_core_talents (above) already applies
+    # it exactly once. The same raw text also arrives here as an unresolved gear affix (and again on the
+    # 2nd slot of a same-item dual wield, which carries no granted_talents), so skip bracket-named texts
+    # whose talent is granted by ANY gear item. Otherwise the effect is counted twice (True Flame x1.3).
+    # Only names the core-talent resolver FULLY resolved (every effect status resolved) are skipped; a granted
+    # name missing from the catalog, or whose effects the resolver cannot yet model (e.g. Poisoned Relief's
+    # gated line), keeps its gear-text parse so the affix is never silently dropped.
+    _status_names = {_norm_core_name(s.get("name")) for s in core_talent_statuses}
+    _resolved_core_names = {
+        n for n in _status_names
+        if all(s.get("resolved") for s in core_talent_statuses if _norm_core_name(s.get("name")) == n)
+    }
+    _granted_core_names = {
+        _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
+    } & _resolved_core_names
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
+        if texts and _granted_core_names:
+            texts = [t for t in texts if _bracket_core_name(t) not in _granted_core_names]
+            if texts != (gi.get("unresolved_texts") or []):
+                gi = {**gi, "unresolved_texts": texts}
         if not texts:
             gear_resolved.append(gi)
             continue
@@ -2518,6 +2537,16 @@ def get_legendary_gear_index():
             out["coverage"], out["coverage_detail"] = "none", []
         items.append(out)
     return {"season": active, "items": items}
+
+
+def _norm_core_name(name: str | None) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def _bracket_core_name(text: str | None) -> str | None:
+    """Normalized core-talent name of a legendary "[Name] <effect>" affix text, else None."""
+    m = re.match(r"^\s*\[([^\]]+)\]", text or "")
+    return _norm_core_name(m.group(1)) if m else None
 
 
 def _resolve_gear_affix_clauses(text: str) -> list[dict]:
