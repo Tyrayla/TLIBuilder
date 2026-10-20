@@ -1047,9 +1047,17 @@ def engine_stats(req: EngineStatsRequest):
     # it exactly once. The same raw text also arrives here as an unresolved gear affix (and again on the
     # 2nd slot of a same-item dual wield, which carries no granted_talents), so skip bracket-named texts
     # whose talent is granted by ANY gear item. Otherwise the effect is counted twice (True Flame x1.3).
+    # Only names the core-talent resolver FULLY resolved (every effect status resolved) are skipped; a granted
+    # name missing from the catalog, or whose effects the resolver cannot yet model (e.g. Poisoned Relief's
+    # gated line), keeps its gear-text parse so the affix is never silently dropped.
+    _status_names = {_norm_core_name(s.get("name")) for s in core_talent_statuses}
+    _resolved_core_names = {
+        n for n in _status_names
+        if all(s.get("resolved") for s in core_talent_statuses if _norm_core_name(s.get("name")) == n)
+    }
     _granted_core_names = {
         _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
-    }
+    } & _resolved_core_names
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
         if texts and _granted_core_names:

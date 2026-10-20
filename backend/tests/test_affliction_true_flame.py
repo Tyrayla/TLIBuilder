@@ -366,6 +366,14 @@ def test_magnus_mindflame_amulet_true_flame_is_not_doubled():
     assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
 
 
+def test_bracket_text_with_unknown_talent_name_is_still_parsed():
+    # A granted name the core-talent catalog cannot resolve must not erase the affix: the gear-text
+    # parse stays the fallback (never silently drop).
+    item = _legendary(granted_talents=["Not A Real Talent"])
+    r = _tf_response([item])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
 def test_same_item_dual_wield_does_not_repeat_true_flame():
     # buildGearPayload re-emits the unresolved texts (without granted_talents) for the 2nd weapon slot.
     second_slot_copy = {"contributions": [], "item_name": "Mindflame", "unresolved_texts": [_TF_RAW]}
