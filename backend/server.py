@@ -1075,8 +1075,10 @@ def engine_stats(req: EngineStatsRequest):
             rest = companion_text(t, _core_catalog.get(name))
             if not rest:
                 continue   # only the talent (or not separable): the core-talent resolver owns it
-            key = (str(gi.get("item_name") or ""), name, _norm_core_name(rest))
-            if key not in _companions_seen:
+            # Dedup only the re-emitted same-item copy (same item_name); unnamed items are never merged.
+            item_name = str(gi.get("item_name") or "")
+            key = (item_name, name, _norm_core_name(rest))
+            if not item_name or key not in _companions_seen:
                 _companions_seen.add(key)
                 kept.append(rest)
         return kept

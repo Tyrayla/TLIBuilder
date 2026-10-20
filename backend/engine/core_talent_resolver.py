@@ -322,7 +322,7 @@ def companion_text(raw_text: str, effects) -> str | None:
         rest = rest[:m.start()] + " " + rest[m.end():]
     if not found_any:
         return None
-    return re.sub(r"\s+", " ", rest).strip()
+    return re.sub(r"\s+", " ", rest).strip(" \t.,;")
 
 
 def _collect(slots, slates, gear, season_trees, belt_blends) -> list[tuple[str, list[str], str | None]]:

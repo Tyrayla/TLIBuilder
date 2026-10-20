@@ -388,16 +388,36 @@ def test_mindflame_skill_area_not_repeated_on_dual_wield_second_slot():
 
 
 def test_other_compound_legendary_affixes_keep_their_trailing_clause_once():
-    # Same mechanism for other bracket-named compound affixes: Momentum's trailing Crit Rating mod applies
-    # while the talent's own (single-copy) effect is left to the core-talent resolver.
-    text = ("[Momentum] +30 % additional Attack Damage for the next Main Skill every 0.5 s. "
-            "Refreshes the interval on defeat. +10 % additional Critical Strike Rating")
-    item = {"contributions": [], "item_name": "Momentum Item", "slot": "helmet",
-            "unresolved_texts": [text], "granted_talents": ["Momentum"]}
-    base = {**item, "unresolved_texts": [text.rsplit(" +10", 1)[0]]}
-    with_extra, without = _tf_response([item]), _tf_response([base])
-    assert with_extra["stats"]["crit_rating_additional"]["total"] == pytest.approx(0.1)
-    assert "crit_rating_additional" not in without["stats"]
+    # Same mechanism for Gale (a talent the resolver fully resolves): its trailing Projectile Speed roll
+    # applies while the talent's own 60% conversion stays a single copy.
+    gale = ("[Gale] 60 % of the Projectile Speed bonus is also applied to the additional bonus for "
+            "Projectile Damage")
+    item = {"contributions": [], "item_name": "Gale Item", "slot": "helmet", "granted_talents": ["Gale"]}
+    r = _tf_response([{**item, "unresolved_texts": [gale + " +35 % Projectile Speed"]}])
+    assert r["core_talent_statuses"][0]["resolved"] is True
+    assert r["stats"]["proj_speed_to_proj_dmg"]["total"] == pytest.approx(0.6)
+    assert r["stats"]["projectile_speed_inc"]["total"] == pytest.approx(0.35)
+    bare = _tf_response([{**item, "unresolved_texts": [gale]}])
+    assert "projectile_speed_inc" not in bare["stats"]
+
+
+def test_unnamed_items_with_identical_companion_are_not_deduped():
+    # Dedup is only for the re-emitted same-item copy; unnamed distinct items each keep their companion.
+    a = {"contributions": [], "slot": "ring1", "granted_talents": ["True Flame"],
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    b = {"contributions": [], "slot": "ring2", "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    r = _tf_response([a, b])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(2.0)
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_companion_text_unit():
+    from engine.core_talent_resolver import companion_text
+    eff = ["A foo , 5 % bar (Max Active Divinity: 1)", "Baz qux."]
+    assert companion_text("[T] A foo, 5% bar Baz qux. +10 % Skill Area", eff) == "+10 % Skill Area"
+    assert companion_text("[T] A foo, 5% bar Baz qux.", eff) == ""
+    assert companion_text("[T] A foo, 5% bar +10 % Skill Area", eff) is None   # second effect absent
+    assert companion_text("[T] anything", []) is None
 
 
 def test_bracket_text_with_unknown_talent_name_is_still_parsed():
