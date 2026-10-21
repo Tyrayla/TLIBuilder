@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId, getShareBase } from './api/client'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId, getShareBase, IS_WEB } from './api/client'
 import { resolveImportInput } from './utils/resolveImportInput'
 import { MAX_LEVEL_BY_RARITY } from './components/HeroTraitShared'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
@@ -7,6 +7,7 @@ import { snapshotAllAreas } from './utils/loadoutAreas'
 import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
 import { DEFAULT_ENEMY_CONFIG, sanitizeEnemyConfig } from './utils/enemyPresets'
 import { getBuildPayload } from './utils/buildPayload'
+import { clearBuildDraft, readBuildDraft, writeBuildDraft } from './utils/buildDraft'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -117,6 +118,7 @@ const KEEPALIVE_SCREENS: Screen[] = [
 
 function App() {
   const [appReady, setAppReady] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
   const [appError, setAppError] = useState<TliErrorPayload | null>(null)
   const [reportError, setReportError] = useState<TliErrorPayload | undefined>(undefined)
   const [reportOpen, setReportOpen] = useState(false)
@@ -148,12 +150,38 @@ function App() {
   // right after each function's own definition further down — see `openBuildRef.current = openBuild`.
   const openBuildRef = useRef<((build: Build) => Promise<void>) | null>(null)
   const requireSavePromptRef = useRef<((action: () => void) => void) | null>(null)
+  const draftRestoreRef = useRef<Promise<void> | null>(null)
+  const draftWriteRef = useRef<(() => void) | null>(null)
+  const suppressDraftWritesRef = useRef(false)
+  useEffect(() => {
+    if (!IS_WEB || !appReady || draftRestoreRef.current) return
+    draftRestoreRef.current = (async () => {
+      try {
+        const draft = await readBuildDraft()
+        if (!draft) return
+        const validScreens: Screen[] = ['build-overview', 'tree-selector', 'tree-viewer', 'slate-board', 'stats', 'gear', 'skills', 'hero-traits', 'pact-spirits', 'notes', 'import-export', 'verification']
+        const restoredScreen = validScreens.includes(draft.screen as Screen) ? draft.screen as Screen : BUILD_LANDING_SCREEN
+        await openBuildRef.current?.({ ...draft.payload, id: draft.buildId ?? undefined, name: draft.buildName } as unknown as Build)
+        if (Number.isInteger(draft.activeSlot) && draft.activeSlot >= 0 && draft.activeSlot < 4) {
+          useBuildStore.getState().setActiveSlot(draft.activeSlot)
+        }
+        setIsDirty(draft.dirty)
+        setScreen(restoredScreen)
+      } catch (error) {
+        console.warn('Could not restore the web editing draft:', error)
+      } finally {
+        setDraftRestored(true)
+      }
+    })()
+  }, [appReady])
   useEffect(() => {
     if (!appReady || !pendingShareId) return
     const shareId = pendingShareId
     setPendingShareId(null) // one-shot — never re-trigger on a later re-render
     void (async () => {
       try {
+        // Restore a local draft before applying the same unsaved-change guard used by manual imports.
+        await draftRestoreRef.current
         const resolved = await resolveImportInput(`${getShareBase()}/b/${shareId}`)
         const { build } = await api.decodeBuildCode(resolved)
         // Gated the same way the manual paste-import flow gates ImportPanel's decoded build
@@ -246,6 +274,53 @@ function App() {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
   const buildVersion = useBuildStore(s => s.buildVersion)
+
+  useEffect(() => {
+    if (!IS_WEB || !appReady || !draftRestored) return
+    const timer = window.setTimeout(() => {
+      if (suppressDraftWritesRef.current) return
+      if (screen === 'build-select') {
+        void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
+        return
+      }
+      const state = useBuildStore.getState()
+      const dirty = isDirty || state.buildVersion > loadedVersionRef.current
+      const draft = {
+        version: 1 as const,
+        savedAt: Date.now(),
+        buildId: state.buildId,
+        buildName: state.buildName,
+        activeSlot: state.activeSlot,
+        payload: getBuildPayload(),
+        dirty,
+        screen,
+      }
+      void writeBuildDraft(draft).catch(error => console.warn('Could not save the web editing draft:', error))
+    }, 350)
+    draftWriteRef.current = () => {
+      window.clearTimeout(timer)
+      if (suppressDraftWritesRef.current || screen === 'build-select') return
+      const state = useBuildStore.getState()
+      void writeBuildDraft({
+        version: 1,
+        savedAt: Date.now(),
+        buildId: state.buildId,
+        buildName: state.buildName,
+        activeSlot: state.activeSlot,
+        payload: getBuildPayload(),
+        dirty: isDirty || state.buildVersion > loadedVersionRef.current,
+        screen,
+      }).catch(error => console.warn('Could not save the web editing draft:', error))
+    }
+    return () => window.clearTimeout(timer)
+  }, [appReady, draftRestored, buildVersion, buildId, buildName, isDirty, screen])
+
+  useEffect(() => {
+    if (!IS_WEB) return
+    const persistOnPageHide = () => draftWriteRef.current?.()
+    window.addEventListener('pagehide', persistOnPageHide)
+    return () => window.removeEventListener('pagehide', persistOnPageHide)
+  }, [])
 
   // Only report "dirty" to the main process while a build is actually open. On the build-list menu there's
   // nothing to save, so the native close/quit guard must never prompt there (it was firing on update-install).
@@ -434,6 +509,8 @@ function App() {
   }
 
   const handleUnsavedDiscard = () => {
+    suppressDraftWritesRef.current = true
+    if (IS_WEB) void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
     setIsDirty(false)
     setUnsavedPromptOpen(false)
     const action = pendingUnsavedActionRef.current
@@ -442,6 +519,8 @@ function App() {
   }
 
   const startNewBuild = (folderId?: string) => {
+    suppressDraftWritesRef.current = false
+    if (IS_WEB) void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
     pendingNewBuildFolderRef.current = folderId ?? null
     const payload = {
       buildId: null, buildName: '', activeSlot: 0,
@@ -659,6 +738,7 @@ function App() {
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen(BUILD_LANDING_SCREEN)
+    suppressDraftWritesRef.current = false
   }
   // Plain assignment, NOT a hook — safe to run conditionally (only reached once appReady is true).
   // Keeps the deep-link effect (declared earlier, before the early-return gate) able to call the
@@ -791,24 +871,34 @@ function App() {
   const saveBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
+    const savedVersion = s.buildVersion
     const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, baseMemory: s.baseMemory, memoryInventory: s.memoryInventory, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, enemyConfig: s.enemyConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
-    loadedVersionRef.current = useBuildStore.getState().buildVersion
-    setIsDirty(false)
+    loadedVersionRef.current = savedVersion
+    const editedDuringSave = useBuildStore.getState().buildVersion > savedVersion
+    setIsDirty(editedDuringSave)
+    if (IS_WEB && !editedDuringSave) {
+      void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
+    }
     if (!build.id && saved.id) await assignNewBuildToFolder(saved.id)
   }
 
   const saveAsBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
+    const savedVersion = s.buildVersion
     const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, baseMemory: s.baseMemory, memoryInventory: s.memoryInventory, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, enemyConfig: s.enemyConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
-    loadedVersionRef.current = useBuildStore.getState().buildVersion
-    setIsDirty(false)
+    loadedVersionRef.current = savedVersion
+    const editedDuringSave = useBuildStore.getState().buildVersion > savedVersion
+    setIsDirty(editedDuringSave)
+    if (IS_WEB && !editedDuringSave) {
+      void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
+    }
     if (saved.id) await assignNewBuildToFolder(saved.id)
   }
 
@@ -879,6 +969,12 @@ function App() {
   )
 
   // ── Sidebar-less screens ──────────────────────────────────────────────────
+
+  if (IS_WEB && !draftRestored) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#1a1a2e', color: '#888' }}>
+      Restoring your last editing session…
+    </div>
+  }
 
   if (screen === 'dev-tools') {
     return <DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
