@@ -52,15 +52,18 @@ async function idbGetSnapshot(): Promise<Record<string, string>> {
 }
 
 async function idbPutSnapshot(snapshot: Record<string, string>): Promise<void> {
+  const db = await openIdb()
   try {
-    const db = await openIdb()
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite')
       tx.objectStore(IDB_STORE).put(snapshot, IDB_KEY)
       tx.oncomplete = () => resolve()
-      tx.onerror = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Could not write the browser build database'))
+      tx.onabort = () => reject(tx.error ?? new Error('Browser build database write was aborted'))
     })
-  } catch { /* best-effort persist */ }
+  } finally {
+    db.close()
+  }
 }
 
 export function onComputeProgress(cb: (msg: string) => void): () => void {
@@ -151,7 +154,19 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
         else { try { p.resolve(m.body ? JSON.parse(m.body) : null) } catch (e) { p.reject(e as Error) } }
         return
       }
-      if (m.type === 'persist') { void idbPutSnapshot(m.snapshot || {}); return }
+      if (m.type === 'persist' && m.id != null) {
+        const sourceWorker = worker
+        void idbPutSnapshot(m.snapshot || {}).then(
+          () => { if (worker === sourceWorker) sourceWorker?.postMessage({ type: 'persisted', id: m.id }) },
+          error => {
+            if (worker === sourceWorker) sourceWorker?.postMessage({
+              type: 'persist-error', id: m.id,
+              msg: error instanceof Error ? error.message : String(error),
+            })
+          },
+        )
+        return
+      }
       if (m.type === 'error') {
         const err = normalizeError(new Error(m.msg || 'compute worker error'), 'TLI-BOOT-001', 'web.pyodide.worker')
         if (m.id != null) {

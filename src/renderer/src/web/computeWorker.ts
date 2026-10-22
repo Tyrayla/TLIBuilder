@@ -13,13 +13,15 @@ const PYODIDE_INDEX = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full
 
 interface InitMsg { type: 'init'; backendUrl: string; dataBase: string; season: string; persistSnapshot?: Record<string, string> }
 interface RequestMsg { type: 'request'; id: number; method: string; path: string; bodyJson: string }
-type InMsg = InitMsg | RequestMsg
+interface PersistAckMsg { type: 'persisted' | 'persist-error'; id: number; msg?: string }
+type InMsg = InitMsg | RequestMsg | PersistAckMsg
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let py: any = null
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let apiFn: any = null   // async Python _api(method, path, body_text) -> '{"status":int,"body":str}'
 let initPromise: Promise<void> | null = null
+const pendingPersistAcks = new Map<number, { resolve: () => void; reject: (error: Error) => void }>()
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
 const progress = (msg: string) => post({ type: 'progress', msg })
@@ -134,17 +136,24 @@ async def _api(method, path, body_text=''):
 // its own even if a future caller ever posts 'request' messages directly.
 let requestQueue: Promise<void> = Promise.resolve()
 
+function persistSnapshotToMain(id: number, snapshot: Record<string, string>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    pendingPersistAcks.set(id, { resolve, reject })
+    post({ type: 'persist', id, snapshot })
+  })
+}
+
 async function handleRequest(msg: RequestMsg): Promise<void> {
   try {
     if (initPromise) await initPromise
     if (!apiFn) throw new Error('worker not initialized')
     const resStr = await apiFn(msg.method, msg.path, msg.bodyJson)
     const { status, body } = JSON.parse(resStr)
-    post({ type: 'result', id: msg.id, status, body })
     // After a successful build/save mutation, hand the updated /persist snapshot to the main thread to store.
     if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
-      try { post({ type: 'persist', snapshot: snapshotPersist() }) } catch { /* best-effort persist */ }
+      await persistSnapshotToMain(msg.id, snapshotPersist())
     }
+    post({ type: 'result', id: msg.id, status, body })
   } catch (err) {
     post({ type: 'error', id: msg.id, msg: String(err) })
   }
@@ -152,6 +161,15 @@ async function handleRequest(msg: RequestMsg): Promise<void> {
 
 self.onmessage = async (e: MessageEvent<InMsg>) => {
   const msg = e.data
+  if (msg.type === 'persisted' || msg.type === 'persist-error') {
+    const ack = pendingPersistAcks.get(msg.id)
+    pendingPersistAcks.delete(msg.id)
+    if (ack) {
+      if (msg.type === 'persisted') ack.resolve()
+      else ack.reject(new Error(`Could not persist the saved build in this browser: ${msg.msg || 'IndexedDB write failed'}`))
+    }
+    return
+  }
   if (msg.type === 'init') {
     initPromise = init(msg)
     try { await initPromise } catch (err) { post({ type: 'error', msg: `init failed: ${String(err)}` }) }
