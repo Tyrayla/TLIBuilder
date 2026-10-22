@@ -175,6 +175,7 @@ function App() {
   // (hook-count-safe) and reaches them through refs kept fresh by plain, non-hook assignments placed
   // right after each function's own definition further down — see `openBuildRef.current = openBuild`.
   const openBuildRef = useRef<((build: Build) => Promise<void>) | null>(null)
+  const shareEditorRenderStartedRef = useRef<number | null>(null)
   const requireSavePromptRef = useRef<((action: () => void) => void) | null>(null)
   const draftRestoreRef = useRef<Promise<void> | null>(null)
   const draftWriteRef = useRef<(() => void) | null>(null)
@@ -212,10 +213,14 @@ function App() {
         await draftRestoreRef.current
         if (cancelled) return
         setShareImportStatus({ id: shareId, stage: 'fetching' })
+        const fetchStarted = performance.now()
         const resolved = await resolveImportInput(`${getShareBase()}/b/${shareId}`)
+        recordStartupMetric('share.import-fetch', performance.now() - fetchStarted)
         if (cancelled) return
         setShareImportStatus({ id: shareId, stage: 'decoding' })
+        const decodeStarted = performance.now()
         const { build } = await api.decodeBuildCode(resolved)
+        recordStartupMetric('share.import-decode', performance.now() - decodeStarted)
         if (cancelled) return
         const importedBuild = build as unknown as Build
         pendingShareBuildRef.current = importedBuild
@@ -235,6 +240,12 @@ function App() {
     })()
     return () => { cancelled = true }
   }, [pendingShareId, appReady, shareRetryCount])
+  useEffect(() => {
+    const started = shareEditorRenderStartedRef.current
+    if (started === null || screen !== BUILD_LANDING_SCREEN) return
+    shareEditorRenderStartedRef.current = null
+    recordStartupMetric('share.editor-render-commit', performance.now() - started)
+  }, [screen])
   // Desktop only: tlibuilder://import/<id> links (see src/main/index.ts's second-instance/
   // open-url handling) arrive as an IPC event rather than a URL query param, since the renderer
   // may already be running when the OS delivers the link. Feeds the same pendingShareId state the
@@ -535,13 +546,17 @@ function App() {
   requireSavePromptRef.current = requireSavePrompt
 
   const openShareBuild = (shareId: string, build: Build) => {
+    const started = performance.now()
+    shareEditorRenderStartedRef.current = started
     setShareImportStatus({ id: shareId, stage: 'opening' })
     const open = openBuildRef.current
     if (!open) {
+      shareEditorRenderStartedRef.current = null
       setShareImportStatus({ id: shareId, stage: 'error', message: 'The editor is not ready. Retry the import.' })
       return
     }
     void open(build).then(() => {
+      recordStartupMetric('share.open-build', performance.now() - started)
       pendingShareBuildRef.current = null
       setPendingShareId(null)
       setShareImportStatus(null)
@@ -551,6 +566,7 @@ function App() {
         window.history.replaceState(null, '', url.toString())
       }
     }).catch((error: unknown) => {
+      shareEditorRenderStartedRef.current = null
       setShareImportStatus({
         id: shareId,
         stage: 'error',

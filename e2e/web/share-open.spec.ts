@@ -36,12 +36,36 @@ test('share overview exposes Open early and the link reaches the usable editor',
     expect.soft(visibleBeforePreview, 'Open action should be visible while the optional preview is pending').toBe(true)
     await openLink.waitFor({ state: 'visible', timeout: 15_000 })
     console.log(`[share-perf] overview open visible after ${Date.now() - overviewStart} ms`)
+    await viewPage.waitForFunction(() => {
+      const host = window as Window & { __tliStartupMetrics?: Array<{ name: string }> }
+      return host.__tliStartupMetrics?.some(metric => metric.name === 'share.preview-fetch')
+    }, null, { timeout: 15_000 })
+    const overviewMetrics = await viewPage.evaluate(() => {
+      const host = window as Window & { __tliStartupMetrics?: Array<{ name: string; durationMs: number }> }
+      return (host.__tliStartupMetrics ?? []).filter(metric => metric.name.startsWith('share.'))
+    })
+    expect(overviewMetrics.map(metric => metric.name)).toEqual(expect.arrayContaining([
+      'share.code-fetch', 'share.code-decode', 'share.catalog-resolution',
+      'share.overview-render-commit', 'share.preview-fetch',
+    ]))
+    console.log(`[share-perf] overview stages ${JSON.stringify(overviewMetrics)}`)
 
     const clickStart = Date.now()
     await openLink.click()
     await expect(viewPage.getByRole('status').filter({ hasText: /Fetching the shared build|Decoding the shared build|Opening the shared build/ })).toBeVisible({ timeout: 30_000 })
     await expect(viewPage.getByRole('button', { name: /Hero Memory Inventory/ })).toBeVisible({ timeout: 180_000 })
     expect(viewPage.url()).not.toContain('share=')
+    const importMetrics = await viewPage.evaluate(() => {
+      const host = window as Window & { __tliStartupMetrics?: Array<{ name: string; durationMs: number }> }
+      return host.__tliStartupMetrics ?? []
+    })
+    const measuredStages = importMetrics.filter(metric => metric.name.startsWith('share.'))
+    const workerStages = importMetrics.filter(metric => metric.name.startsWith('worker.'))
+    expect(measuredStages.map(metric => metric.name)).toEqual(expect.arrayContaining([
+      'share.import-fetch', 'share.import-decode', 'share.open-build', 'share.editor-render-commit',
+    ]))
+    console.log(`[share-perf] import stages ${JSON.stringify(measuredStages)}`)
+    console.log(`[share-perf] worker stages ${JSON.stringify(workerStages)}`)
     console.log(`[share-perf] click to usable editor ${Date.now() - clickStart} ms`)
     await viewPage.screenshot({ path: testInfo.outputPath('share-editor.png') })
   } finally {

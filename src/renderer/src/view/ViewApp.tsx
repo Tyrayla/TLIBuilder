@@ -5,7 +5,7 @@
 // components the full app uses. Headline stats come from the `preview` snapshot the share service
 // stores (computed once, client-side, at share time — see api/share.ts) rather than any
 // recomputation here.
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import type { EquippedGearItem, EquippedSkill, HeroTrait } from '../api/client'
 // Imported from the small share module directly, not api/client.ts — this page must not pull in
@@ -17,6 +17,7 @@ import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { decodeBuildCodeLean, LeanBuildCodeError } from '../utils/decodeBuildCodeLean'
 import { rehydrateGearItemLean } from '../utils/rehydrateGearLean'
 import { getHeroTraitsLean, getLegendaryGearLean, cdnIconUrl } from '../utils/staticCatalogLean'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 import '../index.css'
 
 function idFromPath(): string | null {
@@ -154,23 +155,38 @@ type LoadState =
 export default function ViewApp() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [retryCount, setRetryCount] = useState(0)
+  const overviewRenderStartedRef = useRef<number | null>(null)
+  const overviewRenderedRef = useRef(false)
   const id = idFromPath()
   const webOpenUrl = id ? `${window.location.origin}/?share=${encodeURIComponent(id)}` : '/'
   const desktopOpenUrl = id ? `tlibuilder://import/${encodeURIComponent(id)}` : undefined
 
   useEffect(() => {
+    if (state.kind !== 'ready' || overviewRenderedRef.current || overviewRenderStartedRef.current === null) return
+    overviewRenderedRef.current = true
+    recordStartupMetric('share.overview-render-commit', performance.now() - overviewRenderStartedRef.current)
+  }, [state])
+
+  useEffect(() => {
     if (!id) { setState({ kind: 'not-found', message: 'This page does not contain a share link.' }); return }
     let cancelled = false
     setState({ kind: 'loading' })
+    overviewRenderedRef.current = false
 
     ;(async () => {
       // Preview is best-effort — an id that predates this feature (or whose client couldn't
       // compute one) still gets a gear/skills/trait overview, just no headline stats banner.
-      const previewPromise = fetchSharePreview(id)
+      const previewStarted = performance.now()
+      const previewPromise = fetchSharePreview(id).then(preview => {
+        recordStartupMetric('share.preview-fetch', performance.now() - previewStarted, { found: preview !== null })
+        return preview
+      })
 
       let code: string
       try {
+        const codeFetchStarted = performance.now()
         code = await fetchSharedBuildCode(id)
+        recordStartupMetric('share.code-fetch', performance.now() - codeFetchStarted)
       } catch (error) {
         if (!cancelled) setState({ kind: 'not-found', message: error instanceof Error ? error.message : 'The shared build could not be loaded.' })
         return
@@ -178,7 +194,9 @@ export default function ViewApp() {
 
       let build: Record<string, unknown>
       try {
+        const decodeStarted = performance.now()
         build = await decodeBuildCodeLean(code)
+        recordStartupMetric('share.code-decode', performance.now() - decodeStarted)
       } catch (e) {
         if (!cancelled) setState({ kind: 'not-found', message: e instanceof Error ? e.message : 'The shared build code could not be decoded.' })
         console.error('decodeBuildCodeLean failed:', e instanceof LeanBuildCodeError ? e.message : e)
@@ -210,10 +228,12 @@ export default function ViewApp() {
         const needsLegendaryCatalog = rawGear.some(g => !g.is_crafted && !g.is_vorax)
         const traitId = typeof build.traitId === 'string' ? build.traitId : null
 
+        const catalogsStarted = performance.now()
         const [legendaryItems, heroTraits] = await Promise.all([
           needsLegendaryCatalog ? getLegendaryGearLean().catch(() => []) : Promise.resolve([]),
           traitId ? getHeroTraitsLean().catch(() => []) : Promise.resolve([]),
         ])
+        recordStartupMetric('share.catalog-resolution', performance.now() - catalogsStarted)
 
         const gear = rawGear.map(g => rehydrateGearItemLean(g, legendaryItems))
         const skills = (Array.isArray(build.skills)
@@ -223,7 +243,10 @@ export default function ViewApp() {
           : []) as unknown as EquippedSkill[]
         const trait = traitId ? (heroTraits.find(t => t.trait_id === traitId) ?? null) : null
 
-        if (!cancelled) setState({ kind: 'ready', preview: null, gear, skills, trait })
+        if (!cancelled) {
+          overviewRenderStartedRef.current = performance.now()
+          setState({ kind: 'ready', preview: null, gear, skills, trait })
+        }
         void previewPromise.then(preview => {
           if (!cancelled) setState(current => current.kind === 'ready' ? { ...current, preview } : current)
         })
