@@ -92,112 +92,67 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
   loadReferenceData: async () => {
     const myToken = ++loadToken
     const loadStarted = performance.now()
+    const catalogCount = 11
+    set({ loadDone: 0, loadTotal: catalogCount, referenceResolved: false, failedCatalogs: new Set() })
+
+    const publish = (updates: Partial<ReferenceStore>, season?: string | null) => {
+      if (myToken !== loadToken) return
+      set(state => ({ ...updates, season: season || state.season }))
+    }
 
     // Each fetch bumps loadDone as it settles so the progress pill can show real progress
-    // rather than a spinner-until-everything blob. Ticks are ignored once superseded.
-    const track = <T,>(name: string, p: Promise<T>): Promise<T> => {
+    // rather than a spinner-until-everything blob. Publish each successful catalog immediately; only
+    // referenceResolved waits for all requests. Ticks and updates are ignored once superseded.
+    const track = <T,>(name: string, p: Promise<T>, apply: (value: T) => void): Promise<T> => {
       const started = performance.now()
-      p.finally(() => {
+      const tracked = p.then(value => {
+        apply(value)
+        return value
+      })
+      tracked.finally(() => {
         if (myToken === loadToken) {
           set(s => ({ loadDone: s.loadDone + 1 }))
           recordStartupMetric('catalog.fetch-settled', performance.now() - started, { name })
         }
       }).catch(() => {})
-      return p
+      return tracked
     }
     const fetches = [
-      track('legendary-index', api.getLegendaryGearIndex()),
-      track('legendary-gear', api.getLegendaryGear()),
-      track('craft-base-items', api.getCraftBaseItems()),
-      track('craft-base-types', api.getCraftBaseTypes()),
-      track('grafts', api.getGrafts()),
-      track('hero-traits', api.getHeroTraits()),
-      track('hero-memories', api.getHeroMemories()),
-      track('memory-revival', api.getMemoryRevival()),
-      track('conditions', api.getConditions()),
-      track('skills', api.getSkills()),
-      track('belt-blends', api.getBeltBlends()),
+      track('legendary-index', api.getLegendaryGearIndex(), value => publish({ legendaryIndex: value.items }, value.season)),
+      track('legendary-gear', api.getLegendaryGear(), value => publish({ legendaryCatalog: value.items }, value.season)),
+      track('craft-base-items', api.getCraftBaseItems(), value => publish({ craftBaseItems: value.base_types })),
+      track('craft-base-types', api.getCraftBaseTypes(), value => publish({ craftBaseTypes: value.base_types }, value.season)),
+      track('grafts', api.getGrafts(), value => publish({ grafts: value.grafts })),
+      track('hero-traits', api.getHeroTraits(), value => publish({ heroTraits: value.traits }, value.season)),
+      track('hero-memories', api.getHeroMemories(), value => publish({
+        heroMemories: {
+          memory_types: value.memory_types,
+          base_stats: value.base_stats,
+          fixed_affixes: value.fixed_affixes,
+          random_affixes: value.random_affixes,
+          base_stat_scaling: value.base_stat_scaling,
+        },
+      })),
+      track('memory-revival', api.getMemoryRevival(), value => publish({ memoryRevival: value.affixes })),
+      track('conditions', api.getConditions(), value => publish({ conditions: value })),
+      track('skills', api.getSkills(), value => {
+        publish({
+          skills: value.skills,
+          skillsByName: Object.fromEntries(value.skills.map(skill => [skill.name, skill])),
+          skillsById: Object.fromEntries(value.skills.map(skill => [skill.item_id, skill])),
+        }, value.season)
+        if (myToken === loadToken) registerSkillTagVocabulary(value.skills)
+      }),
+      track('belt-blends', api.getBeltBlends(), value => publish({ beltBlends: value.blends }, value.season)),
     ] as const
-    set({ loadDone: 0, loadTotal: fetches.length })
     const results = await Promise.allSettled(fetches)
 
     // Bail if a newer load (or clear) has superseded this one
     if (myToken !== loadToken) return
 
-    const [
-      idxResult, catalogResult, baseItemsResult,
-      baseTypesResult, graftsResult, traitsResult,
-      memoriesResult, revivalResult, conditionsResult, skillsResult,
-      beltBlendsResult,
-    ] = results
-
-    const failed = new Set<string>()
-    let season: string | null = null
-    const updates: Partial<ReferenceStore> = {}
-
-    if (idxResult.status === 'fulfilled') {
-      updates.legendaryIndex = idxResult.value.items
-      if (idxResult.value.season) season = idxResult.value.season
-    } else { failed.add('legendaryIndex') }
-
-    if (catalogResult.status === 'fulfilled') {
-      updates.legendaryCatalog = catalogResult.value.items
-      if (catalogResult.value.season) season ??= catalogResult.value.season
-    } else { failed.add('legendaryCatalog') }
-
-    if (baseItemsResult.status === 'fulfilled') {
-      updates.craftBaseItems = baseItemsResult.value.base_types
-    } else { failed.add('craftBaseItems') }
-
-    if (baseTypesResult.status === 'fulfilled') {
-      updates.craftBaseTypes = baseTypesResult.value.base_types
-      if (baseTypesResult.value.season) season ??= baseTypesResult.value.season
-    } else { failed.add('craftBaseTypes') }
-
-    if (graftsResult.status === 'fulfilled') {
-      updates.grafts = graftsResult.value.grafts
-    } else { failed.add('grafts') }
-
-    if (traitsResult.status === 'fulfilled') {
-      updates.heroTraits = traitsResult.value.traits
-      if (traitsResult.value.season) season ??= traitsResult.value.season
-    } else { failed.add('heroTraits') }
-
-    if (memoriesResult.status === 'fulfilled') {
-      const r = memoriesResult.value
-      updates.heroMemories = {
-        memory_types: r.memory_types,
-        base_stats: r.base_stats,
-        fixed_affixes: r.fixed_affixes,
-        random_affixes: r.random_affixes,
-        base_stat_scaling: r.base_stat_scaling,
-      }
-    } else { failed.add('heroMemories') }
-
-    if (revivalResult.status === 'fulfilled') {
-      updates.memoryRevival = revivalResult.value.affixes
-    } else { failed.add('memoryRevival') }
-
-    if (conditionsResult.status === 'fulfilled') {
-      updates.conditions = conditionsResult.value
-    } else { failed.add('conditions') }
-
-    if (skillsResult.status === 'fulfilled') {
-      updates.skills = skillsResult.value.skills
-      updates.skillsByName = Object.fromEntries(skillsResult.value.skills.map((s) => [s.name, s]))
-      updates.skillsById = Object.fromEntries(skillsResult.value.skills.map((s) => [s.item_id, s]))
-      // Refresh isSupportCompatible's tag vocabulary against THIS season's catalog, so multi-word
-      // support-gate phrases ("Supports Shadow Strike Skills.") match correctly (see client.ts).
-      registerSkillTagVocabulary(skillsResult.value.skills)
-      if (skillsResult.value.season) season ??= skillsResult.value.season
-    } else { failed.add('skills') }
-
-    if (beltBlendsResult.status === 'fulfilled') {
-      updates.beltBlends = beltBlendsResult.value.blends
-      if (beltBlendsResult.value.season) season ??= beltBlendsResult.value.season
-    } else { failed.add('beltBlends') }
-
-    set({ ...updates, season, referenceResolved: true, failedCatalogs: failed })
+    const names = ['legendaryIndex', 'legendaryCatalog', 'craftBaseItems', 'craftBaseTypes', 'grafts', 'heroTraits', 'heroMemories', 'memoryRevival', 'conditions', 'skills', 'beltBlends']
+    const failed = new Set(results.flatMap((result, index) => result.status === 'rejected' ? [names[index]] : []))
+    set({ referenceResolved: true, failedCatalogs: failed })
     recordStartupMetric('catalog.all-settled', performance.now() - loadStarted, { failed: failed.size })
   },
 
