@@ -4,6 +4,7 @@ export interface StartupMetric {
   details?: Record<string, string | number | boolean | null>
 }
 
+const MAX_STARTUP_METRICS = 500
 type StartupDiagnosticWindow = Window & { __tliStartupMetrics?: StartupMetric[] }
 
 /** In-memory timing buffer for repeatable browser and Electron startup profiling. */
@@ -13,6 +14,7 @@ export function recordStartupMetric(name: string, durationMs: number, details?: 
   const metrics = host.__tliStartupMetrics ?? (host.__tliStartupMetrics = [])
   const metric = { name, durationMs: Math.round(durationMs * 10) / 10, ...(details ? { details } : {}) }
   metrics.push(metric)
+  if (metrics.length > MAX_STARTUP_METRICS) metrics.splice(0, metrics.length - MAX_STARTUP_METRICS)
   if (typeof host.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
     host.dispatchEvent(new CustomEvent('tli-startup-metric', { detail: metric }))
   }

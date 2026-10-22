@@ -10,7 +10,15 @@ const PREVIEW = {
 test('share overview exposes Open early and the link reaches the usable editor', async ({ webPage }, testInfo) => {
   test.setTimeout(240_000)
   const encoded = await webApi(webPage, 'POST', '/api/build-code/encode', {
-    build: { v: 2, name: 'Share performance fixture', characterLevel: 90, slots: [null, null, null, null], gear: [], skills: [] },
+    build: {
+      v: 2, name: 'Share performance fixture', characterLevel: 90, slots: [null, null, null, null],
+      gear: [{
+        item_id: 'share-fixture-gear', name: 'Share Fixture Gear', slot: 'weapon1', is_crafted: true,
+        affixes: [{ raw_text: 'Adds 1 to 2 Fire Damage', expression: 'Adds 1 to 2 Fire Damage',
+          modifier_id: null, condition: null, affix_kind: 'numeric', numeric_values: [] }],
+      }],
+      skills: [],
+    },
   }) as { code?: string }
   expect(encoded.code?.startsWith('tli1_')).toBe(true)
 
@@ -52,7 +60,6 @@ test('share overview exposes Open early and the link reaches the usable editor',
 
     const clickStart = Date.now()
     await openLink.click()
-    await expect(viewPage.getByRole('status').filter({ hasText: /Fetching the shared build|Decoding the shared build|Opening the shared build/ })).toBeVisible({ timeout: 30_000 })
     await expect(viewPage.getByRole('button', { name: /Hero Memory Inventory/ })).toBeVisible({ timeout: 180_000 })
     expect(viewPage.url()).not.toContain('share=')
     const importMetrics = await viewPage.evaluate(() => {
@@ -64,10 +71,17 @@ test('share overview exposes Open early and the link reaches the usable editor',
     expect(measuredStages.map(metric => metric.name)).toEqual(expect.arrayContaining([
       'share.import-fetch', 'share.import-decode', 'share.open-build', 'share.editor-render-commit',
     ]))
+    expect(measuredStages.find(metric => metric.name === 'share.import-decode')!.durationMs).toBeLessThan(1_000)
+    expect(measuredStages.map(metric => metric.name)).toContain('share.session-draft-persist')
     console.log(`[share-perf] import stages ${JSON.stringify(measuredStages)}`)
     console.log(`[share-perf] worker stages ${JSON.stringify(workerStages)}`)
     console.log(`[share-perf] click to usable editor ${Date.now() - clickStart} ms`)
     await viewPage.screenshot({ path: testInfo.outputPath('share-editor.png') })
+    await viewPage.reload({ waitUntil: 'domcontentloaded' })
+    await expect(viewPage.getByRole('button', { name: /Hero Memory Inventory/ })).toBeVisible({ timeout: 30_000 })
+    expect(viewPage.url()).not.toContain('share=')
+    await viewPage.getByRole('button', { name: 'Gear', exact: true }).click()
+    await expect(viewPage.getByRole('button', { name: 'Share Fixture Gear', exact: true }).first()).toBeVisible({ timeout: 30_000 })
   } finally {
     await viewContext.close()
   }

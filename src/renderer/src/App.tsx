@@ -8,6 +8,8 @@ import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPrese
 import { DEFAULT_ENEMY_CONFIG, sanitizeEnemyConfig } from './utils/enemyPresets'
 import { getBuildPayload } from './utils/buildPayload'
 import { clearBuildDraft, readBuildDraft, writeBuildDraft } from './utils/buildDraft'
+import { decodeBuildCodeLean } from './utils/decodeBuildCodeLean'
+import { rehydrateSharedBuild } from './utils/decodeSharedBuild'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -40,7 +42,8 @@ const VerificationDatabaseScreen = lazy(() => import('./screens/VerificationData
 import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
-type ShareImportStatus = { id: string; stage: 'restoring' | 'fetching' | 'decoding' | 'confirming' | 'opening' | 'error'; message?: string }
+type OpenBuildOptions = { deferGearResolution?: boolean }
+type ShareImportStatus = { id: string; stage: 'restoring' | 'fetching' | 'decoding' | 'rehydrating' | 'confirming' | 'opening' | 'persisting' | 'error'; message?: string }
 
 function ShareImportNotice({ status, onRetry, onContinue }: {
   status: ShareImportStatus | null
@@ -52,8 +55,10 @@ function ShareImportNotice({ status, onRetry, onContinue }: {
     restoring: 'Restoring your editing session before importing…',
     fetching: 'Fetching the shared build…',
     decoding: 'Decoding the shared build…',
+    rehydrating: 'Preparing shared gear…',
     confirming: 'Save or discard your current edits before opening this shared build.',
     opening: 'Opening the shared build…',
+    persisting: 'Saving a recovery copy of the imported build…',
   } as const)[status.stage]
   return (
     <div role={status.stage === 'error' ? 'alert' : 'status'} style={{
@@ -174,7 +179,7 @@ function App() {
   // earlier version of this file made exactly that mistake). Instead, this effect stays up here
   // (hook-count-safe) and reaches them through refs kept fresh by plain, non-hook assignments placed
   // right after each function's own definition further down — see `openBuildRef.current = openBuild`.
-  const openBuildRef = useRef<((build: Build) => Promise<void>) | null>(null)
+  const openBuildRef = useRef<((build: Build, options?: OpenBuildOptions) => Promise<void>) | null>(null)
   const shareEditorRenderStartedRef = useRef<number | null>(null)
   const requireSavePromptRef = useRef<((action: () => void) => void) | null>(null)
   const draftRestoreRef = useRef<Promise<void> | null>(null)
@@ -219,10 +224,24 @@ function App() {
         if (cancelled) return
         setShareImportStatus({ id: shareId, stage: 'decoding' })
         const decodeStarted = performance.now()
-        const { build } = await api.decodeBuildCode(resolved)
+        const rawBuild = await decodeBuildCodeLean(resolved)
         recordStartupMetric('share.import-decode', performance.now() - decodeStarted)
         if (cancelled) return
-        const importedBuild = build as unknown as Build
+        const rawGear = Array.isArray(rawBuild.gear) ? rawBuild.gear : []
+        const needsLegendaryCatalog = rawGear.some(item => {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return false
+          const gear = item as Record<string, unknown>
+          return !gear.is_crafted && !gear.is_vorax && typeof gear.item_id === 'string'
+        })
+        let legendaryCatalog: Awaited<ReturnType<typeof api.getLegendaryGear>>['items'] = []
+        if (needsLegendaryCatalog) {
+          setShareImportStatus({ id: shareId, stage: 'rehydrating' })
+          const catalogStarted = performance.now()
+          legendaryCatalog = useReferenceStore.getState().legendaryCatalog
+            ?? (await api.getLegendaryGear()).items
+          recordStartupMetric('share.import-gear-catalog', performance.now() - catalogStarted, { count: legendaryCatalog.length })
+        }
+        const importedBuild = rehydrateSharedBuild(rawBuild, legendaryCatalog) as unknown as Build
         pendingShareBuildRef.current = importedBuild
         setShareImportStatus({ id: shareId, stage: 'confirming' })
         // Gated the same way the manual paste-import flow gates ImportPanel's decoded build. Keep the
@@ -555,8 +574,24 @@ function App() {
       setShareImportStatus({ id: shareId, stage: 'error', message: 'The editor is not ready. Retry the import.' })
       return
     }
-    void open(build).then(() => {
+    void open(build, { deferGearResolution: true }).then(async () => {
       recordStartupMetric('share.open-build', performance.now() - started)
+      if (IS_WEB) {
+        setShareImportStatus({ id: shareId, stage: 'persisting' })
+        const persistStarted = performance.now()
+        const state = useBuildStore.getState()
+        await writeBuildDraft({
+          version: 1,
+          savedAt: Date.now(),
+          buildId: state.buildId,
+          buildName: state.buildName,
+          activeSlot: state.activeSlot,
+          payload: getBuildPayload(),
+          dirty: state.buildVersion > loadedVersionRef.current,
+          screen: BUILD_LANDING_SCREEN,
+        })
+        recordStartupMetric('share.session-draft-persist', performance.now() - persistStarted)
+      }
       pendingShareBuildRef.current = null
       setPendingShareId(null)
       setShareImportStatus(null)
@@ -570,7 +605,9 @@ function App() {
       setShareImportStatus({
         id: shareId,
         stage: 'error',
-        message: error instanceof Error ? error.message : 'The shared build could not be opened. Retry the import.',
+        message: error instanceof Error
+          ? `The shared build could not be opened or saved for recovery: ${error.message}`
+          : 'The shared build could not be opened or saved for recovery. Retry the import.',
       })
     })
   }
@@ -704,7 +741,7 @@ function App() {
     return { treeName: o.treeName, nodeStates, coreTalentSelections }
   }
 
-  const openBuild = async (build: Build) => {
+  const openBuild = async (build: Build, options: OpenBuildOptions = {}) => {
     // Opening an existing build cancels any pending new-build folder assignment from an abandoned
     // "+ New Build" flow started (but never saved) from inside a folder.
     pendingNewBuildFolderRef.current = null
@@ -741,6 +778,7 @@ function App() {
     // when override entries are added or the resolver improves (e.g. a dual-pool combo like
     // "Max Life and Max Energy Shield" that previously resolved to only one stat). Keyed purely on
     // raw_text, which maps deterministically through the same resolver the catalog serve uses.
+    let deferredGearResolution: (() => void) | null = null
     if (gear.length > 0) {
       const texts = [...new Set(
         gear.flatMap(g => g.affixes
@@ -748,9 +786,7 @@ function App() {
           .map(a => a.raw_text)
         )
       )]
-      try {
-        const { results } = await api.resolveGearAffixes(texts)
-        gear = gear.map(item => {
+      const applyResolvedGear = (items: EquippedGearItem[], results: Record<string, ResolvedAffixFields>) => items.map(item => {
           return {
             ...item,
             affixes: item.affixes.map(aff => {
@@ -769,8 +805,27 @@ function App() {
             })
           }
         })
-      } catch {
-        // Resolution failure is non-fatal — proceed with whatever was saved
+      if (options.deferGearResolution) {
+        deferredGearResolution = () => {
+          const expectedVersion = useBuildStore.getState().buildVersion
+          void api.resolveGearAffixes(texts).then(({ results }) => {
+            const store = useBuildStore.getState()
+            if (store.buildVersion !== expectedVersion) return
+            store.setGear(applyResolvedGear(store.gear, results))
+            store.flushActiveLoadout()
+            loadedVersionRef.current = useBuildStore.getState().buildVersion
+            setIsDirty(false)
+          }).catch(() => {
+            // Affix resolution is additive; the imported gear remains editable with its saved text.
+          })
+        }
+      } else {
+        try {
+          const { results } = await api.resolveGearAffixes(texts)
+          gear = applyResolvedGear(gear, results)
+        } catch {
+          // Resolution failure is non-fatal — proceed with whatever was saved
+        }
       }
     }
 
@@ -834,6 +889,7 @@ function App() {
     setIsDirty(false)
     setScreen(BUILD_LANDING_SCREEN)
     suppressDraftWritesRef.current = false
+    deferredGearResolution?.()
   }
   // Plain assignment, NOT a hook — safe to run conditionally (only reached once appReady is true).
   // Keeps the deep-link effect (declared earlier, before the early-return gate) able to call the
