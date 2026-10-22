@@ -6,6 +6,7 @@ import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
 import type { SharePreview } from './share'
 import { dec } from '../utils/num'
 import { errorFromResponse, normalizeError, TliError, type TliErrorCode } from '../errors/tliError'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 let BASE = ''
 let ipcMode = false
@@ -90,7 +91,13 @@ export async function initApi(): Promise<void> {
   // anything else still uses IPC/HTTP below.
   if (STATIC_DATA_BASE) {
     try {
-      const m = await (await fetch(`${STATIC_DATA_BASE}/manifest.json`)).json()
+      const manifestStarted = performance.now()
+      const manifestResponse = await fetch(`${STATIC_DATA_BASE}/manifest.json`)
+      const manifestReceived = performance.now()
+      const m = await manifestResponse.json()
+      recordStartupMetric('catalog.manifest', performance.now() - manifestStarted, {
+        responseMs: Math.round((manifestReceived - manifestStarted) * 10) / 10,
+      })
       staticSeason = m.season || ''
       rlog(`initApi — static data base ${STATIC_DATA_BASE}, season ${staticSeason}`)
       // Web build (no Electron IPC): run compute in the Pyodide worker. Kick off its load in the background;
@@ -153,9 +160,20 @@ async function get<T>(path: string, retries = 4): Promise<T> {
   if (staticUrl) {
     rlog(`GET (static) ${staticUrl}`)
     try {
-    const res = await fetch(staticUrl)
-    if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
-    return res.json()
+      const started = performance.now()
+      const res = await fetch(staticUrl)
+      if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
+      const received = performance.now()
+      const bytes = await res.arrayBuffer()
+      const parsedAt = performance.now()
+      const value = JSON.parse(new TextDecoder().decode(bytes)) as T
+      recordStartupMetric('catalog.static', performance.now() - started, {
+        path, responseMs: Math.round((received - started) * 10) / 10,
+        bodyMs: Math.round((parsedAt - received) * 10) / 10,
+        parseMs: Math.round((performance.now() - parsedAt) * 10) / 10,
+        decodedBytes: bytes.byteLength,
+      })
+      return value
     } catch (error) {
       const code: TliErrorCode = error instanceof TypeError
         || (error instanceof DOMException && error.name === 'AbortError')

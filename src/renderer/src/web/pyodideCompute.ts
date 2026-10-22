@@ -2,6 +2,7 @@
 // exposes webApiRequest(method, path, body) -> Promise<data>, dispatching through the in-browser FastAPI app so
 // responses match the desktop backend exactly.
 import { errorFromResponse, normalizeError } from '../errors/tliError'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 let worker: Worker | null = null
 let readyPromise: Promise<void> | null = null
@@ -113,8 +114,11 @@ function failWorker(error: Error): void {
 }
 
 interface WorkerOut {
-  type: 'progress' | 'ready' | 'result' | 'error' | 'persist'
+  type: 'progress' | 'ready' | 'result' | 'error' | 'persist' | 'timing'
   msg?: string
+  name?: string
+  durationMs?: number
+  details?: Record<string, string | number | boolean>
   id?: number
   status?: number
   body?: string
@@ -135,6 +139,10 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
     worker!.onmessage = (e: MessageEvent<WorkerOut>) => {
       const m = e.data
       if (m.type === 'progress') { progressListeners.forEach(cb => cb(m.msg || '')); return }
+      if (m.type === 'timing') {
+        if (m.name && typeof m.durationMs === 'number') recordStartupMetric(m.name, m.durationMs, m.details)
+        return
+      }
       if (m.type === 'ready') {
         clearTimeout(initTimeout)
         resolve()
@@ -209,12 +217,16 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
  *  parsed response data (throws on non-2xx), matching the desktop get/post helpers. Serialized: only one
  *  request is ever in flight against the (single-threaded) Pyodide worker at a time. */
 export async function webApiRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const enqueuedAt = performance.now()
   const run = async (): Promise<T> => {
+    recordStartupMetric('worker.request-chain-wait', performance.now() - enqueuedAt, { method, path })
     // A prior timeout/crash cleared worker+readyPromise. Recreate from the original web init parameters so
     // an ordinary build edit after a failure is a real retry, not a permanent "not initialized" error.
     if ((!worker || !readyPromise) && lastInit) initPyodideCompute(lastInit.dataBase, lastInit.season)
     if (!worker || !readyPromise) throw normalizeError(new Error('Pyodide backend is not initialized'), 'TLI-BOOT-001', 'web.pyodide.init')
+    const readyStarted = performance.now()
     await readyPromise
+    recordStartupMetric('worker.request-ready-wait', performance.now() - readyStarted, { method, path })
     const id = nextId++
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {

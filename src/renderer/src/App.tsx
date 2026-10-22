@@ -12,6 +12,7 @@ import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useDefaultHeroTrait } from './store/useDefaultHeroTrait'
+import { recordStartupMetric } from './utils/startupDiagnostics'
 import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
@@ -387,8 +388,10 @@ function App() {
   }, [refConditions])
 
   useEffect(() => {
+    const started = performance.now()
     initApi()
       .then(() => {
+        recordStartupMetric('app.api-ready', performance.now() - started)
         setAppReady(true)
         api.getTrees().then(trees => {
           const colors: Record<string, string> = {}

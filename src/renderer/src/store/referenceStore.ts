@@ -5,6 +5,7 @@ import type {
   HeroMemoryBaseStatScaling,
 } from '../api/client'
 import { api, registerSkillTagVocabulary } from '../api/client'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 export interface HeroMemoryData {
   memory_types: HeroMemoryType[]   // per-type catalog rows (name/internal_id/icon_url) — drives type icons
@@ -90,25 +91,32 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
 
   loadReferenceData: async () => {
     const myToken = ++loadToken
+    const loadStarted = performance.now()
 
     // Each fetch bumps loadDone as it settles so the progress pill can show real progress
     // rather than a spinner-until-everything blob. Ticks are ignored once superseded.
-    const track = <T,>(p: Promise<T>): Promise<T> => {
-      p.finally(() => { if (myToken === loadToken) set(s => ({ loadDone: s.loadDone + 1 })) }).catch(() => {})
+    const track = <T,>(name: string, p: Promise<T>): Promise<T> => {
+      const started = performance.now()
+      p.finally(() => {
+        if (myToken === loadToken) {
+          set(s => ({ loadDone: s.loadDone + 1 }))
+          recordStartupMetric('catalog.fetch-settled', performance.now() - started, { name })
+        }
+      }).catch(() => {})
       return p
     }
     const fetches = [
-      track(api.getLegendaryGearIndex()),
-      track(api.getLegendaryGear()),
-      track(api.getCraftBaseItems()),
-      track(api.getCraftBaseTypes()),
-      track(api.getGrafts()),
-      track(api.getHeroTraits()),
-      track(api.getHeroMemories()),
-      track(api.getMemoryRevival()),
-      track(api.getConditions()),
-      track(api.getSkills()),
-      track(api.getBeltBlends()),
+      track('legendary-index', api.getLegendaryGearIndex()),
+      track('legendary-gear', api.getLegendaryGear()),
+      track('craft-base-items', api.getCraftBaseItems()),
+      track('craft-base-types', api.getCraftBaseTypes()),
+      track('grafts', api.getGrafts()),
+      track('hero-traits', api.getHeroTraits()),
+      track('hero-memories', api.getHeroMemories()),
+      track('memory-revival', api.getMemoryRevival()),
+      track('conditions', api.getConditions()),
+      track('skills', api.getSkills()),
+      track('belt-blends', api.getBeltBlends()),
     ] as const
     set({ loadDone: 0, loadTotal: fetches.length })
     const results = await Promise.allSettled(fetches)
@@ -190,6 +198,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     } else { failed.add('beltBlends') }
 
     set({ ...updates, season, referenceResolved: true, failedCatalogs: failed })
+    recordStartupMetric('catalog.all-settled', performance.now() - loadStarted, { failed: failed.size })
   },
 
   clearReferenceData: () => {

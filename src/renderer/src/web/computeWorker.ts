@@ -59,38 +59,72 @@ function restorePersist(snapshot: Record<string, string>): void {
   }
 }
 
-async function fetchBytes(url: string, cache?: RequestCache): Promise<Uint8Array> {
+async function fetchBytes(url: string, label: string, cache?: RequestCache): Promise<Uint8Array> {
+  const started = performance.now()
   const res = await fetch(url, cache ? { cache } : undefined)
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`)
-  return new Uint8Array(await res.arrayBuffer())
+  const received = performance.now()
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  const read = performance.now()
+  post({ type: 'timing', name: 'worker.archive-fetch', durationMs: read - started, details: {
+    archive: label, responseMs: received - started, bodyMs: read - received, bytes: bytes.byteLength,
+  } })
+  return bytes
 }
 
 async function init(msg: InitMsg): Promise<void> {
+  let phaseStarted = performance.now()
+  const measurePhase = (name: string, details?: Record<string, string | number>) => {
+    post({ type: 'timing', name, durationMs: performance.now() - phaseStarted, details })
+    phaseStarted = performance.now()
+  }
   progress('Loading engine runtime…')
+  const pyodideAssetsStarted = performance.now()
   const { loadPyodide } = await import(/* @vite-ignore */ `${PYODIDE_INDEX}pyodide.mjs`)
+  measurePhase('worker.pyodide-module')
   py = await loadPyodide({ indexURL: PYODIDE_INDEX })
+  measurePhase('worker.pyodide-init')
+  const pyodideResources = performance.getEntriesByType('resource')
+    .filter(entry => entry.name.startsWith(PYODIDE_INDEX) && entry.startTime >= pyodideAssetsStarted)
+  post({ type: 'timing', name: 'worker.pyodide-assets', durationMs: performance.now() - pyodideAssetsStarted, details: {
+    requests: pyodideResources.length,
+    transferBytes: pyodideResources.reduce((sum, entry) => sum + ((entry as PerformanceResourceTiming).transferSize || 0), 0),
+    encodedBytes: pyodideResources.reduce((sum, entry) => sum + ((entry as PerformanceResourceTiming).encodedBodySize || 0), 0),
+  } })
 
   progress('Loading Python packages…')
   await py.loadPackage('micropip')
+  measurePhase('worker.micropip-load')
   await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi'])`)
+  measurePhase('worker.fastapi-install')
 
   progress('Loading game data…')
+  const downloadsStarted = performance.now()
   const [backendZip, dataZip] = await Promise.all([
     // backendUrl carries a ?v=<content-hash> cache-buster (pyodideCompute), so normal HTTP caching is safe —
     // a new deploy changes the URL, and unchanged deploys hit the browser cache instead of re-downloading.
-    fetchBytes(msg.backendUrl),
-    fetchBytes(`${msg.dataBase}/engine-data.zip`),
+    fetchBytes(msg.backendUrl, 'backend'),
+    fetchBytes(`${msg.dataBase}/engine-data.zip`, 'engine-data'),
   ])
+  post({ type: 'timing', name: 'worker.archive-downloads', durationMs: performance.now() - downloadsStarted, details: {
+    backendBytes: backendZip.byteLength, dataBytes: dataZip.byteLength,
+  } })
+  phaseStarted = performance.now()
   py.FS.mkdir('/be'); py.unpackArchive(backendZip, 'zip', { extractDir: '/be' })
   py.FS.mkdir('/data'); py.unpackArchive(dataZip, 'zip', { extractDir: '/data' })
+  measurePhase('worker.archive-unpack')
   py.FS.mkdir('/stubs'); py.FS.writeFile('/stubs/uvicorn.py', 'def run(*a, **k):\n    pass\n')
 
   // Restore persisted builds + last-session save into the in-memory FS (TLI_PERSIST_DIR=/persist). The snapshot
   // comes from the main thread's IndexedDB; mutations are snapshotted back to it (see the request handler).
   py.FS.mkdir('/persist')
+  const restoreStarted = performance.now()
   if (msg.persistSnapshot) restorePersist(msg.persistSnapshot)
+  post({ type: 'timing', name: 'worker.restore-persistence', durationMs: performance.now() - restoreStarted,
+    details: { files: Object.keys(msg.persistSnapshot ?? {}).length } })
 
   progress('Starting engine…')
+  phaseStarted = performance.now()
   await py.runPythonAsync(`
 import os, sys
 sys.path.insert(0, '/stubs'); sys.path.insert(0, '/be')
@@ -122,11 +156,14 @@ async def _api(method, path, body_text=''):
     await server.app(scope, receive, send)
     return json.dumps({'status':state['status'],'body':b''.join(state['chunks']).decode('utf-8')})
 `)
+  measurePhase('worker.engine-import')
   apiFn = py.globals.get('_api')
   // Warm once so the first real recompute is fast (skills cache + consumable_universe build).
+  phaseStarted = performance.now()
   try {
     await apiFn('POST', '/api/engine/stats', '{"slots":[null,null,null,null],"skills":[],"character":[],"condition_state":{"level":90}}')
   } catch { /* warm best-effort */ }
+  measurePhase('worker.engine-warm')
   post({ type: 'ready' })
 }
 
@@ -178,6 +215,12 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
   if (msg.type === 'request') {
     // Chain onto the previous request regardless of outcome, so one failed/errored request doesn't stall
     // everything queued after it.
-    requestQueue = requestQueue.then(() => handleRequest(msg), () => handleRequest(msg))
+    const enqueuedAt = performance.now()
+    const run = async () => {
+      post({ type: 'timing', name: 'worker.request-queue', durationMs: performance.now() - enqueuedAt,
+        details: { path: msg.path, id: msg.id } })
+      await handleRequest(msg)
+    }
+    requestQueue = requestQueue.then(run, run)
   }
 }
