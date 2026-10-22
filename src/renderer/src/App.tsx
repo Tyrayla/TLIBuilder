@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId, getShareBase, IS_WEB } from './api/client'
 import { resolveImportInput } from './utils/resolveImportInput'
 import { MAX_LEVEL_BY_RARITY } from './components/HeroTraitShared'
@@ -22,20 +22,20 @@ import PerfProfiler, { PERF_ENABLED } from './components/PerfProfiler'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
 import ReportModal from './components/ReportModal'
-import HeroTraitScreen from './screens/HeroTraitScreen'
-import PactSpiritScreen from './screens/PactSpiritScreen'
-import NotesScreen from './screens/NotesScreen'
+const HeroTraitScreen = lazy(() => import('./screens/HeroTraitScreen'))
+const PactSpiritScreen = lazy(() => import('./screens/PactSpiritScreen'))
+const NotesScreen = lazy(() => import('./screens/NotesScreen'))
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
-import TreeSelectorScreen from './screens/TreeSelectorScreen'
-import TreeViewerScreen from './screens/TreeViewerScreen'
-import DevToolsScreen from './screens/DevToolsScreen'
-import SlateScreen from './screens/SlateScreen'
-import PlayerStatsScreen from './screens/PlayerStatsScreen'
-import GearScreen from './screens/GearScreen'
-import SkillsScreen from './screens/SkillsScreen'
-import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
+const TreeSelectorScreen = lazy(() => import('./screens/TreeSelectorScreen'))
+const TreeViewerScreen = lazy(() => import('./screens/TreeViewerScreen'))
+const DevToolsScreen = lazy(() => import('./screens/DevToolsScreen'))
+const SlateScreen = lazy(() => import('./screens/SlateScreen'))
+const PlayerStatsScreen = lazy(() => import('./screens/PlayerStatsScreen'))
+const GearScreen = lazy(() => import('./screens/GearScreen'))
+const SkillsScreen = lazy(() => import('./screens/SkillsScreen'))
+const VerificationDatabaseScreen = lazy(() => import('./screens/VerificationDatabaseScreen'))
 import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
@@ -977,11 +977,11 @@ function App() {
   }
 
   if (screen === 'dev-tools') {
-    return <DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
+    return <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading tools…</div>}><DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
-        }} />
+        }} /></Suspense>
   }
 
   if (screen === 'build-select') {
@@ -1005,7 +1005,9 @@ function App() {
   if (screen === 'verification') {
     return (
       <div className="app-shell">
-        <VerificationDatabaseScreen onBack={() => setScreen('build-select')} />
+        <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading verification data…</div>}>
+          <VerificationDatabaseScreen onBack={() => setScreen('build-select')} />
+        </Suspense>
       </div>
     )
   }
@@ -1148,13 +1150,21 @@ function App() {
                     const next = new Set(prev)
                     next.delete(id)
                     return next
-                  })}>{renderKeepAliveScreen(id)}</ErrorBoundary>
+                  })}>
+                    <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading screen…</div>}>
+                      {renderKeepAliveScreen(id)}
+                    </Suspense>
+                  </ErrorBoundary>
                 </div>
               ))}
               {/* Swap-rendered screens (Calcs + the slot-dependent tree/preview flow): rendered only
                   while active, remounting on entry as before (keyed on screen). */}
               {!KEEPALIVE_SCREENS.includes(screen) && (
-                <ErrorBoundary key={screen}>{screenContent}</ErrorBoundary>
+                <ErrorBoundary key={screen}>
+                  <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading screen…</div>}>
+                    {screenContent}
+                  </Suspense>
+                </ErrorBoundary>
               )}
             </PerfProfiler>
           </div>
