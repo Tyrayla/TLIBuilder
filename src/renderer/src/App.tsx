@@ -39,6 +39,35 @@ const VerificationDatabaseScreen = lazy(() => import('./screens/VerificationData
 import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
+type ShareImportStatus = { id: string; stage: 'restoring' | 'fetching' | 'decoding' | 'confirming' | 'opening' | 'error'; message?: string }
+
+function ShareImportNotice({ status, onRetry, onContinue }: {
+  status: ShareImportStatus | null
+  onRetry: () => void
+  onContinue: () => void
+}) {
+  if (!status) return null
+  const message = status.stage === 'error' ? status.message || 'The shared build could not be opened.' : ({
+    restoring: 'Restoring your editing session before importing…',
+    fetching: 'Fetching the shared build…',
+    decoding: 'Decoding the shared build…',
+    confirming: 'Save or discard your current edits before opening this shared build.',
+    opening: 'Opening the shared build…',
+  } as const)[status.stage]
+  return (
+    <div role={status.stage === 'error' ? 'alert' : 'status'} style={{
+      position: 'fixed', zIndex: 1400, left: '50%', bottom: 12, transform: 'translateX(-50%)',
+      display: 'flex', alignItems: 'center', gap: 12, maxWidth: 'calc(100vw - 24px)',
+      padding: '10px 14px', borderRadius: 8, border: '1px solid #515174',
+      background: '#222238', color: status.stage === 'error' ? '#ff9b9b' : '#eee',
+      boxShadow: '0 6px 24px #0008',
+    }}>
+      <span>{message}</span>
+      {status.stage === 'error' && <button className="btn btn-secondary" onClick={onRetry}>Retry import</button>}
+      {status.stage === 'confirming' && <button className="btn btn-secondary" onClick={onContinue}>Continue import</button>}
+    </div>
+  )
+}
 
 // Where a build lands when created or opened — picking the character is the natural first step.
 const BUILD_LANDING_SCREEN: Screen = 'hero-traits'
@@ -126,21 +155,17 @@ function App() {
   // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
   const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
   // Deep-link import (web): the share-link overview page's "Open in Web App" button links here
-  // with ?share=<id>. Read + strip the param synchronously in the lazy initializer (runs exactly
-  // once, on mount) so a later refresh lands on a normal param-free URL. The actual import runs in
+  // with ?share=<id>. Read it synchronously and keep it in the URL until the import opens
+  // successfully, so refresh can retry after a network or worker failure. The actual import runs in
   // an effect further down, alongside `openBuild`'s definition — `openBuild` isn't initialized yet
   // at this point in a render where `appReady` is still false (this component returns early before
   // reaching it), so a hook up here can't safely call it directly.
   const [pendingShareId, setPendingShareId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
-    const shareId = params.get('share')
-    if (shareId) {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('share')
-      window.history.replaceState(null, '', url.toString())
-    }
-    return shareId
+    return params.get('share')
   })
+  const [shareRetryCount, setShareRetryCount] = useState(0)
+  const [shareImportStatus, setShareImportStatus] = useState<ShareImportStatus | null>(null)
   // `openBuild`/`requireSavePrompt` are defined later in this function, past the `if (!appReady)`
   // gate below — a real fix cannot place the effect that CALLS them down there (any hook after that
   // gate reliably crashes with "Rendered more hooks than during the previous render" the moment
@@ -153,6 +178,7 @@ function App() {
   const draftRestoreRef = useRef<Promise<void> | null>(null)
   const draftWriteRef = useRef<(() => void) | null>(null)
   const suppressDraftWritesRef = useRef(false)
+  const openShareBuildRef = useRef<((shareId: string, build: Build) => void) | null>(null)
   useEffect(() => {
     if (!IS_WEB || !appReady || draftRestoreRef.current) return
     draftRestoreRef.current = (async () => {
@@ -177,34 +203,46 @@ function App() {
   useEffect(() => {
     if (!appReady || !pendingShareId) return
     const shareId = pendingShareId
-    setPendingShareId(null) // one-shot — never re-trigger on a later re-render
+    let cancelled = false
+    setShareImportStatus({ id: shareId, stage: 'restoring' })
     void (async () => {
       try {
         // Restore a local draft before applying the same unsaved-change guard used by manual imports.
         await draftRestoreRef.current
+        if (cancelled) return
+        setShareImportStatus({ id: shareId, stage: 'fetching' })
         const resolved = await resolveImportInput(`${getShareBase()}/b/${shareId}`)
+        if (cancelled) return
+        setShareImportStatus({ id: shareId, stage: 'decoding' })
         const { build } = await api.decodeBuildCode(resolved)
-        // Gated the same way the manual paste-import flow gates ImportPanel's decoded build
-        // (ImportExportOverlay.tsx's proceedWithBuild) — a deep link must never silently overwrite
-        // unsaved edits just because it arrived automatically rather than via a deliberate paste.
-        requireSavePromptRef.current?.(() => {
-          openBuildRef.current?.(build as unknown as Build)
-            .catch((err: unknown) => console.error('Deep-link openBuild failed:', err))
+        if (cancelled) return
+        const importedBuild = build as unknown as Build
+        pendingShareBuildRef.current = importedBuild
+        setShareImportStatus({ id: shareId, stage: 'confirming' })
+        // Gated the same way the manual paste-import flow gates ImportPanel's decoded build. Keep the
+        // share ID in the URL and the decoded build in memory until opening succeeds so refresh/retry
+        // remains possible after network or worker failure.
+        requireSavePromptRef.current?.(() => openShareBuildRef.current?.(shareId, importedBuild))
+      } catch (error) {
+        if (cancelled) return
+        setShareImportStatus({
+          id: shareId,
+          stage: 'error',
+          message: error instanceof Error ? error.message : 'The shared build could not be loaded. Retry the import.',
         })
-      } catch (e) {
-        // Additive — a bad/expired id must never block the app from loading normally. The
-        // overview page itself is the primary way to view a shared build; this is a shortcut
-        // into the full editor, not a hard dependency.
-        console.error('Deep-link import failed:', e)
       }
     })()
-  }, [pendingShareId, appReady])
+    return () => { cancelled = true }
+  }, [pendingShareId, appReady, shareRetryCount])
   // Desktop only: tlibuilder://import/<id> links (see src/main/index.ts's second-instance/
   // open-url handling) arrive as an IPC event rather than a URL query param, since the renderer
   // may already be running when the OS delivers the link. Feeds the same pendingShareId state the
   // web ?share= param uses, so both paths share the one import effect above.
   useEffect(() => {
-    window.api?.onDeepLinkShare?.(shareId => setPendingShareId(shareId))
+    window.api?.onDeepLinkShare?.(shareId => {
+      setPendingShareId(shareId)
+      setShareRetryCount(n => n + 1)
+    })
   }, [])
   // NOTE: these effects MUST stay above the `if (!appReady)` early return below — a hook placed after it
   // is conditional and crashes with React #310 ("more hooks than previous render") once appReady flips.
@@ -266,6 +304,7 @@ function App() {
   // consumed by handleUnsavedSave/handleUnsavedDiscard once the user picks. goToBuildSelect's own
   // behavior is unchanged — it's just the first of now two actions that can populate this.
   const pendingUnsavedActionRef = useRef<(() => void) | null>(null)
+  const pendingShareBuildRef = useRef<Build | null>(null)
   const refConditions = useReferenceStore(s => s.conditions)
 
   // Store reads — replaces session useState
@@ -491,6 +530,43 @@ function App() {
 
   // Plain assignment, NOT a hook — see openBuildRef's identical comment above.
   requireSavePromptRef.current = requireSavePrompt
+
+  const openShareBuild = (shareId: string, build: Build) => {
+    setShareImportStatus({ id: shareId, stage: 'opening' })
+    const open = openBuildRef.current
+    if (!open) {
+      setShareImportStatus({ id: shareId, stage: 'error', message: 'The editor is not ready. Retry the import.' })
+      return
+    }
+    void open(build).then(() => {
+      pendingShareBuildRef.current = null
+      setPendingShareId(null)
+      setShareImportStatus(null)
+      const url = new URL(window.location.href)
+      if (url.searchParams.get('share') === shareId) {
+        url.searchParams.delete('share')
+        window.history.replaceState(null, '', url.toString())
+      }
+    }).catch((error: unknown) => {
+      setShareImportStatus({
+        id: shareId,
+        stage: 'error',
+        message: error instanceof Error ? error.message : 'The shared build could not be opened. Retry the import.',
+      })
+    })
+  }
+  openShareBuildRef.current = openShareBuild
+
+  const continueShareImport = () => {
+    const build = pendingShareBuildRef.current
+    const status = shareImportStatus
+    if (!build || !status) {
+      setShareRetryCount(n => n + 1)
+      return
+    }
+    requireSavePrompt(() => openShareBuild(status.id, build))
+  }
+  const retryShareImport = () => setShareRetryCount(n => n + 1)
 
   const goToBuildSelect = () => requireSavePrompt(() => setScreen('build-select'))
 
@@ -997,6 +1073,7 @@ function App() {
             onOpenVerification={() => setScreen('verification')}
           />
         </div>
+        <ShareImportNotice status={shareImportStatus} onRetry={retryShareImport} onContinue={continueShareImport} />
         {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
       </>
     )
@@ -1170,6 +1247,7 @@ function App() {
           </div>
         </div>
       </div>
+      <ShareImportNotice status={shareImportStatus} onRetry={retryShareImport} onContinue={continueShareImport} />
       {cascadeOverlay}
       {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
       {unsavedPromptOpen && (

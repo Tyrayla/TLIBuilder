@@ -148,27 +148,31 @@ function TraitCard({ trait }: { trait: HeroTrait }) {
 
 type LoadState =
   | { kind: 'loading' }
-  | { kind: 'not-found' }
+  | { kind: 'not-found'; message: string }
   | { kind: 'ready'; preview: SharePreview | null; gear: EquippedGearItem[]; skills: EquippedSkill[]; trait: HeroTrait | null }
 
 export default function ViewApp() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
+  const [retryCount, setRetryCount] = useState(0)
   const id = idFromPath()
+  const webOpenUrl = id ? `${window.location.origin}/?share=${encodeURIComponent(id)}` : '/'
+  const desktopOpenUrl = id ? `tlibuilder://import/${encodeURIComponent(id)}` : undefined
 
   useEffect(() => {
-    if (!id) { setState({ kind: 'not-found' }); return }
+    if (!id) { setState({ kind: 'not-found', message: 'This page does not contain a share link.' }); return }
     let cancelled = false
+    setState({ kind: 'loading' })
 
     ;(async () => {
       // Preview is best-effort — an id that predates this feature (or whose client couldn't
       // compute one) still gets a gear/skills/trait overview, just no headline stats banner.
-      const preview = await fetchSharePreview(id)
+      const previewPromise = fetchSharePreview(id)
 
       let code: string
       try {
         code = await fetchSharedBuildCode(id)
-      } catch {
-        if (!cancelled) setState({ kind: 'not-found' })
+      } catch (error) {
+        if (!cancelled) setState({ kind: 'not-found', message: error instanceof Error ? error.message : 'The shared build could not be loaded.' })
         return
       }
 
@@ -176,7 +180,7 @@ export default function ViewApp() {
       try {
         build = await decodeBuildCodeLean(code)
       } catch (e) {
-        if (!cancelled) setState({ kind: 'not-found' })
+        if (!cancelled) setState({ kind: 'not-found', message: e instanceof Error ? e.message : 'The shared build code could not be decoded.' })
         console.error('decodeBuildCodeLean failed:', e instanceof LeanBuildCodeError ? e.message : e)
         return
       }
@@ -219,24 +223,42 @@ export default function ViewApp() {
           : []) as unknown as EquippedSkill[]
         const trait = traitId ? (heroTraits.find(t => t.trait_id === traitId) ?? null) : null
 
-        if (!cancelled) setState({ kind: 'ready', preview, gear, skills, trait })
+        if (!cancelled) setState({ kind: 'ready', preview: null, gear, skills, trait })
+        void previewPromise.then(preview => {
+          if (!cancelled) setState(current => current.kind === 'ready' ? { ...current, preview } : current)
+        })
       } catch (e) {
-        if (!cancelled) setState({ kind: 'not-found' })
+        if (!cancelled) setState({ kind: 'not-found', message: 'The shared build details could not be prepared. Retry to try again.' })
         console.error('Rendering the shared build failed:', e)
       }
     })()
 
     return () => { cancelled = true }
-  }, [id])
+  }, [id, retryCount])
 
-  if (state.kind === 'loading') return <div className="view-shell view-status">Loading build…</div>
+  if (state.kind === 'loading') return (
+    <div className="view-shell view-status">
+      <div>Loading shared build details...</div>
+      <div className="view-actions">
+        <a className="btn btn-primary" href={webOpenUrl}>Open in TLI Builder (Web)</a>
+        {desktopOpenUrl && <a className="btn btn-secondary" href={desktopOpenUrl}>Open in Desktop App</a>}
+      </div>
+    </div>
+  )
   if (state.kind === 'not-found') {
-    return <div className="view-shell view-status">This build link doesn't exist, or the service is unreachable.</div>
+    return (
+      <div className="view-shell view-status">
+        <div>{state.message}</div>
+        <div className="view-actions">
+          {id && <button className="btn btn-primary" onClick={() => setRetryCount(n => n + 1)}>Retry loading details</button>}
+          <a className="btn btn-secondary" href={webOpenUrl}>Open in TLI Builder (Web)</a>
+          {desktopOpenUrl && <a className="btn btn-secondary" href={desktopOpenUrl}>Open in Desktop App</a>}
+        </div>
+      </div>
+    )
   }
 
   const { preview, gear, skills, trait } = state
-  const webOpenUrl = id ? `${window.location.origin}/?share=${encodeURIComponent(id)}` : '/'
-  const desktopOpenUrl = id ? `tlibuilder://import/${encodeURIComponent(id)}` : undefined
 
   return (
     <div className="view-shell">
