@@ -158,12 +158,8 @@ async def _api(method, path, body_text=''):
 `)
   measurePhase('worker.engine-import')
   apiFn = py.globals.get('_api')
-  // Warm once so the first real recompute is fast (skills cache + consumable_universe build).
-  phaseStarted = performance.now()
-  try {
-    await apiFn('POST', '/api/engine/stats', '{"slots":[null,null,null,null],"skills":[],"character":[],"condition_state":{"level":90}}')
-  } catch { /* warm best-effort */ }
-  measurePhase('worker.engine-warm')
+  // Avoid running an empty stats request on startup. The first real stats request populates the same
+  // lazy engine caches without holding up build-list reads and the first editable screen.
   post({ type: 'ready' })
 }
 
@@ -184,7 +180,10 @@ async function handleRequest(msg: RequestMsg): Promise<void> {
   try {
     if (initPromise) await initPromise
     if (!apiFn) throw new Error('worker not initialized')
+    const runStarted = performance.now()
     const resStr = await apiFn(msg.method, msg.path, msg.bodyJson)
+    post({ type: 'timing', name: 'worker.request-run', durationMs: performance.now() - runStarted,
+      details: { method: msg.method, path: msg.path, id: msg.id } })
     const { status, body } = JSON.parse(resStr)
     // After a successful build/save mutation, hand the updated /persist snapshot to the main thread to store.
     if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
