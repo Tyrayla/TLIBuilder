@@ -13,6 +13,12 @@ test('app renders and the compute worker reaches ready', async ({ webPage }) => 
   })
   expect(state.err).toBeNull()
   expect(state.ready).toBe(true)
+  const phases = await webPage.evaluate(() => {
+    const w = window as TliWindow & { __tliStartupMetrics?: Array<{ name: string }> }
+    return (w.__tliStartupMetrics ?? []).map(metric => metric.name)
+  })
+  expect(phases).toContain('worker.engine-import')
+  expect(phases).not.toContain('worker.engine-warm')
 })
 
 test('a talent tree loads through the in-browser engine', async ({ webPage }) => {

@@ -21,6 +21,9 @@ class FakeWorker {
   terminate() { this.terminated = true }
 }
 let workerInstances: FakeWorker[] = []
+let holdNextIdbWrite = false
+let finishHeldIdbWrite: (() => void) | null = null
+let failNextIdbWrite = false
 
 // ── Fake indexedDB (pyodideCompute persists builds via idbGetSnapshot/idbPutSnapshot at init) ──────────────
 function installFakeIndexedDb() {
@@ -31,16 +34,35 @@ function installFakeIndexedDb() {
       queueMicrotask(() => {
         req.result = {
           createObjectStore: () => {},
-          transaction: () => ({
-            objectStore: () => ({
-              get: () => {
-                const r: Record<string, unknown> = {}
-                queueMicrotask(() => { r.result = store.persist; (r.onsuccess as (() => void) | undefined)?.() })
-                return r
-              },
-              put: (value: unknown) => { store.persist = value },
-            }),
-          }),
+          close: () => {},
+          transaction: () => {
+            const tx: { oncomplete?: () => void; onerror?: () => void; objectStore: () => {
+              get: () => Record<string, unknown>
+              put: (value: unknown) => void
+            } } = {
+              objectStore: () => ({
+                get: () => {
+                  const r: Record<string, unknown> = {}
+                  queueMicrotask(() => { r.result = store.persist; (r.onsuccess as (() => void) | undefined)?.() })
+                  return r
+                },
+                put: (value: unknown) => {
+                  store.persist = value
+                  const finish = () => tx.oncomplete?.()
+                  if (failNextIdbWrite) {
+                    failNextIdbWrite = false
+                    queueMicrotask(() => tx.onerror?.())
+                    return
+                  }
+                  if (holdNextIdbWrite) {
+                    holdNextIdbWrite = false
+                    finishHeldIdbWrite = finish
+                  } else queueMicrotask(finish)
+                },
+              }),
+            }
+            return tx
+          },
         }
         ;(req.onsuccess as (() => void) | undefined)?.()
       })
@@ -60,6 +82,9 @@ function sendReady(w: FakeWorker) { w.onmessage?.({ data: { type: 'ready' } } as
 function sendResult(w: FakeWorker, id: number, status: number, body: string) {
   w.onmessage?.({ data: { type: 'result', id, status, body } } as MessageEvent)
 }
+function sendError(w: FakeWorker, id: number, msg: string) {
+  w.onmessage?.({ data: { type: 'error', id, msg } } as MessageEvent)
+}
 function requestMsgs(w: FakeWorker) {
   return w.posted.filter((m) => (m as { type: string }).type === 'request') as { id: number; bodyJson: string }[]
 }
@@ -68,6 +93,9 @@ describe('pyodideCompute — worker hardening', () => {
   beforeEach(() => {
     vi.resetModules()
     workerInstances = []
+    holdNextIdbWrite = false
+    finishHeldIdbWrite = null
+    failNextIdbWrite = false
     installFakeIndexedDb()
     vi.stubGlobal('self', { location: { origin: 'http://localhost' } })
     vi.stubGlobal('window', {})
@@ -90,6 +118,56 @@ describe('pyodideCompute — worker hardening', () => {
     const sent = requestMsgs(lastWorker())[0]
     sendResult(lastWorker(), sent.id, 200, JSON.stringify({ ok: true }))
     await expect(promise).resolves.toEqual({ ok: true })
+  })
+
+  it('acknowledges saved builds only after the IndexedDB transaction completes', async () => {
+    holdNextIdbWrite = true
+    const { initPyodideCompute, webApiRequest } = await import('../web/pyodideCompute')
+    initPyodideCompute('https://data', 'SS13')
+    sendReady(lastWorker())
+    const save = webApiRequest('POST', '/api/builds', { name: 'Durable build' })
+    await flush()
+    const sent = requestMsgs(lastWorker())[0]
+
+    lastWorker().onmessage?.({ data: {
+      type: 'persist',
+      id: sent.id,
+      snapshot: { '/persist/builds/durable.json': '{"name":"Durable build"}' },
+    } } as MessageEvent)
+    await flush()
+    expect(lastWorker().posted.filter((m) => (m as { type: string }).type === 'persisted')).toEqual([])
+
+    finishHeldIdbWrite?.()
+    await flush()
+    expect(lastWorker().posted.filter((m) => (m as { type: string }).type === 'persisted')).toEqual([
+      { type: 'persisted', id: sent.id },
+    ])
+
+    sendResult(lastWorker(), sent.id, 200, JSON.stringify({ id: 'durable' }))
+    await expect(save).resolves.toEqual({ id: 'durable' })
+  })
+
+  it('reports a failed IndexedDB write to the worker and rejects the save request', async () => {
+    failNextIdbWrite = true
+    const { initPyodideCompute, webApiRequest } = await import('../web/pyodideCompute')
+    initPyodideCompute('https://data', 'SS13')
+    sendReady(lastWorker())
+    const save = webApiRequest('POST', '/api/builds', { name: 'Undurable build' })
+    await flush()
+    const sent = requestMsgs(lastWorker())[0]
+
+    lastWorker().onmessage?.({ data: {
+      type: 'persist',
+      id: sent.id,
+      snapshot: { '/persist/builds/undurable.json': '{"name":"Undurable build"}' },
+    } } as MessageEvent)
+    await flush()
+    expect(lastWorker().posted.filter((m) => (m as { type: string }).type === 'persist-error')).toEqual([
+      { type: 'persist-error', id: sent.id, msg: 'Could not write the browser build database' },
+    ])
+
+    sendError(lastWorker(), sent.id, 'Could not persist the saved build in this browser: Could not write the browser build database')
+    await expect(save).rejects.toMatchObject({ code: 'TLI-BOOT-001' })
   })
 
   it('preserves the structured backend error on a non-2xx response', async () => {
