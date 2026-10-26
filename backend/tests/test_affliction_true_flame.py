@@ -366,6 +366,60 @@ def test_magnus_mindflame_amulet_true_flame_is_not_doubled():
     assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
 
 
+def _mindflame_amulet(**extra) -> dict:
+    return {"contributions": [], "item_name": "Magnus' Mindflame", "slot": "amulet",
+            "unresolved_texts": [_TF_RAW + " +100 % Skill Area"], "granted_talents": ["True Flame"], **extra}
+
+
+def test_mindflame_compound_affix_applies_true_flame_once_and_skill_area_once():
+    # bug-408: the trailing "+100 % Skill Area" of the compound affix was dropped.
+    r = _tf_response([_mindflame_amulet()])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(1.0)
+
+
+def test_mindflame_skill_area_not_repeated_on_dual_wield_second_slot():
+    second_slot_copy = {"contributions": [], "item_name": "Magnus' Mindflame",
+                        "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    r = _tf_response([_mindflame_amulet(slot="weapon1"), second_slot_copy])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(1.0)
+
+
+def test_other_compound_legendary_affixes_keep_their_trailing_clause_once():
+    # Same mechanism for Gale (a talent the resolver fully resolves): its trailing Projectile Speed roll
+    # applies while the talent's own 60% conversion stays a single copy.
+    gale = ("[Gale] 60 % of the Projectile Speed bonus is also applied to the additional bonus for "
+            "Projectile Damage")
+    item = {"contributions": [], "item_name": "Gale Item", "slot": "helmet", "granted_talents": ["Gale"]}
+    r = _tf_response([{**item, "unresolved_texts": [gale + " +35 % Projectile Speed"]}])
+    assert r["core_talent_statuses"][0]["resolved"] is True
+    assert r["stats"]["proj_speed_to_proj_dmg"]["total"] == pytest.approx(0.6)
+    assert r["stats"]["projectile_speed_inc"]["total"] == pytest.approx(0.35)
+    bare = _tf_response([{**item, "unresolved_texts": [gale]}])
+    assert "projectile_speed_inc" not in bare["stats"]
+
+
+def test_unnamed_items_with_identical_companion_are_not_deduped():
+    # Dedup is only for the re-emitted same-item copy; unnamed distinct items each keep their companion.
+    a = {"contributions": [], "slot": "ring1", "granted_talents": ["True Flame"],
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    b = {"contributions": [], "slot": "ring2", "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    r = _tf_response([a, b])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(2.0)
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_companion_text_unit():
+    from engine.core_talent_resolver import companion_text
+    eff = ["A foo , 5 % bar (Max Active Divinity: 1)", "Baz qux."]
+    assert companion_text("[T] A foo, 5% bar Baz qux. +10 % Skill Area", eff) == "+10 % Skill Area"
+    assert companion_text("[T] A foo, 5% bar Baz qux.", eff) == ""
+    assert companion_text("[T] A foo, 5% bar +10 % Skill Area", eff) is None   # second effect absent
+    assert companion_text("[T] anything", []) is None
+
+
 def test_bracket_text_with_unknown_talent_name_is_still_parsed():
     # A granted name the core-talent catalog cannot resolve must not erase the affix: the gear-text
     # parse stays the fallback (never silently drop).
