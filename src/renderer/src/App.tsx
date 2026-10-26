@@ -40,6 +40,7 @@ const GearScreen = lazy(() => import('./screens/GearScreen'))
 const SkillsScreen = lazy(() => import('./screens/SkillsScreen'))
 const VerificationDatabaseScreen = lazy(() => import('./screens/VerificationDatabaseScreen'))
 import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
+import { resolveDeferredGear } from './utils/deferredGearResolution'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
 type OpenBuildOptions = { deferGearResolution?: boolean }
@@ -313,6 +314,8 @@ function App() {
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
   const [devMode, setDevMode] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
   const [unsavedSaving, setUnsavedSaving] = useState(false)
@@ -786,35 +789,40 @@ function App() {
           .map(a => a.raw_text)
         )
       )]
-      const applyResolvedGear = (items: EquippedGearItem[], results: Record<string, ResolvedAffixFields>) => items.map(item => {
+      const applyResolvedGear = (items: EquippedGearItem[], results: Record<string, ResolvedAffixFields>) => items.map(item => ({
+        ...item,
+        affixes: item.affixes.map(aff => {
+          const r: ResolvedAffixFields | undefined = results[aff.raw_text]
+          if (!r) return aff
           return {
-            ...item,
-            affixes: item.affixes.map(aff => {
-              const r: ResolvedAffixFields | undefined = results[aff.raw_text]
-              if (!r) return aff
-              return {
-                ...aff,
-                stat_key: r.stat_key ?? null,
-                unit: r.unit ?? aff.unit ?? '',
-                stat_keys: r.stat_keys,
-                is_range_split: r.is_range_split,
-                min_stat_keys: r.min_stat_keys,
-                max_stat_keys: r.max_stat_keys,
-                dual_stat_groups: r.dual_stat_groups,
-              }
-            })
+            ...aff,
+            stat_key: r.stat_key ?? null,
+            unit: r.unit ?? aff.unit ?? '',
+            stat_keys: r.stat_keys,
+            is_range_split: r.is_range_split,
+            min_stat_keys: r.min_stat_keys,
+            max_stat_keys: r.max_stat_keys,
+            dual_stat_groups: r.dual_stat_groups,
           }
-        })
+        }),
+      }))
       if (options.deferGearResolution) {
         deferredGearResolution = () => {
-          const expectedVersion = useBuildStore.getState().buildVersion
           void api.resolveGearAffixes(texts).then(({ results }) => {
             const store = useBuildStore.getState()
-            if (store.buildVersion !== expectedVersion) return
-            store.setGear(applyResolvedGear(store.gear, results))
+            const resolution = resolveDeferredGear(
+              store.gear,
+              results,
+              store.buildVersion,
+              loadedVersionRef.current,
+              isDirtyRef.current,
+            )
+            store.setGear(resolution.gear)
             store.flushActiveLoadout()
-            loadedVersionRef.current = useBuildStore.getState().buildVersion
-            setIsDirty(false)
+            if (resolution.shouldRebaseline) {
+              loadedVersionRef.current = useBuildStore.getState().buildVersion
+              setIsDirty(false)
+            }
           }).catch(() => {
             // Affix resolution is additive; the imported gear remains editable with its saved text.
           })
