@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import re
+from decimal import Decimal, ROUND_FLOOR
 from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
@@ -265,10 +266,17 @@ def _extract_cond_keys(expr, out: set) -> None:
 
 def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals,
                            stamp=None):
-    """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
-    Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
-    'per'/float → scale the amount (capped if the expr carries a cap). Scoped contributions route to
-    add_scoped via _emit."""
+    """Apply resolved spirit/memory contributions, grouping tagged Star Trail fates before flooring."""
+    grouped: dict[tuple, list[tuple[dict, float]]] = {}
+
+    def apply(contrib: dict, amount: float) -> None:
+        stat = contrib["stat_key"]
+        entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
+                            text=contrib.get("text", ""), points=1,
+                            source_name=contrib.get("source"),
+                            pooling_uuid=stamp(contrib.get("text")) if stamp else None)
+        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
+
     for contrib in contribs:
         stat = contrib.get("stat_key")
         if not stat:
@@ -286,13 +294,32 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
                     amount = min(amount, float(cond["cap"]))
             elif not cond_result:
                 continue
-        entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
-                            text=contrib.get("text", ""), points=1,
-                            source_name=contrib.get("source"),
-                            pooling_uuid=stamp(contrib.get("text")) if stamp else None)
-        # slot-local contributions (e.g. Licorice Note's per-scent-bottle Elixir Effect) route to add_slotted;
-        # default None → unchanged global/scoped behavior for every existing trait/spirit/memory contribution.
-        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
+
+        group = contrib.get("micro_fate_group")
+        multiplier = contrib.get("micro_fate_multiplier_percent")
+        if group is not None and multiplier is not None and float(multiplier) > 100:
+            key = (str(group), stat, contrib.get("scope"), contrib.get("slot"))
+            grouped.setdefault(key, []).append((contrib, amount))
+        else:
+            apply(contrib, amount)
+
+    # Stat values use fractions internally for percentage units. Floor only after summing the same stat
+    # within the same Pact Branch and applying its Star Trail factor once (e.g. .06 * 1.90 -> .11).
+    from models.stat import Stat
+    from models.stat_meta import STAT_META
+    for (_, stat, _, _), entries in grouped.items():
+        contrib = entries[0][0]
+        multiplier = Decimal(str(contrib["micro_fate_multiplier_percent"])) / Decimal(100)
+        combined = sum((Decimal(str(amount)) for _, amount in entries), Decimal(0)) * multiplier
+        try:
+            meta = STAT_META.get(Stat(stat))
+        except ValueError:
+            meta = None
+        # The confirmed game measurement is for percent values (11.4% displays as 11%). Keep other
+        # unit types at their calculated precision until their in-game rounding is verified.
+        if meta and meta.unit == "%":
+            combined = combined.quantize(Decimal("0.01"), rounding=ROUND_FLOOR)
+        apply(contrib, float(combined))
 
 
 def aggregate(
