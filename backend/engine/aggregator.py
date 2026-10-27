@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 import re
-from decimal import Decimal, ROUND_FLOOR
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
@@ -268,6 +268,16 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
                            stamp=None):
     """Apply resolved spirit/memory contributions, grouping tagged Star Trail fates before flooring."""
     grouped: dict[tuple, list[tuple[dict, float]]] = {}
+    ordered: list[tuple[str, object, float | None]] = []
+    from models.stat import Stat
+    from models.stat_meta import STAT_META
+
+    # These are the non-percent Micro Fate values the previous renderer path rounded to integers.
+    # Preserve that established behavior until the game rounding rule is verified for them.
+    legacy_whole_stats = {
+        "strength_flat", "dexterity_flat", "intelligence_flat", "command_per_second_flat",
+        "max_command_flat", "spirit_magi_initial_growth_flat",
+    }
 
     def apply(contrib: dict, amount: float) -> None:
         stat = contrib["stat_key"]
@@ -296,30 +306,49 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
                 continue
 
         group = contrib.get("micro_fate_group")
-        multiplier = contrib.get("micro_fate_multiplier_percent")
-        if group is not None and multiplier is not None and float(multiplier) > 100:
-            key = (str(group), stat, contrib.get("scope"), contrib.get("slot"))
-            grouped.setdefault(key, []).append((contrib, amount))
-        else:
-            apply(contrib, amount)
+        multiplier_percent = contrib.get("micro_fate_multiplier_percent")
+        if group is None or multiplier_percent is None or float(multiplier_percent) <= 100:
+            ordered.append(("single", contrib, amount))
+            continue
 
-    # Stat values use fractions internally for percentage units. Floor only after summing the same stat
-    # within the same Pact Branch and applying its Star Trail factor once (e.g. .06 * 1.90 -> .11).
-    from models.stat import Stat
-    from models.stat_meta import STAT_META
-    for (_, stat, _, _), entries in grouped.items():
-        contrib = entries[0][0]
-        multiplier = Decimal(str(contrib["micro_fate_multiplier_percent"])) / Decimal(100)
-        combined = sum((Decimal(str(amount)) for _, amount in entries), Decimal(0)) * multiplier
         try:
             meta = STAT_META.get(Stat(stat))
         except ValueError:
             meta = None
-        # The confirmed game measurement is for percent values (11.4% displays as 11%). Keep other
-        # unit types at their calculated precision until their in-game rounding is verified.
-        if meta and meta.unit == "%":
-            combined = combined.quantize(Decimal("0.01"), rounding=ROUND_FLOOR)
-        apply(contrib, float(combined))
+        multiplier = Decimal(str(multiplier_percent)) / Decimal(100)
+        if meta and meta.unit == "%" and amount >= 0:
+            # The in-game measurement confirms positive percentage values aggregate before a floor.
+            key = (str(group), stat, contrib.get("scope"), contrib.get("slot"))
+            if key not in grouped:
+                grouped[key] = []
+                ordered.append(("group", key, None))
+            grouped[key].append((contrib, amount))
+        elif meta and meta.unit == "%" and amount < 0:
+            # Preserve the prior per-Fate half-away-from-zero behavior for negative rolls until verified.
+            scaled = Decimal(str(amount)) * multiplier
+            ordered.append(("single", contrib,
+                            float(scaled.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))))
+        elif stat in legacy_whole_stats:
+            # Preserve the prior renderer's whole-number rounding for flat attributes/Command/Growth.
+            scaled = Decimal(str(amount)) * multiplier
+            ordered.append(("single", contrib,
+                            float(scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP))))
+        else:
+            # The old renderer did not scale other non-percent values; keep them unchanged until verified.
+            ordered.append(("single", contrib, amount))
+
+    # Percentage stats are stored as fractions: 6% * 1.90 = .114, floored to .11 (11%).
+    # Emitting each group at its first source preserves the original breakdown order.
+    for kind, value, amount in ordered:
+        if kind == "single":
+            apply(value, amount)
+            continue
+        entries = grouped[value]
+        contrib = entries[0][0]
+        multiplier = Decimal(str(contrib["micro_fate_multiplier_percent"])) / Decimal(100)
+        combined = sum((Decimal(str(value)) for _, value in entries), Decimal(0)) * multiplier
+        grouped_amount = float(combined.quantize(Decimal("0.01"), rounding=ROUND_FLOOR))
+        apply(contrib, grouped_amount)
 
 
 def aggregate(
