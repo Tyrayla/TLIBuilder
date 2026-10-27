@@ -3,6 +3,8 @@ import math
 import re
 from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from engine.affix_identity import affix_identity
+from models.stat import Stat
+from models.stat_meta import STAT_META
 from engine.models import BuildInput, BuildSource, SourceEntry
 from engine.spirit_magus_origins import (EMIT_TABLE as _ORIGIN_EMITS,
                                          ORIGIN_OWNER_FLAG as _ORIGIN_OWNER_FLAG,
@@ -25,6 +27,27 @@ def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entr
         source.add_scoped(stat, amount, scope, entry)
     else:
         source.add_with_source(stat, amount, entry)
+
+_STAR_TRAIL_LEGACY_WHOLE_STATS = frozenset({
+    "strength_flat", "dexterity_flat", "intelligence_flat", "command_per_second_flat",
+    "max_command_flat", "spirit_magi_initial_growth_flat",
+})
+
+
+def _stable_decimal(value: float) -> Decimal:
+    """Remove binary float noise before flooring game-visible modifier values."""
+    return Decimal(str(round(float(value), 10)))
+
+
+def _apply_effect_contribution(source: BuildSource, contrib: dict, amount: float,
+                               source_type: str, label: str, stamp=None) -> None:
+    stat = contrib["stat_key"]
+    entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
+                        text=contrib.get("text", ""), points=1,
+                        source_name=contrib.get("source"),
+                        pooling_uuid=stamp(contrib.get("text")) if stamp else None)
+    _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
+
 
 # NOTE: pact-spirit / hero-memory resolution moved to server._resolve_effect_modifiers (the unified
 # pool-strict path). The aggregator now only APPLIES the pre-resolved contributions (see
@@ -266,26 +289,9 @@ def _extract_cond_keys(expr, out: set) -> None:
 
 def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals,
                            stamp=None):
-    """Apply resolved spirit/memory contributions, grouping tagged Star Trail fates before flooring."""
+    """Apply resolved spirit/memory contributions, grouping additive Star Trail percentages."""
     grouped: dict[tuple, list[tuple[dict, float]]] = {}
     ordered: list[tuple[str, object, float | None]] = []
-    from models.stat import Stat
-    from models.stat_meta import STAT_META
-
-    # These are the non-percent Micro Fate values the previous renderer path rounded to integers.
-    # Preserve that established behavior until the game rounding rule is verified for them.
-    legacy_whole_stats = {
-        "strength_flat", "dexterity_flat", "intelligence_flat", "command_per_second_flat",
-        "max_command_flat", "spirit_magi_initial_growth_flat",
-    }
-
-    def apply(contrib: dict, amount: float) -> None:
-        stat = contrib["stat_key"]
-        entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
-                            text=contrib.get("text", ""), points=1,
-                            source_name=contrib.get("source"),
-                            pooling_uuid=stamp(contrib.get("text")) if stamp else None)
-        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
 
     for contrib in contribs:
         stat = contrib.get("stat_key")
@@ -315,40 +321,47 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
             meta = STAT_META.get(Stat(stat))
         except ValueError:
             meta = None
+        is_percentage = "%" in (contrib.get("text") or "") or (meta and meta.unit == "%")
+        can_aggregate = (meta is not None
+                         and meta.stacking_rule in ("additive", "additive_chance")
+                         and meta.modifier_type != "additional")
         multiplier = Decimal(str(multiplier_percent)) / Decimal(100)
-        if meta and meta.unit == "%" and amount >= 0:
-            # The in-game measurement confirms positive percentage values aggregate before a floor.
+        if is_percentage and can_aggregate and amount >= 0:
+            # In-game measurement confirms positive, additive percentage stats aggregate before flooring.
             key = (str(group), stat, contrib.get("scope"), contrib.get("slot"))
             if key not in grouped:
                 grouped[key] = []
                 ordered.append(("group", key, None))
             grouped[key].append((contrib, amount))
-        elif meta and meta.unit == "%" and amount < 0:
-            # Preserve the prior per-Fate half-away-from-zero behavior for negative rolls until verified.
-            scaled = Decimal(str(amount)) * multiplier
-            ordered.append(("single", contrib,
-                            float(scaled.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))))
-        elif stat in legacy_whole_stats:
+        elif is_percentage:
+            # Keep the previous per-Fate nearest-integer percentage behavior for negative or non-additive
+            # percentages, and when metadata is missing. Their game stacking/rounding is unverified.
+            scaled = _stable_decimal(amount) * multiplier
+            rounded = scaled.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            ordered.append(("single", contrib, float(rounded)))
+        elif stat in _STAR_TRAIL_LEGACY_WHOLE_STATS:
             # Preserve the prior renderer's whole-number rounding for flat attributes/Command/Growth.
-            scaled = Decimal(str(amount)) * multiplier
-            ordered.append(("single", contrib,
-                            float(scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP))))
+            scaled = _stable_decimal(amount) * multiplier
+            rounded = scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            ordered.append(("single", contrib, float(rounded)))
         else:
             # The old renderer did not scale other non-percent values; keep them unchanged until verified.
             ordered.append(("single", contrib, amount))
 
-    # Percentage stats are stored as fractions: 6% * 1.90 = .114, floored to .11 (11%).
-    # Emitting each group at its first source preserves the original breakdown order.
+    # Percentage stats use fractions: 6% * 1.90 = .114, floored to .11 (11%).
+    # Emit each group at its first source to preserve the original breakdown order.
     for kind, value, amount in ordered:
         if kind == "single":
-            apply(value, amount)
+            _apply_effect_contribution(source, value, amount, source_type, label, stamp)
             continue
         entries = grouped[value]
         contrib = entries[0][0]
         multiplier = Decimal(str(contrib["micro_fate_multiplier_percent"])) / Decimal(100)
-        combined = sum((Decimal(str(value)) for _, value in entries), Decimal(0)) * multiplier
+        combined = sum((_stable_decimal(value) for _, value in entries), Decimal(0)) * multiplier
         grouped_amount = float(combined.quantize(Decimal("0.01"), rounding=ROUND_FLOOR))
-        apply(contrib, grouped_amount)
+        if len(entries) > 1:
+            contrib = {**contrib, "source": f"{contrib.get('source') or 'Micro Fates'} ({len(entries)} Micro Fates)"}
+        _apply_effect_contribution(source, contrib, grouped_amount, source_type, label, stamp)
 
 
 def aggregate(

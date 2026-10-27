@@ -1,6 +1,8 @@
 """Star Trail aggregates same-branch Micro Fates before rounding their contribution."""
 
 from server import EngineStatsRequest, engine_stats
+from engine.aggregator import _apply_effect_contribs
+from engine.models import BuildSource
 from tests.mock_build import make_request
 
 
@@ -68,3 +70,40 @@ def test_flat_strength_keeps_legacy_per_fate_integer_rounding():
     stats, _ = _stats(effects)
 
     assert stats["strength_flat"]["total"] == 12.0
+
+
+def test_grouped_percentage_breakdown_identifies_all_micro_fates():
+    effects = [_fate("+2 % Max Fire Resistance") for _ in range(3)]
+    stats, _ = _stats(effects)
+
+    source = stats["fire_resistance_max_inc"]["sources"][0]
+    assert source["amount"] == 0.11
+    assert source["source_name"] == "Fate: Regression (3 Micro Fates)"
+    assert source["text"] == "+2 % Max Fire Resistance"
+
+
+def test_mixed_sign_percentages_keep_negative_fates_on_legacy_rounding():
+    effects = ([_fate("+2 % Fire Resistance") for _ in range(3)]
+               + [_fate("-2 % Fire Resistance") for _ in range(3)])
+    stats, _ = _stats(effects)
+
+    assert stats["fire_resistance"]["total"] == -0.01
+
+
+def test_unmapped_percentage_text_keeps_legacy_per_fate_rounding():
+    source = BuildSource()
+    effects = [
+        {
+            "stat_key": "unmodeled_stat",
+            "amount": 0.02,
+            "text": "+2 % Unmodeled Effect",
+            "source": "Fate: Regression",
+            "micro_fate_group": "0",
+            "micro_fate_multiplier_percent": 145,
+        }
+        for _ in range(3)
+    ]
+
+    _apply_effect_contribs(source, effects, "pact_spirit", "Pact Spirit", frozenset(), {})
+
+    assert source.total("unmodeled_stat") == 0.09
