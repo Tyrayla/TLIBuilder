@@ -886,12 +886,18 @@ def engine_stats(req: EngineStatsRequest):
             if isinstance(item, dict):
                 eff = item.get("text", "")
                 source = item.get("source")
+                fate_metadata = {
+                    "micro_fate_group": item.get("microFateGroup"),
+                    "micro_fate_multiplier_percent": item.get("microFateMultiplierPercent"),
+                }
+                fate_metadata = {key: value for key, value in fate_metadata.items() if value is not None}
             else:
                 eff, source = item, None
+                fate_metadata = {}
             parsed = _resolve_effect_modifiers(eff, is_memory=is_memory)
             if parsed:
-                if source:
-                    parsed = [{**p, "source": source} for p in parsed]
+                if source or fate_metadata:
+                    parsed = [{**p, **fate_metadata, **({"source": source} if source else {})} for p in parsed]
                 contribs.extend(parsed)
                 names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
                 statuses.append({"text": eff, "resolved": True, "stat_display": names})

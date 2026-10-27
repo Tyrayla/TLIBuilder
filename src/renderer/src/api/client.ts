@@ -1932,26 +1932,14 @@ export function fateEffectWithValues(effectText: string, rolledValues?: (number 
   })
 }
 
-// Round each numeric modifier independently with exact decimal arithmetic; half values round away from zero.
-const MICRO_FATE_VALUE_RE = /([+-]?\d+(?:\.\d+)?)(?=\s*(?:%|Strength\b|Dexterity\b|Intelligence\b|Command\b|initial Growth\b))/g
-function scaleMicroFateEffectText(text: string, multiplierPercent: number): string {
-  if (multiplierPercent === 100) return text
-  return text.replace(MICRO_FATE_VALUE_RE, (value) => {
-    const negative = value.startsWith('-')
-    const unsigned = value.replace(/^[+-]/, '')
-    const [whole, fraction = ''] = unsigned.split('.')
-    const numerator = BigInt(whole + fraction) * BigInt(multiplierPercent)
-    const divisor = 10n ** BigInt(fraction.length + 2)
-    const scaledWhole = numerator / divisor
-    const remainder = numerator % divisor
-    const rounded = scaledWhole + (remainder * 2n >= divisor ? 1n : 0n)
-    return (negative ? '-' : value.startsWith('+') ? '+' : '') + rounded
-  })
-}
-
 // An effect line plus the display NAME of its origin (pact-spirit / hero-memory name). The backend echoes
 // `source` onto each contribution's `source_name`, driving the stat-breakdown "Source Name" column.
-export interface EffectInput { text: string; source: string }
+export interface EffectInput {
+  text: string
+  source: string
+  microFateGroup?: string
+  microFateMultiplierPercent?: number
+}
 
 export function buildSpiritEffects(
   selected: (SelectedPactSpirit | null)[],
@@ -1967,12 +1955,17 @@ export function buildSpiritEffects(
   const dualCount: Record<string, number> = {}
   for (const f of allInstalled) if (f.kind === 'dual_kismet') dualCount[f.shortName] = (dualCount[f.shortName] || 0) + 1
 
-  const emitFate = (f: InstalledFate, microFateMultiplierPercent = 100) => {
+  const emitFate = (f: InstalledFate, microFateMultiplierPercent = 100, microFateGroup?: string) => {
     if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired fate has no effect
     if (f.kind === 'kismet' && f.shortName === 'Star Trail') return
     const resolvedText = fateEffectWithValues(f.effectText, f.rolledValues)
-    const text = f.kind === 'micro_fate' ? scaleMicroFateEffectText(resolvedText, microFateMultiplierPercent) : resolvedText
-    effects.push({ text, source: `Fate: ${f.shortName}` })
+    effects.push({
+      text: resolvedText,
+      source: `Fate: ${f.shortName}`,
+      ...(f.kind === 'micro_fate' && microFateMultiplierPercent > 100 && microFateGroup !== undefined
+        ? { microFateGroup, microFateMultiplierPercent }
+        : {}),
+    })
   }
 
   selected.forEach((sel, si) => {
@@ -1988,16 +1981,15 @@ export function buildSpiritEffects(
     const undeterminedFate = undetermined[si]
     const undeterminedStarTrails = undeterminedFate?.slots.reduce((count, fate, slotIndex) =>
       count + (slotIndex >= undeterminedFate.extraMicro && fate?.kind === 'kismet' && fate.shortName === 'Star Trail' ? 1 : 0), 0) ?? 0
-    // +45 % per Star Trail comes from game text. The cap of three is an assumed working value
-    // (unverified; no source states a limit; owner has never seen more than three used).
-    // Additive stacking (1 + 0.45n) is modeled, not measured. Rounding to whole numbers is likewise an assumption
-    // (half values round away from zero). See data/verification/fates-kismets.json.
+    // The game text gives +45 % per Star Trail. In-game testing confirmed additive stacking at two Trails.
+    // The cap of three remains an assumption. The backend combines matching Micro Fate stats in this branch,
+    // applies this multiplier once, then floors the result. See data/verification/fates-kismets.json.
     const microFateMultiplierPercent = 100 + 45 * Math.min(nativeStarTrails + undeterminedStarTrails, 3)
     // Inner/mid nodes: emit the installed fate's effect, else the node's own effect lines. Outer = rank modifiers.
     spirit.slots.forEach((slot, i) => {
       if (slot.ring === 'outer') return
       const f = fates[`${si}:${i}`]
-      if (f) emitFate(f, microFateMultiplierPercent)
+      if (f) emitFate(f, microFateMultiplierPercent, String(si))
       else for (const t of slot.effect) effects.push({ text: t, source: src })
     })
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
@@ -2013,7 +2005,7 @@ export function buildSpiritEffects(
       // Every empty extra slot grants the same generic +6% Damage / +6% Minion Damage regardless of micro/medium
       // (tier only governs size + what can be socketed, per Tyra).
       u.slots.forEach(f => {
-        if (f) emitFate(f, microFateMultiplierPercent)
+        if (f) emitFate(f, microFateMultiplierPercent, String(si))
         else {
           effects.push({ text: '+6 % Damage', source: 'Pact: Undetermined' })
           effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })
