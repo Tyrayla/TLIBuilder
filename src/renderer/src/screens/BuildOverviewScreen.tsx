@@ -228,6 +228,7 @@ export default function BuildOverviewScreen() {
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
   const [showAll, setShowAll] = useState(false)
+  const [conditionSearch, setConditionSearch] = useState('')
   const [mergedRotationCollapsed, setMergedRotationCollapsed] = useState(true)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
@@ -273,6 +274,7 @@ export default function BuildOverviewScreen() {
 
   const worn = wornWeaponFlags(gear)
   const referenced = new Set(referencedConditions ?? [])
+  const conditionSearchTerms = conditionSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
 
   // Has the user EXPLICITLY set this condition (vs. just carrying a default)? Only an explicit user toggle keeps
   // an otherwise-hidden condition visible — a positive default must NOT, or every hero-trait/skill condition with
@@ -299,6 +301,10 @@ export default function BuildOverviewScreen() {
     if (c.visible === false) return false
     // Vigilant Breeze controls are exclusive to that selected trait, even in Show all mode.
     if (c.trait_id === 'vigilant_breeze' && traitId !== 'vigilant_breeze') return false
+    if (conditionSearchTerms.length > 0) {
+      const searchable = `${c.label} ${c.category ?? ''} ${c.key}`.toLowerCase()
+      return conditionSearchTerms.every(word => searchable.includes(word))
+    }
     if (showAll) return true
     if (c.key in autoConditions) return true   // engine auto-activated it → always surface so the user sees it
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
@@ -374,6 +380,7 @@ export default function BuildOverviewScreen() {
   }
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
+  const visibleMergedMagiRotation = mergedMagiRotation.filter(isCondVisible)
 
   // Shared row renderer lets the Hero Trait panel place rotation conditions inside its own body.
   const renderConditionRow = (cond: ConditionDef): React.ReactNode => {
@@ -493,7 +500,7 @@ export default function BuildOverviewScreen() {
       {isEnemy && <EnemyTargetFields />}
       {isEnemy && <EnemyIncomingFields />}
       {visibleItems.map(renderConditionRow)}
-      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0 && (
+      {cat === 'Hero Trait' && traitId === 'vigilant_breeze' && visibleMergedMagiRotation.length > 0 && (
         <div className="merged-magi-rotation">
           <button
             type="button"
@@ -506,7 +513,7 @@ export default function BuildOverviewScreen() {
           </button>
           {!mergedRotationCollapsed && (
             <div className="merged-magi-rotation-list">
-              {mergedMagiRotation.map(renderConditionRow)}
+              {visibleMergedMagiRotation.map(renderConditionRow)}
             </div>
           )}
         </div>
@@ -567,6 +574,8 @@ export default function BuildOverviewScreen() {
   const restPanels: ColPanel[] = []
   condCategories.forEach(([cat, items], idx) => {
     let visibleItems = items.filter(isCondVisible)
+    if (conditionSearch.trim() && visibleItems.length === 0
+      && !(cat === 'Hero Trait' && visibleMergedMagiRotation.length > 0)) return
     const pin = PIN_FIRST[cat]
     if (pin) {
       const pinned = pin.map(k => visibleItems.find(c => c.key === k)).filter(Boolean) as ConditionDef[]
@@ -589,7 +598,7 @@ export default function BuildOverviewScreen() {
       return
     }
     if (visibleItems.length === 0
-      && !(cat === 'Hero Trait' && traitId === 'vigilant_breeze' && mergedMagiRotation.length > 0)) return
+      && !(cat === 'Hero Trait' && traitId === 'vigilant_breeze' && visibleMergedMagiRotation.length > 0)) return
     restPanels.push({ order: idx, weight: visibleItems.length + 1,
       node: renderCategoryPanel(cat, visibleItems, false) })
   })
@@ -600,12 +609,28 @@ export default function BuildOverviewScreen() {
   return (
     <div className="screen build-overview">
       <div className="cond-screen-header">
-        <span>Config</span>
-        {activeCondCount > 0 && <span className="panel-header-badge">{activeCondCount} active</span>}
-        <label className="header-toggle">
-          <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
-          Show all
-        </label>
+        <div className="config-header-start">
+          <div className="config-condition-search">
+            <input
+              type="search"
+              aria-label="Search config conditions"
+              placeholder="Search conditions…"
+              value={conditionSearch}
+              onChange={e => setConditionSearch(e.target.value)}
+            />
+            {conditionSearch && (
+              <button type="button" aria-label="Clear condition search" onClick={() => setConditionSearch('')}>×</button>
+            )}
+          </div>
+        </div>
+        <span className="config-header-title">Config</span>
+        <div className="config-header-end">
+          {activeCondCount > 0 && <span className="panel-header-badge">{activeCondCount} active</span>}
+          <label className="header-toggle">
+            <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
+            Show all
+          </label>
+        </div>
       </div>
 
       {conflicts.length > 0 && (
@@ -641,11 +666,13 @@ export default function BuildOverviewScreen() {
 
       {!loading && !conditionsFailed && (
         <div className="cond-grid">
-          <div className="cond-columns">
-            {cols.map((col, i) => (
-              <div className="cond-col" key={i}>{col.map(p => p.node)}</div>
-            ))}
-          </div>
+          {cols.every(col => col.length === 0)
+            ? <div className="panel-empty">No conditions match “{conditionSearch}”.</div>
+            : <div className="cond-columns">
+              {cols.map((col, i) => (
+                <div className="cond-col" key={i}>{col.map(p => p.node)}</div>
+              ))}
+            </div>}
         </div>
       )}
         </div>
