@@ -129,6 +129,9 @@ def test_hero_memories_new_format():
         }],
     }
     assert import_hero_memories(legacy_data, "SS12")["memory_types"][0]["game_id"] == 71001
+    for empty_game_id in (None, 0):
+        legacy_data["memory_types"][0]["game_id"] = empty_game_id
+        assert import_hero_memories(legacy_data, "SS12")["memory_types"][0]["game_id"] == 71001
 
 
 def test_hero_memories_normalizes_modifiers():

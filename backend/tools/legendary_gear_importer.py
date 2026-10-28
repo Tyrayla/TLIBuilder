@@ -129,11 +129,16 @@ def import_crawler_item(item_data: dict) -> dict:
         if g.get("term_id")
     }
 
+    game_id = item_data.get("game_id")
+    legacy_game_id = item_data.get("internal_id")
+    if game_id in (None, 0) and legacy_game_id not in (None, 0):
+        game_id = legacy_game_id
+
     return {
         "item_id": item_id,
         "name": item_data["name"],
         "uuid": item_data.get("uuid"),
-        "game_id": item_data.get("game_id", item_data.get("internal_id")),
+        "game_id": game_id,
         "base_type": item_data.get("base_type", ""),
         "required_level": item_data.get("required_level"),
         "drop_level": item_data.get("drop_level"),

@@ -185,16 +185,20 @@ def import_hero_memories(data: dict, season_name: str) -> dict:
         for it in (data.get("base_stats") or [])
         if it.get("Modifier")
     ]
-    memory_types = [
-        {
+    memory_types = []
+    for mt in data.get("memory_types") or []:
+        if not mt.get("name"):
+            continue
+        game_id = mt.get("game_id")
+        legacy_game_id = mt.get("internal_id")
+        if game_id in (None, 0) and legacy_game_id not in (None, 0):
+            game_id = legacy_game_id
+        memory_types.append({
             "name": mt.get("name", ""),
             "uuid": mt.get("uuid"),
-            "game_id": mt.get("game_id", mt.get("internal_id")),
+            "game_id": game_id,
             "icon_url": mt.get("icon_url", ""),
-        }
-        for mt in (data.get("memory_types") or [])
-        if mt.get("name")
-    ]
+        })
     total = len(fixed_affixes) + len(random_affixes) + len(base_stats)
     return {
         "season": season_name,

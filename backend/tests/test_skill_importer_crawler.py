@@ -62,6 +62,12 @@ def test_skill_type_stored():
     assert r["game_id"] == 12345
 
 
+def test_legacy_game_id_fills_null_or_zero_game_id():
+    for empty_game_id in (None, 0):
+        data = {**_ACTIVE, "game_id": empty_game_id, "internal_id": 12345}
+        assert import_crawler_skill(data)["game_id"] == 12345
+
+
 def test_progression_stored():
     r = import_crawler_skill(_ACTIVE)
     assert len(r["progression"]) == 1

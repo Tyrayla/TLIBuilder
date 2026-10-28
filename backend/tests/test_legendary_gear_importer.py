@@ -127,6 +127,13 @@ def test_both_variants_stored():
     legacy = {**_SAMPLE_ITEM, "internal_id": 112216}
     legacy.pop("game_id")
     assert import_crawler_item(legacy)["game_id"] == 112216
+    for empty_game_id in (None, 0):
+        legacy_with_empty_id = {
+            **_SAMPLE_ITEM,
+            "game_id": empty_game_id,
+            "internal_id": 112216,
+        }
+        assert import_crawler_item(legacy_with_empty_id)["game_id"] == 112216
 
 
 def test_random_affixes_parsed():
