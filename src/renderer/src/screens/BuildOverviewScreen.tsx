@@ -381,6 +381,9 @@ export default function BuildOverviewScreen() {
   if (!condCategories.some(([c]) => c === 'Enemy')) condCategories.unshift(['Enemy', []])
   const loading = !referenceResolved && !conditionsData
   const visibleMergedMagiRotation = mergedMagiRotation.filter(isCondVisible)
+  const hasConditionSearchMatches = conditionSearchTerms.length === 0
+    || condCategories.some(([, items]) => items.some(isCondVisible))
+    || visibleMergedMagiRotation.length > 0
 
   // Shared row renderer lets the Hero Trait panel place rotation conditions inside its own body.
   const renderConditionRow = (cond: ConditionDef): React.ReactNode => {
@@ -666,13 +669,16 @@ export default function BuildOverviewScreen() {
 
       {!loading && !conditionsFailed && (
         <div className="cond-grid">
-          {cols.every(col => col.length === 0)
-            ? <div className="panel-empty">No conditions match “{conditionSearch}”.</div>
-            : <div className="cond-columns">
+          {conditionSearchTerms.length > 0 && !hasConditionSearchMatches && (
+            <div className="panel-empty">No conditions match “{conditionSearch}”.</div>
+          )}
+          {cols.some(col => col.length > 0) && (
+            <div className="cond-columns">
               {cols.map((col, i) => (
                 <div className="cond-col" key={i}>{col.map(p => p.node)}</div>
               ))}
-            </div>}
+            </div>
+          )}
         </div>
       )}
         </div>

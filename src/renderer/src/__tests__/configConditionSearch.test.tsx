@@ -43,4 +43,28 @@ describe('Config condition search', () => {
 
     act(() => { view.unmount() })
   })
+
+  it('shows the empty-result message alongside an unresolved curse conflict', () => {
+    useBuildStore.setState({ computedStats: {
+      ...useBuildStore.getState().computedStats,
+      curse_conflict: {
+        limit: 1,
+        active: [{ name: 'Test Curse', source: 'Test Skill', sel_key: 'test_curse' }],
+        resolved: false,
+      },
+    } as never })
+
+    let view!: TestRenderer.ReactTestRenderer
+    act(() => { view = TestRenderer.create(<BuildOverviewScreen />) })
+    const search = view.root.findByProps({ 'aria-label': 'Search config conditions' })
+    act(() => { search.props.onChange({ target: { value: 'no-such-condition' } }) })
+
+    expect(view.root.findAll(node => node.props.className === 'panel-empty'
+      && node.children.join('') === 'No conditions match “no-such-condition”.')).toHaveLength(1)
+    expect(view.root.findAllByType('option').map(option =>
+      Array.isArray(option.props.children) ? option.props.children.join('') : option.props.children,
+    )).toContain('Test Curse (Test Skill)')
+
+    act(() => { view.unmount() })
+  })
 })
