@@ -1,10 +1,10 @@
 # Importing a character from `UE_game.log` — investigation and design
 
 Status: investigation only (2026-10-28). No product code. Spike scripts live in the
-gitignored `docs/local/companion-log/` (parser, ID-bridge, grid-match); the log itself is never committed.
+gitignored `docs/local/log-import/` (parser, ID-bridge, grid-match); the log itself is never committed.
 
-**Clean-room statement.** TLI Companion is source-available, not open source. Nothing here was
-copied or derived from its code or its `game-ids` dictionary. Everything marked **VERIFIED** was
+**Clean-room statement.** An existing third-party log importer is source-available, not open source. Nothing here was
+copied or derived from its code or its ID dictionary. Everything marked **VERIFIED** was
 observed directly in one 2.9 MB capture (`UE_game.log`, 30,268 lines, one login) or by matching it against
 our own hydrated tli-data (`npm run fetch:data`, SS14 + `crosswalk/SS13`). Everything marked **HYPOTHESIS**
 was not proven by this single log. The three third-party write-ups were used only as leads, and every
@@ -34,14 +34,14 @@ claim from them that we rely on was re-checked below.
 | F18 | Pactspirits: `ServantInfos.servantData[]` = `{servantId, starLevel?}` — the **owned** collection (truncated at 30). No field in the dump says which are installed. The `player` block adds `FollowServant` (e.g. `11230`), a single followed spirit in the same id space. | read (3 logs) |
 | F19 | The log contains personal data: platform account name, `playerId`/`userId`/device ids, IP addresses, guild id, chat-free but account-bound progress. | grep |
 
-Note (owner, 2026-10-28): the TLI Companion desktop app v2.0.1 only parses `GetPlayerData` gear sections
+Note (owner, 2026-10-28): a third-party desktop companion app (v2.0.1) only parses `GetPlayerData` gear sections
 (pages -1 and 100) for its profit/stats features; it has no `player` parsing and no log-to-build import,
 and it does not make the game write the dump. The web planner remains the only log-to-build importer known.
 
 ## 2. ID bridge (this log vs our data)
 
 Rates are unique-ids-hit / unique-ids-in-log, searched across every numeric value and numeric key in
-SS12–SS14 + crosswalk (`docs/local/companion-log/bridge*.py`).
+SS12–SS14 + crosswalk (`docs/local/log-import/bridge*.py`).
 
 | Log ID kind | Hit | Where it lands in our data | Verdict |
 |---|---|---|---|
