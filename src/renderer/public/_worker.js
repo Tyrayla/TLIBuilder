@@ -14,6 +14,7 @@
 // defense-in-depth alongside that service's own input-side validation.
 
 const SHARE_BASE = 'https://api.tlibuilder.com';
+const PREVIEW_TIMEOUT_MS = 900;
 
 function escapeHtml(s) {
   return String(s)
@@ -80,9 +81,14 @@ async function handleShareLink(request, env, id) {
   // No preview (unknown id, older client that couldn't compute one, or the share service being
   // briefly unreachable) — serve the plain page. The client-side app still renders normally; it
   // just won't get a rich embed. Never treat this as an error at the worker level.
-  const preview = await fetch(`${SHARE_BASE}/b/${encodeURIComponent(id)}/preview`)
+  const previewController = new AbortController();
+  const previewTimer = setTimeout(() => previewController.abort(), PREVIEW_TIMEOUT_MS);
+  const preview = await fetch(`${SHARE_BASE}/b/${encodeURIComponent(id)}/preview`, {
+    signal: previewController.signal,
+  })
     .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null);
+    .catch(() => null)
+    .finally(() => clearTimeout(previewTimer));
   if (!preview) return assetResponse;
 
   const metaHtml = buildMetaHtml(id, preview, request.url);

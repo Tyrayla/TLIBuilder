@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId, getShareBase } from './api/client'
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout, genMemoryId, getShareBase, IS_WEB } from './api/client'
 import { resolveImportInput } from './utils/resolveImportInput'
 import { MAX_LEVEL_BY_RARITY } from './components/HeroTraitShared'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
@@ -7,10 +7,14 @@ import { snapshotAllAreas } from './utils/loadoutAreas'
 import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
 import { DEFAULT_ENEMY_CONFIG, sanitizeEnemyConfig } from './utils/enemyPresets'
 import { getBuildPayload } from './utils/buildPayload'
+import { clearBuildDraft, readBuildDraft, writeBuildDraft } from './utils/buildDraft'
+import { decodeBuildCodeLean } from './utils/decodeBuildCodeLean'
+import { rehydrateSharedBuild } from './utils/decodeSharedBuild'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useDefaultHeroTrait } from './store/useDefaultHeroTrait'
+import { recordStartupMetric } from './utils/startupDiagnostics'
 import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
@@ -21,23 +25,56 @@ import PerfProfiler, { PERF_ENABLED } from './components/PerfProfiler'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
 import ReportModal from './components/ReportModal'
-import HeroTraitScreen from './screens/HeroTraitScreen'
-import PactSpiritScreen from './screens/PactSpiritScreen'
-import NotesScreen from './screens/NotesScreen'
+const HeroTraitScreen = lazy(() => import('./screens/HeroTraitScreen'))
+const PactSpiritScreen = lazy(() => import('./screens/PactSpiritScreen'))
+const NotesScreen = lazy(() => import('./screens/NotesScreen'))
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
-import TreeSelectorScreen from './screens/TreeSelectorScreen'
-import TreeViewerScreen from './screens/TreeViewerScreen'
-import DevToolsScreen from './screens/DevToolsScreen'
-import SlateScreen from './screens/SlateScreen'
-import PlayerStatsScreen from './screens/PlayerStatsScreen'
-import GearScreen from './screens/GearScreen'
-import SkillsScreen from './screens/SkillsScreen'
-import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
+const TreeSelectorScreen = lazy(() => import('./screens/TreeSelectorScreen'))
+const TreeViewerScreen = lazy(() => import('./screens/TreeViewerScreen'))
+const DevToolsScreen = lazy(() => import('./screens/DevToolsScreen'))
+const SlateScreen = lazy(() => import('./screens/SlateScreen'))
+const PlayerStatsScreen = lazy(() => import('./screens/PlayerStatsScreen'))
+const GearScreen = lazy(() => import('./screens/GearScreen'))
+const SkillsScreen = lazy(() => import('./screens/SkillsScreen'))
+const VerificationDatabaseScreen = lazy(() => import('./screens/VerificationDatabaseScreen'))
 import { copyableErrorDetails, normalizeError, prepareReport, type TliErrorPayload } from './errors/tliError'
+import { resolveDeferredGear } from './utils/deferredGearResolution'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
+type OpenBuildOptions = { deferGearResolution?: boolean }
+type ShareImportStatus = { id: string; stage: 'restoring' | 'fetching' | 'decoding' | 'rehydrating' | 'confirming' | 'opening' | 'persisting' | 'error'; message?: string }
+
+function ShareImportNotice({ status, onRetry, onContinue }: {
+  status: ShareImportStatus | null
+  onRetry: () => void
+  onContinue: () => void
+}) {
+  if (!status) return null
+  const message = status.stage === 'error' ? status.message || 'The shared build could not be opened.' : ({
+    restoring: 'Restoring your editing session before importing…',
+    fetching: 'Fetching the shared build…',
+    decoding: 'Decoding the shared build…',
+    rehydrating: 'Preparing shared gear…',
+    confirming: 'Save or discard your current edits before opening this shared build.',
+    opening: 'Opening the shared build…',
+    persisting: 'Saving a recovery copy of the imported build…',
+  } as const)[status.stage]
+  return (
+    <div role={status.stage === 'error' ? 'alert' : 'status'} style={{
+      position: 'fixed', zIndex: 1400, left: '50%', bottom: 12, transform: 'translateX(-50%)',
+      display: 'flex', alignItems: 'center', gap: 12, maxWidth: 'calc(100vw - 24px)',
+      padding: '10px 14px', borderRadius: 8, border: '1px solid #515174',
+      background: '#222238', color: status.stage === 'error' ? '#ff9b9b' : '#eee',
+      boxShadow: '0 6px 24px #0008',
+    }}>
+      <span>{message}</span>
+      {status.stage === 'error' && <button className="btn btn-secondary" onClick={onRetry}>Retry import</button>}
+      {status.stage === 'confirming' && <button className="btn btn-secondary" onClick={onContinue}>Continue import</button>}
+    </div>
+  )
+}
 
 // Where a build lands when created or opened — picking the character is the natural first step.
 const BUILD_LANDING_SCREEN: Screen = 'hero-traits'
@@ -117,6 +154,7 @@ const KEEPALIVE_SCREENS: Screen[] = [
 
 function App() {
   const [appReady, setAppReady] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
   const [appError, setAppError] = useState<TliErrorPayload | null>(null)
   const [reportError, setReportError] = useState<TliErrorPayload | undefined>(undefined)
   const [reportOpen, setReportOpen] = useState(false)
@@ -124,21 +162,17 @@ function App() {
   // Which keep-alive screens have been visited (and are thus mounted-and-hidden rather than unmounted).
   const [visitedKeepAlive, setVisitedKeepAlive] = useState<Set<Screen>>(() => new Set())
   // Deep-link import (web): the share-link overview page's "Open in Web App" button links here
-  // with ?share=<id>. Read + strip the param synchronously in the lazy initializer (runs exactly
-  // once, on mount) so a later refresh lands on a normal param-free URL. The actual import runs in
+  // with ?share=<id>. Read it synchronously and keep it in the URL until the import opens
+  // successfully, so refresh can retry after a network or worker failure. The actual import runs in
   // an effect further down, alongside `openBuild`'s definition — `openBuild` isn't initialized yet
   // at this point in a render where `appReady` is still false (this component returns early before
   // reaching it), so a hook up here can't safely call it directly.
   const [pendingShareId, setPendingShareId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
-    const shareId = params.get('share')
-    if (shareId) {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('share')
-      window.history.replaceState(null, '', url.toString())
-    }
-    return shareId
+    return params.get('share')
   })
+  const [shareRetryCount, setShareRetryCount] = useState(0)
+  const [shareImportStatus, setShareImportStatus] = useState<ShareImportStatus | null>(null)
   // `openBuild`/`requireSavePrompt` are defined later in this function, past the `if (!appReady)`
   // gate below — a real fix cannot place the effect that CALLS them down there (any hook after that
   // gate reliably crashes with "Rendered more hooks than during the previous render" the moment
@@ -146,37 +180,101 @@ function App() {
   // earlier version of this file made exactly that mistake). Instead, this effect stays up here
   // (hook-count-safe) and reaches them through refs kept fresh by plain, non-hook assignments placed
   // right after each function's own definition further down — see `openBuildRef.current = openBuild`.
-  const openBuildRef = useRef<((build: Build) => Promise<void>) | null>(null)
+  const openBuildRef = useRef<((build: Build, options?: OpenBuildOptions) => Promise<void>) | null>(null)
+  const shareEditorRenderStartedRef = useRef<number | null>(null)
   const requireSavePromptRef = useRef<((action: () => void) => void) | null>(null)
+  const draftRestoreRef = useRef<Promise<void> | null>(null)
+  const draftWriteRef = useRef<(() => void) | null>(null)
+  const suppressDraftWritesRef = useRef(false)
+  const openShareBuildRef = useRef<((shareId: string, build: Build) => void) | null>(null)
+  useEffect(() => {
+    if (!IS_WEB || !appReady || draftRestoreRef.current) return
+    draftRestoreRef.current = (async () => {
+      try {
+        const draft = await readBuildDraft()
+        if (!draft) return
+        const validScreens: Screen[] = ['build-overview', 'tree-selector', 'tree-viewer', 'slate-board', 'stats', 'gear', 'skills', 'hero-traits', 'pact-spirits', 'notes', 'import-export', 'verification']
+        const restoredScreen = validScreens.includes(draft.screen as Screen) ? draft.screen as Screen : BUILD_LANDING_SCREEN
+        await openBuildRef.current?.({ ...draft.payload, id: draft.buildId ?? undefined, name: draft.buildName } as unknown as Build)
+        if (Number.isInteger(draft.activeSlot) && draft.activeSlot >= 0 && draft.activeSlot < 4) {
+          useBuildStore.getState().setActiveSlot(draft.activeSlot)
+        }
+        setIsDirty(draft.dirty)
+        setScreen(restoredScreen)
+      } catch (error) {
+        console.warn('Could not restore the web editing draft:', error)
+      } finally {
+        setDraftRestored(true)
+      }
+    })()
+  }, [appReady])
   useEffect(() => {
     if (!appReady || !pendingShareId) return
     const shareId = pendingShareId
-    setPendingShareId(null) // one-shot — never re-trigger on a later re-render
+    let cancelled = false
+    setShareImportStatus({ id: shareId, stage: 'restoring' })
     void (async () => {
       try {
+        // Restore a local draft before applying the same unsaved-change guard used by manual imports.
+        await draftRestoreRef.current
+        if (cancelled) return
+        setShareImportStatus({ id: shareId, stage: 'fetching' })
+        const fetchStarted = performance.now()
         const resolved = await resolveImportInput(`${getShareBase()}/b/${shareId}`)
-        const { build } = await api.decodeBuildCode(resolved)
-        // Gated the same way the manual paste-import flow gates ImportPanel's decoded build
-        // (ImportExportOverlay.tsx's proceedWithBuild) — a deep link must never silently overwrite
-        // unsaved edits just because it arrived automatically rather than via a deliberate paste.
-        requireSavePromptRef.current?.(() => {
-          openBuildRef.current?.(build as unknown as Build)
-            .catch((err: unknown) => console.error('Deep-link openBuild failed:', err))
+        recordStartupMetric('share.import-fetch', performance.now() - fetchStarted)
+        if (cancelled) return
+        setShareImportStatus({ id: shareId, stage: 'decoding' })
+        const decodeStarted = performance.now()
+        const rawBuild = await decodeBuildCodeLean(resolved)
+        recordStartupMetric('share.import-decode', performance.now() - decodeStarted)
+        if (cancelled) return
+        const rawGear = Array.isArray(rawBuild.gear) ? rawBuild.gear : []
+        const needsLegendaryCatalog = rawGear.some(item => {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return false
+          const gear = item as Record<string, unknown>
+          return !gear.is_crafted && !gear.is_vorax && typeof gear.item_id === 'string'
         })
-      } catch (e) {
-        // Additive — a bad/expired id must never block the app from loading normally. The
-        // overview page itself is the primary way to view a shared build; this is a shortcut
-        // into the full editor, not a hard dependency.
-        console.error('Deep-link import failed:', e)
+        let legendaryCatalog: Awaited<ReturnType<typeof api.getLegendaryGear>>['items'] = []
+        if (needsLegendaryCatalog) {
+          setShareImportStatus({ id: shareId, stage: 'rehydrating' })
+          const catalogStarted = performance.now()
+          legendaryCatalog = useReferenceStore.getState().legendaryCatalog
+            ?? (await api.getLegendaryGear()).items
+          recordStartupMetric('share.import-gear-catalog', performance.now() - catalogStarted, { count: legendaryCatalog.length })
+        }
+        const importedBuild = rehydrateSharedBuild(rawBuild, legendaryCatalog) as unknown as Build
+        pendingShareBuildRef.current = importedBuild
+        setShareImportStatus({ id: shareId, stage: 'confirming' })
+        // Gated the same way the manual paste-import flow gates ImportPanel's decoded build. Keep the
+        // share ID in the URL and the decoded build in memory until opening succeeds so refresh/retry
+        // remains possible after network or worker failure.
+        requireSavePromptRef.current?.(() => openShareBuildRef.current?.(shareId, importedBuild))
+      } catch (error) {
+        if (cancelled) return
+        setShareImportStatus({
+          id: shareId,
+          stage: 'error',
+          message: error instanceof Error ? error.message : 'The shared build could not be loaded. Retry the import.',
+        })
       }
     })()
-  }, [pendingShareId, appReady])
+    return () => { cancelled = true }
+  }, [pendingShareId, appReady, shareRetryCount])
+  useEffect(() => {
+    const started = shareEditorRenderStartedRef.current
+    if (started === null || screen !== BUILD_LANDING_SCREEN) return
+    shareEditorRenderStartedRef.current = null
+    recordStartupMetric('share.editor-render-commit', performance.now() - started)
+  }, [screen])
   // Desktop only: tlibuilder://import/<id> links (see src/main/index.ts's second-instance/
   // open-url handling) arrive as an IPC event rather than a URL query param, since the renderer
   // may already be running when the OS delivers the link. Feeds the same pendingShareId state the
   // web ?share= param uses, so both paths share the one import effect above.
   useEffect(() => {
-    window.api?.onDeepLinkShare?.(shareId => setPendingShareId(shareId))
+    window.api?.onDeepLinkShare?.(shareId => {
+      setPendingShareId(shareId)
+      setShareRetryCount(n => n + 1)
+    })
   }, [])
   // NOTE: these effects MUST stay above the `if (!appReady)` early return below — a hook placed after it
   // is conditional and crashes with React #310 ("more hooks than previous render") once appReady flips.
@@ -216,6 +314,8 @@ function App() {
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
   const [devMode, setDevMode] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
   const [unsavedSaving, setUnsavedSaving] = useState(false)
@@ -238,6 +338,7 @@ function App() {
   // consumed by handleUnsavedSave/handleUnsavedDiscard once the user picks. goToBuildSelect's own
   // behavior is unchanged — it's just the first of now two actions that can populate this.
   const pendingUnsavedActionRef = useRef<(() => void) | null>(null)
+  const pendingShareBuildRef = useRef<Build | null>(null)
   const refConditions = useReferenceStore(s => s.conditions)
 
   // Store reads — replaces session useState
@@ -246,6 +347,53 @@ function App() {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
   const buildVersion = useBuildStore(s => s.buildVersion)
+
+  useEffect(() => {
+    if (!IS_WEB || !appReady || !draftRestored) return
+    const timer = window.setTimeout(() => {
+      if (suppressDraftWritesRef.current) return
+      if (screen === 'build-select') {
+        void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
+        return
+      }
+      const state = useBuildStore.getState()
+      const dirty = isDirty || state.buildVersion > loadedVersionRef.current
+      const draft = {
+        version: 1 as const,
+        savedAt: Date.now(),
+        buildId: state.buildId,
+        buildName: state.buildName,
+        activeSlot: state.activeSlot,
+        payload: getBuildPayload(),
+        dirty,
+        screen,
+      }
+      void writeBuildDraft(draft).catch(error => console.warn('Could not save the web editing draft:', error))
+    }, 350)
+    draftWriteRef.current = () => {
+      window.clearTimeout(timer)
+      if (suppressDraftWritesRef.current || screen === 'build-select') return
+      const state = useBuildStore.getState()
+      void writeBuildDraft({
+        version: 1,
+        savedAt: Date.now(),
+        buildId: state.buildId,
+        buildName: state.buildName,
+        activeSlot: state.activeSlot,
+        payload: getBuildPayload(),
+        dirty: isDirty || state.buildVersion > loadedVersionRef.current,
+        screen,
+      }).catch(error => console.warn('Could not save the web editing draft:', error))
+    }
+    return () => window.clearTimeout(timer)
+  }, [appReady, draftRestored, buildVersion, buildId, buildName, isDirty, screen])
+
+  useEffect(() => {
+    if (!IS_WEB) return
+    const persistOnPageHide = () => draftWriteRef.current?.()
+    window.addEventListener('pagehide', persistOnPageHide)
+    return () => window.removeEventListener('pagehide', persistOnPageHide)
+  }, [])
 
   // Only report "dirty" to the main process while a build is actually open. On the build-list menu there's
   // nothing to save, so the native close/quit guard must never prompt there (it was firing on update-install).
@@ -273,8 +421,10 @@ function App() {
   }, [refConditions])
 
   useEffect(() => {
+    const started = performance.now()
     initApi()
       .then(() => {
+        recordStartupMetric('app.api-ready', performance.now() - started)
         setAppReady(true)
         api.getTrees().then(trees => {
           const colors: Record<string, string> = {}
@@ -417,6 +567,66 @@ function App() {
   // Plain assignment, NOT a hook — see openBuildRef's identical comment above.
   requireSavePromptRef.current = requireSavePrompt
 
+  const openShareBuild = (shareId: string, build: Build) => {
+    const started = performance.now()
+    shareEditorRenderStartedRef.current = started
+    setShareImportStatus({ id: shareId, stage: 'opening' })
+    const open = openBuildRef.current
+    if (!open) {
+      shareEditorRenderStartedRef.current = null
+      setShareImportStatus({ id: shareId, stage: 'error', message: 'The editor is not ready. Retry the import.' })
+      return
+    }
+    void open(build, { deferGearResolution: true }).then(async () => {
+      recordStartupMetric('share.open-build', performance.now() - started)
+      if (IS_WEB) {
+        setShareImportStatus({ id: shareId, stage: 'persisting' })
+        const persistStarted = performance.now()
+        const state = useBuildStore.getState()
+        await writeBuildDraft({
+          version: 1,
+          savedAt: Date.now(),
+          buildId: state.buildId,
+          buildName: state.buildName,
+          activeSlot: state.activeSlot,
+          payload: getBuildPayload(),
+          dirty: state.buildVersion > loadedVersionRef.current,
+          screen: BUILD_LANDING_SCREEN,
+        })
+        recordStartupMetric('share.session-draft-persist', performance.now() - persistStarted)
+      }
+      pendingShareBuildRef.current = null
+      setPendingShareId(null)
+      setShareImportStatus(null)
+      const url = new URL(window.location.href)
+      if (url.searchParams.get('share') === shareId) {
+        url.searchParams.delete('share')
+        window.history.replaceState(null, '', url.toString())
+      }
+    }).catch((error: unknown) => {
+      shareEditorRenderStartedRef.current = null
+      setShareImportStatus({
+        id: shareId,
+        stage: 'error',
+        message: error instanceof Error
+          ? `The shared build could not be opened or saved for recovery: ${error.message}`
+          : 'The shared build could not be opened or saved for recovery. Retry the import.',
+      })
+    })
+  }
+  openShareBuildRef.current = openShareBuild
+
+  const continueShareImport = () => {
+    const build = pendingShareBuildRef.current
+    const status = shareImportStatus
+    if (!build || !status) {
+      setShareRetryCount(n => n + 1)
+      return
+    }
+    requireSavePrompt(() => openShareBuild(status.id, build))
+  }
+  const retryShareImport = () => setShareRetryCount(n => n + 1)
+
   const goToBuildSelect = () => requireSavePrompt(() => setScreen('build-select'))
 
   const handleUnsavedSave = async () => {
@@ -434,6 +644,8 @@ function App() {
   }
 
   const handleUnsavedDiscard = () => {
+    suppressDraftWritesRef.current = true
+    if (IS_WEB) void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
     setIsDirty(false)
     setUnsavedPromptOpen(false)
     const action = pendingUnsavedActionRef.current
@@ -442,6 +654,8 @@ function App() {
   }
 
   const startNewBuild = (folderId?: string) => {
+    suppressDraftWritesRef.current = false
+    if (IS_WEB) void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
     pendingNewBuildFolderRef.current = folderId ?? null
     const payload = {
       buildId: null, buildName: '', activeSlot: 0,
@@ -530,7 +744,7 @@ function App() {
     return { treeName: o.treeName, nodeStates, coreTalentSelections }
   }
 
-  const openBuild = async (build: Build) => {
+  const openBuild = async (build: Build, options: OpenBuildOptions = {}) => {
     // Opening an existing build cancels any pending new-build folder assignment from an abandoned
     // "+ New Build" flow started (but never saved) from inside a folder.
     pendingNewBuildFolderRef.current = null
@@ -567,6 +781,7 @@ function App() {
     // when override entries are added or the resolver improves (e.g. a dual-pool combo like
     // "Max Life and Max Energy Shield" that previously resolved to only one stat). Keyed purely on
     // raw_text, which maps deterministically through the same resolver the catalog serve uses.
+    let deferredGearResolution: (() => void) | null = null
     if (gear.length > 0) {
       const texts = [...new Set(
         gear.flatMap(g => g.affixes
@@ -574,29 +789,51 @@ function App() {
           .map(a => a.raw_text)
         )
       )]
-      try {
-        const { results } = await api.resolveGearAffixes(texts)
-        gear = gear.map(item => {
+      const applyResolvedGear = (items: EquippedGearItem[], results: Record<string, ResolvedAffixFields>) => items.map(item => ({
+        ...item,
+        affixes: item.affixes.map(aff => {
+          const r: ResolvedAffixFields | undefined = results[aff.raw_text]
+          if (!r) return aff
           return {
-            ...item,
-            affixes: item.affixes.map(aff => {
-              const r: ResolvedAffixFields | undefined = results[aff.raw_text]
-              if (!r) return aff
-              return {
-                ...aff,
-                stat_key: r.stat_key ?? null,
-                unit: r.unit ?? aff.unit ?? '',
-                stat_keys: r.stat_keys,
-                is_range_split: r.is_range_split,
-                min_stat_keys: r.min_stat_keys,
-                max_stat_keys: r.max_stat_keys,
-                dual_stat_groups: r.dual_stat_groups,
-              }
-            })
+            ...aff,
+            stat_key: r.stat_key ?? null,
+            unit: r.unit ?? aff.unit ?? '',
+            stat_keys: r.stat_keys,
+            is_range_split: r.is_range_split,
+            min_stat_keys: r.min_stat_keys,
+            max_stat_keys: r.max_stat_keys,
+            dual_stat_groups: r.dual_stat_groups,
           }
-        })
-      } catch {
-        // Resolution failure is non-fatal — proceed with whatever was saved
+        }),
+      }))
+      if (options.deferGearResolution) {
+        deferredGearResolution = () => {
+          void api.resolveGearAffixes(texts).then(({ results }) => {
+            const store = useBuildStore.getState()
+            const resolution = resolveDeferredGear(
+              store.gear,
+              results,
+              store.buildVersion,
+              loadedVersionRef.current,
+              isDirtyRef.current,
+            )
+            store.setGear(resolution.gear)
+            store.flushActiveLoadout()
+            if (resolution.shouldRebaseline) {
+              loadedVersionRef.current = useBuildStore.getState().buildVersion
+              setIsDirty(false)
+            }
+          }).catch(() => {
+            // Affix resolution is additive; the imported gear remains editable with its saved text.
+          })
+        }
+      } else {
+        try {
+          const { results } = await api.resolveGearAffixes(texts)
+          gear = applyResolvedGear(gear, results)
+        } catch {
+          // Resolution failure is non-fatal — proceed with whatever was saved
+        }
       }
     }
 
@@ -659,6 +896,8 @@ function App() {
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen(BUILD_LANDING_SCREEN)
+    suppressDraftWritesRef.current = false
+    deferredGearResolution?.()
   }
   // Plain assignment, NOT a hook — safe to run conditionally (only reached once appReady is true).
   // Keeps the deep-link effect (declared earlier, before the early-return gate) able to call the
@@ -791,24 +1030,34 @@ function App() {
   const saveBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
+    const savedVersion = s.buildVersion
     const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, baseMemory: s.baseMemory, memoryInventory: s.memoryInventory, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, enemyConfig: s.enemyConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
-    loadedVersionRef.current = useBuildStore.getState().buildVersion
-    setIsDirty(false)
+    loadedVersionRef.current = savedVersion
+    const editedDuringSave = useBuildStore.getState().buildVersion > savedVersion
+    setIsDirty(editedDuringSave)
+    if (IS_WEB && !editedDuringSave) {
+      void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
+    }
     if (!build.id && saved.id) await assignNewBuildToFolder(saved.id)
   }
 
   const saveAsBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
+    const savedVersion = s.buildVersion
     const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, baseMemory: s.baseMemory, memoryInventory: s.memoryInventory, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, enemyConfig: s.enemyConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
-    loadedVersionRef.current = useBuildStore.getState().buildVersion
-    setIsDirty(false)
+    loadedVersionRef.current = savedVersion
+    const editedDuringSave = useBuildStore.getState().buildVersion > savedVersion
+    setIsDirty(editedDuringSave)
+    if (IS_WEB && !editedDuringSave) {
+      void clearBuildDraft().catch(error => console.warn('Could not clear the web editing draft:', error))
+    }
     if (saved.id) await assignNewBuildToFolder(saved.id)
   }
 
@@ -880,12 +1129,18 @@ function App() {
 
   // ── Sidebar-less screens ──────────────────────────────────────────────────
 
+  if (IS_WEB && !draftRestored) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#1a1a2e', color: '#888' }}>
+      Restoring your last editing session…
+    </div>
+  }
+
   if (screen === 'dev-tools') {
-    return <DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
+    return <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading tools…</div>}><DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
-        }} />
+        }} /></Suspense>
   }
 
   if (screen === 'build-select') {
@@ -901,6 +1156,7 @@ function App() {
             onOpenVerification={() => setScreen('verification')}
           />
         </div>
+        <ShareImportNotice status={shareImportStatus} onRetry={retryShareImport} onContinue={continueShareImport} />
         {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
       </>
     )
@@ -909,7 +1165,9 @@ function App() {
   if (screen === 'verification') {
     return (
       <div className="app-shell">
-        <VerificationDatabaseScreen onBack={() => setScreen('build-select')} />
+        <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading verification data…</div>}>
+          <VerificationDatabaseScreen onBack={() => setScreen('build-select')} />
+        </Suspense>
       </div>
     )
   }
@@ -1052,18 +1310,27 @@ function App() {
                     const next = new Set(prev)
                     next.delete(id)
                     return next
-                  })}>{renderKeepAliveScreen(id)}</ErrorBoundary>
+                  })}>
+                    <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading screen…</div>}>
+                      {renderKeepAliveScreen(id)}
+                    </Suspense>
+                  </ErrorBoundary>
                 </div>
               ))}
               {/* Swap-rendered screens (Calcs + the slot-dependent tree/preview flow): rendered only
                   while active, remounting on entry as before (keyed on screen). */}
               {!KEEPALIVE_SCREENS.includes(screen) && (
-                <ErrorBoundary key={screen}>{screenContent}</ErrorBoundary>
+                <ErrorBoundary key={screen}>
+                  <Suspense fallback={<div style={{ color: '#888', padding: 20 }}>Loading screen…</div>}>
+                    {screenContent}
+                  </Suspense>
+                </ErrorBoundary>
               )}
             </PerfProfiler>
           </div>
         </div>
       </div>
+      <ShareImportNotice status={shareImportStatus} onRetry={retryShareImport} onContinue={continueShareImport} />
       {cascadeOverlay}
       {reportOpen && <ReportModal error={reportError} onClose={() => { setReportOpen(false); setReportError(undefined) }} />}
       {unsavedPromptOpen && (

@@ -6,6 +6,7 @@ import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
 import type { SharePreview } from './share'
 import { dec } from '../utils/num'
 import { errorFromResponse, normalizeError, TliError, type TliErrorCode } from '../errors/tliError'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 let BASE = ''
 let ipcMode = false
@@ -53,6 +54,9 @@ function staticCatalogUrl(path: string): string | null {
   return name ? `${STATIC_DATA_BASE}/${staticSeason}/${name}.json` : null
 }
 
+// Share in-flight and fulfilled CDN requests across screens and the share importer.
+const staticCatalogRequests = new Map<string, Promise<unknown>>()
+
 // Host root for bundled entity icons (served by the Python backend at /icons/<category>/<file>.webp).
 // Images must load via a real URL even in IPC mode (an <img> can't go through the IPC bridge), so we
 // resolve the port here and expose iconUrl() to turn a record's icon_url into a local server URL.
@@ -90,7 +94,13 @@ export async function initApi(): Promise<void> {
   // anything else still uses IPC/HTTP below.
   if (STATIC_DATA_BASE) {
     try {
-      const m = await (await fetch(`${STATIC_DATA_BASE}/manifest.json`)).json()
+      const manifestStarted = performance.now()
+      const manifestResponse = await fetch(`${STATIC_DATA_BASE}/manifest.json`)
+      const manifestReceived = performance.now()
+      const m = await manifestResponse.json()
+      recordStartupMetric('catalog.manifest', performance.now() - manifestStarted, {
+        responseMs: Math.round((manifestReceived - manifestStarted) * 10) / 10,
+      })
       staticSeason = m.season || ''
       rlog(`initApi — static data base ${STATIC_DATA_BASE}, season ${staticSeason}`)
       // Web build (no Electron IPC): run compute in the Pyodide worker. Kick off its load in the background;
@@ -152,11 +162,32 @@ async function get<T>(path: string, retries = 4): Promise<T> {
   const staticUrl = staticCatalogUrl(path)
   if (staticUrl) {
     rlog(`GET (static) ${staticUrl}`)
+    let request = staticCatalogRequests.get(staticUrl)
+    if (!request) {
+      request = (async () => {
+        const started = performance.now()
+        const res = await fetch(staticUrl)
+        if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
+        const received = performance.now()
+        const bytes = await res.arrayBuffer()
+        const parsedAt = performance.now()
+        const value = JSON.parse(new TextDecoder().decode(bytes)) as T
+        recordStartupMetric('catalog.static', performance.now() - started, {
+          path, responseMs: Math.round((received - started) * 10) / 10,
+          bodyMs: Math.round((parsedAt - received) * 10) / 10,
+          parseMs: Math.round((performance.now() - parsedAt) * 10) / 10,
+          decodedBytes: bytes.byteLength,
+        })
+        return value
+      })()
+      staticCatalogRequests.set(staticUrl, request)
+    } else {
+      recordStartupMetric('catalog.static-cache-hit', 0, { path })
+    }
     try {
-    const res = await fetch(staticUrl)
-    if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
-    return res.json()
+      return await request as T
     } catch (error) {
+      if (staticCatalogRequests.get(staticUrl) === request) staticCatalogRequests.delete(staticUrl)
       const code: TliErrorCode = error instanceof TypeError
         || (error instanceof DOMException && error.name === 'AbortError')
         ? 'TLI-NET-001'

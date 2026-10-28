@@ -6,6 +6,7 @@ import { useReferenceStore } from '../store/referenceStore'
 import SettingsOverlay from '../components/SettingsOverlay'
 import LoadingState from '../components/LoadingState'
 import logoSrc from '../assets/logo.png'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 interface Props {
   onNewBuild: (folderId?: string) => void
@@ -105,6 +106,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const [builds, setBuilds] = useState<Build[]>([])
   const [manifest, setManifest] = useState<FolderManifest>(EMPTY_MANIFEST)
   const [loading, setLoading] = useState(true)
+  const listLoadStarted = useRef(performance.now())
+  const listReadyRecorded = useRef(false)
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
 
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -153,6 +156,12 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }
 
   useEffect(() => { loadAll() }, [])
+
+  useEffect(() => {
+    if (loading || listReadyRecorded.current) return
+    listReadyRecorded.current = true
+    recordStartupMetric('build-list.render-ready', performance.now() - listLoadStarted.current, { builds: builds.length })
+  }, [loading, builds.length])
 
   useEffect(() => {
     // Desktop reads the version via IPC; the web build has no IPC, so it uses the version baked in at build
