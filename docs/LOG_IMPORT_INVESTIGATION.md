@@ -34,6 +34,10 @@ claim from them that we rely on was re-checked below.
 | F18 | Pactspirits: `ServantInfos.servantData[]` = `{servantId, starLevel?}` — the **owned** collection (truncated at 30). No field in the dump says which are installed. The `player` block adds `FollowServant` (e.g. `11230`), a single followed spirit in the same id space. | read (3 logs) |
 | F19 | The log contains personal data: platform account name, `playerId`/`userId`/device ids, IP addresses, guild id, chat-free but account-bound progress. | grep |
 
+Note (owner, 2026-10-28): the TLI Companion desktop app v2.0.1 only parses `GetPlayerData` gear sections
+(pages -1 and 100) for its profit/stats features; it has no `player` parsing and no log-to-build import,
+and it does not make the game write the dump. The web planner remains the only log-to-build importer known.
+
 ## 2. ID bridge (this log vs our data)
 
 Rates are unique-ids-hit / unique-ids-in-log, searched across every numeric value and numeric key in
@@ -98,8 +102,9 @@ client-side and hands it to the existing open/save path; it never edits `backend
 * **Missing dump.** The block is only written at login (this log has one; whether the game rotates or overwrites the file on launch was not tested — HYPOTHESIS): if no
   `GetPlayerData` block is found, say exactly that and tell the player to relaunch the game, log the
   character in, and re-pick the file (the file must not be deleted by the game before the player picks it).
-* **Name is optional (F6).** Use `player.Name` when present (it has no `#digits`, so it is not unique) and
-  otherwise label dumps by timestamp + hero + level. Each of the three owner files (live + 2 backups) holds one
+* **Name is optional (F6).** Use `player.Name` when present as an opaque string. Per the owner, the `#digits` suffix
+  only appears when a chosen name is a duplicate, so never require or strip a `#NNNN` pattern for identity. Otherwise
+  label dumps by timestamp + hero + level. Each of the three owner files (live + 2 backups) holds one
   dump, so multi-file import = one candidate dump per file; list them newest-first and let the player choose.
   The player block's ids are never displayed or stored.
 * **Truncation notice (F5).** Show an import report ("found / partial / missing") that names which sections
