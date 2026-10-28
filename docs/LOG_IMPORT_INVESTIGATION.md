@@ -276,6 +276,13 @@ The third-party claim that tlidb ids equal the game ids is confirmed where the i
 
 ## 11. Import UX: options and recommendation (investigation only, nothing built)
 
+**Decided by the owner (2026-10-28):**
+1. **We never take or upload the log file.** The file never leaves the player's device.
+2. **Web:** the log is parsed in the browser only (client-side), picker only.
+3. **Desktop:** the player picks or auto-detects the log once, then the app offers an "update build" re-import when they relog.
+
+Everything below is the investigation behind those decisions; the remaining tradeoffs are still investigation-only and nothing is built. Talent-tree truncation (section 9) is a confirmed real gap and stays a priority item.
+
 Facts that decide it: the game writes `GetPlayerData` once per login and nothing else we can use (F25/F30); the dump lists are capped and re-shuffled per login (section 9), so **every extra login in the file improves the result**; the file is rewritten at every game launch with the previous one rotated to `UE_game-backup-*.log` (HYPOTHESIS for the rotation count: we saw one live file and two backups); post-login changes only update slot ids (`ItemChange`), never full objects; the file holds account ids and IPs (F19).
 
 | Option | What it gives | Cost / risk |
@@ -289,4 +296,4 @@ Facts that decide it: the game writes `GetPlayerData` once per login and nothing
 
 Privacy copy (draft): "Your log stays on your device. We read only the character block and ignore account ids, IP addresses and chat. Nothing is uploaded. Close the file picker to cancel; we keep no copy of the log." On relog the user must re-import (one-shot) or the app picks up the new dump (watch).
 
-**Recommendation.** Ship the one-shot pick first on both desktop and web (smallest, safest, same parser), but design the parser to take a list of dumps and merge. On desktop add "auto-detect" as a convenience that only proposes a path and a "re-import" button that re-reads the same file (which is what "live" mostly buys); add a real watcher only if players ask for it. On web keep everything client-side. Surface an import report that says how many logins were merged, which lists were capped, and which items are unresolved (section 9). Do not build a server upload.
+**Recommendation.** Ship the one-shot pick first on both desktop and web (smallest, safest, same parser), but design the parser to take a list of dumps and merge. On desktop add "auto-detect" as a convenience that only proposes a path and a "re-import" button that re-reads the same file (which is what "live" mostly buys); add a real watcher only if players ask for it. On web keep everything client-side. Surface an import report that says how many logins were merged, which lists were capped, and which items are unresolved (section 9). Do not build a server upload (decided above). The owner's desktop decision (pick or auto-detect once, offer "update build" on relog) supersedes the "only if players ask" watcher wording: a light watch that only offers the re-import is in scope for that flow.
