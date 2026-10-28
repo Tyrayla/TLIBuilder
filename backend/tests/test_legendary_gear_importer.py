@@ -78,7 +78,7 @@ def test_bare_number_not_extracted():
 
 _SAMPLE_ITEM = {
     "name": "Imperial Iron Sentry",
-    "internal_id": 112216,
+    "game_id": 112216,
     "base_type": "Long Night Sorcerer's Mask",
     "required_level": 58,
     "drop_level": 58,
@@ -118,11 +118,22 @@ _SAMPLE_ITEM = {
 
 def test_both_variants_stored():
     result = import_crawler_item(_SAMPLE_ITEM)
+    assert result["game_id"] == 112216
     assert "base" in result["variants"]
     assert "corroded" in result["variants"]
     base = result["variants"]["base"]
     assert len(base["implicits"]) == 1
     assert len(base["explicits"]) == 2
+    legacy = {**_SAMPLE_ITEM, "internal_id": 112216}
+    legacy.pop("game_id")
+    assert import_crawler_item(legacy)["game_id"] == 112216
+    for empty_game_id in (None, 0):
+        legacy_with_empty_id = {
+            **_SAMPLE_ITEM,
+            "game_id": empty_game_id,
+            "internal_id": 112216,
+        }
+        assert import_crawler_item(legacy_with_empty_id)["game_id"] == 112216
 
 
 def test_random_affixes_parsed():

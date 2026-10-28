@@ -2128,7 +2128,7 @@ export interface HeroMemoryAffix {
 
 export interface HeroMemoryType {
   name: string
-  internal_id: number | null
+  game_id: number | null
   icon_url: string
 }
 
@@ -2594,7 +2594,7 @@ export interface SkillTooltipSpec {
 export interface SkillItem {
   item_id: string
   name: string
-  internal_id?: number | null
+  game_id?: number | null
   skill_type?: string
   is_aura?: boolean
   description_lines: string[]
@@ -3189,7 +3189,7 @@ export interface LegendaryGearIndexItem {
 export interface LegendaryGearItem {
   item_id: string
   name: string
-  internal_id: number | null
+  game_id: number | null
   base_type: string
   required_level: number
   drop_level: number | null

@@ -14,7 +14,7 @@ const explicit: LegendaryAffix = {
 const CATALOG: LegendaryGearItem[] = [{
   item_id: 'itm_legendary_1',
   name: 'Test Legendary',
-  internal_id: 1,
+  game_id: 1,
   base_type: 'Test Base',
   required_level: 50,
   drop_level: null,
