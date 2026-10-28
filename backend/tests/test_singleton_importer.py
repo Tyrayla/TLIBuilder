@@ -59,7 +59,7 @@ _HERO_MEM_DATA = {
         {"Tier": "2", "Modifier": "+88 Strength", "Level": "1", "Weight": "0", "Source": "Memory of Origin"},
     ],
     "memory_types": [
-        {"name": "Memory of Origin", "url_path": "/en/Memory_of_Origin", "internal_id": 71001, "icon_url": "https://cdn.tlidb.com/icon.webp"},
+        {"name": "Memory of Origin", "url_path": "/en/Memory_of_Origin", "game_id": 71001, "icon_url": "https://cdn.tlidb.com/icon.webp"},
     ],
     "glossary": [],
 }
@@ -118,7 +118,17 @@ def test_hero_memories_new_format():
     assert r["random_affixes"][0]["tier"] == 0
     assert r["base_stats"][0]["modifier"] == "+90 Strength"
     assert r["memory_types"][0]["name"] == "Memory of Origin"
-    assert r["memory_types"][0]["internal_id"] == 71001
+    assert r["memory_types"][0]["game_id"] == 71001
+    legacy_data = {
+        **_HERO_MEM_DATA,
+        "memory_types": [{
+            "name": "Memory of Origin",
+            "url_path": "/en/Memory_of_Origin",
+            "internal_id": 71001,
+            "icon_url": "https://cdn.tlidb.com/icon.webp",
+        }],
+    }
+    assert import_hero_memories(legacy_data, "SS12")["memory_types"][0]["game_id"] == 71001
 
 
 def test_hero_memories_normalizes_modifiers():

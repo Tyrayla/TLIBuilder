@@ -189,7 +189,7 @@ def import_hero_memories(data: dict, season_name: str) -> dict:
         {
             "name": mt.get("name", ""),
             "uuid": mt.get("uuid"),
-            "internal_id": mt.get("internal_id"),
+            "game_id": mt.get("game_id", mt.get("internal_id")),
             "icon_url": mt.get("icon_url", ""),
         }
         for mt in (data.get("memory_types") or [])

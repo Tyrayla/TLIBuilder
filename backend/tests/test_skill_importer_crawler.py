@@ -4,7 +4,7 @@ from tools.skill_importer import import_crawler_skill, import_crawler_skills, me
 
 _ACTIVE = {
     "name": "Aegis of Fire",
-    "internal_id": 12345,
+    "game_id": 12345,
     "skill_type": "active_skill",
     "variants": [
         {
@@ -59,6 +59,7 @@ def test_raw_text_from_detailed_description():
 def test_skill_type_stored():
     r = import_crawler_skill(_ACTIVE)
     assert r["skill_type"] == "active_skill"
+    assert r["game_id"] == 12345
 
 
 def test_progression_stored():
@@ -74,7 +75,7 @@ def test_glossary_list_to_dict():
 
 
 def test_import_crawler_skills_filters_nameless():
-    items = [_ACTIVE, {"internal_id": 0, "skill_type": "active_skill"}]
+    items = [_ACTIVE, {"game_id": 0, "skill_type": "active_skill"}]
     result = import_crawler_skills(items)
     assert len(result) == 1
     assert result[0]["name"] == "Aegis of Fire"

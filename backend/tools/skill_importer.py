@@ -238,7 +238,7 @@ def import_crawler_skill(data: dict, owner_id: str | None = None) -> dict:
         "item_id": item_id,
         "name": name,
         "uuid": data.get("uuid"),
-        "internal_id": data.get("internal_id"),
+        "game_id": data.get("game_id", data.get("internal_id")),
         "skill_type": data.get("skill_type", ""),
         "skill_tags": variant.get("tags") or [],
         "description_lines": simple,                     # Lv1 lines (back-compat readers use this)
