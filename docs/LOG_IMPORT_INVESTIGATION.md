@@ -17,7 +17,7 @@ Everything a character can have in TLI Builder, taken from the `Build` interface
 write-ups mention. Evidence column: **VERIFIED** = observed in our own captures with the field path;
 **HYPOTHESIS** = consistent with the captures but not proven; **NOT IN LOG** = no field carries it.
 "Bridge" = whether tli-data already carries the game id needed to name it (see section 2).
-Captures used: the owner's live log (also supplied as a redacted fixture), its two backups and one
+Captures used: the owner's live log (local copies only), its two backups and one
 older dump; "live" below means the redacted fixture.
 
 | # | Item (Builder field) | Log source | Evidence | Bridge | Status |
@@ -196,7 +196,8 @@ client-side and hands it to the existing open/save path; it never edits `backend
 
 1. **Parser library** (M, ~2–3 days): pure TS module `src/renderer/src/importers/ueLog/` — decode, find
    dumps, bracket-tree parse (F4), `ItemChange` replay (F8), truncation flags (F5), level/hero extraction (F6/F7).
-   Fixture-tested on a redacted copy of the log (strip player/account/IP lines). No UI.
+   Tests use **synthetic, hand-written mini dumps** (committed; no player data) plus an **optional real-log
+   suite** that reads a private fixture path and skips cleanly when absent (see "Test fixtures" below). No UI.
 2. **Skills + supports + level import** (S, ~1–2 days): `skills[]`, `characterLevel`, hero id, via the SS13 crosswalk
    `gameId` (data already present). Needs a data-loader that exposes `gameId`→skill.
 3. **Talent grid import** (S–M, ~2 days): geometry rule (F12), prefix table (F13), core-talent selection;
@@ -208,21 +209,41 @@ client-side and hands it to the existing open/save path; it never edits `backend
    multi-file handling.
 7. **Prisms (placement now, kind after step 5), slates (slot effects now, placement after the section 8 board check), hero memories, pactspirit/destiny/scent-bottle naming** (M each).
 
+**Test fixtures (owner decision 2026-10-28): no log-derived file is ever committed to the tlibuilder repo**, so its
+history never carries player data.
+
+* **Committed:** synthetic mini dumps written by hand (a few dozen lines each: one hero, a couple of skills and
+  supports, one tree, one slate, one pact contract, one vorax ring), covering every parser rule (F4 syntax, F5 caps and
+  `...` markers, ItemChange replay, two-dump merge). They contain invented ids and no account data, so tlibuilder CI stays
+  self-contained.
+* **Real-log suite (optional):** tests read `TLI_LOG_FIXTURES` (a directory path, from env or a vitest option) and call
+  `describe.skipIf(!fixturesAvailable)`, so a missing path skips them cleanly and CI is green without it.
+* **Where the real fixtures live (proposal, in preference order):**
+  1. **`tli-data`** (private, already fetched at build time by `npm run fetch:data`): add a `fixtures/ue-log/` folder with
+     the redacted logs, and let the fetch script expose it as `data/fixtures/ue-log` locally, with the CI step opting in
+     only for the owner's private runs. Reuses an existing private repo and an existing fetch; the risk is that public
+     CI must not fetch it (it would stay behind the existing token and be skipped when the path is empty).
+  2. **A small dedicated private repo** (for example `tlibuilder-log-fixtures`): cleanest separation and the easiest to
+     purge or rotate, at the cost of one more repo, one more token and an extra fetch step.
+  Either way the files are pseudonymised before they enter the repo (the redaction used for the owner's fixture:
+  names and ids replaced, IPs and account lines removed), and each real-log test asserts on structure and counts, not on
+  personal values.
+
 Rough total for a useful "skills + talents + legendary gear + level" import: ~1.5–2 weeks; full
 fidelity depends on step 5.
 
 ## 7. Open questions for the owner
 
 1. Should the crawler/tli-data id work (section 10, now GAP-1 to GAP-9) be scheduled? It gates most of the long tail, and the tlidb talent id join (F27) already proves the approach.
-2. Which import UX (section 11): the recommendation is a one-shot pick plus a re-import button, with desktop auto-detect as a convenience.
-3. May the redacted fixture (`UE_game-redacted.log`) be committed as a test fixture? It stays out of git until answered (it lives in the gitignored `docs/local/`).
+2. Import UX (section 11) is decided: never upload, web parses client-side, desktop picks or auto-detects once and offers re-import on relog.
+3. **Fixtures (decided):** no log-derived fixture is committed to tlibuilder. Real logs go to a private location (`tli-data` `fixtures/ue-log/` preferred, or a small private fixtures repo; see section 6) and are loaded from an optional path; tests skip when it is absent. Synthetic hand-written mini dumps with no player data may be committed. Open: which of the two private locations to use.
 
 ## 8. Owner experiments still needed (all small; each names the single thing it settles)
 
 1. **Pactspirit names (section 10):** name the spirit on each of the six contract slots after a relog, repeated (six id/name pairs per relog). Alternatively tell us if the in-game list can be sorted by name or id; the screenshots show the default order is not id order.
 2. **Which sequence is on the weapon (F31)?** Say which tower sequence you placed (its text and the sequence numbers). One line settles whether `160419013` is "+20 % Attack Critical Strike Rating for this gear".
 3. **Vorax ring (F32):** open the ring and send a screenshot of its tooltip (graft name, base stats, all six affixes with their tier names). One item is enough to confirm what `source` 15/16/17 and `800000-800002` mean.
-4. **Sage prepared skill (F24):** which Empower or Curse skill does your Licorice Note currently prepare (the single `licoricePreparedSkill`)? Is anything called a "specialty elixir" in your game other than the Special Scent Bottle (Licorice Tincture Blend)? Our trait data says they are the same.
+4. **Sage prepared skill (F24):** which Empower or Curse skill does your Licorice Note currently prepare (the single `licoricePreparedSkill`)? (The "specialty elixir" question is closed: it is the Scent Bottle, modelled by `customSkillSlots` only.)
 5. **A non-Sage capture** (any other hero): confirms `customSkillSlots` is empty and gives other hero/trait/memory ids.
 6. **A tree with 31-32 non-core nodes** and the top-row legendary nodes allocated (Warrior, The Brave, Ranger, Magister, Warlock, Prophet, Marksman, Elementalist, Artisan, Arcanist, Alchemist), to measure the tree cutoff directly (section 9).
 7. **Anything else not yet seen:** a hero-memory or trait change (to see their ids move), and an ethereal prism.
