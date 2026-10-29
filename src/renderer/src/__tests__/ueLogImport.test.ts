@@ -3,9 +3,9 @@ import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { scanUeGameLog } from '../importers/ueLog/parse'
 import { createUeLogBuild, groupUeLogCaptures } from '../importers/ueLog/toBuild'
-import type { Graft, LegendaryGearItem } from '../api/client'
+import type { CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem } from '../api/client'
 
-const log = `prefix before dump\n----Socket RecvMessage STT----GetPlayerData----SynId = 1\n|+player+Level [98]\n|+player+HeroId [700]\n|+heroCharacterv3OverView+heroPurchaseId [3002]\n|+bag+wearItems+1+Index [7]\n|+bag+wearItems+1+Item+BaseId [380009]\n|+bag+wearItems+1+Item+Level [89]\n|+bag+wearItems+1+Item+UniqueItmId [0]\n|+bag+wearItems+1+Item+BaseAffix+1+Id [172103200]\n|+bag+wearItems+1+Item+Prefix+1+Id [251471001]\n|+bag+wearItems+1+Item+Prefix+1+source [16]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+1 [2.0]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+2 [-3.0]\n|+bag+wearItems+1+Item+Suffix+1+Id [51533751]\n|+bag+wearItems+1+Item+Suffix+1+source [17]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+1 [1.0]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+2 [3.0]\n----Socket RecvMessage End----\ntail after dump\n`
+const log = `prefix before dump\n----Socket RecvMessage STT----GetPlayerData----SynId = 1\n|+player+Level [98]\n|+player+HeroId [700]\n|+heroCharacterv3OverView+heroPurchaseId [3002]\n|+bag+wearItems+1+Index [7]\n|+bag+wearItems+1+Item+BaseId [380009]\n|+bag+wearItems+1+Item+Level [89]\n|+bag+wearItems+1+Item+UniqueItmId [0]\n|+bag+wearItems+1+Item+BaseAttrAffix+1+Id [800000]\n|+bag+wearItems+1+Item+BaseAffix+1+Id [172103200]\n|+bag+wearItems+1+Item+ChipAffix+1+Id [160567034]\n|+bag+wearItems+1+Item+EnchantAffixs+1+Id [3704005]\n|+bag+wearItems+1+Item+Corrode [true]\n|+bag+wearItems+1+Item+Prefix+1+Id [251471001]\n|+bag+wearItems+1+Item+Prefix+1+source [16]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+1 [2.0]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+2 [-3.0]\n|+bag+wearItems+1+Item+Suffix+1+Id [51533751]\n|+bag+wearItems+1+Item+Suffix+1+source [17]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+1 [1.0]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+2 [3.0]\n----Socket RecvMessage End----\ntail after dump\n`
 
 function chunkedFile(text: string, chunkSize = 17): File {
   const bytes = new TextEncoder().encode(text)
@@ -39,9 +39,13 @@ describe('UE_game.log preview', () => {
         itemLevel: 89,
         equippedSlot: 7,
         uniqueItemId: 0,
+        baseAttrAffixIds: ['800000'],
         baseAffixIds: ['172103200'],
         prefixes: [{ id: '251471001', source: '16', values: [2, -3] }],
         suffixes: [{ id: '51533751', source: '17', values: [1, 3] }],
+        chipAffixes: [{ id: '160567034', source: null, values: [] }],
+        enchantAffixes: [{ id: '3704005', source: null, values: [] }],
+        corroded: true,
       }],
       truncatedSections: [],
     })
@@ -97,7 +101,10 @@ describe('UE_game.log build conversion', () => {
       game_id: 380009,
       name: 'Vorax Limb: Digits',
       legendary_items: [],
-      base_affixes: [],
+      base_affixes: [
+        { modifier_id: '800000', raw_text: '0 Gear Armor', expression: '0 Gear Armor', condition: null, affix_kind: 'numeric', numeric_values: [], tier: 'Base', level: 0, weight: 0, affix_type: 'Base' },
+        { modifier_id: '172103200', raw_text: 'Have Fervor', expression: 'Have Fervor', condition: null, affix_kind: 'special', numeric_values: [], tier: 'Base', level: 0, weight: 0, affix_type: 'Base Affix' },
+      ],
       affixes: [
         { modifier_id: '251471001', raw_text: '+(#) Max Channeled Stacks, -(#) % additional damage', expression: '+(#) Max Channeled Stacks, -(#) % additional damage', condition: null, affix_kind: 'numeric', numeric_values: [{ kind: 'range', sign: '+', min: 1, max: 3, raw: '+(1-3)' }, { kind: 'range', sign: '-', min: 1, max: 3, raw: '-(1-3)' }], tier: '1', level: 1, weight: 1, affix_type: 'Ultimate Affix' },
         { modifier_id: '251181602', raw_text: '+(#) % damage', expression: '+(#) % damage', condition: null, affix_kind: 'numeric', numeric_values: [{ kind: 'range', sign: '+', min: 37, max: 50, raw: '+(37-50)' }], tier: '2', level: 1, weight: 1, affix_type: 'Basic Affix' },
@@ -118,6 +125,7 @@ describe('UE_game.log build conversion', () => {
         itemLevel: 89,
         equippedSlot: 7,
         uniqueItemId: null,
+        baseAttrAffixIds: ['800000'],
         baseAffixIds: ['172103200'],
         prefixes: [
           { id: '251471001', source: '16', values: [2, -3] },
@@ -129,10 +137,13 @@ describe('UE_game.log build conversion', () => {
           { id: '252180102', source: '15', values: [18] },
           { id: '51533751', source: '17', values: [1, 3] },
         ],
+        chipAffixes: [],
+        enchantAffixes: [],
+        corroded: false,
       }],
     }
     const dawnBreak = {
-      item_id: 'dawn_break', name: 'Dawn Break', internal_id: 113337, base_type: 'Ring', required_level: 1,
+      item_id: 'dawn_break', name: 'Dawn Break', game_id: 113337, base_type: 'Ring', required_level: 1,
       drop_level: null, flavor_text: null, drop_sources: [], glossary: {}, random_affixes: {},
       variants: { default: { implicits: [], explicits: [{
         raw_text: '+(#) % additional damage per (#) Fervor Rating', modifier_id: '51533751',
@@ -143,17 +154,97 @@ describe('UE_game.log build conversion', () => {
     const { build, warnings } = createUeLogBuild(character, [graft], [dawnBreak])
     expect(build.gear).toHaveLength(1)
     expect(build.gear?.[0]).toMatchObject({ item_id: 'vorax_limb_digits', slot: 'ring2', is_vorax: true, legendary_source: 'Dawn Break', legendary_affix_count: 1 })
-    expect(build.gear?.[0].affixes.map(affix => affix.modifier_id)).toEqual(['251471001', '251181602', '251181802', '252181602', '252180102', '51533751'])
+    expect(build.gear?.[0].affixes.map(affix => affix.modifier_id)).toEqual(['800000', '172103200', '251471001', '251181602', '251181802', '252181602', '252180102', '51533751'])
     expect(build.gear?.[0].customizations).toEqual([
-      { affix_index: 0, chosen_values: { 0: 2, 1: -3 }, chosen_placeholder_key: null },
-      { affix_index: 1, chosen_values: { 0: 41 }, chosen_placeholder_key: null },
-      { affix_index: 2, chosen_values: { 0: 25, 1: 35 }, chosen_placeholder_key: null },
-      { affix_index: 3, chosen_values: { 0: 13 }, chosen_placeholder_key: null },
-      { affix_index: 4, chosen_values: { 0: 18 }, chosen_placeholder_key: null },
-      { affix_index: 5, chosen_values: { 0: 1, 1: 3 }, chosen_placeholder_key: null },
+      { affix_index: 2, chosen_values: { 0: 2, 1: -3 }, chosen_placeholder_key: null },
+      { affix_index: 3, chosen_values: { 0: 41 }, chosen_placeholder_key: null },
+      { affix_index: 4, chosen_values: { 0: 25, 1: 35 }, chosen_placeholder_key: null },
+      { affix_index: 5, chosen_values: { 0: 13 }, chosen_placeholder_key: null },
+      { affix_index: 6, chosen_values: { 0: 18 }, chosen_placeholder_key: null },
+      { affix_index: 7, chosen_values: { 0: 1, 1: 3 }, chosen_placeholder_key: null },
     ])
     expect(build.gear?.[0].craft_slot_positions).toEqual([2, 3, 4, 5, 6, 7])
-    expect(warnings).toContain('Vorax Limb: Digits: base affix 172103200 is not in the current Builder catalogs and was left out.')
+    expect(warnings).not.toContain('Vorax Limb: Digits: base affix 172103200 is not in the current Builder catalogs and was left out.')
     expect(build.characterLevel).toBe(98)
+  })
+
+  it('maps ordinary gear by game_id and applies logged modifier_id rolls', () => {
+    const character = {
+      dumpNumber: 1,
+      characterName: null,
+      level: 98,
+      heroId: 1800,
+      heroPurchaseId: null,
+      truncatedSections: [],
+      gear: [{
+        baseId: 3600,
+        itemLevel: 89,
+        equippedSlot: 1,
+        uniqueItemId: 0,
+        baseAttrAffixIds: ['580000'],
+        baseAffixIds: [],
+        prefixes: [{ id: '104210001', source: '10', values: [90] }],
+        suffixes: [],
+        chipAffixes: [],
+        enchantAffixes: [],
+        corroded: false,
+      }],
+    }
+    const baseItems = [{ item_id: 'str_helmet', name: 'STR Helmet', base_items: [{
+      name: "Brute's Helm", game_id: 3600, implicit_modifier_ids: ['580000'], required_level: 1,
+      armor: null, implicits: ['+168 Gear Armor'],
+    }] }] as CraftBaseItemGroup[]
+    const craftTypes = [{ item_id: 'str_helmet', name: 'STR Helmet', base_items: [], affixes: [{
+      modifier_id: '104210001', raw_text: '+(#) Max Life', expression: '+(#) Max Life', condition: null,
+      affix_kind: 'numeric', numeric_values: [{ kind: 'fixed', sign: '+', value: 1, raw: '+1' }],
+      source: 'STR Helmet', affix_type: 'Basic Pre-fix', tier: '1',
+    }] }] as unknown as CraftBaseType[]
+
+    const result = createUeLogBuild(character, [], [], baseItems, craftTypes)
+
+    expect(result.build.gear).toHaveLength(1)
+    expect(result.build.gear?.[0]).toMatchObject({
+      item_id: 'brute_s_helm', name: "Brute's Helm (Crafted)", base_type: "Brute's Helm",
+      required_level: 1, slot: 'helmet', is_crafted: true, implicit_count: 1,
+      craft_slot_positions: [2],
+    })
+    expect(result.build.gear?.[0].affixes.map(affix => affix.modifier_id)).toEqual(['580000', '104210001'])
+    expect(result.build.gear?.[0].customizations).toEqual([
+      { affix_index: 1, chosen_values: { 0: 90 }, chosen_placeholder_key: null },
+    ])
+  })
+
+  it('resolves unique gear by game_id when its base item is not in the craft list', () => {
+    const unique = {
+      item_id: 'omniscient_prototype', name: 'Omniscient Prototype', game_id: 112145, base_type: 'Divine Body',
+      required_level: 1, drop_level: null, flavor_text: null, drop_sources: [], glossary: {}, random_affixes: {},
+      variants: {
+        base: { implicits: [], explicits: [] },
+        corroded: { implicits: [], explicits: [{
+          raw_text: '+(#) Gear Armor', modifier_id: '45100001', expression: '+(#) Gear Armor', condition: null,
+          affix_kind: 'numeric', numeric_values: [{ kind: 'fixed', sign: '+', value: 1, raw: '+1' }],
+        }] },
+      },
+    } as unknown as LegendaryGearItem
+    const character = {
+      dumpNumber: 1, characterName: null, level: 54, heroId: 1800, heroPurchaseId: null,
+      truncatedSections: [], gear: [{
+        baseId: 3299, itemLevel: 54, equippedSlot: 4, uniqueItemId: 112145,
+        baseAttrAffixIds: [], baseAffixIds: [], prefixes: [],
+        suffixes: [{ id: '45100001', source: '6', values: [5] }],
+        chipAffixes: [], enchantAffixes: [], corroded: true,
+      }],
+    }
+
+    const result = createUeLogBuild(character, [], [unique])
+
+    expect(result.build.gear?.[0]).toMatchObject({
+      item_id: 'omniscient_prototype', name: 'Omniscient Prototype', base_type: 'Divine Body',
+      slot: 'chest', implicit_count: 0, craft_slot_positions: [5],
+    })
+    expect(result.build.gear?.[0].affixes.map(affix => affix.modifier_id)).toEqual(['45100001'])
+    expect(result.build.gear?.[0].customizations).toEqual([
+      { affix_index: 0, chosen_values: { 0: 5 }, chosen_placeholder_key: null },
+    ])
   })
 })

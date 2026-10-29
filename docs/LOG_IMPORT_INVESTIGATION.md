@@ -1,9 +1,10 @@
 # Importing a character from `UE_game.log` — investigation and design
 
-Status: investigation plus a local draft-build importer (2026-10-29). The Import Build modal scans
-selected UE_game logs, groups captures by character name and HeroId, and creates a draft build from
-catalogued Vorax gear. It warns about gear and character fields it cannot import yet. The raw log
-remains gitignored and is never committed.
+Status: local draft importer and SS14 gear catalogs (2026-10-29). The Import Build modal scans
+selected UE_game logs and creates drafts with mapped Vorax, crafted, and unique gear. A synthetic
+three-item log opened in Electron and web with no item or affix mapping warnings. Hero, skills,
+talents, memories, and other character data still need importer support. The raw log remains
+gitignored and is never committed.
 
 **Clean-room statement.** An existing third-party log importer is source-available, not open source. Nothing here was
 copied or derived from its code or its ID dictionary. Everything marked **VERIFIED** was
@@ -37,7 +38,7 @@ older dump; "live" below means the redacted fixture.
 | 11 | Chip / extension affixes | `ChipAffix{1}{Id, DynArgs}` on a weapon is the **tower sequence** (F31, verified id to text). `extAffix` is not gear: it sits on a tree node under a prism (F20). | VERIFIED | partial: 1 id owner-confirmed, 1 matched by text, structure `1604` Intermediate / `1605` Advanced | importable once the crawler captures sequence ids (GAP-11) |
 | 12 | Belt blend (`beltBlend`) | `EnchantAffixs[1].Id` on the belt (`3401001`, `source` 13) = the blending-ritual `modifier_id` ("Restores 3 % of Life on defeat", owner-confirmed) | VERIFIED (F26) | yes (`blending_rituals.json`) | importable |
 | 12b | Tower sequence (`towerSequence`) | weapon `ChipAffix[1]`: `160419013` = "+20 % additional damage on Critical Strike" (Intermediate Sequence 1\|2\|5, owner-confirmed on weapon `1119`); two-weapon character: `160565034` = "+120 % Fearless Aura -20 % additional Fearless Sealed Mana Compensation" (Advanced 4\|4\|5\|6) by value match | VERIFIED (1 id) + matched (1) | no: `tower_sequence` entries carry no id | blocked on the id field |
-| 12c | **Vorax gear** (`is_vorax`, graft item, `legendary_source`, slots) | `BaseId` joins to graft page `Info id`; `Prefix/Suffix[].source` 15 = Basic/Advanced, 16 = Ultimate, 17 = Legendary; `BaseAffix` is the base affix; `BaseAttrAffix 800000-800002` are three zero attribute slots (F32) | Ring decoded line by line against its tooltip (6/6 affixes, IDs, rolls); all ten graft page IDs checked on tlidb; recrawl matches all five ordinary affix IDs on the sample Digits ring | Legendary affix `51533751` resolves to Dawn Break; base affix `172103200` is not in the graft craft-affix table | Ordinary Vorax affixes can map by ID after the recrawled catalog reaches canonical `tli-data`; base affixes and non-Vorax gear still need mappings |
+| 12c | **Vorax gear** (`is_vorax`, graft item, `legendary_source`, slots) | `BaseId` joins to graft `game_id`; `BaseAttrAffix` and `BaseAffix` join to modifier IDs; `Prefix/Suffix[].source` 15 = Basic/Advanced, 16 = Ultimate, 17 = Legendary | Ring decoded against its tooltip; all ten graft IDs and the sample Digits affix IDs appear in the recrawl | Graft index supplies base IDs `800000`–`800002` and `172103200`; canonical SS14 data now includes them | The importer maps the synthetic Vorax item without item or affix warnings |
 | 13 | Active skills + slot (`skills[]`) | `bag.wearItems` page -6 slots 1–5, `skillLayout`, `dressSkillItems` | VERIFIED | 25/25 | importable |
 | 14 | Supports / activation medium / noble / magnificent, `support_index` | page -6 slot ids (F11), item `BaseId` | VERIFIED | yes via gameId | importable |
 | 15 | Skill & support levels (`level`) | item `SkillItemLevel`/`Level` | VERIFIED | n/a | importable; 3/39 equipped skill objects were cut by the 30-cap (F9) |
@@ -69,18 +70,18 @@ adds its full tier/range table and an `Info id`. The ten observed page IDs are H
 their page IDs: Digits 380009 and Neck 380006. The [Digits page](https://tlidb.com/en/Vorax_Limb_Digits)
 shows the `380009` Info id and the Basic, Advanced, and Ultimate affix tiers.
 
-The crawler recrawled all ten graft pages on 2026-10-29. The SS14 records include each page's
-`game_id` and 100% of the parsed craft affix rows carry TLIDB `modifier_id` values. The five
-ordinary affix IDs from the sample Digits ring appear on the Digits page. The legendary ID
-`51533751` remains in the legendary gear catalog. The base affix ID `172103200` does not appear in
-the graft craft-affix rows and still needs a source. The generated graft catalog was re-imported
-into the local Builder data for testing; it still needs the canonical `tli-data` update.
+The crawler recrawled all ten graft pages and the Graft index on 2026-10-29. The index's `#Affix`
+table supplies Base Affix modifier IDs grouped by Source. Each graft item card supplies its
+`800000`–`800002` base-attribute IDs. The Digits record now contains 37 Base Affix rows, including
+`172103200` (Have Fervor) and `172103400` (+2 Spell Skill Level). Canonical SS14 graft data includes
+these rows and the item `game_id` values.
 
 ## 1. Verified format facts
 
 | # | Fact | Evidence |
 |---|---|---|
 | F1 | The file starts with a UTF-8 BOM and uses CRLF. Decode as `utf-8-sig`, normalise `\r\n`. | first bytes `EF BB BF` |
+`. | first bytes `EF BB BF` |
 | F2 | The login dump is one block: `----Socket RecvMessage STT----GetPlayerData----SynId = N` … `----Socket RecvMessage End----`. This log has exactly one (lines 22156–26751), preceded by a `SendMessage … GetPlayerData` with `+clientLang [en]`. | grep |
 | F3 | The block's first line shares its line with the log prefix `[ts][frame]TLNetGame: Display: [Game] `; the tree body follows on the next physical lines (no per-line log prefix). | read |
 | F4 | Tree syntax: each line is `|`-padding then one or more `+key` segments, optionally ending in ` [value]`. The **column of each `+`** is the nesting depth. Rule that parses all 4,595 lines: a line whose first `+` is at column *c* pops every open key at column ≥ *c*; its parent is the top of what remains; the rest of the `+key` segments on that line each nest one deeper. Lists are keyed `1,2,3…`. A key with a value has a trailing space in the key text (strip it). | spike parser, whole dump parsed, 33 top-level keys |
@@ -127,18 +128,18 @@ SS12–SS14 + crosswalk (`docs/local/log-import/bridge*.py`).
 
 | Log ID kind | Hit | Where it lands in our data | Verdict |
 |---|---|---|---|
-| Legendary `UniqueItmId` | **7/7** | `_legendary_gear.json items[].internal_id` (also `crosswalk/SS13/legendaries.json` gameId) | resolved |
+| Legendary `UniqueItmId` | **7/7** | `_legendary_gear.json items[].game_id` | resolved |
 | Legendary affix ids (`51…`) | **30/30** | `_legendary_gear.json … variants.base.explicits[].modifier_id`; corroded: `variants.corroded.explicits[]` | resolved |
-| Gear implicits (`FixedBaseAffix`/`BaseAttrAffix`, e.g. `660002`) | 11/11 | `_craft_base_items.json base_items[].implicits[].modifier_id` — and these, not `BaseId`, identify the **base item**, with some ambiguity: `580010` is shared by several chests | resolved with disambiguation |
+| Gear implicits (`FixedBaseAffix`/`BaseAttrAffix`, e.g. `660002`) | 11/11 | `_craft_base_items.json base_items[].implicit_modifier_ids`; base items join by `game_id` | resolved |
 | Corrosion base affix (`600…`) | 2/2 | `_craft_base_types.json corrosion_base_affixes[].modifier_id` | resolved |
-| **Gear `BaseId`** (`1219,3011,4639…`) | **0/9** | no numeric base id anywhere in tli-data | **GAP-1** |
-| **Crafted/rare gear affix ids** (`106100001`, `110100001`, `140100401`, `104900002`, …) | **0/12** | `_craft_base_types.json affixes[]` carries `modifier_id` + `tier` but in a 7-digit space (`1502300`); the log uses 9-digit ids | **GAP-2** |
+| **Gear `BaseId`** (`1219,3011,4639...`) | **624/624 catalog rows** | `_craft_base_items.json base_items[].game_id`; importer resolves ordinary bases by `game_id` | resolved for catalogued bases |
+| **Crafted/rare gear affix IDs** | matched by `modifier_id` in refreshed SS14 craft tables | `_craft_base_types.json affixes[].modifier_id`; importer maps catalog matches | synthetic crafted gear mapped; representative real-log coverage remains to verify |
 | Affix `source` (`6`,`12`) and `Corrode` flag | n/a | `source` is a game flag (6 = corrosion/desecration base, 12 = a special source) — meaning not documented | **GAP-2b** |
 | Skill `BaseId` (all 36 equipped, 25 unique) | **25/25** | `crosswalk/SS13/skills.json rows[].compendium.gameId` (721/721 rows carry one); all 25 names exist in SS14 `_skills.json` | resolved (via the SS13 crosswalk) |
 | Skill support categories | resolved | support / activation medium / noble all resolve by the same `gameId` (e.g. 8003–8006 mediums, 7746 noble) | resolved |
 | Skill support **line choices/tiers** (`Prefix{Id,DynArgs}` `771031022…`) | **0/5** | none | **GAP-3** |
 | `customSkillSlots` option ids (`1132`, `2231`...) | 5/5 owner picks | resolved by structure: third digit = position in the tlidb ingredient category (F24) | resolved |
-| Hero memory `BaseId` 71001–71003 | **3/3** | `_hero_memories.json memory_types[].internal_id` | resolved |
+| Hero memory `BaseId` 71001-71003 | 3/3 | `_hero_memories.json memory_types[].game_id` | resolved |
 | Memory affix ids (`4021…`, `4022…`) | **12/15** | `crosswalk/SS13/memory-affixes.json rows[].compendium.gameId` | mostly resolved; the 3 `4031…` BaseAttrAffix ids miss (**GAP-4**) |
 | Hero id (18001/1800) and trait ids (`1800011`...) | **0/4** | `crosswalk/SS13/hero-traits.json` `gameId` is null on all 27 rows | **GAP-5** |
 | `geniusId` | **119/120** | tlidb `talent_id` in `output/SS13/talent_tree/*.json` (F27); the geometry rule (F12) is only a cross-check | **resolved by id** |
@@ -149,9 +150,11 @@ SS12–SS14 + crosswalk (`docs/local/log-import/bridge*.py`).
 | Prism `BaseId` 360614 and affixes `1204…` | **0/3** | `crosswalk/SS13/prisms.json` has no ids | **GAP-7** |
 | Pactspirit `servantId` | **0/30 real** (4 numeric collisions with unrelated skill ids) | `crosswalk/SS13/pactspirits.json` `gameId` null on 175/175 | **GAP-8** (see section 5 for the clean-source search) |
 
-**Bottom line:** equipped legendary gear, all skills and supports (by name), hero memories (mostly), and the
-talent grid import with data we already have. Rare/crafted gear, support line rolls, hero traits, slates,
-prisms and pactspirits need game-id fields that tli-data does not carry yet.
+**Current coverage:** the canonical catalogs now provide `game_id` for ordinary bases, unique gear,
+skills, and Vorax grafts, plus `modifier_id` for the refreshed craft and Graft affix tables.
+The importer maps Vorax, crafted, and unique gear. It does not yet import skills or the other
+character sections. Hero/trait, memory base-stat, slate, prism, pactspirit, and tower-sequence
+joins remain incomplete or require more representative log evidence.
 
 ## 3. Mapping to the TLI Builder build model
 
@@ -209,25 +212,20 @@ client-side and hands it to the existing open/save path; it never edits `backend
 | F13/F16 | **resolved for the prefix table** (F27, from tlidb `talent_id`); core-talent slot rule still needs one more log (HYPOTHESIS) |
 | Truncation (F5) | see section 9: lists are re-shuffled per login for skills, pacts and servants (merge logins), deterministic for talent trees (cut = the highest-id top-row nodes, at most 2 on 13 of 31 trees) |
 
-## 6. Implementation plan (follow-up tasks)
+## 6. Remaining importer work
 
-1. **Done: local draft-build path.** The renderer scans selected files, groups captures by character
-   name and HeroId, maps Vorax affix IDs to catalog rows, and opens a draft build with the observed rolls.
-   Other gear and character data remain in the import warnings.
-2. **Done: graft recrawl.** All ten SS14 Graft pages now have page IDs and linked craft-affix IDs in
-   crawler output. The local Builder graft catalog was regenerated for testing.
-3. **Update canonical graft data.** Carry graft base IDs and modifier IDs through the canonical
-   `tli-data` dataset so desktop and web builds receive the new mappings.
-4. **Map other equipped gear.** Refresh base-item IDs and identify the remaining gear and affix fields.
-   Do not treat a raw base ID as an item name without a catalog match.
-5. **Complete character import.** Parse and map skills, traits, trees, memories, pacts, and other
-   supported fields. Merge only fields that have a verified cross-login rule.
-4. **Add remaining gear.** Map equipped legendary and crafted gear by verified base and modifier IDs.
-5. **Add character sections.** Map skills/supports and level; talent grids; memories, slates, prisms,
-   pact spirits, fates, and scent bottles as their ID bridges are verified. Follower details and Timid's
-   prepared skill are not present as direct fields in the log.
-6. **Merge useful capture data.** Combine logins for the selected character only when the field's
-   merge rule is known. Report every list truncated at 30 entries. Never group by or display account IDs.
+1. Import equipped active and passive skills, supports, activation mediums, and their levels. Merge
+   the shuffled skill lists across selected logins only when character identity matches.
+2. Import hero and trait selections, talent trees, memories, slates, prisms, pact spirits, fates, and
+   scent-bottle choices where the log and catalogs provide a verified join.
+3. Compare every equipped slot and affix in representative real logs against TLIDB. The current
+   synthetic fixture verifies gear mapping but does not establish full real-log coverage.
+4. Keep the import client-side. Never store or display account identifiers, and report lists truncated
+   at 30 entries.
+
+The crawler now captures the SS14 `Follower`, `Tartarus Skill`, and `Origin Tartarus Skill` pages.
+These catalogs support future follower import, but the game log does not contain follower selection
+or follower skill loadout fields.
 
 **Test fixtures (owner decision 2026-10-28): no log-derived file is ever committed to the tlibuilder repo.**
 The owner also rejected `tli-data` as a home for real logs. Do not create a fixture repository until the owner asks.
@@ -307,23 +305,24 @@ tlidb already exposes the game id on several pages and our crawler already captu
 | Category | Log field | Crawler/tli-data field | Join today | Follow-up |
 |---|---|---|---|---|
 | Talent nodes, core talents, slate talents | `geniusId`, `talentId`, `*TalentList` | `talent_tree[].talent_id` | **119/120, 10/10, 13/14** | none; persist `talent_id` in the season tree files (they already carry it in the raw capture but the shipped `trees` use column/row) |
-| Legendary gear | `UniqueItmId` | `legendary_gear.internal_id` | **6/6 equipped + 7/7 earlier** | none |
+| Legendary gear | `UniqueItmId` | `legendary_gear.game_id` | **6/6 equipped + 7/7 earlier** | none |
 | Legendary affixes, base implicits | `Prefix/BaseAffix/FixedBaseAffix Id` | `modifier_id` | **30/30, `FixedBaseAffix` 6/6**, `BaseAttrAffix` 16/25 | extend `modifier_id` to the 9 `BaseAttrAffix` misses (`4031...` memory stats, `1204...` prism) |
-| Hero memories | `BaseId` 71001-71003 | `hero_memories.internal_id` | **3/3** | none |
+| Hero memories | `BaseId` 71001-71003 | `hero_memories.game_id` | **3/3** | none |
 | Belt blend / blending rituals | `EnchantAffixs Id` | `blending_rituals.modifier_id`, `talent_id` | **2/2** | none |
 | Nether King slate | `BaseId` 394004 | `nether_kings_divinity.internal_id` | **match** (Judgment = 394004) | the other NK slates have `internal_id` too; add the base talent `9000006x` ids |
-| Skills, supports, mediums | `BaseId` | `internal_id` (parser reads an `id:` line) | **null in all SS13 captures** although the crosswalk joins via Compendium ids | probe one skill page: if the `id:` line exists the parser misses it; fix the parser and persist `internal_id` |
-| Gear base items | `BaseId` | none | 0/9 | `craft_base_type`/`craft_base_items` pages: probe for the `id:` line and capture it per base item |
-| Crafted/rare affix ids | `Prefix/Suffix Id` (9-digit `104210001`...) | `craft_base_type` `modifier_id` (7-8 digits) | 0/32 after trimming 2-3 digits | probe whether the page exposes the 9-digit id per tier (`data-modifier-id` is attached to a line, may be a group id); capture both |
+| Skills, supports, mediums | `BaseId` | `skills.game_id` | present for catalogued SS14 skill pages; importer does not yet build skill slots | import page -6 items and merge captures by character |
+| Gear base items | `BaseId` | `craft_base_items.game_id` | 624/624 base records have IDs | map equipped bases and verify each log ID |
+| Crafted/rare affix IDs | `Prefix/Suffix Id` | `craft_base_type.modifier_id` | synthetic gear matched refreshed SS14 data | compare every equipped affix in representative real logs |
 | Hero + trait ids | `heroPurchaseId`, `activeId` | none | 0/4 | hero trait page `id:` line; capture hero id and trait id |
 | Divinity slates (base, legendary) | `BaseId`, `UniqueItmId`, `ShapeId` | `divinity_slate` (no ids) | 0 | capture `internal_id` and shape for every base/legendary slate kind |
 | Prisms | `BaseId` 360620, affix `1204...`, `1234...` | `ethereal_prism` (no ids) | 0 | capture `internal_id` and affix `modifier_id`s |
 | Pactspirits | `servantId` | `pactspirit` (no ids) | 0 | probe an `id:` line; otherwise observation (below) |
 | Destinies / kismets | `tattoInfo.BaseId` | `destiny` (no ids) | 0 as a field, but **4/4 by icon number** (`3500NN`, `3503NN`, `3505NN`, F29) | probe an `id:` line; add `internal_id` so the icon number is not needed |
 | Tower sequences | `ChipAffix{1}.Id` (`160419013`) | `tower_sequence` `{affix, source}` (no id) | 0 | capture the id per sequence entry (GAP-11); the page may show it as `data-modifier-id` or an `id:` line |
-| Vorax grafts and affixes | `BaseId` (`380009`), `Prefix/Suffix Id` (`25xxxxxxx`, `51533751`), `BaseAffix` (`172103200`) | `grafts` (`game_id`, `modifier_id`) | ten `game_id` values confirmed; five sample Digits affix IDs matched by recrawl | find the Have Fervor ID |
+| Vorax grafts and affixes | `BaseId`, affix IDs | `grafts.game_id`, `modifier_id` | ten graft IDs and sample affixes confirmed; base ID `172103200` found on Graft index | canonical SS14 catalog refreshed |
+| Followers and follower skills | variant `game_id`; linked skill paths | `_followers.json`, `_tartarus_skills.json`, `_origin_tartarus_skills.json` | 32 follower variants, 81 Tartarus skills, 54 Origin Tartarus skills | log has no follower-selection fields |
 
-The game-ID claim is confirmed where we have matched captures (talents, legendaries, memories, belt blend, and the observed Vorax graft IDs). We opened the tlidb Graft index and all ten linked graft pages. The sample Vorax affix IDs match tlidb's per-affix `modifier_id` values. Other categories still need their own page probes.
+The crawler now uses `game_id` for item and skill IDs and `modifier_id` for modifier lines. The SS14 Graft index supplies Vorax base-affix IDs, and canonical data contains the refreshed rows. Other unresolved ID bridges are listed below.
 
 **Pactspirit id table by observation** (current table: F34). The id space is unknown to us and the page may not expose it, so the owner's own panel is the ground truth. Procedure, cheapest first:
 
@@ -338,12 +337,11 @@ The game-ID claim is confirmed where we have matched captures (talents, legendar
 2. **Web:** the log is parsed in the browser only (client-side), picker only.
 3. **Desktop:** the player picks or auto-detects the log once, then the app offers an "update build" re-import when they relog.
 
-The local importer is implemented in the shared Import Build modal. It reads files in the renderer,
-groups login captures by character name and HeroId, and offers one draft build per character. The
-draft uses the most recently modified selected log and imports Vorax affixes that match catalog IDs.
-It reports unmapped gear, missing Vorax base affixes, and character data it does not import. The
-importer does not yet merge item state across logins or import skills, trees, memories, and other
-character data. Talent-tree truncation (section 9) remains a confirmed gap.
+The local importer runs in the shared Import Build modal. It creates drafts with mapped Vorax,
+crafted, and unique gear. The synthetic three-item fixture produced the same import warnings in
+Electron and web, with no gear or affix mapping warnings. The importer does not yet import skills,
+trees, memories, or other character data, and it does not merge item state across logins.
+Talent-tree truncation remains a confirmed gap (section 9).
 
 To try it from this worktree, run `npm run dev:slot`, choose **Import Code**, open **Game log preview**,
 select `UE_game.log` or its backup files, choose a character, and click **Create draft build**. Review

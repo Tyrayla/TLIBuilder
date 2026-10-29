@@ -18,9 +18,13 @@ export interface UeLogGearItem {
   itemLevel: number | null
   equippedSlot: number | null
   uniqueItemId: number | null
+  baseAttrAffixIds: string[]
   baseAffixIds: string[]
   prefixes: UeLogAffix[]
   suffixes: UeLogAffix[]
+  chipAffixes: UeLogAffix[]
+  enchantAffixes: UeLogAffix[]
+  corroded: boolean
 }
 
 export interface UeLogCharacterPreview {
@@ -146,6 +150,11 @@ function gearRows(tree: Record<string, unknown>): UeLogGearItem[] {
       itemLevel: numberValue(scalar(item.Level)),
       equippedSlot: numberValue(scalar(record.Index)),
       uniqueItemId: numberValue(scalar(item.UniqueItmId)),
+      baseAttrAffixIds: entries(item.BaseAttrAffix).flatMap(row => {
+        if (!row || typeof row !== 'object') return []
+        const id = scalar((row as Record<string, unknown>).Id)
+        return typeof id === 'string' ? [id] : []
+      }),
       baseAffixIds: entries(item.BaseAffix).flatMap(row => {
         if (!row || typeof row !== 'object') return []
         const id = scalar((row as Record<string, unknown>).Id)
@@ -153,6 +162,9 @@ function gearRows(tree: Record<string, unknown>): UeLogGearItem[] {
       }),
       prefixes: affixRows(item.Prefix),
       suffixes: affixRows(item.Suffix),
+      chipAffixes: affixRows(item.ChipAffix),
+      enchantAffixes: affixRows(item.EnchantAffixs),
+      corroded: scalar(item.Corrode) === 'true',
     }]
   })
 }

@@ -78,7 +78,7 @@ def test_bare_number_not_extracted():
 
 _SAMPLE_ITEM = {
     "name": "Imperial Iron Sentry",
-    "internal_id": 112216,
+    "game_id": 112216,
     "base_type": "Long Night Sorcerer's Mask",
     "required_level": 58,
     "drop_level": 58,

@@ -1,4 +1,4 @@
-import type { Build, EquippedGearItem, GearSlot, Graft, LegendaryAffix, LegendaryGearItem } from '../../api/client'
+import type { Build, CraftBaseItemGroup, CraftBaseType, EquippedGearItem, GearSlot, Graft, LegendaryAffix, LegendaryGearItem } from '../../api/client'
 import type { UeLogCharacterPreview, UeLogGearItem } from './parse'
 
 export interface UeLogBuildResult {
@@ -79,7 +79,7 @@ function toGraftAffix(
     return { affix: { ...match.affix, affix_type: 'Legendary' }, sourceItem: match.item.name }
   }
 
-  const poolAffix = graft.affixes.find(candidate => candidate.modifier_id === id)
+  const poolAffix = [...graft.base_affixes, ...graft.affixes].find(candidate => candidate.modifier_id === id)
   if (!poolAffix) return null
   const affix: LegendaryAffix = {
     raw_text: poolAffix.raw_text,
@@ -101,6 +101,47 @@ function toGraftAffix(
   return { affix }
 }
 
+function toCraftAffix(id: string, craftTypes: CraftBaseType[]): LegendaryAffix | null {
+  const found = craftTypes.flatMap(type => type.affixes).find(candidate => candidate.modifier_id === id)
+  if (!found) return null
+  return {
+    raw_text: found.raw_text,
+    modifier_id: found.modifier_id ?? id,
+    expression: found.expression,
+    condition: found.condition,
+    affix_kind: found.affix_kind,
+    numeric_values: found.numeric_values,
+    affix_type: found.affix_type,
+    tier: found.tier,
+    stat_key: found.stat_key,
+    stat_keys: found.stat_keys,
+    is_range_split: found.is_range_split,
+    min_stat_keys: found.min_stat_keys,
+    max_stat_keys: found.max_stat_keys,
+    dual_stat_groups: found.dual_stat_groups,
+    unit: found.unit,
+  }
+}
+
+function itemSlot(item: UeLogGearItem, warnings: string[]): GearSlot | null {
+  const slot = SLOT_BY_LOG_INDEX[item.equippedSlot ?? -1] ?? null
+  if (!slot) warnings.push(`Gear base ${item.baseId ?? 'unknown'}: equipped slot ${item.equippedSlot ?? 'unknown'} was not recognized.`)
+  return slot
+}
+
+function slug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+}
+
+function warnUnsupportedLogAffixes(item: UeLogGearItem, name: string, warnings: string[]) {
+  for (const id of item.chipAffixes.flatMap(row => row.id ? [row.id] : [])) {
+    warnings.push(`${name}: chip affix ${id} is not in the current Builder catalogs and was left out.`)
+  }
+  for (const id of item.enchantAffixes.flatMap(row => row.id ? [row.id] : [])) {
+    warnings.push(`${name}: enchant affix ${id} is not in the current Builder catalogs and was left out.`)
+  }
+}
+
 function buildVoraxItem(
   item: UeLogGearItem,
   graft: Graft,
@@ -112,9 +153,23 @@ function buildVoraxItem(
   const positions: number[] = []
   let legendarySource: string | null = null
 
-  for (const baseId of item.baseAffixIds) {
-    warnings.push(`${graft.name}: base affix ${baseId} is not in the current Builder catalogs and was left out.`)
+  for (const id of item.baseAttrAffixIds) {
+    const mapped = toGraftAffix(id, null, graft, legendaryItems)
+    if (!mapped) {
+      warnings.push(`${graft.name}: base attribute affix ${id} is not in the current Builder catalogs and was left out.`)
+      continue
+    }
+    affixes.push({ ...mapped.affix, affix_kind: 'implicit', affix_type: 'Base' })
   }
+  for (const id of item.baseAffixIds) {
+    const mapped = toGraftAffix(id, null, graft, legendaryItems)
+    if (!mapped) {
+      warnings.push(`${graft.name}: base affix ${id} is not in the current Builder catalogs and was left out.`)
+      continue
+    }
+    affixes.push(mapped.affix)
+  }
+  warnUnsupportedLogAffixes(item, graft.name, warnings)
 
   const groups = [
     { rows: item.prefixes, slotOffset: 2 },
@@ -137,8 +192,7 @@ function buildVoraxItem(
     })
   }
 
-  const slot = SLOT_BY_LOG_INDEX[item.equippedSlot ?? -1] ?? null
-  if (!slot) warnings.push(`${graft.name}: equipped slot ${item.equippedSlot ?? 'unknown'} was not recognized.`)
+  const slot = itemSlot(item, warnings)
   return {
     item_id: graft.item_id,
     name: `${graft.name.replace('Limb: ', '')} (Vorax)`,
@@ -150,6 +204,170 @@ function buildVoraxItem(
     is_vorax: true,
     legendary_source: legendarySource,
     legendary_affix_count: legendarySource ? 1 : 0,
+    implicit_count: affixes.filter(affix => affix.affix_kind === 'implicit').length,
+    craft_slot_positions: positions,
+  }
+}
+
+function findCraftBase(baseId: number | null, groups: CraftBaseItemGroup[]) {
+  if (baseId === null) return null
+  for (const group of groups) {
+    const item = group.base_items.find(candidate => candidate.game_id === baseId)
+    if (item) return { group, item }
+  }
+  return null
+}
+
+function buildCraftedItem(
+  item: UeLogGearItem,
+  base: CraftBaseItemGroup['base_items'][number],
+  craftTypes: CraftBaseType[],
+  legendaryItems: LegendaryGearItem[],
+  warnings: string[],
+): EquippedGearItem {
+  const name = base.name
+  const affixes: LegendaryAffix[] = []
+  const customizations: NonNullable<Build['gear']>[number]['customizations'] = []
+  const positions: number[] = []
+  let legendarySource: string | null = null
+  const implicitIds = base.implicit_modifier_ids ?? []
+  const requestedImplicitIds = item.baseAttrAffixIds.length ? item.baseAttrAffixIds : implicitIds
+
+  for (const id of requestedImplicitIds) {
+    const index = implicitIds.indexOf(id)
+    const text = index >= 0 ? base.implicits[index] : null
+    if (index < 0 || !text) {
+      warnings.push(`${name}: base attribute affix ${id} is not in the current Builder catalogs and was left out.`)
+      continue
+    }
+    affixes.push({
+      raw_text: text,
+      modifier_id: id,
+      expression: text,
+      condition: null,
+      affix_kind: 'implicit',
+      numeric_values: [],
+      affix_type: 'Base',
+    })
+  }
+
+  for (const [index, id] of item.baseAffixIds.entries()) {
+    const mapped = toCraftAffix(id, craftTypes)
+    if (!mapped) {
+      warnings.push(`${name}: base affix ${id} is not in the current Builder catalogs and was left out.`)
+      continue
+    }
+    positions.push(index)
+    affixes.push(mapped)
+  }
+
+  const addExplicitRows = (rows: UeLogGearItem['prefixes'], slotOffset: number) => {
+    rows.forEach((row, index) => {
+      if (!row.id) return
+      const uniqueMatch = row.source === '17' ? byModifierId(legendaryItems, row.id) : null
+      const mapped = uniqueMatch
+        ? { affix: { ...uniqueMatch.affix, affix_type: 'Legendary' }, sourceItem: uniqueMatch.item.name }
+        : null
+      const affix = mapped?.affix ?? toCraftAffix(row.id, craftTypes)
+      if (!affix) {
+        warnings.push(`${name}: affix ${row.id} could not be mapped and was left out.`)
+        return
+      }
+      if (mapped?.sourceItem) legendarySource = mapped.sourceItem
+      positions.push(slotOffset + index)
+      const affixIndex = affixes.length
+      affixes.push(affix)
+      const customization = rollCustomization(row.values, affixIndex)
+      if (customization) customizations.push(customization)
+    })
+  }
+
+  addExplicitRows(item.prefixes, 2)
+  addExplicitRows(item.suffixes, 5)
+  warnUnsupportedLogAffixes(item, name, warnings)
+  if (item.corroded) warnings.push(`${name}: corruption state is not represented for ordinary crafted gear.`)
+
+  return {
+    item_id: slug(name),
+    name: `${name} (Crafted)`,
+    base_type: base.name,
+    required_level: base.required_level,
+    affixes,
+    customizations,
+    slot: itemSlot(item, warnings),
+    is_crafted: true,
+    implicit_count: affixes.filter(affix => affix.affix_kind === 'implicit').length,
+    legendary_source: legendarySource,
+    legendary_affix_count: legendarySource ? 1 : 0,
+    craft_slot_positions: positions,
+  }
+}
+
+function buildUniqueItem(
+  item: UeLogGearItem,
+  unique: LegendaryGearItem,
+  craftTypes: CraftBaseType[],
+  legendaryItems: LegendaryGearItem[],
+  warnings: string[],
+): EquippedGearItem {
+  const variant = item.corroded
+    ? unique.variants.corroded ?? unique.variants.base ?? Object.values(unique.variants)[0]
+    : unique.variants.base ?? Object.values(unique.variants)[0]
+  const affixes: LegendaryAffix[] = [...variant.implicits, ...variant.explicits]
+  const customizations: NonNullable<Build['gear']>[number]['customizations'] = []
+  const positions: number[] = []
+  let legendarySource: string | null = null
+
+  const applyRolls = (rows: UeLogGearItem['prefixes'], slotOffset: number) => {
+    rows.forEach((row, index) => {
+      if (!row.id) return
+      let affixIndex = affixes.findIndex(candidate => candidate.modifier_id === row.id)
+      if (affixIndex < 0 && row.source === '17') {
+        const mapped = byModifierId(legendaryItems, row.id)
+        if (mapped) {
+          affixIndex = affixes.length
+          affixes.push({ ...mapped.affix, affix_type: 'Legendary' })
+          legendarySource = mapped.item.name
+        }
+      }
+      if (affixIndex < 0) {
+        const mapped = toCraftAffix(row.id, craftTypes)
+        if (mapped) {
+          affixIndex = affixes.length
+          affixes.push(mapped)
+        }
+      }
+      if (affixIndex < 0) {
+        warnings.push(`${unique.name}: affix ${row.id} could not be mapped and was left out.`)
+        return
+      }
+      positions.push(slotOffset + index)
+      const customization = rollCustomization(row.values, affixIndex)
+      if (customization) customizations.push(customization)
+    })
+  }
+
+  applyRolls(item.prefixes, 2)
+  applyRolls(item.suffixes, 5)
+  for (const id of [...item.baseAttrAffixIds, ...item.baseAffixIds]) {
+    if (affixes.some(affix => affix.modifier_id === id)) continue
+    const mapped = toCraftAffix(id, craftTypes)
+    if (mapped) affixes.push(mapped)
+    else warnings.push(`${unique.name}: base affix ${id} could not be mapped.`)
+  }
+  warnUnsupportedLogAffixes(item, unique.name, warnings)
+
+  return {
+    item_id: unique.item_id,
+    name: unique.name,
+    base_type: unique.base_type,
+    required_level: unique.required_level,
+    affixes,
+    customizations,
+    slot: itemSlot(item, warnings),
+    implicit_count: variant.implicits.length,
+    legendary_source: legendarySource,
+    legendary_affix_count: legendarySource ? 1 : 0,
     craft_slot_positions: positions,
   }
 }
@@ -159,21 +377,42 @@ export function createUeLogBuild(
   character: UeLogCharacterPreview,
   grafts: Graft[],
   legendaryItems: LegendaryGearItem[],
+  craftBaseItems: CraftBaseItemGroup[] = [],
+  craftBaseTypes: CraftBaseType[] = [],
 ): UeLogBuildResult {
   const warnings: string[] = []
   const gear: EquippedGearItem[] = []
   const unmappedBaseIds: number[] = []
   for (const item of character.gear) {
     const graft = grafts.find(candidate => candidate.game_id === item.baseId)
-    if (!graft) {
-      if (item.baseId !== null) unmappedBaseIds.push(item.baseId)
+    if (graft) {
+      gear.push(buildVoraxItem(item, graft, legendaryItems, warnings))
       continue
     }
-    gear.push(buildVoraxItem(item, graft, legendaryItems, warnings))
+
+    const unique = item.uniqueItemId === null
+      ? null
+      : legendaryItems.find(candidate => candidate.game_id === item.uniqueItemId) ?? null
+    if (unique) {
+      gear.push(buildUniqueItem(item, unique, craftBaseTypes, legendaryItems, warnings))
+      continue
+    }
+
+    const foundBase = findCraftBase(item.baseId, craftBaseItems)
+    if (foundBase) {
+      const craftType = craftBaseTypes.find(candidate => candidate.item_id === foundBase.group.item_id)
+      if (!craftType) {
+        warnings.push(`${foundBase.item.name}: base item data loaded without its craft affix table.`)
+      }
+      gear.push(buildCraftedItem(item, foundBase.item, craftBaseTypes, legendaryItems, warnings))
+      continue
+    }
+
+    if (item.baseId !== null) unmappedBaseIds.push(item.baseId)
   }
 
   if (character.gear.length > gear.length) {
-    warnings.unshift(`${character.gear.length - gear.length} of ${character.gear.length} equipped items are not mapped yet. The imported build will contain the Vorax items that were mapped.`)
+    warnings.unshift(`${character.gear.length - gear.length} of ${character.gear.length} equipped items are not mapped yet.`)
   }
   if (unmappedBaseIds.length > 0) {
     warnings.push(`Unmapped gear base IDs: ${unmappedBaseIds.join(', ')}.`)

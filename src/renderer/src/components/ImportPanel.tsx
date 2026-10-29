@@ -34,6 +34,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
 
   const refLegendary = useReferenceStore(s => s.legendaryCatalog)
   const refSkills = useReferenceStore(s => s.skills)
+  const refCraftBaseItems = useReferenceStore(s => s.craftBaseItems)
   const refCraftBaseTypes = useReferenceStore(s => s.craftBaseTypes)
   const refGrafts = useReferenceStore(s => s.grafts)
   const refHeroMemoryScaling = useReferenceStore(s => s.heroMemories?.base_stat_scaling)
@@ -133,12 +134,12 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   }
 
   const createBuildFromLog = (preview: UeLogCharacterPreview, loginCount: number) => {
-    if (!refGrafts || !refLegendary) {
+    if (!refGrafts || !refLegendary || !refCraftBaseItems || !refCraftBaseTypes) {
       setError('Gear data is still loading. Try again in a moment.')
       return
     }
     reset()
-    const result = createUeLogBuild(preview, refGrafts, refLegendary)
+    const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes)
     if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The draft uses the most recently modified selected log.`)
     setPendingBuild(result.build)
     setWarnings(result.warnings)
@@ -186,7 +187,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
 
       {mode === 'game-log' && (
         <>
-          <p className="share-modal-hint">Choose UE_game.log and any backup logs. Your files stay on this device. Pick a login to create a draft build with the Vorax gear the app can identify. Other character data is listed before you import.</p>
+          <p className="share-modal-hint">Choose UE_game.log and any backup logs. Your files stay on this device. Pick a login to create a draft with the gear and rolls the app can map. Any data it cannot map is listed before you import.</p>
           <input ref={gameLogFileRef} type="file" accept=".log,text/plain" multiple style={{ display: 'none' }}
             onChange={e => { void inspectGameLogs(e.target.files); e.target.value = '' }} />
           <div className="import-file-row">
@@ -208,7 +209,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
                 </div>
                 <div className="log-import-card__summary">
                   <span><strong>{preview.gear.length}</strong> equipped items detected</span>
-                  <span><strong>{vorax.length}</strong> Vorax items ready to map</span>
+                  <span><strong>{vorax.length}</strong> Vorax items detected</span>
                   {preview.truncatedSections.length > 0 && <span>Some log lists were capped</span>}
                 </div>
                 <details className="log-import-card__details">

@@ -21,6 +21,30 @@ def test_name_preserved():
     assert r["name"] == "Belt"
 
 
+def test_base_item_game_id_reaches_consumed_catalog():
+    data = {
+        "name": "STR Helmet",
+        "base_items": [{
+            "name": "Brute's Helm",
+            "game_id": 3600,
+            "implicit_modifier_ids": [],
+            "required_level": 1,
+            "implicits": [],
+        }],
+    }
+
+    result = import_crawler_craft_base_type(data)
+
+    assert result["base_items"][0] == {
+        "name": "Brute's Helm",
+        "game_id": 3600,
+        "implicit_modifier_ids": [],
+        "required_level": 1,
+        "armor": None,
+        "implicits": [],
+    }
+
+
 def test_affixes_count():
     r = import_crawler_craft_base_type(_BELT)
     assert len(r["affixes"]) == 3
