@@ -133,16 +133,24 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     } finally { setImporting(false) }
   }
 
-  const createBuildFromLog = (preview: UeLogCharacterPreview, loginCount: number) => {
+  const createBuildFromLog = async (preview: UeLogCharacterPreview, loginCount: number) => {
     if (!refGrafts || !refLegendary || !refCraftBaseItems || !refCraftBaseTypes) {
       setError('Gear data is still loading. Try again in a moment.')
       return
     }
     reset()
-    const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes)
-    if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The draft uses the most recently modified selected log.`)
-    setPendingBuild(result.build)
-    setWarnings(result.warnings)
+    setImporting(true)
+    try {
+      let towerSequences: Awaited<ReturnType<typeof api.getTowerSequence>>['entries'] = []
+      let catalogUnavailable = false
+      try { towerSequences = (await api.getTowerSequence()).entries }
+      catch { catalogUnavailable = true }
+      const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences)
+      if (catalogUnavailable) result.warnings.push('Tower Sequence catalog could not be loaded; chip affixes may be omitted.')
+      if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The draft uses the most recently modified selected log.`)
+      setPendingBuild(result.build)
+      setWarnings(result.warnings)
+    } finally { setImporting(false) }
   }
 
   const switchMode = (m: 'builder' | 'compendium' | 'game-log') => {

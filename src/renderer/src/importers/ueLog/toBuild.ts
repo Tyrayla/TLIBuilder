@@ -1,4 +1,4 @@
-import type { Build, CraftBaseItemGroup, CraftBaseType, EquippedGearItem, GearSlot, Graft, LegendaryAffix, LegendaryGearItem } from '../../api/client'
+import type { Build, CraftBaseItemGroup, CraftBaseType, EquippedGearItem, GearSlot, Graft, LegendaryAffix, LegendaryGearItem, TowerSequenceEntry } from '../../api/client'
 import type { UeLogCharacterPreview, UeLogGearItem } from './parse'
 
 export interface UeLogBuildResult {
@@ -134,12 +134,29 @@ function slug(value: string): string {
 }
 
 function warnUnsupportedLogAffixes(item: UeLogGearItem, name: string, warnings: string[]) {
-  for (const id of item.chipAffixes.flatMap(row => row.id ? [row.id] : [])) {
-    warnings.push(`${name}: chip affix ${id} is not in the current Builder catalogs and was left out.`)
-  }
   for (const id of item.enchantAffixes.flatMap(row => row.id ? [row.id] : [])) {
     warnings.push(`${name}: enchant affix ${id} is not in the current Builder catalogs and was left out.`)
   }
+}
+
+function mapTowerSequence(
+  item: UeLogGearItem,
+  equipped: EquippedGearItem,
+  sequences: TowerSequenceEntry[],
+  warnings: string[],
+): EquippedGearItem {
+  const rows = item.chipAffixes.filter(row => row.id)
+  if (!rows.length) return equipped
+  if (rows.length > 1) {
+    warnings.push(`${equipped.name}: found ${rows.length} chip affixes; only one Tower Sequence can be represented.`)
+  }
+  const row = rows[0]
+  const sequence = sequences.find(candidate => candidate.modifier_id === row.id)
+  if (!sequence) {
+    warnings.push(`${equipped.name}: chip affix ${row.id} is not in the current Builder Tower Sequence catalog and was left out.`)
+    return equipped
+  }
+  return { ...equipped, towerSequence: sequence.affix }
 }
 
 function buildVoraxItem(
@@ -379,6 +396,7 @@ export function createUeLogBuild(
   legendaryItems: LegendaryGearItem[],
   craftBaseItems: CraftBaseItemGroup[] = [],
   craftBaseTypes: CraftBaseType[] = [],
+  towerSequences: TowerSequenceEntry[] = [],
 ): UeLogBuildResult {
   const warnings: string[] = []
   const gear: EquippedGearItem[] = []
@@ -386,7 +404,7 @@ export function createUeLogBuild(
   for (const item of character.gear) {
     const graft = grafts.find(candidate => candidate.game_id === item.baseId)
     if (graft) {
-      gear.push(buildVoraxItem(item, graft, legendaryItems, warnings))
+      gear.push(mapTowerSequence(item, buildVoraxItem(item, graft, legendaryItems, warnings), towerSequences, warnings))
       continue
     }
 
@@ -394,7 +412,7 @@ export function createUeLogBuild(
       ? null
       : legendaryItems.find(candidate => candidate.game_id === item.uniqueItemId) ?? null
     if (unique) {
-      gear.push(buildUniqueItem(item, unique, craftBaseTypes, legendaryItems, warnings))
+      gear.push(mapTowerSequence(item, buildUniqueItem(item, unique, craftBaseTypes, legendaryItems, warnings), towerSequences, warnings))
       continue
     }
 
@@ -404,7 +422,7 @@ export function createUeLogBuild(
       if (!craftType) {
         warnings.push(`${foundBase.item.name}: base item data loaded without its craft affix table.`)
       }
-      gear.push(buildCraftedItem(item, foundBase.item, craftBaseTypes, legendaryItems, warnings))
+      gear.push(mapTowerSequence(item, buildCraftedItem(item, foundBase.item, craftBaseTypes, legendaryItems, warnings), towerSequences, warnings))
       continue
     }
 

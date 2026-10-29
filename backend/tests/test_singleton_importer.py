@@ -206,14 +206,14 @@ def test_tower_sequence_expands_grouped_sources_and_appends_sequence_type():
     data = {"entity_type": "tower_sequence", "sections": [{
         "header": "TOWER Sequence /1", "columns": ["Affix Effect", "Source", "Type"],
         "items": [{"Affix Effect": "+8 % additional damage", "Source": "Claw, Cane, Wand",
-                   "Type": "Intermediate Sequence 1|2|6"}],
+                   "Type": "Intermediate Sequence 1|2|6", "modifier_id": "160401001"}],
     }]}
     result = import_tower_sequence(data, "SS14")
     assert result["entry_count"] == 3
     assert result["entries"] == [
-        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Claw"},
-        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Cane"},
-        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Wand"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Claw", "modifier_id": "160401001"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Cane", "modifier_id": "160401001"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Wand", "modifier_id": "160401001"},
     ]
 
 

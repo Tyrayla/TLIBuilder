@@ -43,6 +43,7 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/hero-memories': 'hero_memories',
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
+  '/tower-sequence': 'tower_sequence',
   '/verification-db': 'verification_db',
   '/glossary': 'glossary',
   '/help-db': 'help_db',
@@ -3241,7 +3242,7 @@ export interface EquippedGearItem {
   // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
   beltBlend?: string | null
   // Selected Tower Sequence affix (crafted weapon/shield bases only) — the raw affix text itself,
-  // since _tower_sequence.json entries carry no stable id. Injected into the affix list at
+  // resolved from the logged modifier_id through _tower_sequence.json. Injected into the affix list at
   // stats-payload time (statsPayload.ts:_buildItemContributions), same injection point as a
   // mutation-resolved affix, and resolved backend-side by the generic modifier-text parser.
   towerSequence?: string | null
@@ -3258,10 +3259,11 @@ export interface BeltBlend {
 }
 
 // One entry from the Tower Sequence catalog (crafted-only, weapon/shield bases) — see backend
-// tools/singleton_importer.py:import_tower_sequence. No stable id; `affix` text is the identity.
+// tools/singleton_importer.py:import_tower_sequence; entries retain the TLIDB modifier ID.
 export interface TowerSequenceEntry {
   affix: string
   source: string
+  modifier_id?: string
 }
 
 export interface GearAffixContribution {

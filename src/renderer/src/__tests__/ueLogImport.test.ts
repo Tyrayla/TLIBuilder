@@ -185,7 +185,7 @@ describe('UE_game.log build conversion', () => {
         baseAffixIds: [],
         prefixes: [{ id: '104210001', source: '10', values: [90] }],
         suffixes: [],
-        chipAffixes: [],
+        chipAffixes: [{ id: '160419009', source: null, values: [20] }],
         enchantAffixes: [],
         corroded: false,
       }],
@@ -200,7 +200,9 @@ describe('UE_game.log build conversion', () => {
       source: 'STR Helmet', affix_type: 'Basic Pre-fix', tier: '1',
     }] }] as unknown as CraftBaseType[]
 
-    const result = createUeLogBuild(character, [], [], baseItems, craftTypes)
+    const result = createUeLogBuild(character, [], [], baseItems, craftTypes, [
+      { affix: '+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5', source: 'Bow', modifier_id: '160419009' },
+    ])
 
     expect(result.build.gear).toHaveLength(1)
     expect(result.build.gear?.[0]).toMatchObject({
@@ -212,6 +214,12 @@ describe('UE_game.log build conversion', () => {
     expect(result.build.gear?.[0].customizations).toEqual([
       { affix_index: 1, chosen_values: { 0: 90 }, chosen_placeholder_key: null },
     ])
+    expect(result.build.gear?.[0].towerSequence).toBe('+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5')
+    const unmatched = createUeLogBuild({ ...character, gear: [{ ...character.gear[0], chipAffixes: [{ id: '160419013', source: null, values: [20] }] }] }, [], [], baseItems, craftTypes, [
+      { affix: '+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5', source: 'Bow', modifier_id: '160419009' },
+    ])
+    expect(unmatched.warnings).toContain("Brute's Helm (Crafted): chip affix 160419013 is not in the current Builder Tower Sequence catalog and was left out.")
+    expect(result.warnings).not.toContain("Brute's Helm: chip affix 160419013 is not in the current Builder catalogs and was left out.")
   })
 
   it('resolves unique gear by game_id when its base item is not in the craft list', () => {
