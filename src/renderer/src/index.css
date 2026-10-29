@@ -141,7 +141,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* Header-strip inline toggle (Config's "Show all"). A bare native checkbox floating in a header read as an
    unstyled leftover beside the token-driven buttons; this gives it the same chip footprint as .btn-secondary. */
 .header-toggle {
-  margin-left: auto;
+  margin-left: 0;
   display: flex; align-items: center; gap: 7px;
   padding: 4px 10px; border-radius: 4px;
   background: var(--bg-card); border: 1px solid var(--border);
@@ -1926,7 +1926,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .cond-screen-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  width: calc(100% - 312px); /* center the title over the conditions pane, excluding the 300px custom-mods aside and gap */
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
@@ -1935,6 +1937,43 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   color: var(--fg-body);
   flex-shrink: 0;
 }
+.config-header-start { display: flex; justify-content: flex-start; min-width: 0; }
+.config-header-title { justify-self: center; }
+.config-header-end { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.config-condition-search {
+  display: flex;
+  align-items: center;
+  width: min(240px, 100%);
+  min-width: 120px;
+  max-width: 240px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-inset);
+}
+.config-condition-search:focus-within { border-color: var(--border-strong); }
+.config-condition-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg-body);
+  font: inherit;
+  font-size: 11px;
+}
+.config-condition-search input::placeholder { color: var(--fg-muted); }
+.config-condition-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.config-condition-search button {
+  padding: 2px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+.config-condition-search button:hover { color: var(--fg); }
 
 /* Outer = vertical scroll area; inner .cond-masonry is the multi-column (masonry) flow that grows with
    its content so the cards pack densely and fill the width without grid-row gaps. */
@@ -6056,6 +6095,7 @@ span.gear-affix-label {
   /* Config: 3 hard-coded condition columns squeezed beside a fixed 300px aside
      rendered as color slivers. Stack: conditions single-column, mods below. */
   .config-body { flex-direction: column; overflow-y: auto; }
+  .cond-screen-header { width: 100%; }
   .config-conditions { flex: none; }
   .cond-grid { overflow-y: visible; flex: none; }
   .cond-columns { flex-direction: column; }
