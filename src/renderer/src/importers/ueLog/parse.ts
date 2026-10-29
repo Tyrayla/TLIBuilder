@@ -27,6 +27,14 @@ export interface UeLogGearItem {
   corroded: boolean
 }
 
+export interface UeLogSkillItem {
+  baseId: number
+  logIndex: number
+  level: number | null
+  skillItemLevel: number | null
+  prefixes: UeLogAffix[]
+}
+
 export interface UeLogCharacterPreview {
   dumpNumber: number
   characterName: string | null
@@ -34,6 +42,7 @@ export interface UeLogCharacterPreview {
   heroId: number | null
   heroPurchaseId: number | null
   gear: UeLogGearItem[]
+  skills: UeLogSkillItem[]
   truncatedSections: string[]
 }
 
@@ -169,6 +178,71 @@ function gearRows(tree: Record<string, unknown>): UeLogGearItem[] {
   })
 }
 
+function skillRows(tree: Record<string, unknown>): UeLogSkillItem[] {
+  const bag = tree.bag as Record<string, unknown> | undefined
+  const skillState = tree.skills as Record<string, unknown> | undefined
+  const layout = tree.skillLayout as Record<string, unknown> | undefined
+  const byItemId = new Map<string, {
+    baseId: number
+    logIndex: number | null
+    level: number | null
+    skillItemLevel: number | null
+    prefixes: UeLogAffix[]
+  }>()
+
+  const add = (raw: unknown, logIndex: number | null) => {
+    if (!raw || typeof raw !== 'object') return
+    const item = raw as Record<string, unknown>
+    const baseId = numberValue(scalar(item.BaseId))
+    if (baseId === null) return
+    const rawId = scalar(item.Id)
+    const itemId = typeof rawId === 'string' ? rawId : `${baseId}:${logIndex ?? 'unplaced'}`
+    const previous = byItemId.get(itemId)
+    byItemId.set(itemId, {
+      baseId,
+      logIndex: logIndex ?? previous?.logIndex ?? null,
+      level: numberValue(scalar(item.Level)) ?? previous?.level ?? null,
+      skillItemLevel: numberValue(scalar(item.SkillItemLevel)) ?? previous?.skillItemLevel ?? null,
+      prefixes: item.Prefix === undefined ? previous?.prefixes ?? [] : affixRows(item.Prefix),
+    })
+  }
+
+  for (const raw of entries(bag?.dressSkillItems)) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    if (scalar(row.PageId) !== '-6') continue
+    add(row.Item, numberValue(scalar(row.Index)))
+  }
+  for (const raw of entries(skillState?.skills)) add(raw, null)
+
+  const layoutIndexByItemId = new Map<string, number>()
+  for (const raw of entries(layout?.slots)) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    const logIndex = numberValue(scalar(row.key))
+    const value = row.value as Record<string, unknown> | undefined
+    const skillId = scalar(value?.skillId)
+    if (logIndex !== null && typeof skillId === 'string') layoutIndexByItemId.set(skillId, logIndex)
+  }
+
+  for (const [itemId, row] of byItemId) {
+    row.logIndex ??= layoutIndexByItemId.get(itemId) ?? null
+  }
+  // The slot map can identify an equipped skill whose detailed item record was one of the
+  // entries omitted by TLIDB's 30-row response cap. Keep its game ID and slot; level/rolls
+  // can be recovered from another login capture.
+  for (const [itemId, logIndex] of layoutIndexByItemId) {
+    if (byItemId.has(itemId)) continue
+    const baseId = numberValue(itemId.split('_', 1)[0])
+    if (baseId !== null) byItemId.set(itemId, { baseId, logIndex, level: null, skillItemLevel: null, prefixes: [] })
+  }
+
+  return [...byItemId.values()]
+    .filter((row): row is typeof row & { logIndex: number } => row.logIndex !== null)
+    .map(({ baseId, logIndex, level, skillItemLevel, prefixes }) => ({ baseId, logIndex, level, skillItemLevel, prefixes }))
+    .sort((a, b) => a.logIndex - b.logIndex)
+}
+
 function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
   const tree = parseGetPlayerDataBody(body)
   const player = (tree.player ?? {}) as Record<string, unknown>
@@ -180,6 +254,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     heroId: numberValue(scalar(player.HeroId)),
     heroPurchaseId: numberValue(scalar(hero.heroPurchaseId)),
     gear: gearRows(tree),
+    skills: skillRows(tree),
     truncatedSections: [...body.matchAll(/^\s*\|*\s*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
   }
 }

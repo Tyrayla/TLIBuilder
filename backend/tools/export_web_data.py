@@ -32,6 +32,7 @@ CATALOGS = {
     "legendary_gear": server.get_legendary_gear,
     "pact_spirits": server.get_pact_spirits,
     "tower_sequence": server.get_tower_sequence,
+    "belt_blends": server.get_belt_blends,
     "craft_base_types": server.get_craft_base_types,
     "craft_base_items": server.get_craft_base_items,
     "grafts": server.get_grafts,

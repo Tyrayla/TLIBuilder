@@ -134,20 +134,23 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   }
 
   const createBuildFromLog = async (preview: UeLogCharacterPreview, loginCount: number) => {
-    if (!refGrafts || !refLegendary || !refCraftBaseItems || !refCraftBaseTypes) {
-      setError('Gear data is still loading. Try again in a moment.')
+    if (!refGrafts || !refLegendary || !refCraftBaseItems || !refCraftBaseTypes || !refSkills) {
+      setError('Gear and skill data are still loading. Try again in a moment.')
       return
     }
     reset()
     setImporting(true)
     try {
       let towerSequences: Awaited<ReturnType<typeof api.getTowerSequence>>['entries'] = []
+      let beltBlends: Awaited<ReturnType<typeof api.getBeltBlends>>['blends'] = []
       let catalogUnavailable = false
       try { towerSequences = (await api.getTowerSequence()).entries }
       catch { catalogUnavailable = true }
-      const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences)
-      if (catalogUnavailable) result.warnings.push('Tower Sequence catalog could not be loaded; chip affixes may be omitted.')
-      if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The draft uses the most recently modified selected log.`)
+      try { beltBlends = (await api.getBeltBlends()).blends }
+      catch { catalogUnavailable = true }
+      const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences, refSkills, beltBlends)
+      if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; Tower Sequence chips or belt blends may be omitted.')
+      if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The latest capture provides character state; available skill items are merged across captures.`)
       setPendingBuild(result.build)
       setWarnings(result.warnings)
     } finally { setImporting(false) }
@@ -217,6 +220,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
                 </div>
                 <div className="log-import-card__summary">
                   <span><strong>{preview.gear.length}</strong> equipped items detected</span>
+                  <span><strong>{preview.skills.length}</strong> equipped skills and supports detected</span>
                   <span><strong>{vorax.length}</strong> Vorax items detected</span>
                   {preview.truncatedSections.length > 0 && <span>Some log lists were capped</span>}
                 </div>

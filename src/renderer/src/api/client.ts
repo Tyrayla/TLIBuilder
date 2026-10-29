@@ -44,6 +44,7 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
   '/tower-sequence': 'tower_sequence',
+  '/belt-blends': 'belt_blends',
   '/verification-db': 'verification_db',
   '/glossary': 'glossary',
   '/help-db': 'help_db',
@@ -3251,6 +3252,7 @@ export interface EquippedGearItem {
 // One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
 export interface BeltBlend {
   talent_id: string
+  modifier_id?: string
   talent_type: 'core' | 'aromatic' | 'medium' | string
   talent_level: number
   talent_name: string | null

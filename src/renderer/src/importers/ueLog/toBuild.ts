@@ -1,5 +1,5 @@
-import type { Build, CraftBaseItemGroup, CraftBaseType, EquippedGearItem, GearSlot, Graft, LegendaryAffix, LegendaryGearItem, TowerSequenceEntry } from '../../api/client'
-import type { UeLogCharacterPreview, UeLogGearItem } from './parse'
+import type { Build, CraftBaseItemGroup, CraftBaseType, EquippedGearItem, EquippedSkill, EquippedSupportSkill, GearSlot, Graft, LegendaryAffix, LegendaryGearItem, SkillItem, TowerSequenceEntry, BeltBlend } from '../../api/client'
+import type { UeLogCharacterPreview, UeLogGearItem, UeLogSkillItem } from './parse'
 
 export interface UeLogBuildResult {
   build: Build
@@ -26,9 +26,12 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const name = capture.preview.characterName?.trim().toLocaleLowerCase() ?? ''
     const key = `${name}\u001f${capture.preview.heroId ?? 'unknown'}`
     const previous = groups.get(key)
+    const skillsBySlot = new Map<number, UeLogSkillItem>()
+    for (const skill of previous?.preview.skills ?? []) skillsBySlot.set(skill.logIndex, skill)
+    for (const skill of capture.preview.skills) skillsBySlot.set(skill.logIndex, skill)
     groups.set(key, {
       fileNumber: capture.fileNumber,
-      preview: capture.preview,
+      preview: { ...capture.preview, skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex) },
       loginCount: (previous?.loginCount ?? 0) + 1,
     })
   }
@@ -49,7 +52,10 @@ const SLOT_BY_LOG_INDEX: Record<number, GearSlot> = {
 }
 
 function legendaryAffixes(item: LegendaryGearItem): LegendaryAffix[] {
-  return Object.values(item.variants).flatMap(variant => [...variant.implicits, ...variant.explicits])
+  return [
+    ...Object.values(item.variants).flatMap(variant => [...variant.implicits, ...variant.explicits]),
+    ...Object.values(item.random_affixes ?? {}).flatMap(groups => groups.flatMap(group => group.options)),
+  ]
 }
 
 function byModifierId(items: LegendaryGearItem[], id: string): { item: LegendaryGearItem; affix: LegendaryAffix } | null {
@@ -133,10 +139,17 @@ function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 }
 
-function warnUnsupportedLogAffixes(item: UeLogGearItem, name: string, warnings: string[]) {
+function warnUnsupportedLogAffixes(item: UeLogGearItem, name: string, warnings: string[], beltBlends: BeltBlend[] = []) {
   for (const id of item.enchantAffixes.flatMap(row => row.id ? [row.id] : [])) {
+    if (item.equippedSlot === 8 && beltBlends.some(blend => blend.modifier_id === id)) continue
     warnings.push(`${name}: enchant affix ${id} is not in the current Builder catalogs and was left out.`)
   }
+}
+
+function loggedBeltBlend(item: UeLogGearItem, beltBlends: BeltBlend[]): string | undefined {
+  if (item.equippedSlot !== 8) return undefined
+  const ids = item.enchantAffixes.flatMap(row => row.id ? [row.id] : [])
+  return beltBlends.find(blend => blend.modifier_id && ids.includes(blend.modifier_id))?.talent_id
 }
 
 function mapTowerSequence(
@@ -164,6 +177,7 @@ function buildVoraxItem(
   graft: Graft,
   legendaryItems: LegendaryGearItem[],
   warnings: string[],
+  beltBlends: BeltBlend[],
 ): EquippedGearItem {
   const affixes: LegendaryAffix[] = []
   const customizations: NonNullable<Build['gear']>[number]['customizations'] = []
@@ -186,7 +200,7 @@ function buildVoraxItem(
     }
     affixes.push(mapped.affix)
   }
-  warnUnsupportedLogAffixes(item, graft.name, warnings)
+  warnUnsupportedLogAffixes(item, graft.name, warnings, beltBlends)
 
   const groups = [
     { rows: item.prefixes, slotOffset: 2 },
@@ -223,6 +237,7 @@ function buildVoraxItem(
     legendary_affix_count: legendarySource ? 1 : 0,
     implicit_count: affixes.filter(affix => affix.affix_kind === 'implicit').length,
     craft_slot_positions: positions,
+    ...(loggedBeltBlend(item, beltBlends) ? { beltBlend: loggedBeltBlend(item, beltBlends) } : {}),
   }
 }
 
@@ -241,6 +256,7 @@ function buildCraftedItem(
   craftTypes: CraftBaseType[],
   legendaryItems: LegendaryGearItem[],
   warnings: string[],
+  beltBlends: BeltBlend[],
 ): EquippedGearItem {
   const name = base.name
   const affixes: LegendaryAffix[] = []
@@ -301,7 +317,7 @@ function buildCraftedItem(
 
   addExplicitRows(item.prefixes, 2)
   addExplicitRows(item.suffixes, 5)
-  warnUnsupportedLogAffixes(item, name, warnings)
+  warnUnsupportedLogAffixes(item, name, warnings, beltBlends)
   if (item.corroded) warnings.push(`${name}: corruption state is not represented for ordinary crafted gear.`)
 
   return {
@@ -317,15 +333,18 @@ function buildCraftedItem(
     legendary_source: legendarySource,
     legendary_affix_count: legendarySource ? 1 : 0,
     craft_slot_positions: positions,
+    ...(loggedBeltBlend(item, beltBlends) ? { beltBlend: loggedBeltBlend(item, beltBlends) } : {}),
   }
 }
 
 function buildUniqueItem(
   item: UeLogGearItem,
   unique: LegendaryGearItem,
+  craftBaseItems: CraftBaseItemGroup[],
   craftTypes: CraftBaseType[],
   legendaryItems: LegendaryGearItem[],
   warnings: string[],
+  beltBlends: BeltBlend[],
 ): EquippedGearItem {
   const variant = item.corroded
     ? unique.variants.corroded ?? unique.variants.base ?? Object.values(unique.variants)[0]
@@ -339,6 +358,13 @@ function buildUniqueItem(
     rows.forEach((row, index) => {
       if (!row.id) return
       let affixIndex = affixes.findIndex(candidate => candidate.modifier_id === row.id)
+      if (affixIndex < 0) {
+        const sameUnique = legendaryAffixes(unique).find(candidate => candidate.modifier_id === row.id)
+        if (sameUnique) {
+          affixIndex = affixes.length
+          affixes.push({ ...sameUnique, affix_type: 'Legendary' })
+        }
+      }
       if (affixIndex < 0 && row.source === '17') {
         const mapped = byModifierId(legendaryItems, row.id)
         if (mapped) {
@@ -368,11 +394,17 @@ function buildUniqueItem(
   applyRolls(item.suffixes, 5)
   for (const id of [...item.baseAttrAffixIds, ...item.baseAffixIds]) {
     if (affixes.some(affix => affix.modifier_id === id)) continue
-    const mapped = toCraftAffix(id, craftTypes)
-    if (mapped) affixes.push(mapped)
-    else warnings.push(`${unique.name}: base affix ${id} could not be mapped.`)
+    const foundBase = findCraftBase(item.baseId, craftBaseItems)?.item
+    const implicitIndex = foundBase?.implicit_modifier_ids?.indexOf(id) ?? -1
+    const implicitText = implicitIndex >= 0 ? foundBase?.implicits[implicitIndex] : null
+    if (implicitText) affixes.push({ raw_text: implicitText, modifier_id: id, expression: implicitText, condition: null, affix_kind: 'implicit', numeric_values: [], affix_type: 'Base' })
+    else {
+      const mapped = toCraftAffix(id, craftTypes)
+      if (mapped) affixes.push(mapped)
+      else warnings.push(`${unique.name}: base affix ${id} could not be mapped.`)
+    }
   }
-  warnUnsupportedLogAffixes(item, unique.name, warnings)
+  warnUnsupportedLogAffixes(item, unique.name, warnings, beltBlends)
 
   return {
     item_id: unique.item_id,
@@ -382,14 +414,116 @@ function buildUniqueItem(
     affixes,
     customizations,
     slot: itemSlot(item, warnings),
-    implicit_count: variant.implicits.length,
+    implicit_count: affixes.filter(affix => affix.affix_kind === 'implicit').length,
     legendary_source: legendarySource,
     legendary_affix_count: legendarySource ? 1 : 0,
     craft_slot_positions: positions,
+    ...(loggedBeltBlend(item, beltBlends) ? { beltBlend: loggedBeltBlend(item, beltBlends) } : {}),
   }
 }
 
-/** Create a partial but editable Builder build from the Vorax items this catalog can identify. */
+const PASSIVE_SKILL_INDEXES = [1001, 1007, 1013, 1019]
+const SUPPORT_SKILL_TYPES = new Set(['support_skill', 'noble_support_skill', 'magnificent_support_skill', 'activation_medium_skill'])
+const RANKED_SUPPORT_TYPES = new Set(['noble_support_skill', 'magnificent_support_skill'])
+
+function skillPosition(logIndex: number): { rootIndex: number; buildSlot: number; supportIndex: number | null } | null {
+  if (logIndex >= 1 && logIndex <= 5) return { rootIndex: logIndex, buildSlot: logIndex, supportIndex: null }
+  if (logIndex >= 101 && logIndex <= 505) {
+    const rootIndex = Math.floor(logIndex / 100)
+    const supportIndex = logIndex % 100
+    if (rootIndex >= 1 && rootIndex <= 5 && supportIndex >= 1 && supportIndex <= 5) {
+      return { rootIndex, buildSlot: rootIndex, supportIndex }
+    }
+  }
+  for (let index = 0; index < PASSIVE_SKILL_INDEXES.length; index++) {
+    const rootIndex = PASSIVE_SKILL_INDEXES[index]
+    const nextRoot = PASSIVE_SKILL_INDEXES[index + 1] ?? rootIndex + 6
+    if (logIndex >= rootIndex && logIndex < nextRoot) {
+      return {
+        rootIndex,
+        buildSlot: 6 + index,
+        supportIndex: logIndex === rootIndex ? null : logIndex - rootIndex + 1,
+      }
+    }
+  }
+  return null
+}
+
+function buildLoggedSkills(
+  loggedSkills: UeLogSkillItem[],
+  catalog: SkillItem[],
+  warnings: string[],
+): EquippedSkill[] {
+  const mapped = loggedSkills.flatMap(row => {
+    const position = skillPosition(row.logIndex)
+    if (!position) {
+      warnings.push(`Skill item ${row.baseId} at log slot ${row.logIndex} is not in a recognized skill slot.`)
+      return []
+    }
+    const item = catalog.find(skill => skill.game_id === row.baseId && skill.game_id !== 0)
+    if (!item) {
+      warnings.push(`Skill item ${row.baseId} at log slot ${row.logIndex} is not in the current Builder skill catalog.`)
+      return []
+    }
+    const isSupport = SUPPORT_SKILL_TYPES.has(item.skill_type ?? '') || item.skill_tags.includes('Support')
+    return [{ row, position, item, isSupport }]
+  })
+
+  const roots = new Map<number, EquippedSkill>()
+  for (const { row, position, item, isSupport } of mapped) {
+    if (position.supportIndex !== null || isSupport) continue
+    const level = row.level ?? 20
+    if (row.level === null) warnings.push(`${item.name}: skill level was missing from the selected logs; Builder default level ${level} was used.`)
+    roots.set(position.rootIndex, {
+      slot: position.buildSlot,
+      item_id: item.item_id,
+      name: item.name,
+      level,
+      skill_tags: item.skill_tags,
+      description_lines: item.description_lines,
+      supports: [],
+    })
+  }
+
+  for (const { row, position, item, isSupport } of mapped) {
+    if (position.supportIndex === null && !isSupport) continue
+    if (position.supportIndex === null) {
+      warnings.push(`${item.name}: support item was logged in a skill slot and was not attached.`)
+      continue
+    }
+    const root = roots.get(position.rootIndex)
+    if (!root) {
+      warnings.push(`${item.name}: support at log slot ${row.logIndex} has no mapped parent skill.`)
+      continue
+    }
+    const skillType = item.skill_type ?? 'support_skill'
+    const level = row.level ?? Math.min(20, item.max_level ?? 20)
+    if (row.level === null) warnings.push(`${item.name}: support level was missing from the selected logs; Builder default level ${level} was used.`)
+    root.supports.push({
+      support_index: position.supportIndex,
+      item_id: item.item_id,
+      name: item.name,
+      skill_type: skillType,
+      level,
+      ...(RANKED_SUPPORT_TYPES.has(skillType) ? { rank: 1 } : {}),
+      skill_tags: item.skill_tags,
+      description_lines: item.description_lines,
+    } satisfies EquippedSupportSkill)
+    for (const prefix of row.prefixes) {
+      if (prefix.id) warnings.push(`${item.name}: support modifier ${prefix.id} is not mapped; its roll and rank use Builder defaults.`)
+    }
+    if (RANKED_SUPPORT_TYPES.has(skillType) && row.prefixes.length === 0) {
+      warnings.push(`${item.name}: support rank is not present in the log; Builder rank 1 was used.`)
+    }
+  }
+
+  return [...roots.values()].map(skill => ({
+    ...skill,
+    supports: skill.supports.sort((a, b) => a.support_index - b.support_index),
+  })).sort((a, b) => a.slot - b.slot)
+}
+
+/** Create an editable Builder draft from the game data that can be joined by logged IDs. */
 export function createUeLogBuild(
   character: UeLogCharacterPreview,
   grafts: Graft[],
@@ -397,6 +531,8 @@ export function createUeLogBuild(
   craftBaseItems: CraftBaseItemGroup[] = [],
   craftBaseTypes: CraftBaseType[] = [],
   towerSequences: TowerSequenceEntry[] = [],
+  skillCatalog: SkillItem[] = [],
+  beltBlends: BeltBlend[] = [],
 ): UeLogBuildResult {
   const warnings: string[] = []
   const gear: EquippedGearItem[] = []
@@ -404,7 +540,7 @@ export function createUeLogBuild(
   for (const item of character.gear) {
     const graft = grafts.find(candidate => candidate.game_id === item.baseId)
     if (graft) {
-      gear.push(mapTowerSequence(item, buildVoraxItem(item, graft, legendaryItems, warnings), towerSequences, warnings))
+      gear.push(mapTowerSequence(item, buildVoraxItem(item, graft, legendaryItems, warnings, beltBlends), towerSequences, warnings))
       continue
     }
 
@@ -412,7 +548,7 @@ export function createUeLogBuild(
       ? null
       : legendaryItems.find(candidate => candidate.game_id === item.uniqueItemId) ?? null
     if (unique) {
-      gear.push(mapTowerSequence(item, buildUniqueItem(item, unique, craftBaseTypes, legendaryItems, warnings), towerSequences, warnings))
+      gear.push(mapTowerSequence(item, buildUniqueItem(item, unique, craftBaseItems, craftBaseTypes, legendaryItems, warnings, beltBlends), towerSequences, warnings))
       continue
     }
 
@@ -422,7 +558,7 @@ export function createUeLogBuild(
       if (!craftType) {
         warnings.push(`${foundBase.item.name}: base item data loaded without its craft affix table.`)
       }
-      gear.push(mapTowerSequence(item, buildCraftedItem(item, foundBase.item, craftBaseTypes, legendaryItems, warnings), towerSequences, warnings))
+      gear.push(mapTowerSequence(item, buildCraftedItem(item, foundBase.item, craftBaseTypes, legendaryItems, warnings, beltBlends), towerSequences, warnings))
       continue
     }
 
@@ -435,14 +571,15 @@ export function createUeLogBuild(
   if (unmappedBaseIds.length > 0) {
     warnings.push(`Unmapped gear base IDs: ${unmappedBaseIds.join(', ')}.`)
   }
-  warnings.unshift('Hero, skills, talents, memories, and other character settings are not imported yet.')
+  const skills = buildLoggedSkills(character.skills ?? [], skillCatalog, warnings)
+  warnings.unshift('Hero, talents, memories, and other character settings are not imported yet.')
 
   return {
     build: {
       name: `${character.characterName || `Hero ${character.heroId ?? 'unknown'}`} · Level ${character.level ?? 'unknown'}`,
       slots: [],
       gear,
-      skills: [],
+      skills,
       characterLevel: character.level ?? 100,
       notes: 'Imported from UE_game.log. Review the import warnings and complete the missing character data.',
     },

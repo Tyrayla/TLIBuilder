@@ -3,9 +3,28 @@ import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { scanUeGameLog } from '../importers/ueLog/parse'
 import { createUeLogBuild, groupUeLogCaptures } from '../importers/ueLog/toBuild'
-import type { CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem } from '../api/client'
+import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, SkillItem } from '../api/client'
 
 const log = `prefix before dump\n----Socket RecvMessage STT----GetPlayerData----SynId = 1\n|+player+Level [98]\n|+player+HeroId [700]\n|+heroCharacterv3OverView+heroPurchaseId [3002]\n|+bag+wearItems+1+Index [7]\n|+bag+wearItems+1+Item+BaseId [380009]\n|+bag+wearItems+1+Item+Level [89]\n|+bag+wearItems+1+Item+UniqueItmId [0]\n|+bag+wearItems+1+Item+BaseAttrAffix+1+Id [800000]\n|+bag+wearItems+1+Item+BaseAffix+1+Id [172103200]\n|+bag+wearItems+1+Item+ChipAffix+1+Id [160567034]\n|+bag+wearItems+1+Item+EnchantAffixs+1+Id [3704005]\n|+bag+wearItems+1+Item+Corrode [true]\n|+bag+wearItems+1+Item+Prefix+1+Id [251471001]\n|+bag+wearItems+1+Item+Prefix+1+source [16]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+1 [2.0]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+2 [-3.0]\n|+bag+wearItems+1+Item+Suffix+1+Id [51533751]\n|+bag+wearItems+1+Item+Suffix+1+source [17]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+1 [1.0]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+2 [3.0]\n----Socket RecvMessage End----\ntail after dump\n`
+
+const skillLog = `----Socket RecvMessage STT----GetPlayerData----SynId = 2
+|+bag+dressSkillItems+1+Item+Id [7746_noble]
+|+bag+dressSkillItems+1+Item+BaseId [7746]
+|+bag+dressSkillItems+1+Item+Level [1]
+|+bag+dressSkillItems+1+Item+SkillItemLevel [89]
+|+bag+dressSkillItems+1+Item+Prefix+1+Id [771031022]
+|+bag+dressSkillItems+1+Item+Prefix+1+DynArgs+1 [31.0]
+|+bag+dressSkillItems+1+Index [305]
+|+bag+dressSkillItems+1+PageId [-6]
+|+skills+skills+1+Id [7018_whirlwind]
+|+skills+skills+1+BaseId [7018]
+|+skills+skills+1+Level [20]
+|+skills+skills+1+SkillItemLevel [16]
+|+skillLayout+slots+1+key [3]
+|+skillLayout+slots+1+value+skillId [7018_whirlwind]
+|+skillLayout+slots+2+key [305]
+|+skillLayout+slots+2+value+skillId [7746_noble]
+----Socket RecvMessage End----`
 
 function chunkedFile(text: string, chunkSize = 17): File {
   const bytes = new TextEncoder().encode(text)
@@ -23,6 +42,15 @@ function chunkedFile(text: string, chunkSize = 17): File {
 }
 
 describe('UE_game.log preview', () => {
+  it('joins the three equipped skill lists by item ID and preserves the logged slot and level', async () => {
+    const result = await scanUeGameLog(chunkedFile(skillLog))
+
+    expect(result.characters[0].skills).toEqual([
+      { baseId: 7018, logIndex: 3, level: 20, skillItemLevel: 16, prefixes: [] },
+      { baseId: 7746, logIndex: 305, level: 1, skillItemLevel: 89, prefixes: [{ id: '771031022', source: null, values: [31] }] },
+    ])
+  })
+
   it('streams login dumps and returns the Vorax base, equipped slot, affix source, and rolled values', async () => {
     const result = await scanUeGameLog(chunkedFile(log))
 
@@ -82,7 +110,7 @@ describe('UE_game.log build conversion', () => {
     const capture = (fileNumber: number, modifiedAt: number, characterName: string, heroId: number, level: number) => ({
       fileNumber,
       modifiedAt,
-      preview: { dumpNumber: 1, characterName, level, heroId, heroPurchaseId: null, gear: [], truncatedSections: [] },
+      preview: { dumpNumber: 1, characterName, level, heroId, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] },
     })
     const groups = groupUeLogCaptures([
       capture(1, 100, 'Sage', 1800, 94),
@@ -90,9 +118,73 @@ describe('UE_game.log build conversion', () => {
       capture(3, 150, 'Other', 1800, 90),
     ])
     expect(groups).toEqual([
-      { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], truncatedSections: [] }, loginCount: 2 },
-      { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], truncatedSections: [] }, loginCount: 1 },
+      { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] }, loginCount: 2 },
+      { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] }, loginCount: 1 },
     ])
+  })
+
+  it('merges capped skill lists across the same character’s login captures', () => {
+    const capture = (dumpNumber: number, modifiedAt: number, skills: Array<{ baseId: number; logIndex: number; level: number | null; skillItemLevel: number | null; prefixes: Array<{ id: string; source: string | null; values: number[] }> }>) => ({
+      fileNumber: 1,
+      modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001, gear: [], skills, truncatedSections: [] },
+    })
+    const groups = groupUeLogCaptures([
+      capture(1, 100, [
+        { baseId: 7289, logIndex: 2, level: 19, skillItemLevel: 1, prefixes: [] },
+        { baseId: 7018, logIndex: 3, level: 20, skillItemLevel: 16, prefixes: [] },
+      ]),
+      capture(2, 200, [
+        { baseId: 7289, logIndex: 2, level: 20, skillItemLevel: 1, prefixes: [] },
+      ]),
+    ])
+
+    expect(groups[0].preview.skills).toEqual([
+      { baseId: 7289, logIndex: 2, level: 20, skillItemLevel: 1, prefixes: [] },
+      { baseId: 7018, logIndex: 3, level: 20, skillItemLevel: 16, prefixes: [] },
+    ])
+  })
+
+  it('maps equipped active skills and their supports through TLIDB game IDs and log slot indexes', () => {
+    const character = {
+      dumpNumber: 1,
+      characterName: 'Sage',
+      level: 98,
+      heroId: 1800,
+      heroPurchaseId: 18001,
+      truncatedSections: [],
+      gear: [],
+      skills: [
+        { baseId: 7018, logIndex: 3, level: 20, skillItemLevel: 16, prefixes: [] },
+        { baseId: 7746, logIndex: 305, level: 1, skillItemLevel: 89, prefixes: [{ id: '771031022', source: null, values: [31] }] },
+      ],
+    }
+    const catalog = [
+      { item_id: 'whirlwind', name: 'Whirlwind', game_id: 7018, skill_type: 'active_skill', skill_tags: ['Attack'], description_lines: ['Deals weapon attack damage.'], raw_text: '', max_level: 20 },
+      { item_id: 'whirlwind_whirling_blade_noble', name: 'Whirlwind: Whirling Blade (Noble)', game_id: 7746, skill_type: 'noble_support_skill', skill_tags: ['Support', 'Physical'], description_lines: ['Supports Whirlwind.'], raw_text: '', max_level: 5 },
+    ] as SkillItem[]
+
+    const result = createUeLogBuild(character, [], [], [], [], [], catalog)
+
+    expect(result.build.skills).toEqual([{
+      slot: 3,
+      item_id: 'whirlwind',
+      name: 'Whirlwind',
+      level: 20,
+      skill_tags: ['Attack'],
+      description_lines: ['Deals weapon attack damage.'],
+      supports: [{
+        support_index: 5,
+        item_id: 'whirlwind_whirling_blade_noble',
+        name: 'Whirlwind: Whirling Blade (Noble)',
+        skill_type: 'noble_support_skill',
+        level: 1,
+        rank: 1,
+        skill_tags: ['Support', 'Physical'],
+        description_lines: ['Supports Whirlwind.'],
+      }],
+    }])
+    expect(result.warnings).toContain('Whirlwind: Whirling Blade (Noble): support modifier 771031022 is not mapped; its roll and rank use Builder defaults.')
   })
 
   it('creates an editable Vorax item with mapped affixes and exact rolls', () => {
@@ -141,6 +233,7 @@ describe('UE_game.log build conversion', () => {
         enchantAffixes: [],
         corroded: false,
       }],
+      skills: [],
     }
     const dawnBreak = {
       item_id: 'dawn_break', name: 'Dawn Break', game_id: 113337, base_type: 'Ring', required_level: 1,
@@ -189,6 +282,7 @@ describe('UE_game.log build conversion', () => {
         enchantAffixes: [],
         corroded: false,
       }],
+      skills: [],
     }
     const baseItems = [{ item_id: 'str_helmet', name: 'STR Helmet', base_items: [{
       name: "Brute's Helm", game_id: 3600, implicit_modifier_ids: ['580000'], required_level: 1,
@@ -236,7 +330,7 @@ describe('UE_game.log build conversion', () => {
     } as unknown as LegendaryGearItem
     const character = {
       dumpNumber: 1, characterName: null, level: 54, heroId: 1800, heroPurchaseId: null,
-      truncatedSections: [], gear: [{
+      truncatedSections: [], skills: [], gear: [{
         baseId: 3299, itemLevel: 54, equippedSlot: 4, uniqueItemId: 112145,
         baseAttrAffixIds: [], baseAffixIds: [], prefixes: [],
         suffixes: [{ id: '45100001', source: '6', values: [5] }],
@@ -254,5 +348,87 @@ describe('UE_game.log build conversion', () => {
     expect(result.build.gear?.[0].customizations).toEqual([
       { affix_index: 0, chosen_values: { 0: 5 }, chosen_placeholder_key: null },
     ])
+  })
+
+  it('maps unique affixes across TLIDB variants and keeps the base item implicit by modifier_id', () => {
+    const unique = {
+      item_id: 'deaths_touch', name: "Death's Touch", game_id: 112346, base_type: "Ranger's Rusted Gauntlets",
+      required_level: 58, drop_level: 58, flavor_text: null, drop_sources: [], glossary: {},
+      random_affixes: { base: [{ placeholder: '<A Random Critical Strike or Weapon Damage Affix>', options: [
+        { raw_text: '+(#) Critical Strike Damage', modifier_id: '51434661', expression: '+(#) Critical Strike Damage', condition: null, affix_kind: 'numeric', numeric_values: [] },
+      ] }] },
+      variants: {
+        base: { implicits: [], explicits: [
+          { raw_text: '+(#) Critical Strike Rating', modifier_id: '51434611', expression: '+(#) Critical Strike Rating', condition: null, affix_kind: 'numeric', numeric_values: [] },
+        ] },
+        corroded: { implicits: [], explicits: [] },
+      },
+    } as unknown as LegendaryGearItem
+    const baseItems = [{ item_id: 'dex_gloves', name: 'DEX Gloves', base_items: [{
+      name: "Ranger's Rusted Gauntlets", game_id: 3311, required_level: 58, armor: null,
+      implicit_modifier_ids: ['580011'], implicits: ['+1920 Gear Armor'],
+    }] }] as CraftBaseItemGroup[]
+    const character = {
+      dumpNumber: 1, characterName: null, level: 98, heroId: 1800, heroPurchaseId: null,
+      truncatedSections: [], skills: [], gear: [{
+        baseId: 3311, itemLevel: 58, equippedSlot: 9, uniqueItemId: 112346,
+        baseAttrAffixIds: ['580011'], baseAffixIds: [], prefixes: [{ id: '51434611', source: null, values: [263] }],
+        suffixes: [{ id: '51434661', source: null, values: [86] }], chipAffixes: [], enchantAffixes: [], corroded: true,
+      }],
+    }
+
+    const result = createUeLogBuild(character, [], [unique], baseItems)
+
+    expect(result.build.gear?.[0].affixes.map(affix => affix.modifier_id)).toEqual(['51434611', '51434661', '580011'])
+    expect(result.build.gear?.[0].customizations).toEqual([
+      { affix_index: 0, chosen_values: { 0: 263 }, chosen_placeholder_key: null },
+      { affix_index: 1, chosen_values: { 0: 86 }, chosen_placeholder_key: null },
+    ])
+    expect(result.warnings).toEqual(['Hero, talents, memories, and other character settings are not imported yet.'])
+  })
+
+  it('maps a logged belt enchant on unique gear to the equipped blend talent_id', () => {
+    const unique = {
+      item_id: 'belt_unique', name: 'Belt Unique', game_id: 104725, base_type: 'Belt',
+      required_level: 90, drop_level: 90, flavor_text: null, drop_sources: [], glossary: {},
+      variants: { base: { implicits: [], explicits: [] } }, random_affixes: {},
+    } as unknown as LegendaryGearItem
+    const blends = [{ talent_id: '340002', modifier_id: '3401001', talent_type: 'medium', talent_level: 0,
+      talent_name: null, effect_text: 'Restores 3 % of Life on defeat', effect_raw: 'Restores 3 % of Life on defeat' }] as BeltBlend[]
+    const character = {
+      dumpNumber: 1, characterName: null, level: 98, heroId: 1800, heroPurchaseId: null,
+      truncatedSections: [], skills: [], gear: [{
+        baseId: 4725, itemLevel: 90, equippedSlot: 8, uniqueItemId: 104725,
+        baseAttrAffixIds: [], baseAffixIds: [], prefixes: [], suffixes: [], chipAffixes: [],
+        enchantAffixes: [{ id: '3401001', source: '13', values: [] }], corroded: false,
+      }],
+    }
+
+    const result = createUeLogBuild(character, [], [unique], [], [], [], [], blends)
+
+    expect(result.build.gear?.[0]).toMatchObject({ item_id: 'belt_unique', beltBlend: '340002' })
+    expect(result.warnings).toEqual(['Hero, talents, memories, and other character settings are not imported yet.'])
+  })
+
+  it('maps a logged belt enchant modifier to the equipped blend talent_id', () => {
+    const baseItems = [{ item_id: 'belt', name: 'Belt', base_items: [{
+      name: 'Omni-Elixir Notes', game_id: 4725, required_level: 90, armor: null,
+      implicit_modifier_ids: [], implicits: [],
+    }] }] as CraftBaseItemGroup[]
+    const blends = [{ talent_id: '340002', modifier_id: '3401001', talent_type: 'medium', talent_level: 0,
+      talent_name: null, effect_text: 'Restores 3 % of Life on defeat', effect_raw: 'Restores 3 % of Life on defeat' }] as BeltBlend[]
+    const character = {
+      dumpNumber: 1, characterName: null, level: 98, heroId: 1800, heroPurchaseId: null,
+      truncatedSections: [], skills: [], gear: [{
+        baseId: 4725, itemLevel: 90, equippedSlot: 8, uniqueItemId: null,
+        baseAttrAffixIds: [], baseAffixIds: [], prefixes: [], suffixes: [], chipAffixes: [],
+        enchantAffixes: [{ id: '3401001', source: '13', values: [] }], corroded: false,
+      }],
+    }
+
+    const result = createUeLogBuild(character, [], [], baseItems, [{ item_id: 'belt', name: 'Belt', affixes: [], base_items: [] }], [], [], blends)
+
+    expect(result.build.gear?.[0]).toMatchObject({ item_id: 'omni_elixir_notes', beltBlend: '340002' })
+    expect(result.warnings).toEqual(['Hero, talents, memories, and other character settings are not imported yet.'])
   })
 })
