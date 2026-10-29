@@ -107,3 +107,17 @@ def test_missing_base_affixes_defaults_empty():
     del data["base_affixes"]
     r = import_crawler_graft(data)
     assert r["base_affixes"] == []
+
+
+def test_crawler_ids_survive_graft_import():
+    data = {**_GRAFT, "internal_id": 380010}
+    data["craft_affixes"] = [{
+        "tier": "2",
+        "modifier": {"modifier_id": "251471001", "text": "+2 % Attack Speed"},
+        "level": "1",
+        "weight": "1",
+        "affix_type": "Ultimate Affix",
+    }]
+    result = import_crawler_graft(data)
+    assert result["base_id"] == 380010
+    assert result["affixes"][0]["modifier_id"] == "251471001"

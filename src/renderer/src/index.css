@@ -1562,6 +1562,24 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   max-width: 560px;
 }
 
+.game-log-import-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh / var(--ui-zoom, 1) - 32px);
+}
+.game-log-import-modal > .import-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.game-log-import-modal > .modal-actions { flex: 0 0 auto; }
+.game-log-import-modal .import-panel-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--bg-card);
+}
+
 .share-modal-hint {
   font-size: 12px;
   color: #7070aa;
@@ -2158,6 +2176,39 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 /* Center the panel's primary action (Import / Import Anyway) to match the Compendium file button. */
 .import-panel-actions { justify-content: center; }
+
+.log-import-card {
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--border-color, #3d4a5c);
+  border-radius: 10px;
+  background: var(--panel-bg, #1d2838);
+}
+.log-import-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.log-import-card__heading h4 { margin: 0 0 5px; color: var(--text-primary, #f3f5f8); }
+.log-import-card__heading p { margin: 0; color: var(--text-secondary, #a9b4c4); }
+.log-import-card__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+  color: var(--text-secondary, #a9b4c4);
+  font-size: 0.9rem;
+}
+.log-import-card__summary strong { color: var(--text-primary, #f3f5f8); }
+.log-import-card__details { margin-top: 14px; color: var(--text-secondary, #a9b4c4); }
+.log-import-card__details summary { cursor: pointer; color: var(--accent, #94b7ff); }
+.log-import-card__item { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--border-color, #3d4a5c); }
+.log-import-card__item:last-child { border-bottom: 0; }
+.log-import-card__item strong { color: var(--text-primary, #f3f5f8); }
+@media (max-width: 560px) {
+  .log-import-card__heading { flex-direction: column; }
+}
 
 /* ── Update Banner ─────────────────────────────────────────── */
 

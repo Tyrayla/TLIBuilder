@@ -2081,6 +2081,7 @@ export interface CraftBaseItemGroup {
 }
 
 export interface GraftAffix {
+  modifier_id?: string | null
   raw_text: string
   expression: string
   condition: string | null
@@ -2102,6 +2103,7 @@ export interface GraftAffix {
 
 export interface Graft {
   item_id: string
+  base_id?: number
   name: string
   legendary_items: string[]
   base_affixes: GraftAffix[]

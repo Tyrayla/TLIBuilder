@@ -6,6 +6,8 @@ import { useReferenceStore } from '../store/referenceStore'
 import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/context'
 import compendiumExportImg from '../assets/compendium-export.png'
 import { copyableErrorDetails, normalizeError, type TliErrorPayload } from '../errors/tliError'
+import { scanUeGameLog, type UeLogCharacterPreview } from '../importers/ueLog/parse'
+import { createUeLogBuild, groupUeLogCaptures } from '../importers/ueLog/toBuild'
 
 /**
  * Shared import UI used by BOTH the main-menu import modal (BuildSelectScreen) and the in-build Import/Export
@@ -19,7 +21,7 @@ interface Props {
 }
 
 export default function ImportPanel({ onImport, autoFocus }: Props) {
-  const [mode, setMode] = useState<'builder' | 'compendium'>('builder')
+  const [mode, setMode] = useState<'builder' | 'compendium' | 'game-log'>('builder')
   const [importCode, setImportCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [structuredError, setStructuredError] = useState<TliErrorPayload | null>(null)
@@ -27,6 +29,8 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const [pendingBuild, setPendingBuild] = useState<Build | null>(null)   // decoded/converted, awaiting "Import Anyway"
   const [importing, setImporting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const gameLogFileRef = useRef<HTMLInputElement>(null)
+  const [gameLogPreview, setGameLogPreview] = useState<ReturnType<typeof groupUeLogCaptures> | null>(null)
 
   const refLegendary = useReferenceStore(s => s.legendaryCatalog)
   const refSkills = useReferenceStore(s => s.skills)
@@ -104,13 +108,52 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     convertCompendium(o)
   }
 
-  const switchMode = (m: 'builder' | 'compendium') => { setMode(m); reset(); setImportCode('') }
+  const inspectGameLogs = async (files: FileList | null) => {
+    if (!files?.length) return
+    reset(); setGameLogPreview(null); setImporting(true)
+    try {
+      const all: Array<{ fileNumber: number; modifiedAt: number; preview: UeLogCharacterPreview }> = []
+      const problems: string[] = []
+      const orderedFiles = Array.from(files).map((file, index) => ({ file, index })).sort((a, b) => a.file.lastModified - b.file.lastModified)
+      for (const { file, index } of orderedFiles) {
+        if (file.size > 512_000_000) {
+          problems.push(`Selected file ${index + 1} is larger than the 512 MB limit.`)
+          continue
+        }
+        const result = await scanUeGameLog(file)
+        all.push(...result.characters.map(preview => ({ fileNumber: index + 1, modifiedAt: file.lastModified, preview })))
+        problems.push(...result.errors.map(problem => `File ${index + 1}: ${problem}`))
+      }
+      setGameLogPreview(groupUeLogCaptures(all))
+      setWarnings(problems)
+      if (!all.length && !problems.length) setError('No GetPlayerData login dumps were found in the selected files.')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not read the selected game log.')
+    } finally { setImporting(false) }
+  }
+
+  const createBuildFromLog = (preview: UeLogCharacterPreview, loginCount: number) => {
+    if (!refGrafts || !refLegendary) {
+      setError('Gear data is still loading. Try again in a moment.')
+      return
+    }
+    reset()
+    const result = createUeLogBuild(preview, refGrafts, refLegendary)
+    if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The draft uses the most recently modified selected log.`)
+    setPendingBuild(result.build)
+    setWarnings(result.warnings)
+  }
+
+  const switchMode = (m: 'builder' | 'compendium' | 'game-log') => {
+    setMode(m); reset(); setImportCode(''); setGameLogPreview(null)
+  }
 
   return (
     <div className="import-panel">
       <div className="import-source-toggle">
         <button className={`import-source-tab${mode === 'builder' ? ' active' : ''}`} onClick={() => switchMode('builder')}>TLI Builder Code</button>
         <button className={`import-source-tab${mode === 'compendium' ? ' active' : ''}`} onClick={() => switchMode('compendium')}>TLI Compendium Build</button>
+        <button className={`import-source-tab${mode === 'game-log' ? ' active' : ''}`} onClick={() => switchMode('game-log')}>Game log preview</button>
       </div>
 
       {mode === 'builder' && (
@@ -141,6 +184,49 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
         </>
       )}
 
+      {mode === 'game-log' && (
+        <>
+          <p className="share-modal-hint">Choose UE_game.log and any backup logs. Your files stay on this device. Pick a login to create a draft build with the Vorax gear the app can identify. Other character data is listed before you import.</p>
+          <input ref={gameLogFileRef} type="file" accept=".log,text/plain" multiple style={{ display: 'none' }}
+            onChange={e => { void inspectGameLogs(e.target.files); e.target.value = '' }} />
+          <div className="import-file-row">
+            <button className="btn btn-primary" disabled={importing} onClick={() => gameLogFileRef.current?.click()}>
+              {importing ? 'Reading logs…' : 'Choose UE_game.log files…'}
+            </button>
+          </div>
+          {gameLogPreview && gameLogPreview.length === 0 && <p role="status">No login dumps were found.</p>}
+          {gameLogPreview?.map(({ fileNumber, preview, loginCount }) => {
+            const vorax = preview.gear.filter(item => refGrafts?.some(graft => graft.base_id === item.baseId))
+            return (
+              <section key={`${fileNumber}-${preview.dumpNumber}`} className="log-import-card">
+                <div className="log-import-card__heading">
+                  <div>
+                    <h4>{preview.characterName || `Hero ${preview.heroId ?? 'unknown'}`}</h4>
+                    <p>Level {preview.level ?? 'unknown'} · {loginCount} login {loginCount === 1 ? 'capture' : 'captures'} · File {fileNumber}</p>
+                  </div>
+                  <button className="btn btn-primary" disabled={importing} onClick={() => createBuildFromLog(preview, loginCount)}>Create draft build</button>
+                </div>
+                <div className="log-import-card__summary">
+                  <span><strong>{preview.gear.length}</strong> equipped items detected</span>
+                  <span><strong>{vorax.length}</strong> Vorax items ready to map</span>
+                  {preview.truncatedSections.length > 0 && <span>Some log lists were capped</span>}
+                </div>
+                <details className="log-import-card__details">
+                  <summary>Review detected Vorax gear</summary>
+                  {vorax.length === 0 ? <p>No catalogued Vorax items were found in this login.</p> : vorax.map((item, index) => (
+                    <div key={`${item.baseId}-${index}`} className="log-import-card__item">
+                      <strong>{refGrafts?.find(graft => graft.base_id === item.baseId)?.name ?? `Vorax base ${item.baseId}`}</strong>
+                      <span>Slot {item.equippedSlot ?? 'unknown'} · Item level {item.itemLevel ?? 'unknown'}</span>
+                      <span>{[...item.prefixes, ...item.suffixes].length} affixes · Base affix {item.baseAffixIds.join(', ') || 'none'}</span>
+                    </div>
+                  ))}
+                </details>
+              </section>
+            )
+          })}
+        </>
+      )}
+
       {structuredError && (
         <div className="share-import-error" role="alert">
           <strong>{structuredError.title} ({structuredError.code}) — </strong>{structuredError.message}
@@ -153,9 +239,11 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
         <div className="share-import-warning">
           <p>{pendingBuild && mode === 'compendium'
             ? '⚠ Some items couldn’t be mapped and were skipped (also saved in the build’s notes):'
+            : mode === 'game-log'
+              ? 'The game-log scan reported:'
             : '⚠ This build may be from an older version:'}</p>
           <ul>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-          <p>Click <b>Import Anyway</b> to proceed.</p>
+          <p>Review these limits before you import the draft build.</p>
         </div>
       )}
 
