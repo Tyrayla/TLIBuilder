@@ -70,7 +70,7 @@ their page IDs: Digits 380009 and Neck 380006. The [Digits page](https://tlidb.c
 shows the `380009` Info id and the Basic, Advanced, and Ultimate affix tiers.
 
 The crawler recrawled all ten graft pages on 2026-10-29. The SS14 records include each page's
-`internal_id` and 100% of the parsed craft affix rows carry tlidb `modifier_id` values. The five
+`game_id` and 100% of the parsed craft affix rows carry TLIDB `modifier_id` values. The five
 ordinary affix IDs from the sample Digits ring appear on the Digits page. The legendary ID
 `51533751` remains in the legendary gear catalog. The base affix ID `172103200` does not appear in
 the graft craft-affix rows and still needs a source. The generated graft catalog was re-imported
@@ -321,7 +321,7 @@ tlidb already exposes the game id on several pages and our crawler already captu
 | Pactspirits | `servantId` | `pactspirit` (no ids) | 0 | probe an `id:` line; otherwise observation (below) |
 | Destinies / kismets | `tattoInfo.BaseId` | `destiny` (no ids) | 0 as a field, but **4/4 by icon number** (`3500NN`, `3503NN`, `3505NN`, F29) | probe an `id:` line; add `internal_id` so the icon number is not needed |
 | Tower sequences | `ChipAffix{1}.Id` (`160419013`) | `tower_sequence` `{affix, source}` (no id) | 0 | capture the id per sequence entry (GAP-11); the page may show it as `data-modifier-id` or an `id:` line |
-| Vorax grafts and affixes | `BaseId` (`380009`), `Prefix/Suffix Id` (`25xxxxxxx`, `51533751`), `BaseAffix` (`172103200`) | `grafts` (`base_id`, `modifier_id`) | ten page IDs confirmed; five sample Digits affix IDs matched by recrawl | carry the recrawled IDs into canonical `tli-data`; find the Have Fervor ID |
+| Vorax grafts and affixes | `BaseId` (`380009`), `Prefix/Suffix Id` (`25xxxxxxx`, `51533751`), `BaseAffix` (`172103200`) | `grafts` (`game_id`, `modifier_id`) | ten `game_id` values confirmed; five sample Digits affix IDs matched by recrawl | find the Have Fervor ID |
 
 The game-ID claim is confirmed where we have matched captures (talents, legendaries, memories, belt blend, and the observed Vorax graft IDs). We opened the tlidb Graft index and all ten linked graft pages. The sample Vorax affix IDs match tlidb's per-affix `modifier_id` values. Other categories still need their own page probes.
 

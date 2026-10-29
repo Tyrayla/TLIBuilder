@@ -94,7 +94,7 @@ describe('UE_game.log build conversion', () => {
   it('creates an editable Vorax item with mapped affixes and exact rolls', () => {
     const graft = {
       item_id: 'vorax_limb_digits',
-      base_id: 380009,
+      game_id: 380009,
       name: 'Vorax Limb: Digits',
       legendary_items: [],
       base_affixes: [],

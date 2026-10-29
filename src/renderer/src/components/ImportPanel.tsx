@@ -196,7 +196,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
           </div>
           {gameLogPreview && gameLogPreview.length === 0 && <p role="status">No login dumps were found.</p>}
           {gameLogPreview?.map(({ fileNumber, preview, loginCount }) => {
-            const vorax = preview.gear.filter(item => refGrafts?.some(graft => graft.base_id === item.baseId))
+            const vorax = preview.gear.filter(item => refGrafts?.some(graft => graft.game_id === item.baseId))
             return (
               <section key={`${fileNumber}-${preview.dumpNumber}`} className="log-import-card">
                 <div className="log-import-card__heading">
@@ -215,7 +215,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
                   <summary>Review detected Vorax gear</summary>
                   {vorax.length === 0 ? <p>No catalogued Vorax items were found in this login.</p> : vorax.map((item, index) => (
                     <div key={`${item.baseId}-${index}`} className="log-import-card__item">
-                      <strong>{refGrafts?.find(graft => graft.base_id === item.baseId)?.name ?? `Vorax base ${item.baseId}`}</strong>
+                      <strong>{refGrafts?.find(graft => graft.game_id === item.baseId)?.name ?? `Vorax base ${item.baseId}`}</strong>
                       <span>Slot {item.equippedSlot ?? 'unknown'} · Item level {item.itemLevel ?? 'unknown'}</span>
                       <span>{[...item.prefixes, ...item.suffixes].length} affixes · Base affix {item.baseAffixIds.join(', ') || 'none'}</span>
                     </div>

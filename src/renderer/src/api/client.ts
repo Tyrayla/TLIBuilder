@@ -2103,7 +2103,7 @@ export interface GraftAffix {
 
 export interface Graft {
   item_id: string
-  base_id?: number
+  game_id?: number
   name: string
   legendary_items: string[]
   base_affixes: GraftAffix[]

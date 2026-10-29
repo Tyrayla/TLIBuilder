@@ -50,7 +50,7 @@ def import_crawler_graft(data: dict) -> dict:
     return {
         "item_id": item_id,
         "name": name,
-        "base_id": data.get("internal_id"),
+        "game_id": data.get("game_id"),
         "uuid": data.get("uuid"),
         "legendary_items": legendary_items,
         "base_affixes": base_affixes,

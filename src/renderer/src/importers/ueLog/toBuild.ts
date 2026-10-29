@@ -164,7 +164,7 @@ export function createUeLogBuild(
   const gear: EquippedGearItem[] = []
   const unmappedBaseIds: number[] = []
   for (const item of character.gear) {
-    const graft = grafts.find(candidate => candidate.base_id === item.baseId)
+    const graft = grafts.find(candidate => candidate.game_id === item.baseId)
     if (!graft) {
       if (item.baseId !== null) unmappedBaseIds.push(item.baseId)
       continue
