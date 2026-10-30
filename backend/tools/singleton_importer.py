@@ -189,7 +189,7 @@ def import_hero_memories(data: dict, season_name: str) -> dict:
         {
             "name": mt.get("name", ""),
             "uuid": mt.get("uuid"),
-            "internal_id": mt.get("internal_id"),
+            "game_id": mt.get("game_id"),
             "icon_url": mt.get("icon_url", ""),
         }
         for mt in (data.get("memory_types") or [])
@@ -262,12 +262,16 @@ def import_tower_sequence(data: dict, season_name: str) -> dict:
         if sequence_type and not affix.rstrip().endswith(sequence_type):
             affix = f"{affix.rstrip()} {sequence_type}"
         sources = it.get("Source", "")
+        modifier_id = it.get("modifier_id")
         if isinstance(sources, list):
             source_names = sources
         else:
             source_names = str(sources).split(",")
         for source in dict.fromkeys(name.strip() for name in source_names if name.strip()):
-            entries.append({"affix": affix, "source": source})
+            entry = {"affix": affix, "source": source}
+            if modifier_id:
+                entry["modifier_id"] = str(modifier_id)
+            entries.append(entry)
     return {
         "season": season_name,
         "entry_count": len(entries),

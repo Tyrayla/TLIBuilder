@@ -8,7 +8,7 @@ import { api, registerSkillTagVocabulary } from '../api/client'
 import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 export interface HeroMemoryData {
-  memory_types: HeroMemoryType[]   // per-type catalog rows (name/internal_id/icon_url) — drives type icons
+  memory_types: HeroMemoryType[]   // per-type catalog rows (name/game_id/icon_url) — drives type icons
   base_stats: HeroMemoryAffix[]
   fixed_affixes: HeroMemoryAffix[]
   random_affixes: HeroMemoryAffix[]

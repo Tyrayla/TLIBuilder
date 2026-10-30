@@ -770,7 +770,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
 
       {importOpen && (
         <div className="modal-backdrop" onClick={() => setImportOpen(false)}>
-          <div className="modal-card share-modal-card" onClick={e => e.stopPropagation()}>
+          <div className="modal-card share-modal-card game-log-import-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-accent" />
             <h3 className="modal-title">Import Build</h3>
             <ImportPanel onImport={(build) => { setImportOpen(false); onOpenBuild(build) }} autoFocus />

@@ -1,6 +1,6 @@
 {
-  "affix_count": 273,
-  "identity_count": 169,
+  "affix_count": 279,
+  "identity_count": 170,
   "note": "Frozen additional-damage identity partition. Gate for the modifier-identity migration (docs/MODIFIER_UUID_REVIEW.md). Regenerate ONLY on an intended data change.",
   "partition": {
     "additional active skill damage": [
@@ -13,7 +13,9 @@
     ],
     "additional area damage for this skill when demolisher charge is consumed": [
       "+(30–40) % additional Area Damage for this skill when Demolisher Charge is consumed.",
-      "+(40–50) % additional Area Damage for this skill when Demolisher Charge is consumed."
+      "+(34–45) % additional Area Damage for this skill when Demolisher Charge is consumed.",
+      "+(40–50) % additional Area Damage for this skill when Demolisher Charge is consumed.",
+      "+(57–70) % additional Area Damage for this skill when Demolisher Charge is consumed."
     ],
     "additional attack damage for each unique type of weapon equipped while dual wielding": [
       "+5 % additional Attack Damage for each unique type of weapon equipped while Dual Wielding"
@@ -338,7 +340,9 @@
     ],
     "additional shadow damage": [
       "+(14–16) % additional Shadow Damage",
-      "+(20–24) % additional Shadow Damage"
+      "+(20–24) % additional Shadow Damage",
+      "+(24–32) % additional Shadow Damage",
+      "+(40–54) % additional Shadow Damage"
     ],
     "additional skill damage when demolisher charge is consumed": [
       "+(30–40) % additional skill damage when Demolisher Charge is consumed",
@@ -375,6 +379,10 @@
     "additional spirit magus ultimate damage and ailment damage dealt by ultimate": [
       "+(10–21) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate .",
       "+(8–16) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+    ],
+    "additional steep strike damage": [
+      "+(20–30) % additional Steep Strike Damage",
+      "+(40–52) % additional Steep Strike Damage"
     ],
     "additional sweep slash damage additional steep strike damage": [
       "(-100–-80) % additional Sweep Slash Damage; +(140–180) % additional Steep Strike Damage",

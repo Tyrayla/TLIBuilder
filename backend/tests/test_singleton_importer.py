@@ -59,7 +59,7 @@ _HERO_MEM_DATA = {
         {"Tier": "2", "Modifier": "+88 Strength", "Level": "1", "Weight": "0", "Source": "Memory of Origin"},
     ],
     "memory_types": [
-        {"name": "Memory of Origin", "url_path": "/en/Memory_of_Origin", "internal_id": 71001, "icon_url": "https://cdn.tlidb.com/icon.webp"},
+        {"name": "Memory of Origin", "url_path": "/en/Memory_of_Origin", "game_id": 71001, "icon_url": "https://cdn.tlidb.com/icon.webp"},
     ],
     "glossary": [],
 }
@@ -118,7 +118,7 @@ def test_hero_memories_new_format():
     assert r["random_affixes"][0]["tier"] == 0
     assert r["base_stats"][0]["modifier"] == "+90 Strength"
     assert r["memory_types"][0]["name"] == "Memory of Origin"
-    assert r["memory_types"][0]["internal_id"] == 71001
+    assert r["memory_types"][0]["game_id"] == 71001
 
 
 def test_hero_memories_normalizes_modifiers():
@@ -206,14 +206,14 @@ def test_tower_sequence_expands_grouped_sources_and_appends_sequence_type():
     data = {"entity_type": "tower_sequence", "sections": [{
         "header": "TOWER Sequence /1", "columns": ["Affix Effect", "Source", "Type"],
         "items": [{"Affix Effect": "+8 % additional damage", "Source": "Claw, Cane, Wand",
-                   "Type": "Intermediate Sequence 1|2|6"}],
+                   "Type": "Intermediate Sequence 1|2|6", "modifier_id": "160401001"}],
     }]}
     result = import_tower_sequence(data, "SS14")
     assert result["entry_count"] == 3
     assert result["entries"] == [
-        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Claw"},
-        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Cane"},
-        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Wand"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Claw", "modifier_id": "160401001"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Cane", "modifier_id": "160401001"},
+        {"affix": "+8 % additional damage Intermediate Sequence 1|2|6", "source": "Wand", "modifier_id": "160401001"},
     ]
 
 

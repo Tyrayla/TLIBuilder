@@ -133,7 +133,7 @@ def import_crawler_item(item_data: dict) -> dict:
         "item_id": item_id,
         "name": item_data["name"],
         "uuid": item_data.get("uuid"),
-        "internal_id": item_data.get("internal_id"),
+        "game_id": item_data.get("game_id"),
         "base_type": item_data.get("base_type", ""),
         "required_level": item_data.get("required_level"),
         "drop_level": item_data.get("drop_level"),
