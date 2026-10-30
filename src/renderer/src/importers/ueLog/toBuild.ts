@@ -26,12 +26,40 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const name = capture.preview.characterName?.trim().toLocaleLowerCase() ?? ''
     const key = `${name}\u001f${capture.preview.heroId ?? 'unknown'}`
     const previous = groups.get(key)
+    const gearBySlot = new Map<string, UeLogGearItem>()
+    const rememberGear = (item: UeLogGearItem, index: number) => {
+      const itemKey = item.equippedSlot === null
+        ? `unknown:${item.baseId ?? 'unknown'}:${index}`
+        : `slot:${item.equippedSlot}`
+      gearBySlot.set(itemKey, item)
+    }
+    for (const [index, item] of (previous?.preview.gear ?? []).entries()) rememberGear(item, index)
+    for (const [index, item] of capture.preview.gear.entries()) rememberGear(item, index)
     const skillsBySlot = new Map<number, UeLogSkillItem>()
     for (const skill of previous?.preview.skills ?? []) skillsBySlot.set(skill.logIndex, skill)
     for (const skill of capture.preview.skills) skillsBySlot.set(skill.logIndex, skill)
+    const talentsById = new Map<string, { id: string; rank: number }>()
+    for (const talent of previous?.preview.talentTreeAllocations ?? []) talentsById.set(talent.id, talent)
+    for (const talent of capture.preview.talentTreeAllocations ?? []) talentsById.set(talent.id, talent)
+    const servantIds = new Set([
+      ...(previous?.preview.servantIds ?? []),
+      ...(capture.preview.servantIds ?? []),
+    ])
+    const truncatedSections = new Set([
+      ...(previous?.preview.truncatedSections ?? []),
+      ...capture.preview.truncatedSections,
+    ])
     groups.set(key, {
       fileNumber: capture.fileNumber,
-      preview: { ...capture.preview, skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex) },
+      preview: {
+        ...capture.preview,
+        gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
+        skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
+        talentTreeAllocations: [...talentsById.values()],
+        followServantId: capture.preview.followServantId ?? previous?.preview.followServantId ?? null,
+        servantIds: [...servantIds],
+        truncatedSections: [...truncatedSections],
+      },
       loginCount: (previous?.loginCount ?? 0) + 1,
     })
   }

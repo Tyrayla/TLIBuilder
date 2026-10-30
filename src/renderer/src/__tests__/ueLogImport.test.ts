@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { scanUeGameLog } from '../importers/ueLog/parse'
+import type { UeLogCharacterPreview } from '../importers/ueLog/parse'
 import { createUeLogBuild, groupUeLogCaptures } from '../importers/ueLog/toBuild'
 import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, SkillItem } from '../api/client'
 
@@ -149,8 +150,8 @@ describe('UE_game.log build conversion', () => {
       capture(3, 150, 'Other', 1800, 90),
     ])
     expect(groups).toEqual([
-      { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] }, loginCount: 2 },
-      { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] }, loginCount: 1 },
+      { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], talentTreeAllocations: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 2 },
+      { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], talentTreeAllocations: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 1 },
     ])
   })
 
@@ -231,6 +232,64 @@ describe('UE_game.log build conversion', () => {
       { baseId: 7289, logIndex: 2, level: 20, skillItemLevel: 1, prefixes: [] },
       { baseId: 7018, logIndex: 3, level: 20, skillItemLevel: 16, prefixes: [] },
     ])
+  })
+
+  it('merges gear, talent, and follower data across the same character’s login captures', () => {
+    const gear = (equippedSlot: number, baseId: number) => ({
+      baseId,
+      itemLevel: 89,
+      equippedSlot,
+      uniqueItemId: 0,
+      baseAttrAffixIds: [],
+      baseAffixIds: [],
+      prefixes: [],
+      suffixes: [],
+      chipAffixes: [],
+      enchantAffixes: [],
+      corroded: false,
+    })
+    const capture = (dumpNumber: number, modifiedAt: number, preview: Partial<UeLogCharacterPreview>) => ({
+      fileNumber: 1,
+      modifiedAt,
+      preview: {
+        dumpNumber,
+        characterName: 'Sage',
+        level: 98,
+        heroId: 1800,
+        heroPurchaseId: 18001,
+        gear: [],
+        skills: [],
+        truncatedSections: [],
+        ...preview,
+      },
+    })
+    const groups = groupUeLogCaptures([
+      capture(1, 100, {
+        gear: [gear(1, 3611)],
+        talentTreeAllocations: [{ id: '12228', rank: 1 }],
+        followServantId: 11230,
+        servantIds: [16130],
+        truncatedSections: ['TalentTree'],
+      }),
+      capture(2, 200, {
+        gear: [gear(2, 4725)],
+        talentTreeAllocations: [{ id: '12228', rank: 2 }, { id: '10409', rank: 1 }],
+        followServantId: 11330,
+        servantIds: [18120],
+      }),
+    ])
+
+    expect(groups[0].preview.gear.map(item => [item.equippedSlot, item.baseId])).toEqual([
+      [1, 3611],
+      [2, 4725],
+    ])
+    expect(groups[0].preview.talentTreeAllocations).toEqual([
+      { id: '12228', rank: 2 },
+      { id: '10409', rank: 1 },
+    ])
+    expect(groups[0].preview.followServantId).toBe(11330)
+    expect(groups[0].preview.servantIds).toEqual([16130, 18120])
+    expect(groups[0].preview.truncatedSections).toEqual(['TalentTree'])
   })
 
   it('maps equipped active skills and their supports through TLIDB game IDs and log slot indexes', () => {

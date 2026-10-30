@@ -320,11 +320,11 @@ tlidb already exposes the game id on several pages and our crawler already captu
 | Hero + trait ids | `heroPurchaseId`, `activeId` | none | 0/4 | hero trait page `id:` line; capture hero id and trait id |
 | Divinity slates (base, legendary) | `BaseId`, `UniqueItmId`, `ShapeId` | `divinity_slate` (no ids) | 0 | capture `internal_id` and shape for every base/legendary slate kind |
 | Prisms | `BaseId` 360620, affix `1204...`, `1234...` | `ethereal_prism` (no ids) | 0 | capture `internal_id` and affix `modifier_id`s |
-| Pactspirits | `servantId` | `pactspirit` (no ids) | 0 | probe an `id:` line; otherwise observation (below) |
+| Pactspirits | `ServantInfos.servantData[].servantId` | `pactspirit` (no ids) | current sample has 30 IDs, including `16130`; none join to the current catalog | TLIDB has no matching IDs on available pages; keep the IDs visible and report the gap |
 | Destinies / kismets | `tattoInfo.BaseId` | `destiny` (no ids) | 0 as a field, but **4/4 by icon number** (`3500NN`, `3503NN`, `3505NN`, F29) | probe an `id:` line; add `internal_id` so the icon number is not needed |
 | Tower sequences | `ChipAffix{1}.Id` (`160419013`) | `tower_sequence.entries[].modifier_id` | 111/111 TLIDB page rows have IDs; game-log `160419013` is absent (matching text is `160419009`) | Exact game-log ID remains a TLIDB gap; importer leaves it out with a warning |
 | Vorax grafts and affixes | `BaseId`, affix IDs | `grafts.game_id`, `modifier_id` | ten graft IDs and sample affixes confirmed; base ID `172103200` found on Graft index | canonical SS14 catalog refreshed |
-| Followers and follower skills | variant `game_id`; linked skill paths | `_followers.json`, `_tartarus_skills.json`, `_origin_tartarus_skills.json` | 32 follower variants, 81 Tartarus skills, 54 Origin Tartarus skills | log has no follower-selection fields |
+| Followers and follower skills | `player.FollowServant`, `ServantInfos.servantData[].servantId`; variant `game_id`; linked skill paths | `_followers.json`, `_tartarus_skills.json`, `_origin_tartarus_skills.json` | 32 follower variants, 81 Tartarus skills, 54 Origin Tartarus skills; logged IDs `11230` and `16130` do not join to follower `game_id` values | TLIDB exposes recommendation-letter variants and skill paths, but no bridge from these logged IDs |
 
 The crawler now uses `game_id` for item and skill IDs and `modifier_id` for modifier lines. The SS14 Graft index supplies Vorax base-affix IDs, and canonical data contains the refreshed rows. Other unresolved ID bridges are listed below.
 
@@ -342,9 +342,11 @@ The crawler now uses `game_id` for item and skill IDs and `modifier_id` for modi
 3. **Desktop:** the player picks or auto-detects the log once, then the app offers an "update build" re-import when they relog.
 
 The local importer runs in the shared Import Build modal. It maps equipped Vorax, crafted, and
-unique gear; it also maps active/passive skills and support attachments by logged game ID, then
-merges skill rows across selected captures. Unique randomized affixes are looked up in each item's
-`random_affixes` option groups, and belt enchant IDs resolve to the blend's `talent_id`.
+unique gear; it also maps active/passive skills and support attachments by logged game ID. Across
+selected captures for the same character, it merges gear by equipped slot, skills by log slot,
+talent allocations by node ID, and servant IDs as a union; the latest non-null follower selection
+wins. Unique randomized affixes are looked up in each item's `random_affixes` option groups, and
+belt enchant IDs resolve to the blend's `talent_id`.
 Electron and web were both driven through the redacted representative log on 2026-10-29; each built
 a draft with 9 equipped gear items, 37 skill/support items, and 1 Vorax item. The same remaining
 catalog warnings appeared on both platforms. See section 12 for the current audit and gaps.
@@ -356,14 +358,14 @@ the import limits, then click **Import Anyway** to open the build. For the web b
 local-data build makes the recrawled graft IDs available to web without deploying them. The renderer
 reads the log locally and does not upload or save it.
 
-Facts that decide it: the game writes `GetPlayerData` once per login and nothing else we can use (F25/F30); the dump lists are capped and re-shuffled per login (section 9), so extra captures can improve coverage; the current importer groups names and HeroIds but builds from the most recently modified selected log; the file is rewritten at every game launch with the previous one rotated to `UE_game-backup-*.log` (HYPOTHESIS for the rotation count: we saw one live file and two backups); post-login changes only update slot ids (`ItemChange`), never full objects; the file holds account ids and IPs (F19).
+Facts that decide it: the game writes `GetPlayerData` once per login and nothing else we can use (F25/F30); the dump lists are capped and re-shuffled per login (section 9), so extra captures can improve coverage; the importer groups names and HeroIds, uses the latest capture as the base, and merges the mapped lists across selected captures; the file is rewritten at every game launch with the previous one rotated to `UE_game-backup-*.log` (HYPOTHESIS for the rotation count: we saw one live file and two backups); post-login changes only update slot ids (`ItemChange`), never full objects; the file holds account ids and IPs (F19).
 
 | Option | What it gives | Cost / risk |
 |---|---|---|
 | One-shot file pick (desktop and web) | Simple, privacy-clear, no background activity. Result is a snapshot of the last login in that file. | User must repick after relogging; picks only the dumps in that file. |
 | Live watch (desktop) | Re-reads the file when it changes; picks up each new login dump automatically, so merging across logins (section 9) happens without effort. Slot-id changes between logins can be applied without a dump. | Needs a file watcher and a stored path; **it does not give live gear or skill rolls** because nothing writes full objects after login, so "live" really means "re-import on every login". Keeps a path (not content) on disk. |
 | Auto-detect Steam library (desktop) | Zero-setup: read `libraryfolders.vdf`, look for `Torchlight Infinite\UE_game\TorchLight\Saved\Logs`. | Reads outside our sandbox, only a main-process feature, Linux/macOS paths differ; always offer the picker as fallback and show the path being read before reading. |
-| Multi-file and multi-character logs | Groups captures by character name and `HeroId` in memory. The player chooses a character. The current draft uses the most recently modified selected log for that character. Do not show or store account identifiers. |
+| Multi-file and multi-character logs | Groups captures by character name and `HeroId` in memory. The player chooses a character. Gear, skills, talents, and servant IDs are merged from the selected captures; do not show or store account identifiers. |
 | Web, client-side parse | Nothing leaves the browser. The parser scans files in chunks and retains the fields needed for a draft. The 206 MB sample has nine dumps for four characters. The importer discards raw log text after scanning. |
 | Real upload to a server | Allows server-side id tables and fixes without a client release. | Would send account ids and IPs; needs consent, retention rules and a redactor; no benefit for parsing, since the id tables can ship as data files. **Not recommended.** |
 
