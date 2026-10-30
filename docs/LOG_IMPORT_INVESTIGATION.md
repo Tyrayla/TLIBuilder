@@ -43,7 +43,7 @@ older dump; "live" below means the redacted fixture.
 | 10 | Enchant affixes | `Item.EnchantAffixs`, `EnchantSlots` (1 item in live) | VERIFIED field, ids unresolved | no | blocked on ids |
 | 11 | Chip / extension affixes | `ChipAffix{1}{Id, DynArgs}` on a weapon is the **tower sequence** (F31, verified id to text). `extAffix` is not gear: it sits on a tree node under a prism (F20). | VERIFIED | 111/111 TOWER Sequence effect rows carry unique `modifier_id` values in the refreshed SS14 crawl | IDs now resolve; the selected sequence can map by modifier ID |
 | 12 | Belt blend (`beltBlend`) | `EnchantAffixs[1].Id` on the belt (`3401001`, `source` 13) = the blending-ritual `modifier_id` ("Restores 3 % of Life on defeat", owner-confirmed) | VERIFIED (F26) | yes (`blending_rituals.json`) | importable |
-| 12b | Tower sequence (`towerSequence`) | weapon `ChipAffix[1]`: `160419013` = "+20 % additional damage on Critical Strike" (Intermediate Sequence 1\|2\|5, owner-confirmed on weapon `1119`); two-weapon character: `160565034` = "+120 % Fearless Aura -20 % additional Fearless Sealed Mana Compensation" (Advanced 4\|4\|5\|6) by value match | VERIFIED (1 id) + matched (1); the refreshed index exposes IDs for all 111 effect rows | canonical SS14 entries preserve `modifier_id` (111 unique IDs expanded to 408 source-specific entries) | All current page rows have IDs, but the owner-confirmed log ID `160419013` is absent; TLIDB shows the same text under `160419009`, so exact-ID mapping remains unresolved |
+| 12b | Tower sequence (`towerSequence`) | weapon `ChipAffix[1]`: `160419013` = "+20 % additional damage on Critical Strike" (Intermediate Sequence 1\|2\|5, owner-confirmed on weapon `1119`); two-weapon character: `160565034` = "+120 % Fearless Aura -20 % additional Fearless Sealed Mana Compensation" (Advanced 4\|4\|5\|6) by value match | VERIFIED (1 id) + matched (1); the refreshed index exposes IDs for all 111 effect rows | canonical SS14 entries preserve `modifier_id` (111 unique IDs expanded to 408 source-specific entries) | The catalog maps `160419009`; the exact logged ID `160419013` is still absent from TLIDB and cannot be mapped safely |
 | 12c | **Vorax gear** (`is_vorax`, graft item, `legendary_source`, slots) | `BaseId` joins to graft `game_id`; `BaseAttrAffix` and `BaseAffix` join to modifier IDs; `Prefix/Suffix[].source` 15 = Basic/Advanced, 16 = Ultimate, 17 = Legendary | Ring decoded against its tooltip; all ten graft IDs and the sample Digits affix IDs appear in the recrawl | Graft index supplies base IDs `800000`–`800002` and `172103200`; canonical SS14 data now includes them | The importer maps the synthetic Vorax item without item or affix warnings |
 | 13 | Active skills + slot (`skills[]`) | `bag.dressSkillItems`, `skills.skills`, `skillLayout.slots`; page -6 indices 1–5 | VERIFIED | 25/25 in the sample; SS14 catalog IDs now available | imported by exact `game_id` and slot index |
 | 14 | Supports / activation medium / noble / magnificent, `support_index` | page -6 slot ids (F11), item `BaseId` | VERIFIED | SS14 TLIDB `id:` lines; 784 unique IDs in `_skills.json` | imported by exact `game_id` and slot index |
@@ -218,8 +218,8 @@ The importer preserves user privacy by parsing files in the renderer and discard
 
 ## 6. Remaining importer work
 
-1. Resolve the remaining equipped base-affix IDs and support-roll IDs only when TLIDB or another
-   allowed source exposes a reliable mapping. The importer currently warns and omits unknown lines.
+1. Resolve support-roll IDs only when TLIDB or another allowed source exposes a reliable mapping.
+   The importer currently warns and omits unknown lines.
 2. Find a source for the five-digit `TalentTree` allocation IDs, hero and trait IDs, prism IDs, slate
    base IDs, pactspirit IDs, and destiny IDs. Do not infer a mapping from numeric patterns alone.
 3. Import memories, slates, prisms, pactspirits, fates, scent-bottle choices, and hero-trait selections
@@ -381,30 +381,35 @@ Privacy copy (draft): "Your log stays on your device. We read only the character
 
 ## 12. Current SS14 import audit (2026-10-29)
 
+For the non-build account and game state carried by the same log payload, see [What a UE_game.log contains](UE_GAME_LOG_DATA_MAP.md).
+
 The crawler recrawled 344 SS14 legendary-gear pages and 38 craft-base-type pages. The Builder importer
 produced 337 distinct legendary items and 38 craft-base types. The canonical data refresh includes
 ordinary craft bases, craft affixes, Vorax grafts, unique gear, skills, followers, Tartarus skills,
-Origin Tartarus skills, and Tower Sequence rows. The changes are in [tli-data PR #20](https://github.com/Tyrayla/tli-data/pull/20), which is still open. Builder CI fetches `tli-data@main`, so it does not yet see those rows.
+Origin Tartarus skills, Tower Sequence rows, and Thea's trait-replacement metadata. [tli-data PR #20](https://github.com/Tyrayla/tli-data/pull/20) merged on 2026-10-30 as `565197716d713853143e40294cb72f16bb26cd50`.
 
 The redacted representative log maps all 9 equipped gear identities and all 37 active, passive, and
-support identities when tested with the refreshed catalogs. Vorax base item `380009` and its known
-fixed and crafted affixes resolve. Unique randomized modifiers `51434661` (Death's Touch) and
-`51525131` (Broken Sun Ring) come from older SS13 TLIDB item pages; current SS14 pages omit those
-option groups. The canonical SS14 records preserve those rows. Belt blend `3401001` maps to talent
-`340002`. Tower Sequence data contains 111 effect IDs, but the representative log's `160419013` is
-not present. TLIDB exposes matching text under `160419009`, so the importer warns and omits the exact
-logged ID rather than substituting a different ID.
+support identities when tested with the refreshed catalogs. Ordinary base-affix IDs `1507016`,
+`1502106`, `1501313`, and `1501311` are now in the refreshed SS14 craft-base catalog. Vorax base item
+`380009` and its known fixed and crafted affixes also resolve. Unique randomized modifiers `51434661`
+(Death's Touch) and `51525131` (Broken Sun Ring) come from older SS13 TLIDB item pages; current SS14
+pages omit those option groups. The canonical SS14 records preserve those rows. Belt blend `3401001`
+maps to talent `340002`. The Tower Sequence catalog includes 111 modifier IDs, including `160419009`.
+The representative log uses `160419013` for the same text. TLIDB does not expose that exact ID, so the
+importer warns and omits it rather than substituting another ID.
 
 The refreshed catalogs contain 32 follower variants, 81 Tartarus skills, and 54 Origin Tartarus
 skills. The log's `FollowServant` value is `11230`, the owner-confirmed cosmetic pet selection.
+The canonical talent trees contain 48 Thea "Prophecy of Revelation" replacement variants. Each now
+maps to `wisdom_of_the_gods` at unlock level 60, and all 25 variant effects with a max-divinity cap
+carry `max_divinity_effect`.
 `ServantInfos` includes pactspirit IDs such as `16130`. TLIDB's [Follower page](https://tlidb.com/en/Follower) lists recommendation-letter variants. A [Pactspirit page](https://tlidb.com/en/Pactspirit) shows names and effects but no matching `servantId` field. These pages do not bridge either logged field.
 
 ### Gaps still visible in representative logs
 
-- Base-affix IDs `1507016` (Ranger's Broken Mask), `1502106` (Eternal Sleep Ice Ring), and
-  `1501313` and `1501311` (Earthrending Axe) do not appear in the recrawled SS14 catalogs or the
-  available SS12 and SS13 crawler output. The reachable TLIDB item and base-type pages do not expose
-  rows for these IDs. [TLIDB lists Ranger's Broken Mask under STR Helmet](https://tlidb.com/en/STR_Helmet), and the [Earthrending Axe page](https://tlidb.com/en/Earthrending_Axe) exposes base ID `1119`; neither page exposes these logged base-affix IDs. The importer warns and omits them.
+- The four ordinary base-affix IDs above resolve in merged canonical data. `1507016` is a STR Helmet affix,
+  `1502106` is a Ring affix, and `1501313` and `1501311` are Two-Handed Axe affixes. The merged
+  records include their TLIDB modifier IDs and text.
 - Support-roll IDs `771006001`, `771006021`, `771006022`, `771031022`, `771003001`, and `771003011`
   do not appear in the crawled skill pages or canonical skill catalogs. Skill identities and slots
   map, but these modifier rolls and ranks use Builder defaults with a warning.
@@ -421,12 +426,12 @@ skills. The log's `FollowServant` value is `11230`, the owner-confirmed cosmetic
 
 ### CI data mismatch
 
-Builder PR #37 currently has a green frontend job and a red backend job. The backend failures are
-`test_web_export_includes_tower_sequence_modifier_ids`, because `160419009` is missing from
-`tli-data@main`, and `test_additional_damage_pooling_partition_is_frozen`, because the fetched affix
-corpus differs from its frozen partition. PR #20 adds the tower row and refreshes the SS14 gear data.
-Do not push another Builder commit until PR #20 is merged, the full backend suite passes locally with
-the same `tli-data@main` snapshot CI will fetch, and the branch's frontend checks remain green.
+Builder PR #37's 2026-10-30 CI run passed typecheck and Vitest but failed two backend tests because it
+fetched `tli-data@main` before the merge above. The export test could not find `160419009`, and the
+pooling-partition test saw the older affix corpus. After `npm run fetch:data` hydrated the merged
+dataset, the full backend suite passed with 4,439 tests passed and 68 skipped. GitHub CI must rerun
+against the updated Builder branch. The separate logged Tower Sequence ID `160419013` remains absent
+from TLIDB and cannot be mapped safely.
 
 The multi-capture importer and corrected warning were driven in Electron and web with a synthetic log.
 The UI showed 3 equipped items from two captures and the same merge explanation on both targets.
