@@ -219,3 +219,38 @@ def test_trait_replacement_talents_share_one_node_and_keep_both_variants():
             "modifier_id": None,
         }],
     }]
+
+
+def test_trait_variant_strips_source_markup_and_keeps_max_divinity_metadata():
+    base = {
+        **_MINIMAL_NODE,
+        "talent_id": "32050100",
+        "name": "Legendary Medium Talent",
+        "type": "legendary_medium_talent",
+        "column": 5,
+        "row": 1,
+        "effects": ["+10 % Attack Speed"],
+    }
+    replacement = {
+        **base,
+        "talent_id": "32050101",
+        "effects": [
+            "+1 Max Tenacity Blessing stacks at Full Life (Max Active Divinity: 1) "
+            '<div class="prophecy"> Source:Hero Trait -Prophecy of Revelation</div>'
+        ],
+    }
+
+    result = import_crawler_tree({"nodes": [base, replacement]}, "Arcanist")
+
+    assert result["nodes"][0]["trait_variants"] == [{
+        "trait_id": "wisdom_of_the_gods",
+        "unlock_level": 60,
+        "advanced_selection": "Prophecy of Revelation",
+        "effects": [{
+            "text": "+1 Max Tenacity Blessing stacks at Full Life (Max Active Divinity: 1)",
+            "uuid": None,
+            "pooling_uuid": None,
+            "modifier_id": None,
+            "max_divinity_effect": 1,
+        }],
+    }]

@@ -2,6 +2,7 @@
 Imports crawler tree JSON into the season-stored tree format.
 """
 
+import html
 import re
 
 from engine.modifier_lines import slim
@@ -19,6 +20,11 @@ _TRAIT_SOURCE_METADATA = {
 }
 
 
+def _plain_text(value: str) -> str:
+    """Remove residual page markup from crawler text without changing its words."""
+    return html.unescape(re.sub(r"<[^>]*>", " ", value)).strip()
+
+
 def _effect_line(e) -> dict:
     """Slim stored modifier line for a tree/core effect, with the structured Max-Divinity cap."""
     out = slim(e)
@@ -33,13 +39,14 @@ def _trait_variant(node: dict) -> dict | None:
     source_name = None
     effects = []
     for effect in (node.get("effects") or []):
-        text = effect.get("text", "") if isinstance(effect, dict) else str(effect or "")
+        raw_text = effect.get("text", "") if isinstance(effect, dict) else str(effect or "")
+        text = _plain_text(raw_text)
         match = _HERO_TRAIT_SOURCE_RE.search(text)
         if match:
-            source_name = match.group(1).strip()
+            source_name = _plain_text(match.group(1))
             text = text[:match.start()].rstrip()
         # Re-minting is not possible at this boundary. Do not carry identity UUIDs across changed wording.
-        effects.append(_effect_line(text) if not match else slim(text))
+        effects.append(_effect_line(text))
     if not source_name:
         return None
     metadata = _TRAIT_SOURCE_METADATA.get(source_name.casefold())
