@@ -81,6 +81,20 @@ describe('UE_game.log preview', () => {
     expect(JSON.stringify(result)).not.toContain('UserId')
   })
 
+  it('retains logged talent allocation IDs and ranks for import auditing', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+SP3Base+TalentTree+1+key [12228]
+|+SP3Base+TalentTree+1+value [1]
+|+SP3Base+TalentTree+2+key [10409]
+|+SP3Base+TalentTree+2+value [2]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0].talentTreeAllocations).toEqual([
+      { id: '12228', rank: 1 },
+      { id: '10409', rank: 2 },
+    ])
+  })
+
   it('reports a file with no login dump without returning file contents', async () => {
     const result = await scanUeGameLog(chunkedFile('personal text that is not a game dump'))
 
@@ -102,6 +116,9 @@ describe('UE_game.log preview', () => {
     expect(vorax.length).toBeGreaterThan(0)
     expect(vorax[0].baseAffixIds).toContain('172103200')
     expect(vorax[0].prefixes.map(affix => affix.source)).toContain('16')
+    expect(result.characters.some(character => character.talentTreeAllocations?.some(
+      allocation => allocation.id === '12228' && allocation.rank === 1,
+    ))).toBe(true)
   })
 })
 
@@ -120,6 +137,25 @@ describe('UE_game.log build conversion', () => {
     expect(groups).toEqual([
       { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] }, loginCount: 2 },
       { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], truncatedSections: [] }, loginCount: 1 },
+    ])
+  })
+
+  it('reports game talent allocation IDs that do not join current TLIDB talent IDs', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1,
+      characterName: null,
+      level: 98,
+      heroId: 1800,
+      heroPurchaseId: null,
+      gear: [],
+      skills: [],
+      talentTreeAllocations: [{ id: '12228', rank: 1 }, { id: '10409', rank: 2 }],
+      truncatedSections: [],
+    }, [], [])
+
+    expect(result.warnings).toEqual([
+      'Hero, talents, memories, and other character settings are not imported yet.',
+      'Talent-tree allocation IDs (12228, 10409) do not match the current TLIDB talent_id values; those allocations were not imported.',
     ])
   })
 

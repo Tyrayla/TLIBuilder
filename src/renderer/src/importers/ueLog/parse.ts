@@ -43,6 +43,7 @@ export interface UeLogCharacterPreview {
   heroPurchaseId: number | null
   gear: UeLogGearItem[]
   skills: UeLogSkillItem[]
+  talentTreeAllocations?: Array<{ id: string; rank: number }>
   truncatedSections: string[]
 }
 
@@ -255,6 +256,13 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     heroPurchaseId: numberValue(scalar(hero.heroPurchaseId)),
     gear: gearRows(tree),
     skills: skillRows(tree),
+    talentTreeAllocations: entries((tree.SP3Base as Record<string, unknown> | undefined)?.TalentTree).flatMap(raw => {
+      if (!raw || typeof raw !== 'object') return []
+      const row = raw as Record<string, unknown>
+      const id = scalar(row.key)
+      const rank = numberValue(scalar(row.value))
+      return typeof id === 'string' && rank !== null && rank > 0 ? [{ id, rank }] : []
+    }),
     truncatedSections: [...body.matchAll(/^\s*\|*\s*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
   }
 }

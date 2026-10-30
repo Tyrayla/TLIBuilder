@@ -572,6 +572,12 @@ export function createUeLogBuild(
     warnings.push(`Unmapped gear base IDs: ${unmappedBaseIds.join(', ')}.`)
   }
   const skills = buildLoggedSkills(character.skills ?? [], skillCatalog, warnings)
+  const talentTreeAllocations = character.talentTreeAllocations ?? []
+  if (talentTreeAllocations.length) {
+    warnings.push(
+      `Talent-tree allocation IDs (${talentTreeAllocations.map(row => row.id).join(', ')}) do not match the current TLIDB talent_id values; those allocations were not imported.`,
+    )
+  }
   warnings.unshift('Hero, talents, memories, and other character settings are not imported yet.')
 
   return {

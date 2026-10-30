@@ -398,8 +398,13 @@ Remaining gear data gaps visible in the representative log:
   `771003011` do not appear in the crawled skill pages or canonical skill catalogs. Skill identities
   map, but these modifier rolls/ranks still use Builder defaults and are reported.
 - Two support levels are absent from the selected login dump, so the app uses the Builder defaults
-  and reports those cases. Hero, talent trees, memories, slates, and follower/pact state are outside
-  this importer pass; talent truncation and several item/stat tables remain separate audit work.
+  and reports those cases.
+- `TalentTree` entries in the log use five-digit node IDs such as `12228` and `10409`. The 32 current
+  TLIDB SS14 tree pages use eight-digit `talent_id` values, and the pages expose no bridge between
+  those ID formats. The parser keeps each logged ID and rank. The importer warns and leaves the tree
+  slots empty until a supported mapping is available.
+- Hero traits, memories, slates, and follower/pact state are not imported yet. Talent truncation and
+  several item/stat tables still need a separate audit.
 
 Both Electron and the local web build were tested using the real file picker and the redacted log.
 They produced matching warning lists and opened the imported draft into Gear and Skills screens
