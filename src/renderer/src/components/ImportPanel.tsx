@@ -7,7 +7,7 @@ import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/co
 import compendiumExportImg from '../assets/compendium-export.png'
 import { copyableErrorDetails, normalizeError, type TliErrorPayload } from '../errors/tliError'
 import { scanUeGameLog, type UeLogCharacterPreview } from '../importers/ueLog/parse'
-import { createUeLogBuild, groupUeLogCaptures } from '../importers/ueLog/toBuild'
+import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures } from '../importers/ueLog/toBuild'
 
 /**
  * Shared import UI used by BOTH the main-menu import modal (BuildSelectScreen) and the in-build Import/Export
@@ -150,7 +150,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       catch { catalogUnavailable = true }
       const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences, refSkills, beltBlends)
       if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; Tower Sequence chips or belt blends may be omitted.')
-      if (loginCount > 1) result.warnings.splice(1, 0, `This character has ${loginCount} login captures. The latest capture provides character state; available skill items are merged across captures.`)
+      if (loginCount > 1) result.warnings.splice(1, 0, describeUeLogCaptureMerge(loginCount))
       setPendingBuild(result.build)
       setWarnings(result.warnings)
     } finally { setImporting(false) }

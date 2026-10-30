@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { scanUeGameLog } from '../importers/ueLog/parse'
 import type { UeLogCharacterPreview } from '../importers/ueLog/parse'
-import { createUeLogBuild, groupUeLogCaptures } from '../importers/ueLog/toBuild'
+import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures } from '../importers/ueLog/toBuild'
 import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, SkillItem } from '../api/client'
 
 const log = `prefix before dump\n----Socket RecvMessage STT----GetPlayerData----SynId = 1\n|+player+Level [98]\n|+player+HeroId [700]\n|+heroCharacterv3OverView+heroPurchaseId [3002]\n|+bag+wearItems+1+Index [7]\n|+bag+wearItems+1+Item+BaseId [380009]\n|+bag+wearItems+1+Item+Level [89]\n|+bag+wearItems+1+Item+UniqueItmId [0]\n|+bag+wearItems+1+Item+BaseAttrAffix+1+Id [800000]\n|+bag+wearItems+1+Item+BaseAffix+1+Id [172103200]\n|+bag+wearItems+1+Item+ChipAffix+1+Id [160567034]\n|+bag+wearItems+1+Item+EnchantAffixs+1+Id [3704005]\n|+bag+wearItems+1+Item+Corrode [true]\n|+bag+wearItems+1+Item+Prefix+1+Id [251471001]\n|+bag+wearItems+1+Item+Prefix+1+source [16]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+1 [2.0]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+2 [-3.0]\n|+bag+wearItems+1+Item+Suffix+1+Id [51533751]\n|+bag+wearItems+1+Item+Suffix+1+source [17]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+1 [1.0]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+2 [3.0]\n----Socket RecvMessage End----\ntail after dump\n`
@@ -43,6 +43,12 @@ function chunkedFile(text: string, chunkSize = 17): File {
 }
 
 describe('UE_game.log preview', () => {
+  it('describes how repeated login captures are combined', () => {
+    expect(describeUeLogCaptureMerge(2)).toBe(
+      'This character has 2 login captures. Later entries replace earlier data in the same gear and skill slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined, and the latest recorded follower selection is used.',
+    )
+  })
+
   it('joins the three equipped skill lists by item ID and preserves the logged slot and level', async () => {
     const result = await scanUeGameLog(chunkedFile(skillLog))
 

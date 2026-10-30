@@ -18,6 +18,10 @@ export interface UeLogCharacterGroup {
   loginCount: number
 }
 
+export function describeUeLogCaptureMerge(loginCount: number): string {
+  return `This character has ${loginCount} login captures. Later entries replace earlier data in the same gear and skill slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined, and the latest recorded follower selection is used.`
+}
+
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
 export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGroup[] {
   const groups = new Map<string, UeLogCharacterGroup>()
