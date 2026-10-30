@@ -95,6 +95,16 @@ describe('UE_game.log preview', () => {
     ])
   })
 
+  it('retains follower and servant IDs for import auditing', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+player+FollowServant [11230]
+|+ServantInfos+servantData+1+servantId [16130]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0].followServantId).toBe(11230)
+    expect(result.characters[0].servantIds).toContain(16130)
+  })
+
   it('reports a file with no login dump without returning file contents', async () => {
     const result = await scanUeGameLog(chunkedFile('personal text that is not a game dump'))
 
@@ -119,6 +129,10 @@ describe('UE_game.log preview', () => {
     expect(result.characters.some(character => character.talentTreeAllocations?.some(
       allocation => allocation.id === '12228' && allocation.rank === 1,
     ))).toBe(true)
+    expect(result.characters[0].followServantId).toBe(11230)
+    expect(result.characters[0].servantIds).toContain(16130)
+    expect(result.characters[0].servantIds).toHaveLength(30)
+    expect(result.characters[0].truncatedSections.length).toBeGreaterThan(0)
   })
 })
 
@@ -156,6 +170,44 @@ describe('UE_game.log build conversion', () => {
     expect(result.warnings).toEqual([
       'Hero, talents, memories, and other character settings are not imported yet.',
       'Talent-tree allocation IDs (12228, 10409) do not match the current TLIDB talent_id values; those allocations were not imported.',
+    ])
+  })
+
+  it('reports logged follower IDs that do not match the TLIDB follower catalog', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1,
+      characterName: null,
+      level: 98,
+      heroId: 1800,
+      heroPurchaseId: null,
+      gear: [],
+      skills: [],
+      followServantId: 11230,
+      servantIds: [16130],
+      truncatedSections: [],
+    }, [], [])
+
+    expect(result.warnings).toEqual([
+      'Hero, talents, memories, and other character settings are not imported yet.',
+      'Logged follower/servant IDs (11230, 16130) do not match current TLIDB follower game_id values; follower state was not imported.',
+    ])
+  })
+
+  it('warns when the selected login dump contains truncated data', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1,
+      characterName: null,
+      level: 98,
+      heroId: 1800,
+      heroPurchaseId: null,
+      gear: [],
+      skills: [],
+      truncatedSections: ['TalentTree'],
+    }, [], [])
+
+    expect(result.warnings).toEqual([
+      'Hero, talents, memories, and other character settings are not imported yet.',
+      'The selected login dump contains 1 truncated data section; values omitted by the game log could not be imported.',
     ])
   })
 

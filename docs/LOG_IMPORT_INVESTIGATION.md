@@ -402,8 +402,13 @@ Remaining gear data gaps visible in the representative log:
 - `TalentTree` entries in the log use five-digit node IDs such as `12228` and `10409`. The 32 current
   TLIDB SS14 tree pages use eight-digit `talent_id` values, and the pages expose no bridge between
   those ID formats. The parser keeps each logged ID and rank. The importer warns and leaves the tree
-  slots empty until a supported mapping is available.
-- Hero traits, memories, slates, and follower/pact state are not imported yet. Talent truncation and
+  slots empty until a supported mapping is available. The representative dump also truncates this
+  section after 30 visible allocations, and the importer reports the truncation.
+- `player.FollowServant` is `11230`, and `ServantInfos.servantData` contains 30 `servantId` values,
+  including `16130`. The current TLIDB follower catalog has 16 recommendation-letter pages and 32
+  variants whose `game_id` values identify the letters; it does not provide IDs for these logged
+  follower/servant values. The importer captures the IDs and reports that follower state is omitted.
+- Hero traits, memories, slates, and remaining pact state are not imported yet. Talent truncation and
   several item/stat tables still need a separate audit.
 
 Both Electron and the local web build were tested using the real file picker and the redacted log.

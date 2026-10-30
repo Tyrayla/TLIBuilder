@@ -44,6 +44,8 @@ export interface UeLogCharacterPreview {
   gear: UeLogGearItem[]
   skills: UeLogSkillItem[]
   talentTreeAllocations?: Array<{ id: string; rank: number }>
+  followServantId?: number | null
+  servantIds?: number[]
   truncatedSections: string[]
 }
 
@@ -248,6 +250,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
   const tree = parseGetPlayerDataBody(body)
   const player = (tree.player ?? {}) as Record<string, unknown>
   const hero = (tree.heroCharacterv3OverView ?? {}) as Record<string, unknown>
+  const servantInfos = tree.ServantInfos as Record<string, unknown> | undefined
   return {
     dumpNumber,
     characterName: typeof scalar(player.Name) === 'string' ? scalar(player.Name) as string : null,
@@ -263,7 +266,13 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
       const rank = numberValue(scalar(row.value))
       return typeof id === 'string' && rank !== null && rank > 0 ? [{ id, rank }] : []
     }),
-    truncatedSections: [...body.matchAll(/^\s*\|*\s*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
+    followServantId: numberValue(scalar(player.FollowServant)),
+    servantIds: entries(servantInfos?.servantData).flatMap(raw => {
+      if (!raw || typeof raw !== 'object') return []
+      const servantId = numberValue(scalar((raw as Record<string, unknown>).servantId))
+      return servantId === null ? [] : [servantId]
+    }),
+    truncatedSections: [...body.matchAll(/^[| ]*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
   }
 }
 

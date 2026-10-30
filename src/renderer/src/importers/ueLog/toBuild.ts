@@ -578,6 +578,21 @@ export function createUeLogBuild(
       `Talent-tree allocation IDs (${talentTreeAllocations.map(row => row.id).join(', ')}) do not match the current TLIDB talent_id values; those allocations were not imported.`,
     )
   }
+  const followerIds = [...new Set([
+    character.followServantId,
+    ...(character.servantIds ?? []),
+  ].filter((id): id is number => id !== null && id !== undefined))]
+  if (followerIds.length) {
+    warnings.push(
+      `Logged follower/servant IDs (${followerIds.join(', ')}) do not match current TLIDB follower game_id values; follower state was not imported.`,
+    )
+  }
+  const truncatedSectionCount = character.truncatedSections?.length ?? 0
+  if (truncatedSectionCount > 0) {
+    warnings.push(
+      `The selected login dump contains ${truncatedSectionCount} truncated data section${truncatedSectionCount === 1 ? '' : 's'}; values omitted by the game log could not be imported.`,
+    )
+  }
   warnings.unshift('Hero, talents, memories, and other character settings are not imported yet.')
 
   return {
