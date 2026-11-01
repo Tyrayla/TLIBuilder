@@ -1642,6 +1642,14 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .share-import-warning p:last-child { margin-bottom: 0; }
 .share-import-warning ul { margin: 2px 0 6px 16px; padding: 0; }
 .share-import-warning li { margin-bottom: 2px; }
+.log-import-warnings {
+  margin: 0 20px;
+  color: var(--text-secondary, #a9b4c4);
+  font-size: 12px;
+}
+.log-import-warnings summary { cursor: pointer; color: var(--text-secondary, #a9b4c4); }
+.log-import-warnings ul { margin: 8px 0 0 16px; padding: 0; }
+.log-import-warnings li { margin-bottom: 4px; }
 
 .share-copied {
   background: #0e3a1a !important;

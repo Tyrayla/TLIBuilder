@@ -38,6 +38,9 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const refCraftBaseTypes = useReferenceStore(s => s.craftBaseTypes)
   const refGrafts = useReferenceStore(s => s.grafts)
   const refHeroMemoryScaling = useReferenceStore(s => s.heroMemories?.base_stat_scaling)
+  const refHeroMemories = useReferenceStore(s => s.heroMemories)
+  const refHeroTraits = useReferenceStore(s => s.heroTraits)
+  const refMemoryRevival = useReferenceStore(s => s.memoryRevival)
 
   const reset = () => { setError(null); setStructuredError(null); setWarnings([]); setPendingBuild(null) }
 
@@ -143,13 +146,28 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     try {
       let towerSequences: Awaited<ReturnType<typeof api.getTowerSequence>>['entries'] = []
       let beltBlends: Awaited<ReturnType<typeof api.getBeltBlends>>['blends'] = []
+      let talentTrees: Awaited<ReturnType<typeof api.getTrees>> = []
+      let pactSpiritCatalog: Awaited<ReturnType<typeof api.getPactSpirits>>['spirits'] = []
       let catalogUnavailable = false
       try { towerSequences = (await api.getTowerSequence()).entries }
       catch { catalogUnavailable = true }
       try { beltBlends = (await api.getBeltBlends()).blends }
       catch { catalogUnavailable = true }
-      const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences, refSkills, beltBlends)
-      if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; Tower Sequence chips or belt blends may be omitted.')
+      if (preview.talentTrees?.length) {
+        try {
+          talentTrees = await api.getTrees()
+        } catch { catalogUnavailable = true }
+      }
+      if (preview.pactContracts?.length) {
+        try { pactSpiritCatalog = (await api.getPactSpirits()).spirits }
+        catch { catalogUnavailable = true }
+      }
+      const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences, refSkills, beltBlends, talentTrees, pactSpiritCatalog, {
+        memories: refHeroMemories,
+        traits: refHeroTraits,
+        revivalAffixes: refMemoryRevival,
+      })
+      if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; Tower Sequence chips, belt blends, pact spirits, or talent allocations may be omitted.')
       if (loginCount > 1) result.warnings.splice(1, 0, describeUeLogCaptureMerge(loginCount))
       setPendingBuild(result.build)
       setWarnings(result.warnings)
@@ -165,7 +183,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       <div className="import-source-toggle">
         <button className={`import-source-tab${mode === 'builder' ? ' active' : ''}`} onClick={() => switchMode('builder')}>TLI Builder Code</button>
         <button className={`import-source-tab${mode === 'compendium' ? ' active' : ''}`} onClick={() => switchMode('compendium')}>TLI Compendium Build</button>
-        <button className={`import-source-tab${mode === 'game-log' ? ' active' : ''}`} onClick={() => switchMode('game-log')}>Game log preview</button>
+        <button className={`import-source-tab${mode === 'game-log' ? ' active' : ''}`} onClick={() => switchMode('game-log')}>Game log</button>
       </div>
 
       {mode === 'builder' && (
@@ -198,7 +216,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
 
       {mode === 'game-log' && (
         <>
-          <p className="share-modal-hint">Choose UE_game.log and any backup logs. Your files stay on this device. Pick a login to create a draft with the gear and rolls the app can map. Any data it cannot map is listed before you import.</p>
+          <p className="share-modal-hint">Select UE_game.log and any backup logs. They stay on this device. Choose a character to preview, then import it as a draft.</p>
           <input ref={gameLogFileRef} type="file" accept=".log,text/plain" multiple style={{ display: 'none' }}
             onChange={e => { void inspectGameLogs(e.target.files); e.target.value = '' }} />
           <div className="import-file-row">
@@ -216,13 +234,13 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
                     <h4>{preview.characterName || `Hero ${preview.heroId ?? 'unknown'}`}</h4>
                     <p>Level {preview.level ?? 'unknown'} · {loginCount} login {loginCount === 1 ? 'capture' : 'captures'} · File {fileNumber}</p>
                   </div>
-                  <button className="btn btn-primary" disabled={importing} onClick={() => createBuildFromLog(preview, loginCount)}>Create draft build</button>
+                  <button className="btn btn-primary" disabled={importing} onClick={() => createBuildFromLog(preview, loginCount)}>Import this character</button>
                 </div>
                 <div className="log-import-card__summary">
                   <span><strong>{preview.gear.length}</strong> equipped items detected</span>
                   <span><strong>{preview.skills.length}</strong> equipped skills and supports detected</span>
                   <span><strong>{vorax.length}</strong> Vorax items detected</span>
-                  {preview.truncatedSections.length > 0 && <span>Some log lists were capped</span>}
+                  {preview.truncatedSections.length > 0 && <span>Partial log capture</span>}
                 </div>
                 <details className="log-import-card__details">
                   <summary>Review detected Vorax gear</summary>
@@ -249,11 +267,14 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       )}
       {error && !structuredError && <p className="share-import-error">{error}</p>}
       {warnings.length > 0 && (
-        <div className="share-import-warning">
+        mode === 'game-log' ? (
+          <details className="log-import-warnings">
+            <summary>Import details ({warnings.length})</summary>
+            <ul>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+          </details>
+        ) : <div className="share-import-warning">
           <p>{pendingBuild && mode === 'compendium'
             ? '⚠ Some items couldn’t be mapped and were skipped (also saved in the build’s notes):'
-            : mode === 'game-log'
-              ? 'The game-log scan reported:'
             : '⚠ This build may be from an older version:'}</p>
           <ul>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
           <p>Review these limits before you import the draft build.</p>
@@ -263,7 +284,7 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       <div className="modal-actions import-panel-actions">
         {pendingBuild ? (
           <button className="btn btn-primary" onClick={() => onImport(pendingBuild)} disabled={importing}>
-            {importing ? 'Importing…' : 'Import Anyway'}
+            {importing ? 'Importing…' : mode === 'game-log' ? 'Import draft' : 'Import Anyway'}
           </button>
         ) : mode === 'builder' ? (
           <button className="btn btn-primary" onClick={importCodeNow} disabled={importing || !importCode.trim()}>

@@ -4,7 +4,8 @@ import { Readable } from 'node:stream'
 import { scanUeGameLog } from '../importers/ueLog/parse'
 import type { UeLogCharacterPreview } from '../importers/ueLog/parse'
 import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures } from '../importers/ueLog/toBuild'
-import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, SkillItem } from '../api/client'
+import { migrateLegendaryItem } from '../utils/gearItem'
+import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, PactSpirit, SkillItem } from '../api/client'
 
 const log = `prefix before dump\n----Socket RecvMessage STT----GetPlayerData----SynId = 1\n|+player+Level [98]\n|+player+HeroId [700]\n|+heroCharacterv3OverView+heroPurchaseId [3002]\n|+bag+wearItems+1+Index [7]\n|+bag+wearItems+1+Item+BaseId [380009]\n|+bag+wearItems+1+Item+Level [89]\n|+bag+wearItems+1+Item+UniqueItmId [0]\n|+bag+wearItems+1+Item+BaseAttrAffix+1+Id [800000]\n|+bag+wearItems+1+Item+BaseAffix+1+Id [172103200]\n|+bag+wearItems+1+Item+ChipAffix+1+Id [160567034]\n|+bag+wearItems+1+Item+EnchantAffixs+1+Id [3704005]\n|+bag+wearItems+1+Item+Corrode [true]\n|+bag+wearItems+1+Item+Prefix+1+Id [251471001]\n|+bag+wearItems+1+Item+Prefix+1+source [16]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+1 [2.0]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+2 [-3.0]\n|+bag+wearItems+1+Item+Suffix+1+Id [51533751]\n|+bag+wearItems+1+Item+Suffix+1+source [17]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+1 [1.0]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+2 [3.0]\n----Socket RecvMessage End----\ntail after dump\n`
 
@@ -45,7 +46,7 @@ function chunkedFile(text: string, chunkSize = 17): File {
 describe('UE_game.log preview', () => {
   it('describes how repeated login captures are combined', () => {
     expect(describeUeLogCaptureMerge(2)).toBe(
-      'This character has 2 login captures. Later entries replace earlier data in the same gear and skill slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined, and the latest recorded follower selection is used.',
+      'This character has 2 login captures. Later entries replace earlier gear, skill, memory, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.',
     )
   })
 
@@ -88,7 +89,7 @@ describe('UE_game.log preview', () => {
     expect(JSON.stringify(result)).not.toContain('UserId')
   })
 
-  it('retains logged talent allocation IDs and ranks for import auditing', async () => {
+  it('does not confuse legacy SP3 IDs with allocated talent-tree nodes', async () => {
     const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
 |+SP3Base+TalentTree+1+key [12228]
 |+SP3Base+TalentTree+1+value [1]
@@ -96,10 +97,24 @@ describe('UE_game.log preview', () => {
 |+SP3Base+TalentTree+2+value [2]
 ----Socket RecvMessage End----`))
 
-    expect(result.characters[0].talentTreeAllocations).toEqual([
-      { id: '12228', rank: 1 },
-      { id: '10409', rank: 2 },
-    ])
+    expect(result.characters[0].talentTrees).toEqual([])
+  })
+
+  it('reads allocated genius nodes and careers separately from legacy SP3 talent IDs', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+geniusInfos+info+1+geniusCareerId [12]
+|+geniusInfos+info+1+geniusList+1+geniusId [12010100]
+|+geniusInfos+info+1+geniusList+1+rank [2]
+|+geniusInfos+info+1+geniusList+2+geniusId [12020100]
+|+geniusInfos+info+1+geniusList+2+rank [1]
+|+SP3Base+TalentTree+1+key [12228]
+|+SP3Base+TalentTree+1+value [1]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0].talentTrees).toEqual([{
+      careerId: 12,
+      allocations: [{ id: '12010100', rank: 2 }, { id: '12020100', rank: 1 }],
+    }])
   })
 
   it('retains follower and servant IDs for import auditing', async () => {
@@ -110,6 +125,89 @@ describe('UE_game.log preview', () => {
 
     expect(result.characters[0].followServantId).toBe(11230)
     expect(result.characters[0].servantIds).toContain(16130)
+  })
+
+  it('reads the live memory, hero-trait, and contract field nesting', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+heroCharacterv3OverView+pointOverView+activeId+1 [1800011]
+|+heroCharacterv3OverView+pointOverView+activeId+2 [1800022]
+|+heroCharacterv3OverView+pointOverView+activeId+3 [1800031]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+index [1]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+detail+BaseId [71001]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+detail+RareValue [4]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+detail+ReminiscenceLevel [40]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+detail+BaseAttrAffix+1+Id [403101411]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+detail+BaseAffix+1+Id [402151902]
+|+heroCharacterv3OverView+reminiscenceOverView+reminiscence+1+detail+Suffix+1+Id [402165201]
+|+heroCharacterv3OverView+defaultReminis+rarityRequire [3]
+|+heroCharacterv3OverView+defaultReminis+typeRequire [3]
+|+heroCharacterv3OverView+defaultReminis+affixBoost [-34]
+|+heroCharacterv3OverView+defaultReminis+detail+BaseId [71003]
+|+heroCharacterv3OverView+defaultReminis+detail+RareValue [3]
+|+heroCharacterv3OverView+defaultReminis+detail+ReminiscenceLevel [30]
+|+heroCharacterv3OverView+defaultReminis+detail+BaseAffix+1+DynArgs+1 [24.0]
+|+heroCharacterv3OverView+defaultReminis+detail+BaseAffix+1+Id [402155802]
+|+heroCharacterv3OverView+defaultReminis+detail+Suffix+1+DynArgs+1 [30.0]
+|+heroCharacterv3OverView+defaultReminis+detail+Suffix+1+Id [402170202]
+|+heroCharacterv3OverView+defaultReminis+detail+BaseAttrAffix+1+DynArgs+1 [19.2]
+|+heroCharacterv3OverView+defaultReminis+detail+BaseAttrAffix+1+Id [403113321]
+|+ContractInfosV2+ContractDatas+1+areaId [1]
+|+ContractInfosV2+ContractDatas+1+servantId [5330]
+|+ContractInfosV2+ContractDatas+2+areaId [2]
+|+ContractInfosV2+ContractDatas+2+servantId [18230]
+|+ContractInfosV2+ContractDatas+3+areaId [3]
+|+ContractInfosV2+ContractDatas+3+servantId [19230]
+|+ServantInfos+servantData+1+servantId [18230]
+|+ServantInfos+servantData+1+starLevel [5]
+|+ServantInfos+servantData+2+servantId [19230]
+|+customSkillSlots+customSkillSlots+1+id [2]
+|+customSkillSlots+customSkillSlots+1+customId [1]
+|+customSkillSlots+customSkillSlots+1+state [CustomSlotState_Active]
+|+customSkillSlots+customSkillSlots+1+materialSlots+1+key [1]
+|+customSkillSlots+customSkillSlots+1+materialSlots+1+value+index [1]
+|+customSkillSlots+customSkillSlots+1+materialSlots+1+value+chooseOptionId [1132]
+|+customSkillSlots+customSkillSlots+1+materialSlots+2+key [2]
+|+customSkillSlots+customSkillSlots+1+materialSlots+2+value+index [2]
+|+customSkillSlots+customSkillSlots+1+materialSlots+2+value+chooseOptionId [1232]
+|+customSkillSlots+customSkillSlots+1+materialSlots+3+key [3]
+|+customSkillSlots+customSkillSlots+1+materialSlots+3+value+index [3]
+|+customSkillSlots+customSkillSlots+1+materialSlots+3+value+chooseOptionId [1312]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0].activeTraitIds).toEqual([1800011, 1800022, 1800031])
+    expect(result.characters[0].memories).toEqual([{
+      slot: 1,
+      baseId: 71001,
+      rarityValue: 4,
+      level: 40,
+      baseAttrAffixes: [{ id: '403101411', source: null, values: [] }],
+      fixedAffixes: [{ id: '402151902', source: null, values: [] }],
+      randomAffixes: [{ id: '402165201', source: null, values: [] }],
+      awakenAffixes: [],
+    }])
+    expect(result.characters[0].baseMemory).toEqual({
+      slot: null,
+      baseId: 71003,
+      rarityValue: 3,
+      level: 30,
+      baseAttrAffixes: [{ id: '403113321', source: null, values: [19.2] }],
+      fixedAffixes: [{ id: '402155802', source: null, values: [24] }],
+      randomAffixes: [{ id: '402170202', source: null, values: [30] }],
+      awakenAffixes: [],
+      rarityRequire: 3,
+      typeRequire: 3,
+      affixBoost: -34,
+    })
+    expect(result.characters[0].pactContracts).toEqual([
+      { areaId: 1, servantId: 5330, rank: null },
+      { areaId: 2, servantId: 18230, rank: 6 },
+      { areaId: 3, servantId: 19230, rank: 1 },
+    ])
+    expect(result.characters[0].ingredientChoices).toEqual([
+      { bottleSlot: 2, materialSlot: 1, optionId: '1132' },
+      { bottleSlot: 2, materialSlot: 2, optionId: '1232' },
+      { bottleSlot: 2, materialSlot: 3, optionId: '1312' },
+    ])
   })
 
   it('reports a file with no login dump without returning file contents', async () => {
@@ -133,17 +231,134 @@ describe('UE_game.log preview', () => {
     expect(vorax.length).toBeGreaterThan(0)
     expect(vorax[0].baseAffixIds).toContain('172103200')
     expect(vorax[0].prefixes.map(affix => affix.source)).toContain('16')
-    expect(result.characters.some(character => character.talentTreeAllocations?.some(
-      allocation => allocation.id === '12228' && allocation.rank === 1,
-    ))).toBe(true)
-    expect(result.characters[0].followServantId).toBe(11230)
-    expect(result.characters[0].servantIds).toContain(16130)
-    expect(result.characters[0].servantIds).toHaveLength(30)
+    expect(result.characters.some(character => (character.talentTrees?.length ?? 0) > 0)).toBe(true)
     expect(result.characters[0].truncatedSections.length).toBeGreaterThan(0)
+    const sage = result.characters.find(character => character.heroId === 1800)
+    expect(sage?.ingredientChoices?.map(choice => `${choice.bottleSlot}:${choice.materialSlot}`).sort()).toEqual([
+      '2:1', '2:2', '2:3', '3:1', '3:2',
+    ])
   })
 })
 
 describe('UE_game.log build conversion', () => {
+  it('imports Sage memory rolls and the Licorice Note selections shown by the current log', () => {
+    const character = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], truncatedSections: [], activeTraitIds: [1800031, 1800011, 1800022],
+      ingredientChoices: [
+        { bottleSlot: 2, materialSlot: 1, optionId: '1132' },
+        { bottleSlot: 2, materialSlot: 2, optionId: '1232' },
+        { bottleSlot: 2, materialSlot: 3, optionId: '1312' },
+        { bottleSlot: 3, materialSlot: 1, optionId: '2122' },
+        { bottleSlot: 3, materialSlot: 2, optionId: '2231' },
+      ],
+      memories: [
+        { slot: 1, baseId: 71001, rarityValue: 4, level: 40, baseAttrAffixes: [{ id: '403101411', source: null, values: [90] }],
+          fixedAffixes: [{ id: '402151902', source: null, values: [23] }, { id: '402153003', source: null, values: [14] }],
+          randomAffixes: [{ id: '402165201', source: null, values: [46] }, { id: '402165001', source: null, values: [38] }], awakenAffixes: [] },
+        { slot: 2, baseId: 71002, rarityValue: 4, level: 40, baseAttrAffixes: [{ id: '403106411', source: null, values: [330] }],
+          fixedAffixes: [{ id: '402154501', source: null, values: [48] }, { id: '402153901', source: null, values: [30] }],
+          randomAffixes: [{ id: '402167601', source: null, values: [43] }, { id: '402168401', source: null, values: [80] }], awakenAffixes: [] },
+        { slot: 3, baseId: 71003, rarityValue: 4, level: 40, baseAttrAffixes: [{ id: '403113411', source: null, values: [24.7] }],
+          fixedAffixes: [{ id: '402156403', source: null, values: [24] }, { id: '402155801', source: null, values: [30] }],
+          randomAffixes: [{ id: '402170401', source: null, values: [52] }, { id: '402171001', source: null, values: [80] }],
+          awakenAffixes: [{ id: '500101701', source: null, values: [-34] }] },
+      ],
+      baseMemory: { slot: null, baseId: 71003, rarityValue: 3, level: 30,
+        baseAttrAffixes: [{ id: '403113321', source: null, values: [19.2] }],
+        fixedAffixes: [{ id: '402155802', source: null, values: [24] }],
+        randomAffixes: [{ id: '402170202', source: null, values: [30] }], awakenAffixes: [],
+        rarityRequire: 3, typeRequire: 3, affixBoost: -34 },
+    }
+    const memories = {
+      season: 'SS14', memory_types: [], base_stat_scaling: { stats: [] },
+      base_stats: [
+        { source: 'Memory of Origin', modifier: '+90 Strength', tier: 1 },
+        { source: 'Memory of Discipline', modifier: '+330 Max Life', tier: 1 },
+        { source: 'Memory of Progress', modifier: '+24.7 % Movement Speed', tier: 9 },
+        { source: 'Memory of Progress', modifier: '+19.3 % Movement Speed', tier: 18 },
+      ],
+      log_base_stats: [
+        { log_modifier_id: '403101411', source: 'Memory of Origin', stat_name: 'Strength' },
+        { log_modifier_id: '403106411', source: 'Memory of Discipline', stat_name: 'Max Life' },
+        { log_modifier_id: '403113411', source: 'Memory of Progress', stat_name: 'Movement Speed' },
+        { log_modifier_id: '403113321', source: 'Memory of Progress', stat_name: 'Movement Speed' },
+      ],
+      fixed_affixes: [
+        { modifier_id: '402151902', source: 'Memory of Origin', modifier: '+(20–26) % Critical Strike Damage', tier: 2 },
+        { modifier_id: '402153003', source: 'Memory of Origin', modifier: '+(12–18) % Evasion', tier: 3 },
+        { modifier_id: '402155802', source: 'Memory of Progress', modifier: '+24 % Projectile Speed', tier: 2 },
+      ],
+      random_affixes: [
+        { modifier_id: '402165201', source: 'Memory of Origin', modifier: '+(43–53) % Physical Skill Critical Strike Damage', tier: 1 },
+        { modifier_id: '402165001', source: 'Memory of Origin', modifier: '+(36–44) % attack Critical Strike Damage', tier: 1 },
+        { modifier_id: '402170202', source: 'Memory of Progress', modifier: '+(26–34) % attack Critical Strike Damage', tier: 2 },
+      ],
+    }
+    const traits = [{ trait_id: 'licorice_note', hero: 'Sage', variant_name: 'Licorice Note', description: '', levels: [],
+      advanced_traits: [
+        { name: 'Pungent Stimulant Salt', unlock_level: 45, is_pick_one_from_two: false, effects: [] },
+        { name: 'Scent of Ambition', unlock_level: 60, is_pick_one_from_two: true, effects: [] },
+        { name: 'Everlasting Nectar', unlock_level: 75, is_pick_one_from_two: true, effects: [] },
+      ], ingredients: [
+        { trait_name: 'Licorice Note', categories: [
+          { category: 'Damage Ingredient', items: [{ name: 'Razor Leaf', effect: '' }, { name: 'Twinspine Flower', effect: '' }, { name: 'Scattered Spore', effect: '' }] },
+          { category: 'Defense Ingredient', items: [{ name: 'Resilient Moss', effect: '' }, { name: 'Spectral Stamen', effect: '' }, { name: 'Prismatic Vine', effect: '' }] },
+        ] },
+        { trait_name: 'Pungent Stimulant Salt', categories: [
+          { category: 'Functional Ingredient', items: [{ name: 'Husk', effect: '' }, { name: 'Sword Lily Leaf', effect: '' }, { name: 'Tumbleweed Seed', effect: '' }] },
+        ] },
+        { trait_name: 'Licorice Tincture Blend', categories: [
+          { category: 'Special Ingredient', items: [{ name: 'Pixie Tear', effect: '' }, { name: 'Thunder Dragon Scale', effect: '' }, { name: 'Gargoyle Horn', effect: '' }] },
+        ] },
+      ] }]
+    const revivalAffixes = [{ source: 'Memory Revival',
+      modifier: 'Base Traits now have Base Trait slots that can be installed with a Rare or lower Progress Memory. Base Stats and the value of Random Affixes of the Memory installed in this slot: (-35–-30) %',
+      tier: null, tier_known: false }]
+
+    const { build, warnings } = createUeLogBuild(character, [], [], [], [], [], [], [], [], [], { memories, traits, revivalAffixes } as any)
+
+    expect(build.traitId).toBe('licorice_note')
+    expect(build.advancedTraitSelections).toEqual(['Scent of Ambition', 'Everlasting Nectar'])
+    expect(build.elixirIngredients).toEqual({ 2: {
+      'Damage Ingredient': 'Scattered Spore',
+      'Defense Ingredient': 'Prismatic Vine',
+      'Functional Ingredient': 'Husk',
+    }, 3: {
+      'Special Ingredient': 'Thunder Dragon Scale',
+      'Functional Ingredient': 'Tumbleweed Seed',
+    } })
+    expect(build.traitSlotLevels).toEqual([2, 2, 2, 2])
+    expect(build.heroMemories?.[0]).toMatchObject({
+      memoryType: 'origin', rarity: 'epic', level: 40,
+      baseStat: { modifier: '+90 Strength', tier: 1, rolledValue: null },
+      fixedAffixes: [
+        { modifier: '+(20–26) % Critical Strike Damage', tier: 2, rolledValue: 23 },
+        { modifier: '+(12–18) % Evasion', tier: 3, rolledValue: 14 },
+      ],
+      randomAffixes: [
+        { modifier: '+(43–53) % Physical Skill Critical Strike Damage', tier: 1, rolledValue: 46 },
+        { modifier: '+(36–44) % attack Critical Strike Damage', tier: 1, rolledValue: 38 },
+      ],
+    })
+    expect(build.heroMemories?.[1]).toMatchObject({
+      memoryType: 'discipline', baseStat: { modifier: '+330 Max Life', tier: 1, rolledValue: null },
+    })
+    expect(build.heroMemories?.[2]).toMatchObject({
+      memoryType: 'progress', baseStat: { modifier: '+24.7 % Movement Speed', tier: 9, rolledValue: null },
+    })
+    expect(build.baseMemory).toMatchObject({
+      memoryType: 'progress', rarity: 'rare', level: 30,
+      baseStat: { modifier: '+19.2 % Movement Speed', tier: 18, rolledValue: null },
+      fixedAffixes: [{ modifier: '+24 % Projectile Speed', tier: 2, rolledValue: 24 }, null],
+      randomAffixes: [{ modifier: '+(26–34) % attack Critical Strike Damage', tier: 2, rolledValue: 30 }, null],
+    })
+    expect(build.heroMemories?.[2]).toMatchObject({ revived: true, revivalMod: {
+      modifier: revivalAffixes[0].modifier, tierKnown: false, rolledValue: -34,
+    } })
+    expect(warnings.some(w => /base stat/i.test(w))).toBe(false)
+  })
+
   it('groups captures by character and hero, then keeps the latest file for import', () => {
     const capture = (fileNumber: number, modifiedAt: number, characterName: string, heroId: number, level: number) => ({
       fileNumber,
@@ -156,31 +371,56 @@ describe('UE_game.log build conversion', () => {
       capture(3, 150, 'Other', 1800, 90),
     ])
     expect(groups).toEqual([
-      { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], talentTreeAllocations: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 2 },
-      { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], talentTreeAllocations: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 1 },
+      { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 2 },
+      { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 1 },
     ])
   })
 
-  it('reports game talent allocation IDs that do not join current TLIDB talent IDs', () => {
+  it('maps logged talent game IDs into Builder tree slots and node states', () => {
     const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [{ id: '12010100', rank: 2 }] }], truncatedSections: [],
+    }, [], [], [], [], [], [], [], [{ name: 'Onslaughter', nodes: [{ id: 'onslaughter_c0_r0', game_id: '12010100' }] }])
+
+    expect(result.build.slots).toEqual([
+      { treeName: 'Onslaughter', nodeStates: { onslaughter_c0_r0: 2 } }, null, null, null,
+    ])
+  })
+
+  it('maps known logged pact game IDs into the three battle slots and warns when rank is missing', () => {
+    const character: UeLogCharacterPreview = {
       dumpNumber: 1,
-      characterName: null,
+      characterName: 'Sage',
       level: 98,
       heroId: 1800,
-      heroPurchaseId: null,
+      heroPurchaseId: 18001,
       gear: [],
       skills: [],
-      talentTreeAllocations: [{ id: '12228', rank: 1 }, { id: '10409', rank: 2 }],
+      pactContracts: [
+        { areaId: 1, servantId: 5330, rank: null },
+        { areaId: 2, servantId: 18230, rank: 6 },
+        { areaId: 3, servantId: 19230, rank: 1 },
+        { areaId: 4, servantId: 6330, rank: 2 },
+      ],
       truncatedSections: [],
-    }, [], [])
+    }
+    const catalog = [
+      { item_id: 'preserver_of_eternity', game_id: 5330, name: 'Preserver of Eternity' },
+      { item_id: 'kitty_express', game_id: 18230, name: 'Kitty Express' },
+      { item_id: 'elixir_fairies', game_id: 19230, name: 'Elixir Fairies' },
+    ] as PactSpirit[]
 
-    expect(result.warnings).toEqual([
-      'Hero, talents, memories, and other character settings are not imported yet.',
-      'Talent-tree allocation IDs (12228, 10409) do not match the current TLIDB talent_id values; those allocations were not imported.',
+    const result = createUeLogBuild(character, [], [], [], [], [], [], [], [], catalog)
+
+    expect(result.build.pactSpirits).toEqual([
+      { itemId: 'preserver_of_eternity', rank: 1 },
+      { itemId: 'kitty_express', rank: 6 },
+      { itemId: 'elixir_fairies', rank: 1 },
     ])
+    expect(result.warnings).toEqual(['Preserver of Eternity: the login captures do not include its rank; rank 1 was used.'])
   })
 
-  it('reports logged follower IDs that do not match the TLIDB follower catalog', () => {
+  it('does not report the cosmetic pet as a missing combat follower', () => {
     const result = createUeLogBuild({
       dumpNumber: 1,
       characterName: null,
@@ -194,10 +434,7 @@ describe('UE_game.log build conversion', () => {
       truncatedSections: [],
     }, [], [])
 
-    expect(result.warnings).toEqual([
-      'Hero, talents, memories, and other character settings are not imported yet.',
-      'Logged follower/servant IDs (11230, 16130) do not match current TLIDB follower game_id values; follower state was not imported.',
-    ])
+    expect(result.warnings).toEqual([])
   })
 
   it('warns when the selected login dump contains truncated data', () => {
@@ -213,8 +450,7 @@ describe('UE_game.log build conversion', () => {
     }, [], [])
 
     expect(result.warnings).toEqual([
-      'Hero, talents, memories, and other character settings are not imported yet.',
-      'The selected login dump contains 1 truncated data section; values omitted by the game log could not be imported.',
+      'The game log omitted some player data, so a few equipped skill details and pact spirit ranks may be incomplete.',
     ])
   })
 
@@ -238,6 +474,28 @@ describe('UE_game.log build conversion', () => {
       { baseId: 7289, logIndex: 2, level: 20, skillItemLevel: 1, prefixes: [] },
       { baseId: 7018, logIndex: 3, level: 20, skillItemLevel: 16, prefixes: [] },
     ])
+  })
+
+  it('keeps a spirit rank found in an earlier login when a later capture omits it', () => {
+    const capture = (dumpNumber: number, modifiedAt: number, rank: number | null) => ({
+      fileNumber: 1,
+      modifiedAt,
+      preview: {
+        dumpNumber,
+        characterName: 'Sage',
+        level: 98,
+        heroId: 1800,
+        heroPurchaseId: 18001,
+        gear: [],
+        skills: [],
+        pactContracts: [{ areaId: 1, servantId: 5330, rank }],
+        truncatedSections: [],
+      },
+    })
+
+    const [group] = groupUeLogCaptures([capture(1, 100, 3), capture(2, 200, null)])
+
+    expect(group.preview.pactContracts).toEqual([{ areaId: 1, servantId: 5330, rank: 3 }])
   })
 
   it('merges gear, talent, and follower data across the same character’s login captures', () => {
@@ -272,14 +530,12 @@ describe('UE_game.log build conversion', () => {
     const groups = groupUeLogCaptures([
       capture(1, 100, {
         gear: [gear(1, 3611)],
-        talentTreeAllocations: [{ id: '12228', rank: 1 }],
         followServantId: 11230,
         servantIds: [16130],
         truncatedSections: ['TalentTree'],
       }),
       capture(2, 200, {
         gear: [gear(2, 4725)],
-        talentTreeAllocations: [{ id: '12228', rank: 2 }, { id: '10409', rank: 1 }],
         followServantId: 11330,
         servantIds: [18120],
       }),
@@ -288,10 +544,6 @@ describe('UE_game.log build conversion', () => {
     expect(groups[0].preview.gear.map(item => [item.equippedSlot, item.baseId])).toEqual([
       [1, 3611],
       [2, 4725],
-    ])
-    expect(groups[0].preview.talentTreeAllocations).toEqual([
-      { id: '12228', rank: 2 },
-      { id: '10409', rank: 1 },
     ])
     expect(groups[0].preview.followServantId).toBe(11330)
     expect(groups[0].preview.servantIds).toEqual([16130, 18120])
@@ -337,7 +589,32 @@ describe('UE_game.log build conversion', () => {
         description_lines: ['Supports Whirlwind.'],
       }],
     }])
-    expect(result.warnings).toContain('Whirlwind: Whirling Blade (Noble): support modifier 771031022 is not mapped; its roll and rank use Builder defaults.')
+    expect(result.warnings).toContain('Whirlwind: Whirling Blade (Noble): one or more logged support rolls could not be matched; Builder defaults were used.')
+  })
+
+  it('compacts passive skill slots and starts their supports at slot one', () => {
+    const character = {
+      dumpNumber: 1, characterName: null, level: 98, heroId: 1800, heroPurchaseId: null,
+      truncatedSections: [], gear: [], skills: [
+        { baseId: 7018, logIndex: 1007, level: 20, skillItemLevel: 16, prefixes: [] },
+        { baseId: 7746, logIndex: 1008, level: 1, skillItemLevel: 89, prefixes: [] },
+      ],
+    }
+    const catalog = [
+      { item_id: 'focus', name: 'Focus', game_id: 7018, skill_type: 'passive_skill', skill_tags: ['Passive'], description_lines: [], raw_text: '', max_level: 20 },
+      { item_id: 'restrain', name: 'Restrain', game_id: 7746, skill_type: 'support_skill', skill_tags: ['Support'], description_lines: [], raw_text: '', max_level: 5 },
+    ] as SkillItem[]
+
+    const result = createUeLogBuild(character, [], [], [], [], [], catalog)
+
+    expect(result.build.skills).toEqual([{
+      slot: 6, item_id: 'focus', name: 'Focus', level: 20,
+      skill_tags: ['Passive'], description_lines: [],
+      supports: [{
+        support_index: 1, item_id: 'restrain', name: 'Restrain', skill_type: 'support_skill', level: 1,
+        skill_tags: ['Support'], description_lines: [],
+      }],
+    }])
   })
 
   it('creates an editable Vorax item with mapped affixes and exact rolls', () => {
@@ -410,8 +687,9 @@ describe('UE_game.log build conversion', () => {
       { affix_index: 7, chosen_values: { 0: 1, 1: 3 }, chosen_placeholder_key: null },
     ])
     expect(build.gear?.[0].craft_slot_positions).toEqual([2, 3, 4, 5, 6, 7])
-    expect(warnings).not.toContain('Vorax Limb: Digits: base affix 172103200 is not in the current Builder catalogs and was left out.')
+    expect(warnings).not.toContain('Vorax Limb: Digits: a base affix is missing from the current Builder data and was left out.')
     expect(build.characterLevel).toBe(98)
+    expect(build.conditionState).toEqual({ level: 98 })
   })
 
   it('maps ordinary gear by game_id and applies logged modifier_id rolls', () => {
@@ -448,7 +726,7 @@ describe('UE_game.log build conversion', () => {
     }] }] as unknown as CraftBaseType[]
 
     const result = createUeLogBuild(character, [], [], baseItems, craftTypes, [
-      { affix: '+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5', source: 'Bow', modifier_id: '160419009' },
+      { affix: '+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5', source: 'Two-Handed Axe', modifier_id: '160419009', log_modifier_ids: ['160419013'] },
     ])
 
     expect(result.build.gear).toHaveLength(1)
@@ -462,11 +740,11 @@ describe('UE_game.log build conversion', () => {
       { affix_index: 1, chosen_values: { 0: 90 }, chosen_placeholder_key: null },
     ])
     expect(result.build.gear?.[0].towerSequence).toBe('+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5')
-    const unmatched = createUeLogBuild({ ...character, gear: [{ ...character.gear[0], chipAffixes: [{ id: '160419013', source: null, values: [20] }] }] }, [], [], baseItems, craftTypes, [
-      { affix: '+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5', source: 'Bow', modifier_id: '160419009' },
+    const loggedSequence = createUeLogBuild({ ...character, gear: [{ ...character.gear[0], chipAffixes: [{ id: '160419013', source: null, values: [20] }] }] }, [], [], baseItems, craftTypes, [
+      { affix: '+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5', source: 'Two-Handed Axe', modifier_id: '160419009', log_modifier_ids: ['160419013'] },
     ])
-    expect(unmatched.warnings).toContain("Brute's Helm (Crafted): chip affix 160419013 is not in the current Builder Tower Sequence catalog and was left out.")
-    expect(result.warnings).not.toContain("Brute's Helm: chip affix 160419013 is not in the current Builder catalogs and was left out.")
+    expect(loggedSequence.build.gear?.[0].towerSequence).toBe('+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5')
+    expect(loggedSequence.warnings).not.toContain("Brute's Helm (Crafted): its Tower Sequence chip is missing from the current Builder data and was left out.")
   })
 
   it('resolves unique gear by game_id when its base item is not in the craft list', () => {
@@ -537,7 +815,102 @@ describe('UE_game.log build conversion', () => {
       { affix_index: 0, chosen_values: { 0: 263 }, chosen_placeholder_key: null },
       { affix_index: 1, chosen_values: { 0: 86 }, chosen_placeholder_key: null },
     ])
-    expect(result.warnings).toEqual(['Hero, talents, memories, and other character settings are not imported yet.'])
+    expect(result.warnings).toEqual([
+      "Death's Touch: the log marks this item as corroded, but no corroded catalog affix was identified.",
+    ])
+  })
+
+  it("imports Death's Touch with its logged corroded explicit and random affix IDs", () => {
+    const unique = {
+      item_id: 'death_s_touch', name: "Death's Touch", game_id: 112346, base_type: "Ranger's Rusted Gauntlets",
+      required_level: 58, drop_level: 58, flavor_text: null, drop_sources: [], glossary: {},
+      random_affixes: {
+        base: [{ placeholder: '<A Random Critical Strike or Weapon Damage Affix>', options: [
+          { raw_text: '+(70-90) % Critical Strike Damage', modifier_id: '51434661', expression: '+(#) % Critical Strike Damage', condition: null, affix_kind: 'numeric', numeric_values: [] },
+        ] }],
+        corroded: [{ placeholder: '<A Random Critical Strike or Weapon Damage Affix>Corroded', options: [
+          { raw_text: '+(120-150) % Critical Strike Damage', modifier_id: '51434660', expression: '+(#) % Critical Strike Damage', condition: null, affix_kind: 'numeric', numeric_values: [] },
+        ] }],
+      },
+      variants: {
+        base: { implicits: [], explicits: [
+          { raw_text: '+(90-100) % Critical Strike Rating', modifier_id: '51434611', expression: '+(#) % Critical Strike Rating', condition: null, affix_kind: 'numeric', numeric_values: [] },
+          { raw_text: '+(80-100) % Weapon Damage', modifier_id: '51434621', expression: '+(#) % Weapon Damage', condition: null, affix_kind: 'numeric', numeric_values: [] },
+          { raw_text: '<A Random Critical Strike or Weapon Damage Affix>', modifier_id: null, expression: '<A Random Critical Strike or Weapon Damage Affix>', condition: null, affix_kind: 'placeholder', numeric_values: [] },
+        ] },
+        corroded: { implicits: [], explicits: [
+          { raw_text: '+(190-210) % Critical Strike Rating', modifier_id: '51434610', expression: '+(#) % Critical Strike Rating', condition: null, affix_kind: 'numeric', numeric_values: [] },
+          { raw_text: '+(80-100) % Weapon Damage', modifier_id: '51434621', expression: '+(#) % Weapon Damage', condition: null, affix_kind: 'numeric', numeric_values: [] },
+          { raw_text: '<A Random Critical Strike or Weapon Damage Affix>Corroded', modifier_id: null, expression: '<A Random Critical Strike or Weapon Damage Affix>Corroded', condition: null, affix_kind: 'placeholder', numeric_values: [] },
+        ] },
+      },
+    } as unknown as LegendaryGearItem
+    const character = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      truncatedSections: [], skills: [], gear: [{
+        baseId: 3311, itemLevel: 58, equippedSlot: 9, uniqueItemId: 112346,
+        baseAttrAffixIds: [], baseAffixIds: [], prefixes: [{ id: '51434610', source: null, values: [200] }],
+        suffixes: [{ id: '51434660', source: null, values: [140] }], chipAffixes: [], enchantAffixes: [], corroded: true,
+      }],
+    }
+
+    const result = createUeLogBuild(character, [], [unique])
+    const imported = result.build.gear![0]
+
+    expect(imported).toMatchObject({
+      corrosion_type: 'desecration', corroded_explicit_indices: [0, 2], selected_random_affixes: { 2: '51434660' },
+      customizations: [
+        { affix_index: 0, chosen_values: { 0: 200 }, chosen_placeholder_key: null },
+        { affix_index: 2, chosen_values: { 0: 140 }, chosen_placeholder_key: null },
+      ],
+    })
+    expect(result.warnings.filter(warning => warning.includes('Death'))).toEqual([])
+    expect(migrateLegendaryItem(imported, unique)).toMatchObject({
+      corrosion_type: 'desecration', corroded_explicit_indices: [0, 2], selected_random_affixes: { 2: '51434660' },
+    })
+  })
+
+  it('preserves unique corrosion and random-affix selections through build normalization', () => {
+    const unique = {
+      item_id: 'broken_sun_ring', name: 'Broken Sun Ring', game_id: 113251, base_type: 'Ripple Pendant',
+      required_level: 58, drop_level: 58, flavor_text: null, drop_sources: [], glossary: {},
+      random_affixes: {
+        base: [{ placeholder: '<A Random Affix>', options: [{
+          raw_text: '+10 % Critical Strike Rating', modifier_id: 'base-random', expression: '+10 % Critical Strike Rating',
+          condition: null, affix_kind: 'numeric', numeric_values: [{ kind: 'range', sign: '+', min: 8, max: 10, raw: '+(8-10)' }],
+        }] }],
+        corroded: [{ placeholder: '<A Random Affix>Corroded', options: [{
+          raw_text: '+20 % Critical Strike Rating', modifier_id: 'corroded-random', expression: '+20 % Critical Strike Rating',
+          condition: null, affix_kind: 'numeric', numeric_values: [{ kind: 'range', sign: '+', min: 18, max: 20, raw: '+(18-20)' }],
+        }] }],
+      },
+      variants: {
+        base: { implicits: [], explicits: [{ raw_text: '<A Random Affix>', modifier_id: null, expression: '<A Random Affix>', condition: null, affix_kind: 'placeholder', numeric_values: [] }] },
+        corroded: { implicits: [], explicits: [{ raw_text: '<A Random Affix>Corroded', modifier_id: null, expression: '<A Random Affix>Corroded', condition: null, affix_kind: 'placeholder', numeric_values: [] }] },
+      },
+    } as unknown as LegendaryGearItem
+    const character = {
+      dumpNumber: 1, characterName: null, level: 98, heroId: 1800, heroPurchaseId: null,
+      truncatedSections: [], skills: [], gear: [{
+        baseId: 4725, itemLevel: 58, equippedSlot: 6, uniqueItemId: 113251,
+        baseAttrAffixIds: [], baseAffixIds: [], prefixes: [{ id: 'corroded-random', source: null, values: [20] }],
+        suffixes: [], chipAffixes: [], enchantAffixes: [], corroded: true,
+      }],
+    }
+
+    const result = createUeLogBuild(character, [], [unique])
+
+    const imported = result.build.gear![0]
+    expect(imported).toMatchObject({
+      affixes: unique.variants.base.explicits,
+      corrosion_type: 'desecration',
+      corroded_explicit_indices: [0],
+      selected_random_affixes: { 0: 'corroded-random' },
+      customizations: [{ affix_index: 0, chosen_values: { 0: 20 }, chosen_placeholder_key: null }],
+    })
+    const reopened = migrateLegendaryItem(imported, unique)
+    expect(reopened.affixes).toEqual([unique.random_affixes.corroded[0].options[0]])
+    expect(reopened).toMatchObject({ corrosion_type: 'desecration', corroded_explicit_indices: [0], selected_random_affixes: { 0: 'corroded-random' } })
   })
 
   it('maps a logged belt enchant on unique gear to the equipped blend talent_id', () => {
@@ -560,7 +933,7 @@ describe('UE_game.log build conversion', () => {
     const result = createUeLogBuild(character, [], [unique], [], [], [], [], blends)
 
     expect(result.build.gear?.[0]).toMatchObject({ item_id: 'belt_unique', beltBlend: '340002' })
-    expect(result.warnings).toEqual(['Hero, talents, memories, and other character settings are not imported yet.'])
+    expect(result.warnings).toEqual([])
   })
 
   it('maps a logged belt enchant modifier to the equipped blend talent_id', () => {
@@ -582,6 +955,6 @@ describe('UE_game.log build conversion', () => {
     const result = createUeLogBuild(character, [], [], baseItems, [{ item_id: 'belt', name: 'Belt', affixes: [], base_items: [] }], [], [], blends)
 
     expect(result.build.gear?.[0]).toMatchObject({ item_id: 'omni_elixir_notes', beltBlend: '340002' })
-    expect(result.warnings).toEqual(['Hero, talents, memories, and other character settings are not imported yet.'])
+    expect(result.warnings).toEqual([])
   })
 })

@@ -116,23 +116,34 @@ def categorize_prism_catalog(catalog: dict) -> dict:
         if typ == "Prism Gauge - Rare":
             tm = _MIDDLE_TIER_RE.search(mod)
             tier = _TIER_KEY.get(tm.group(1).lower(), "") if tm else ""
-            middle.append({"modifier": mod, "tier": tier})
+            middle.append({"modifier": mod, "tier": tier, **({"modifier_id": r["modifier_id"]} if r.get("modifier_id") else {}),
+                           **({"modifier_ids": r["modifier_ids"]} if r.get("modifier_ids") else {})})
         elif typ == "Prism Gauge - Legendary":
             om = _OVERALLOC_RE.search(mod)
             if om:
                 advanced.append({"modifier": mod, "kind": "over_alloc",
+                                 **({"modifier_id": r["modifier_id"]} if r.get("modifier_id") else {}),
+                                 **({"modifier_ids": r["modifier_ids"]} if r.get("modifier_ids") else {}),
                                  "tier": _TIER_KEY.get(om.group(1).lower(), ""), "count": int(om.group(2))})
             elif "ignore prerequisite" in mod.lower():
-                advanced.append({"modifier": mod, "kind": "ignore_prereq"})
+                advanced.append({"modifier": mod, "kind": "ignore_prereq",
+                                 **({"modifier_id": r["modifier_id"]} if r.get("modifier_id") else {}),
+                                 **({"modifier_ids": r["modifier_ids"]} if r.get("modifier_ids") else {})})
             else:
-                advanced.append({"modifier": mod, "kind": "conditional"})
+                advanced.append({"modifier": mod, "kind": "conditional",
+                                 **({"modifier_id": r["modifier_id"]} if r.get("modifier_id") else {}),
+                                 **({"modifier_ids": r["modifier_ids"]} if r.get("modifier_ids") else {})})
         else:  # untyped: area size or do-not-replace
             am = _AREA_RE.search(mod)
             if am:
-                area_size.append({"modifier": mod, "cols": int(am.group(1)), "rows": int(am.group(2))})
+                area_size.append({"modifier": mod, "cols": int(am.group(1)), "rows": int(am.group(2)),
+                                  **({"modifier_id": r["modifier_id"]} if r.get("modifier_id") else {}),
+                                  **({"modifier_ids": r["modifier_ids"]} if r.get("modifier_ids") else {})})
             elif _DNR_MARK in mod:
                 penalty, name = _split_dnr_penalty(mod)
-                do_not_replace.setdefault(name, []).append({"modifier": mod, "penalty": penalty})
+                do_not_replace.setdefault(name, []).append({"modifier": mod, "penalty": penalty,
+                                  **({"modifier_id": r["modifier_id"]} if r.get("modifier_id") else {}),
+                                  **({"modifier_ids": r["modifier_ids"]} if r.get("modifier_ids") else {})})
 
     # dedupe pools by their modifier text
     def _dedupe_by_mod(rows):
@@ -170,6 +181,7 @@ def categorize_prism_catalog(catalog: dict) -> dict:
         gl = (it.get("glossary") or [{}])[0] if it.get("glossary") else {}
         items_out.append({
             "name": it.get("name", ""),
+            **({"game_id": it["game_id"]} if it.get("game_id") is not None else {}),
             "short_name": short,
             "kind": "ethereal_prism",
             "icon_url": it.get("icon_url", ""),

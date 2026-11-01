@@ -25,7 +25,8 @@ _ETHEREAL_DATA = {
     "entity_type": "ethereal_prism",
     "sections": [
         {"header": "Base Affix /2", "columns": ["Modifier"], "items": [
-            {"Modifier": "Adds an additional effect to the Core Talent: +12 % Attack Damage"},
+            {"Modifier": {"text": "Adds an additional effect to the Core Talent: +12 % Attack Damage", "modifier_id": "1204210201"},
+             "modifier_ids": ["1204210201", "1204404001"]},
             {"Modifier": "Adds an additional effect: +12 % Spell Damage"},
         ]},
         {"header": "Random Affix /2", "columns": ["Modifier", "Type"], "items": [
@@ -33,7 +34,7 @@ _ETHEREAL_DATA = {
             {"Modifier": "+10 % additional damage", "Type": "Damage"},
         ]},
         {"header": "Item /1", "columns": [], "items": [
-            {"name": "Ethereal Prism: Haze", "icon_url": "https://cdn.tlidb.com/x/UI_Blue00.webp",
+            {"name": "Ethereal Prism: Miraculous Touch", "game_id": 360620, "icon_url": "https://cdn.tlidb.com/x/UI_Blue00.webp",
              "tags": ["Prism"], "detail": ["Non-Core slot"], "implicit": [], "glossary": []},
         ]},
         {"header": "Inverse Image /1", "columns": [], "items": [
@@ -102,7 +103,13 @@ def test_ethereal_prism_catalog():
     assert inv["name"] == "Inverse Image"
     assert inv["roll_ranges"] == {"micro": [-100, 200], "medium": [-100, 100], "legendary": [-100, 50]}
     eth = next(i for i in r["items"] if i["kind"] == "ethereal_prism")
-    assert eth["name"] == "Ethereal Prism: Haze" and "roll_ranges" not in eth
+    assert eth["name"] == "Ethereal Prism: Miraculous Touch" and "roll_ranges" not in eth
+    assert eth["game_id"] == 360620
+    assert r["base_affix_modifiers"][0] == {
+        "modifier": "Adds an additional effect to the Core Talent: +12 % Attack Damage",
+        "modifier_id": "1204210201",
+        "modifier_ids": ["1204210201", "1204404001"],
+    }
 
 
 def test_hero_memories_new_format():
@@ -119,6 +126,21 @@ def test_hero_memories_new_format():
     assert r["base_stats"][0]["modifier"] == "+90 Strength"
     assert r["memory_types"][0]["name"] == "Memory of Origin"
     assert r["memory_types"][0]["game_id"] == 71001
+
+
+def test_hero_memories_preserves_crawler_modifier_game_id():
+    data = {
+        "fixed_affixes": [{
+            "Tier": "1",
+            "Modifier": {"text": "+2 to Hero Trait Level", "uuid": "memory-uuid", "pooling_uuid": "memory-pool", "modifier_id": "402151201"},
+            "Level": "86", "Weight": "103", "Source": "Memory of Origin",
+        }],
+        "random_affixes": [], "base_stats": [], "memory_types": [],
+    }
+
+    result = import_hero_memories(data, "SS14")
+
+    assert result["fixed_affixes"][0]["modifier_id"] == "402151201"
 
 
 def test_hero_memories_normalizes_modifiers():

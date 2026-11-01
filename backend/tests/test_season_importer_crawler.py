@@ -34,6 +34,7 @@ def test_col_row_adjustment():
     node = result["nodes"][0]
     assert node["column"] == 1   # 2 - 1
     assert node["row"] == 0      # 1 - 1
+    assert node["game_id"] == "01020100"
 
 
 def test_type_mapping():
@@ -145,6 +146,9 @@ def test_nether_king_unpositioned_pool_rows_become_distinct_core_choices():
     assert [ct["effects"][0]["text"] for ct in result["core_talents"]] == [
         "+5% damage", "+10% damage", "+15% damage", "+20% damage",
     ]
+    assert [ct["game_id"] for ct in result["core_talents"]] == [
+        "90000000", "90000001", "90000002", "90000003",
+    ]
     assert {ct["display_name_key"] for ct in result["core_talents"]} == {
         "nether_king_micro_nether_king_talent_node",
         "nether_king_medium_nether_king_talent_node",
@@ -203,6 +207,7 @@ def test_trait_replacement_talents_share_one_node_and_keep_both_variants():
     assert len(result["nodes"]) == 1
     node = result["nodes"][0]
     assert node["id"] == "arcanist_c4_r0"
+    assert node["game_id"] == "32050100"
     assert [effect["text"] for effect in node["effects"]] == [
         "+10 % Attack and Cast Speed when at Full Mana",
         "+15 % Max Mana",
@@ -211,6 +216,7 @@ def test_trait_replacement_talents_share_one_node_and_keep_both_variants():
         "trait_id": "wisdom_of_the_gods",
         "unlock_level": 60,
         "advanced_selection": "Prophecy of Revelation",
+        "game_id": "32050101",
         "effects": [{
             "text": "+3 % Attack and Cast Speed for each stack of Max Focus Blessing while at Full Mana . "
                     "Stacks up to 18 time(s)",
@@ -246,6 +252,7 @@ def test_trait_variant_strips_source_markup_and_keeps_max_divinity_metadata():
         "trait_id": "wisdom_of_the_gods",
         "unlock_level": 60,
         "advanced_selection": "Prophecy of Revelation",
+        "game_id": "32050101",
         "effects": [{
             "text": "+1 Max Tenacity Blessing stacks at Full Life (Max Active Divinity: 1)",
             "uuid": None,

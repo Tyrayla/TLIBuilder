@@ -56,6 +56,7 @@ def _trait_variant(node: dict) -> dict | None:
     return {
         **metadata,
         "advanced_selection": source_name,
+        "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
         "effects": effects,
     }
 
@@ -117,6 +118,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
             core_talents.append({
                 "display_name_key": _make_display_name_key(tree_name, raw_name),
                 "name": raw_name,
+                "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
                 "uuid": node.get("uuid"),
                 "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "pts_required": node.get("pts_required"),
@@ -129,6 +131,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
             core_talents.append({
                 "display_name_key": _make_display_name_key(tree_name, raw_name),
                 "name": raw_name,
+                "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
                 "uuid": node.get("uuid"),
                 "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "pts_required": node.get("pts_required"),
@@ -177,6 +180,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
             raise ValueError(f"Multiple non-trait talent rows occupy {tree_name} position {pos}")
         base_node = {
             "id": node_id,
+            "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
             "uuid": node.get("uuid"),
             "column": pos[0],
             "row": pos[1],

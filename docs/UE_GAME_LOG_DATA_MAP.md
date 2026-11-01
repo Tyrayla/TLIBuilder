@@ -8,18 +8,19 @@ The game can omit or cap sections, so a field may be absent even when the game t
 
 | Data | Fields seen in the dump | Builder import status |
 |---|---|---|
-| Character and season | `player.Level`, `HeroId`, `HeroPurchaseId`, `SeasonId`, and `heroCharacterv3OverView` | Level and skill selection appear in the draft. Hero selections and related settings are reported as unmapped. |
+| Character and season | `player.Level`, `HeroId`, `HeroPurchaseId`, `SeasonId`, and `heroCharacterv3OverView` | Character level is imported. The verified Sage Licorice Note selection and its selected advanced nodes are mapped. |
 | Equipped gear | `bag.wearItems`, with item base IDs, slots, levels, and affix rows | Nine equipped items map in the representative capture. Ordinary gear and Vorax affixes resolve against the refreshed SS14 catalog. Unknown support modifiers and a few other data gaps remain visible in the import report. |
 | Active and passive skills | `bag.dressSkillItems`, `skills.skills`, `skillLayout.slots`, and `SkillSlot` | Skill identity, level when present, and slot map. Multiple captures can recover entries omitted by log caps. |
 | Support modifiers | Prefix and suffix rows on skill items | Support identity and slot map. Some roll IDs and ranks are absent from TLIDB data, so the draft reports those gaps and uses Builder defaults. |
-| Talent trees and core talents | `geniusInfos.info`, including `geniusList` and `bonusGeniusInfo` | The parser retains logged allocation IDs. The five-digit IDs in the representative capture do not match TLIDB's `talent_id` values, so those allocations are not applied. |
-| Slates and prisms | `bag.dressingTalentBlocks`, `prismInfo`, `prismEffectPositions`, and `prismGeniusId` | Placement and effect data can be present in the log. Slate and prism base identities do not yet have reliable TLIDB joins, so they are not imported. |
-| Pact spirits and contracts | `ServantInfos.servantData`, `ContractInfosV2.ContractDatas`, and `ContractInfosV2.pointDatas` | The dump contains servant and contract IDs. Available TLIDB pages do not expose matching IDs, so the importer leaves this state out and reports the limitation. |
-| Follower selection | `player.FollowServant` | The field is present, but the logged ID does not match a TLIDB follower `game_id`; the importer does not apply it. |
-| Hero memories and trait state | `heroCharacterv3OverView.defaultReminis`, `reminiscenceOverView`, and `skillOverView` | The dump has related state, but the current importer does not map it into the draft. |
+| Talent trees and core talents | `geniusInfos.info`, including `geniusList` and `bonusGeniusInfo` | Logged node IDs map through canonical `game_id` values. Known nodes and ranks are applied to the matching Builder tree. Unknown IDs are skipped with a warning. |
+| Slates and prisms | `bag.dressingTalentBlocks`, `prismInfo`, `prismEffectPositions`, and `prismGeniusId` | Slate placement and effects are present, but slate and prism identities still lack reliable joins to canonical TLIDB records. They are not imported yet. |
+| Pact spirits and contracts | `ServantInfos.servantData`, `ContractInfosV2.ContractDatas`, and `ContractInfosV2.pointDatas` | Contract slots map to canonical pact-spirit `game_id` values. Rank imports when it is present in the captured servant inventory; capped sections can leave rank unknown. |
+| Follower selection | `player.FollowServant` | This identifies the cosmetic pet. The combat follower or mercenary selection is not present in the inspected player dump and is not imported. |
+| Hero memories and trait state | `heroCharacterv3OverView.defaultReminis`, `reminiscenceOverView`, `pointOverView`, and `customSkillSlots` | Equipped memories, the Progress base-slot memory, verified Sage trait selections, and logged Scent Bottle ingredient choices import. Memory base-stat IDs use an owner-verified crosswalk in canonical tli-data. Ingredient option positions resolve through the Licorice Note ingredient catalog. |
 
-The representative draft contains nine gear items and 37 skills and supports. The game log also marks
-17 sections as truncated in that capture. The preview reports those limits before the user imports.
+The representative draft contains nine gear items, 37 skills and supports, character level, four talent
+trees, memories, Sage trait state, logged bottle ingredients, and mapped pact-spirit contracts. Slates and
+prisms remain unmapped. Log truncation can still leave some skill details and pact-spirit ranks incomplete.
 
 ## Other account and game state
 

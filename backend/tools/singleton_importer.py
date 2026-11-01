@@ -72,6 +72,8 @@ def _prism_item(it: dict, kind: str, replacement_glossary: dict[str, dict] | Non
         # For replace prisms, the glossary carries the replacement Core Talent's name + description.
         "glossary": glossary,
     }
+    if it.get("game_id") is not None:
+        out["game_id"] = it["game_id"]
     rr = _parse_temper_ranges(glossary)
     if rr:
         out["roll_ranges"] = rr
@@ -82,7 +84,7 @@ def import_ethereal_prism(data: dict, season_name: str) -> dict:
     """New 4-section crawler format → a structured prism catalog: prism ITEMS (Inverse Image + Ethereal Prisms,
     each with name/icon/tags/detail/implicit and, for Inverse Image, the tempered roll ranges) plus the base- and
     random-affix pools (kept for the future Ethereal-Prism crafting work)."""
-    items, base_affixes, random_affixes = [], [], []
+    items, base_affixes, base_affix_modifiers, random_affixes = [], [], [], []
     # Replacement effects now live in TLIDB's linked hover-card payloads on the
     # Base Affix table, not inline in each Prism card. Keep the name → glossary
     # relationship while flattening that table so the item's existing `glossary`
@@ -95,8 +97,20 @@ def import_ethereal_prism(data: dict, season_name: str) -> dict:
             raw = it.get("Modifier") or it.get("Affix Effect")
             return line_text(raw).strip() if raw else ""
 
+        def modifier_id(it):
+            raw = it.get("Modifier") or it.get("Affix Effect")
+            if isinstance(raw, dict) and raw.get("modifier_id"):
+                return str(raw["modifier_id"])
+            value = it.get("modifier_id") or it.get("modifier id")
+            return str(value) if value is not None else None
+
         if header.startswith("base affix"):
             base_affixes = [modifier_text(it) for it in sec_items if modifier_text(it)]
+            base_affix_modifiers = [
+                {"modifier": modifier_text(row), "modifier_id": modifier_id(row),
+                 **({"modifier_ids": [str(value) for value in row["modifier_ids"]]} if row.get("modifier_ids") else {})}
+                for row in sec_items if modifier_text(row)
+            ]
             for row in sec_items:
                 modifier = modifier_text(row)
                 match = re.search(r"^Replaces the Core Talent.+?\bwith\s+(.+?)\s*$", modifier, re.I)
@@ -111,7 +125,9 @@ def import_ethereal_prism(data: dict, season_name: str) -> dict:
                         break
         elif header.startswith("random affix") or header.startswith("prism gauge"):
             random_affixes += [
-                {"modifier": modifier_text(it), "type": it.get("Type") or ""}
+                {"modifier": modifier_text(it), "type": it.get("Type") or "",
+                 **({"modifier_id": modifier_id(it)} if modifier_id(it) else {}),
+                 **({"modifier_ids": [str(value) for value in it["modifier_ids"]]} if it.get("modifier_ids") else {})}
                 for it in sec_items if modifier_text(it)
             ]
         elif header.startswith("inverse image"):
@@ -123,6 +139,7 @@ def import_ethereal_prism(data: dict, season_name: str) -> dict:
         "item_count": len(items),
         "items": items,
         "base_affixes": base_affixes,
+        "base_affix_modifiers": base_affix_modifiers,
         "random_affixes": random_affixes,
     }
 
@@ -157,12 +174,13 @@ def _parse_memory_affix(it: dict) -> dict:
     # '+'/capitalize normalization is sign/case-only — identity-invariant — which slim_checked verifies.
     line = it.get("Modifier", "")
     ids = slim_checked(line, _normalize_memory_modifier(line_text(line)))
+    source_modifier_id = line.get("modifier_id") if isinstance(line, dict) else None
     return {
         "tier": tier,
         "modifier": ids["text"],
         "uuid": ids["uuid"],
         "pooling_uuid": ids["pooling_uuid"],
-        "modifier_id": ids["modifier_id"],
+        "modifier_id": source_modifier_id or ids["modifier_id"],
         "level": level,
         "weight": weight,
         "source": it.get("Source", ""),

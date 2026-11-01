@@ -35,6 +35,32 @@ export interface UeLogSkillItem {
   prefixes: UeLogAffix[]
 }
 
+export interface UeLogMemory {
+  slot: number | null
+  baseId: number | null
+  rarityValue: number | null
+  level: number | null
+  baseAttrAffixes: UeLogAffix[]
+  fixedAffixes: UeLogAffix[]
+  randomAffixes: UeLogAffix[]
+  awakenAffixes: UeLogAffix[]
+  rarityRequire?: number | null
+  typeRequire?: number | null
+  affixBoost?: number | null
+}
+
+export interface UeLogPactContract {
+  areaId: number
+  servantId: number
+  rank: number | null
+}
+
+export interface UeLogIngredientChoice {
+  bottleSlot: number
+  materialSlot: number
+  optionId: string
+}
+
 export interface UeLogCharacterPreview {
   dumpNumber: number
   characterName: string | null
@@ -43,9 +69,14 @@ export interface UeLogCharacterPreview {
   heroPurchaseId: number | null
   gear: UeLogGearItem[]
   skills: UeLogSkillItem[]
-  talentTreeAllocations?: Array<{ id: string; rank: number }>
+  talentTrees?: Array<{ careerId: number | null; allocations: Array<{ id: string; rank: number }> }>
   followServantId?: number | null
   servantIds?: number[]
+  activeTraitIds?: number[]
+  memories?: UeLogMemory[]
+  baseMemory?: UeLogMemory
+  pactContracts?: UeLogPactContract[]
+  ingredientChoices?: UeLogIngredientChoice[]
   truncatedSections: string[]
 }
 
@@ -150,6 +181,27 @@ function affixRows(value: unknown): UeLogAffix[] {
   })
 }
 
+function memoryRow(raw: unknown, slot: number | null, requirements?: Record<string, unknown>): UeLogMemory | null {
+  if (!raw || typeof raw !== 'object') return null
+  const entry = raw as Record<string, unknown>
+  const detail = (entry.detail && typeof entry.detail === 'object' ? entry.detail : entry) as Record<string, unknown>
+  return {
+    slot,
+    baseId: numberValue(scalar(detail.BaseId)),
+    rarityValue: numberValue(scalar(detail.RareValue)),
+    level: numberValue(scalar(detail.ReminiscenceLevel)),
+    baseAttrAffixes: affixRows(detail.BaseAttrAffix),
+    fixedAffixes: affixRows(detail.BaseAffix),
+    randomAffixes: affixRows(detail.Suffix),
+    awakenAffixes: affixRows(detail.AwakenAffix),
+    ...(requirements ? {
+      rarityRequire: numberValue(scalar(requirements.rarityRequire)),
+      typeRequire: numberValue(scalar(requirements.typeRequire)),
+      affixBoost: numberValue(scalar(requirements.affixBoost)),
+    } : {}),
+  }
+}
+
 function gearRows(tree: Record<string, unknown>): UeLogGearItem[] {
   const bag = tree.bag as Record<string, unknown> | undefined
   return entries(bag?.wearItems).flatMap(raw => {
@@ -246,11 +298,83 @@ function skillRows(tree: Record<string, unknown>): UeLogSkillItem[] {
     .sort((a, b) => a.logIndex - b.logIndex)
 }
 
+function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogCharacterPreview['talentTrees']> {
+  const geniusInfos = tree.geniusInfos as Record<string, unknown> | undefined
+  return entries(geniusInfos?.info).flatMap(raw => {
+    if (!raw || typeof raw !== 'object') return []
+    const info = raw as Record<string, unknown>
+    const careerId = numberValue(scalar(info.geniusCareerId))
+    const allocations = entries(info.geniusList).flatMap(entry => {
+      if (!entry || typeof entry !== 'object') return []
+      const row = entry as Record<string, unknown>
+      const value = row.value && typeof row.value === 'object' ? row.value as Record<string, unknown> : {}
+      const rawId = scalar(row.geniusId ?? row.key ?? value.geniusId)
+      if (rawId === null || rawId === undefined) return []
+      const id = String(rawId)
+      const rank = ['rank', 'point', 'points', 'talentPoint', 'level', 'value']
+        .map(key => numberValue(scalar(row[key] ?? value[key])))
+        .find((n): n is number => n !== null && n > 0) ?? 1
+      return [{ id, rank }]
+    })
+    return allocations.length ? [{ careerId, allocations }] : []
+  })
+}
+
+function loggedIngredientChoices(tree: Record<string, unknown>): UeLogIngredientChoice[] {
+  const custom = tree.customSkillSlots as Record<string, unknown> | undefined
+  return entries(custom?.customSkillSlots).flatMap(raw => {
+    if (!raw || typeof raw !== 'object') return []
+    const bottle = raw as Record<string, unknown>
+    const bottleSlot = numberValue(scalar(bottle.id))
+    if (bottleSlot === null) return []
+    return entries(bottle.materialSlots).flatMap(materialRaw => {
+      if (!materialRaw || typeof materialRaw !== 'object') return []
+      const row = materialRaw as Record<string, unknown>
+      const material = row.value && typeof row.value === 'object' ? row.value as Record<string, unknown> : row
+      const materialSlot = numberValue(scalar(material.index)) ?? numberValue(scalar(row.key))
+      const optionId = scalar(material.chooseOptionId)
+      if (materialSlot === null || typeof optionId !== 'string' || !optionId) return []
+      return [{ bottleSlot, materialSlot, optionId }]
+    })
+  })
+}
+
 function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
   const tree = parseGetPlayerDataBody(body)
   const player = (tree.player ?? {}) as Record<string, unknown>
   const hero = (tree.heroCharacterv3OverView ?? {}) as Record<string, unknown>
   const servantInfos = tree.ServantInfos as Record<string, unknown> | undefined
+  const ownedSpiritRanks = new Map<number, number>()
+  for (const raw of entries(servantInfos?.servantData)) {
+    if (!raw || typeof raw !== 'object') continue
+    const servant = raw as Record<string, unknown>
+    const servantId = numberValue(scalar(servant.servantId))
+    if (servantId === null) continue
+    const starLevel = numberValue(scalar(servant.starLevel))
+    ownedSpiritRanks.set(servantId, starLevel === null ? 1 : Math.min(6, starLevel + 1))
+  }
+  const reminiscenceOverview = hero.reminiscenceOverView as Record<string, unknown> | undefined
+  const memories = entries(reminiscenceOverview?.reminiscence).flatMap(raw => {
+    if (!raw || typeof raw !== 'object') return []
+    const entry = raw as Record<string, unknown>
+    const parsed = memoryRow(raw, numberValue(scalar(entry.index)))
+    return parsed ? [parsed] : []
+  })
+  const baseMemory = memoryRow(hero.defaultReminis, null, hero.defaultReminis as Record<string, unknown> | undefined ?? undefined)
+  const pointOverview = hero.pointOverView as Record<string, unknown> | undefined
+  const activeTraitIds = entries(pointOverview?.activeId)
+    .map(value => numberValue(scalar(value)))
+    .filter((id): id is number => id !== null)
+  const contracts = (tree.ContractInfosV2 as Record<string, unknown> | undefined)?.ContractDatas
+  const pactContracts = entries(contracts).flatMap(raw => {
+    if (!raw || typeof raw !== 'object') return []
+    const contract = raw as Record<string, unknown>
+    const areaId = numberValue(scalar(contract.areaId))
+    const servantId = numberValue(scalar(contract.servantId))
+    if (areaId === null || servantId === null) return []
+    return [{ areaId, servantId, rank: ownedSpiritRanks.get(servantId) ?? null }]
+  })
+  const ingredientChoices = loggedIngredientChoices(tree)
   return {
     dumpNumber,
     characterName: typeof scalar(player.Name) === 'string' ? scalar(player.Name) as string : null,
@@ -259,19 +383,18 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     heroPurchaseId: numberValue(scalar(hero.heroPurchaseId)),
     gear: gearRows(tree),
     skills: skillRows(tree),
-    talentTreeAllocations: entries((tree.SP3Base as Record<string, unknown> | undefined)?.TalentTree).flatMap(raw => {
-      if (!raw || typeof raw !== 'object') return []
-      const row = raw as Record<string, unknown>
-      const id = scalar(row.key)
-      const rank = numberValue(scalar(row.value))
-      return typeof id === 'string' && rank !== null && rank > 0 ? [{ id, rank }] : []
-    }),
+    talentTrees: loggedTalentTrees(tree),
     followServantId: numberValue(scalar(player.FollowServant)),
     servantIds: entries(servantInfos?.servantData).flatMap(raw => {
       if (!raw || typeof raw !== 'object') return []
       const servantId = numberValue(scalar((raw as Record<string, unknown>).servantId))
       return servantId === null ? [] : [servantId]
     }),
+    ...(activeTraitIds.length ? { activeTraitIds } : {}),
+    ...(memories.length ? { memories } : {}),
+    ...(baseMemory?.baseId !== null && baseMemory?.baseId !== undefined ? { baseMemory } : {}),
+    ...(pactContracts.length ? { pactContracts } : {}),
+    ...(ingredientChoices.length ? { ingredientChoices } : {}),
     truncatedSections: [...body.matchAll(/^[| ]*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
   }
 }

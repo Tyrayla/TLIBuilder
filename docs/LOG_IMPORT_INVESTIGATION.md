@@ -1,13 +1,11 @@
 # Importing a character from `UE_game.log` — investigation and design
 
-Status (2026-10-29): the Import Build modal scans selected UE_game logs and creates editable drafts.
-The importer maps Vorax, crafted, and unique gear; active and passive skills; support attachments and
-levels; tower sequences; and belt blends. It merges repeated captures for the same character by gear
-and skill slot, combines talent allocations and servant IDs, and uses the latest recorded follower
-selection. The canonical data updates are in tli-data PR #20. Builder CI currently fetches tli-data
-`main`, so PR #37's backend checks still fail until that data is merged. Keep the Builder branch
-unpushed until the local backend suite passes against the data revision CI will fetch. The raw log
-remains gitignored and is never committed.
+Status (2026-11-01): the Import Build modal scans selected UE_game logs and creates editable drafts.
+The current worktree maps gear, skills and supports, talent trees, Sage trait state and Scent Bottle
+choices, memories, character level, and pact-spirit contracts when the required data is available.
+Slate and prism identities remain unmapped, and some support rolls or pact-spirit ranks are missing
+from TLIDB or capped log sections. Changes remain local and uncommitted for owner testing. Raw logs
+remain gitignored and are never committed.
 
 **Clean-room statement.** An existing third-party log importer is source-available, not open source. Nothing here was
 copied or derived from its code or its ID dictionary. Everything marked **VERIFIED** was
@@ -175,9 +173,13 @@ does not change the frozen `tli1_` codec or `backend/build_code.py`.
 |---|---|
 | `bag.wearItems` on page `-1` | Maps Vorax grafts, unique items, and crafted bases by `game_id`. It maps affixes by `modifier_id`, custom rolls from `DynArgs`, belt blends, and Tower Sequence chips when IDs match. Unknown bases and affixes are omitted with warnings. |
 | Skill lists and slot layout on page `-6` | Maps active skills, passive skills, activation mediums, and supports by `game_id` and slot. It uses logged levels when present and reports missing levels. Unmapped support modifier IDs use Builder defaults and produce warnings. |
-| Repeated login captures | Groups by character name and `HeroId`. Later entries replace earlier data in the same gear or skill slot. Entries only present in earlier captures fill missing slots. Talent allocations are combined by node ID, servant IDs are unioned, and the latest non-null follower selection is used. |
-| `SP3Base.TalentTree` | Parses and merges the logged IDs and ranks, but does not apply them because the five-digit IDs have no verified bridge to TLIDB `talent_id` values. |
-| Other character state | Hero trait selections, memories, slates, prisms, pactspirits, fates, and scent-bottle choices are not mapped into the draft. |
+| Repeated login captures | Groups by character name and `HeroId`. Later entries replace earlier data in the same gear, skill, memory, contract, or scent-bottle slot. Earlier captures fill missing slots. Talent allocations and servant inventory are combined. `player.FollowServant` is a cosmetic pet field, not combat follower selection. |
+| `geniusInfos.info` | Talent allocation IDs join canonical talent `game_id` values and apply to the four talent trees. Unknown nodes are skipped with a concise warning. |
+| Hero memories and trait state | Maps Sage Licorice Note and its selected advanced traits, equipped memories, and the Progress base-slot memory. Memory base stats use the owner-verified tli-data crosswalk. |
+| `customSkillSlots` | Maps selected Scent Bottle ingredients by bottle slot, ingredient category, and option position using the canonical Licorice Note ingredient catalog. |
+| Slate and prism data | Log placement and effects are present, but reliable joins from slate/prism IDs to canonical records are not implemented. |
+| Pact spirits and contracts | Contract `servantId` joins canonical pact-spirit `game_id`; rank imports when the corresponding servant entry is available in the capture. |
+| Character level | Imports `player.Level` into `Build.characterLevel` and the initial condition state. |
 | Truncated lists | Reports truncation. Multiple captures can recover shuffled gear and skill entries, but cannot recover talent nodes cut from every captured dump. |
 
 The importer preserves user privacy by parsing files in the renderer and discarding log text after the scan. It does not read account identifiers or upload the log.
@@ -212,7 +214,7 @@ The importer preserves user privacy by parsing files in the renderer and discard
 | GAP-7 prism ids | add prism `BaseId` and affix ids |
 | GAP-8 pactspirit ids | map `servantId` to spirit. **Clean-source search:** tli-data and the crosswalk carry no servant id; the game's loose files hold ids only (`Local/AccountCache/*/NewPetRedDotData` lists ~148 ids, no names; the config packs are encrypted with no known key, `tli-decompiler/TLI_DATA_RECON.md`); no log line pairs an id with a name; the id digits are a grouping, not a name (F18). **Clean way to fill it:** observation by the owner (section 10), plus the crawler probing whether a tlidb pactspirit page shows an `id:` line the way legendary-gear pages do. Do not copy any third-party bundle table. |
 | GAP-9 destiny / kismet ids | micro `3500NN` and medium `3503NN` follow the tlidb icon number (F29); kismet range unseen. Crawler: add the `id:` line or the icon-number-derived id to `destiny.json` once confirmed on one page |
-| GAP-10 scent-bottle option ids | **resolved by structure** (F24): third digit = position in the tlidb category. No crawler field needed |
+| GAP-10 scent-bottle option ids | Importer resolves option positions through the canonical Licorice Note ingredient categories. |
 | F13/F16 | **resolved for the prefix table** (F27, from tlidb `talent_id`); core-talent slot rule still needs one more log (HYPOTHESIS) |
 | Truncation (F5) | see section 9: lists are re-shuffled per login for skills, pacts and servants (merge logins), deterministic for talent trees (cut = the highest-id top-row nodes, at most 2 on 13 of 31 trees) |
 
@@ -222,17 +224,16 @@ The importer preserves user privacy by parsing files in the renderer and discard
    The importer currently warns and omits unknown lines.
 2. Find a source for the five-digit `TalentTree` allocation IDs, hero and trait IDs, prism IDs, slate
    base IDs, pactspirit IDs, and destiny IDs. Do not infer a mapping from numeric patterns alone.
-3. Import memories, slates, prisms, pactspirits, fates, scent-bottle choices, and hero-trait selections
-   after their IDs and field meanings have verified joins. The current importer does not map these
-   fields into a Builder draft.
+3. Map slate base identities, prism identities/effects, and fates to canonical data. Slate placement
+   and effects are visible in the log, but the base joins are still unresolved.
 4. Compare every equipped slot and affix in representative real logs against TLIDB. Multi-capture
    merging recovers gear and skills omitted by per-list caps, but talent lists can remain truncated.
 5. Keep the import client-side. Never store or display account identifiers, and report lists truncated
    at 30 entries.
 
 The crawler now captures the SS14 `Follower`, `Tartarus Skill`, and `Origin Tartarus Skill` pages.
-These catalogs support future follower import, but the game log does not contain follower selection
-or follower skill loadout fields.
+These catalogs support future follower import, but the inspected game log does not contain the combat
+mercenary selection or follower skill loadout. `player.FollowServant` identifies a cosmetic pet.
 
 **Test fixtures (owner decision 2026-10-28): no log-derived file is ever committed to the tlibuilder repo.**
 The owner also rejected `tli-data` as a home for real logs. Do not create a fixture repository until the owner asks.
@@ -311,16 +312,16 @@ tlidb already exposes the game id on several pages and our crawler already captu
 
 | Category | Log field | Crawler/tli-data field | Join today | Follow-up |
 |---|---|---|---|---|
-| Talent nodes, core talents, slate talents | `geniusId`, `talentId`, `*TalentList` | `talent_tree[].talent_id` | **119/120, 10/10, 13/14** | none; persist `talent_id` in the season tree files (they already carry it in the raw capture but the shipped `trees` use column/row) |
+| Talent nodes | `geniusInfos.info[].geniusList[]` IDs | `game_id` on season-tree nodes and trait variants | The importer joins logged IDs and applies known ranks to Builder tree nodes. Local data has 882 base-node IDs and 48 Thea variant IDs. | Merge the companion `tli-data` change before testing against the published catalog. |
 | Legendary gear | `UniqueItmId` | `legendary_gear.game_id` | **6/6 equipped + 7/7 earlier** | none |
 | Legendary affixes, base implicits | `Prefix/BaseAffix/FixedBaseAffix Id` | `modifier_id` | **30/30, `FixedBaseAffix` 6/6**, `BaseAttrAffix` 16/25 | extend `modifier_id` to the 9 `BaseAttrAffix` misses (`4031...` memory stats, `1204...` prism) |
-| Hero memories | `BaseId` 71001-71003 | `hero_memories.game_id` | **3/3** | none |
+| Hero memories | `reminiscenceOverView.reminiscence[].BaseId` and modifier IDs | `hero_memories.game_id`, `modifier_id` | The catalog has all three memory types and all 1,263 crawler-backed modifier IDs. The importer does not yet build memory slots. | Map memory rarity, base affixes, and slot fields from a representative dump before adding conversion. |
 | Belt blend / blending rituals | `EnchantAffixs Id` | `blending_rituals.modifier_id`, `talent_id` | **2/2** | none |
 | Nether King slate | `BaseId` 394004 | `nether_kings_divinity.internal_id` | **match** (Judgment = 394004) | the other NK slates have `internal_id` too; add the base talent `9000006x` ids |
 | Skills, supports, mediums | `BaseId` | `skills.game_id` | 969 SS14 skill pages crawled; 784 unique catalog entries carry `game_id`; 25/25 IDs in the representative log resolve | importer reads all three capped skill lists, maps slot/level, and merges same-character captures; support `Prefix` modifiers and ranked-support values remain GAP-3 |
 | Gear base items | `BaseId` | `craft_base_items.game_id` | 624/624 base records have IDs | map equipped bases and verify each log ID |
 | Crafted/rare affix IDs | `Prefix/Suffix Id` | `craft_base_type.modifier_id` | synthetic gear matched refreshed SS14 data | compare every equipped affix in representative real logs |
-| Hero + trait ids | `heroPurchaseId`, `activeId` | none | 0/4 | hero trait page `id:` line; capture hero id and trait id |
+| Hero + trait ids | `heroPurchaseId`, `skillOverView.pointOverView.activeId` | no matching canonical fields | Not joined. The hero-trait catalog has no verified game-ID crosswalk. | Find a TLIDB ID field or collect an explicit verified ID-to-trait mapping. |
 | Divinity slates (base, legendary) | `BaseId`, `UniqueItmId`, `ShapeId` | `divinity_slate` (no ids) | 0 | capture `internal_id` and shape for every base/legendary slate kind |
 | Prisms | `BaseId` 360620, affix `1204...`, `1234...` | `ethereal_prism` (no ids) | 0 | capture `internal_id` and affix `modifier_id`s |
 | Pactspirits | `ServantInfos.servantData[].servantId` | `pactspirit` (no ids) | current sample has 30 IDs, including `16130`; none join to the current catalog | TLIDB has no matching IDs on available pages; keep the IDs visible and report the gap |
@@ -346,11 +347,12 @@ The crawler now uses `game_id` for item and skill IDs and `modifier_id` for modi
 
 The importer runs in the shared Import Build modal. The player picks one or more log files on both
 Electron and web. The current importer maps equipped Vorax, crafted, and unique gear, active and passive
-skills, and support attachments by logged game ID. It also maps logged levels, belt blends, and Tower
-Sequence chips when their IDs match the catalogs. Across captures for the same character, later gear
-and skill entries replace earlier entries in the same slot, and earlier entries fill slots missing from
-later captures. Talent allocations are combined by ID, servant IDs are unioned, and the latest non-null
-follower selection is used. The multi-capture warning describes these rules before import.
+skills, support attachments, talent allocations, character level, Sage trait state, memories, and
+pact-spirit contracts when their IDs match the catalogs. It also maps logged levels, belt blends, Tower
+Sequence chips, and Scent Bottle ingredient choices. Across captures for the same character, later
+data replaces earlier values in the same slot, and earlier captures fill slots missing later. Talent
+allocations and servant inventory are combined. The multi-capture summary describes these rules before
+import.
 
 The current UI does not auto-detect the log or offer an update action after relogging. It reads the
 selected files in the renderer and does not upload or save their contents. See section 12 for the open
@@ -415,13 +417,17 @@ carry `max_divinity_effect`.
   map, but these modifier rolls and ranks use Builder defaults with a warning.
 - Two support levels are absent from the selected login dump. The importer uses the Builder default
   and reports each missing level.
-- `TalentTree` entries include five-digit IDs such as `12228` and `10409`. Current SS14 talent pages
-  use eight-digit `talent_id` values and provide no bridge between the formats. The parser retains
-  logged IDs and ranks and merges repeated nodes, but the importer does not apply them. Some talent
-  lists also exceed the 30-entry log cap.
-- Hero and trait selections, memories, slate bases, prisms, pactspirits, fates, and scent-bottle choices
-  are not mapped into the current draft. Several of their logged IDs have no matching TLIDB field.
-  Continue the TLIDB page audit before adding mappings.
+- Talent allocations now join by the logged game ID. A local synthetic import mapped two logged nodes
+  into the expected Builder tree. Some talent lists can still exceed the game's log cap, so a capped
+  login may omit allocations.
+- Sage's Licorice Note, the logged Scent of Ambition / Everlasting Nectar selections, and Scent Bottle
+  ingredient choices import from `customSkillSlots` through the canonical ingredient catalog. The
+  guaranteed Pungent Stimulant Salt node follows the imported level-2 trait slot.
+- Origin, Discipline, and Progress memories import with their logged base stats, affixes, and rolls.
+  The special Progress memory also imports in the Base Trait Slot with its 34% revival penalty. The
+  log-only base-stat IDs are crosswalked in canonical tli-data using the owner's in-game screenshots.
+- Slate base identities, prism identities/effects, and fates remain unmapped. Pact-spirit contracts
+  import when their IDs match canonical data; rank may be missing from capped servant lists.
 - Mercenary selection and skills do not appear in the inspected login dumps.
 
 ### CI data mismatch
