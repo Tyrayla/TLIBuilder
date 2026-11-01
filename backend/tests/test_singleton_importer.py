@@ -126,8 +126,6 @@ def test_hero_memories_new_format():
     assert r["base_stats"][0]["modifier"] == "+90 Strength"
     assert r["memory_types"][0]["name"] == "Memory of Origin"
     assert r["memory_types"][0]["game_id"] == 71001
-
-
 def test_hero_memories_preserves_crawler_modifier_game_id():
     data = {
         "fixed_affixes": [{
@@ -141,6 +139,22 @@ def test_hero_memories_preserves_crawler_modifier_game_id():
     result = import_hero_memories(data, "SS14")
 
     assert result["fixed_affixes"][0]["modifier_id"] == "402151201"
+
+
+def test_hero_memories_legacy_internal_id_fallback():
+    legacy_data = {
+        **_HERO_MEM_DATA,
+        "memory_types": [{
+            "name": "Memory of Origin",
+            "url_path": "/en/Memory_of_Origin",
+            "internal_id": 71001,
+            "icon_url": "https://cdn.tlidb.com/icon.webp",
+        }],
+    }
+    assert import_hero_memories(legacy_data, "SS12")["memory_types"][0]["game_id"] == 71001
+    for empty_game_id in (None, 0):
+        legacy_data["memory_types"][0]["game_id"] = empty_game_id
+        assert import_hero_memories(legacy_data, "SS12")["memory_types"][0]["game_id"] == 71001
 
 
 def test_hero_memories_normalizes_modifiers():
