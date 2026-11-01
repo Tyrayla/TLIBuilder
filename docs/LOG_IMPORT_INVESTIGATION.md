@@ -4,7 +4,7 @@ Status (2026-11-01): the Import Build modal scans selected UE_game logs and crea
 The current worktree maps gear, skills and supports, talent trees, Sage trait state and Scent Bottle
 choices, memories, character level, and pact-spirit contracts when the required data is available.
 Slate and prism identities remain unmapped, and some support rolls or pact-spirit ranks are missing
-from TLIDB or capped log sections. Changes remain local and uncommitted for owner testing. Raw logs
+from TLIDB or capped log sections. The implementation is in review on the game-log import branch. Raw logs
 remain gitignored and are never committed.
 
 **Clean-room statement.** An existing third-party log importer is source-available, not open source. Nothing here was
