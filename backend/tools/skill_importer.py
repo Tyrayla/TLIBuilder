@@ -234,11 +234,15 @@ def import_crawler_skill(data: dict, owner_id: str | None = None) -> dict:
     charges = 1 if cooldown else None
     durations = extract_durations(detailed or simple)
     duration = _skill_duration(durations)
+    game_id = data.get("game_id")
+    legacy_game_id = data.get("internal_id")
+    if game_id in (None, 0) and legacy_game_id not in (None, 0):
+        game_id = legacy_game_id
     out = {
         "item_id": item_id,
         "name": name,
         "uuid": data.get("uuid"),
-        "internal_id": data.get("internal_id"),
+        "game_id": game_id,
         "skill_type": data.get("skill_type", ""),
         "skill_tags": variant.get("tags") or [],
         "description_lines": simple,                     # Lv1 lines (back-compat readers use this)
