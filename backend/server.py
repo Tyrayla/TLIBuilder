@@ -381,14 +381,24 @@ def _core_effect_status(effect: str) -> dict:
 def get_trees():
     active = season_manager.get_active_season()
     icons = (season_manager.load_talent_tree_selector_icons(active) if active else None) or {}
-    return [
-        {
+    summaries = []
+    for name, entry in TREES.items():
+        tree_data = season_manager.load_season_tree(active, _tree_name_to_slug(name)) if active else None
+        summaries.append({
             "name": name,
             "color": entry["color"],
             "icon_url": icons.get(name.replace(" ", "_")),
-        }
-        for name, entry in TREES.items()
-    ]
+            "nodes": [
+                {
+                    "id": node["id"],
+                    **({"game_id": str(node["game_id"])} if node.get("game_id") is not None else {}),
+                    **({"trait_variants": node["trait_variants"]} if node.get("trait_variants") else {}),
+                }
+                for node in (tree_data or {}).get("nodes", [])
+                if node.get("game_id") is not None or any(v.get("game_id") is not None for v in node.get("trait_variants", []))
+            ],
+        })
+    return summaries
 
 
 @app.get("/api/tree-search")
@@ -432,6 +442,7 @@ def get_tree(name: str):
 
     effects_by_id: dict[str, list[str]] = {}
     trait_variants_by_id: dict[str, list[dict]] = {}
+    game_ids_by_id: dict[str, str] = {}
     active = season_manager.get_active_season()
     if active:
         slug = _tree_name_to_slug(name)
@@ -439,6 +450,8 @@ def get_tree(name: str):
         if season_data:
             for sn in season_data.get("nodes", []):
                 effects_by_id[sn["id"]] = sn.get("effects", [])
+                if sn.get("game_id") is not None:
+                    game_ids_by_id[sn["id"]] = str(sn["game_id"])
                 if sn.get("trait_variants"):
                     trait_variants_by_id[sn["id"]] = sn["trait_variants"]
 
@@ -446,6 +459,7 @@ def get_tree(name: str):
     for n in tree.nodes.values():
         nodes.append({
             "id": n.id,
+            **({"game_id": game_ids_by_id[n.id]} if n.id in game_ids_by_id else {}),
             "column": n.column,
             "row": n.row,
             "max_points": n.max_points,
@@ -522,7 +536,8 @@ def _collect_pool(tree_names: list[str]) -> dict:
             if mod_key in seen_mods:
                 continue
             seen_mods.add(mod_key)
-            entry = {"nodeId": node["id"], "treeName": tree_name, "nodeType": node["node_type"], "effects": effects}
+            entry = {"nodeId": node["id"], "game_id": str(node["game_id"]) if node.get("game_id") is not None else None,
+                     "treeName": tree_name, "nodeType": node["node_type"], "effects": effects}
             nt = node["node_type"]
             if nt == "Micro Talent":
                 magic_pool.append(entry)
@@ -550,14 +565,16 @@ def _collect_pool(tree_names: list[str]) -> dict:
             out_key = f"{tree_name}:{raw_key}" if n == 1 else f"{tree_name}:{raw_key}#{n}"
             # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
             display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
-            core_pool.append({"key": out_key, "treeName": tree_name, "name": display_name, "effects": effects})
+            core_pool.append({"key": out_key, "game_id": str(ct["game_id"]) if ct.get("game_id") is not None else None,
+                              "treeName": tree_name, "name": display_name, "effects": effects})
 
     for ct in (season_manager.load_new_god_talents(active) or []):
         name = ct.get("name", "")
         if not name or name in seen_core_names:
             continue
         seen_core_names.add(name)
-        core_pool.append({"key": f"new_god:{name}", "treeName": "New God", "name": name, "effects": ct.get("effects", [])})
+        core_pool.append({"key": f"new_god:{name}", "game_id": str(ct["game_id"]) if ct.get("game_id") is not None else None,
+                          "treeName": "New God", "name": name, "effects": ct.get("effects", [])})
 
     return {"magic": magic_pool, "rare": rare_pool, "legendary": legendary_pool, "core": core_pool}
 
@@ -3281,6 +3298,7 @@ def get_ethereal_prism():
         "season": active,
         "items": data.get("items", []),
         "base_affixes": data.get("base_affixes", []),
+        "base_affix_modifiers": data.get("base_affix_modifiers", []),
         "random_affixes": data.get("random_affixes", []),
         "catalog": categorize_prism_catalog(data),
     }
@@ -3302,12 +3320,13 @@ def get_hero_memories():
     # base_stat_scaling is season-independent (hand-authored top-level file) — include it even when no season /
     # no per-season memory data is loaded, so the creator's base-stat auto-scaling works regardless.
     empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": [],
-             "base_stat_scaling": _HERO_MEMORY_BASE_STATS}
+             "base_stat_scaling": _HERO_MEMORY_BASE_STATS, "log_base_stats": []}
     if not active:
         return empty
     data = season_manager.load_hero_memories(active)
+    log_crosswalk = season_manager.load_hero_memory_log_crosswalk(active) or {}
     if not data:
-        return {**empty, "season": active}
+        return {**empty, "season": active, "log_base_stats": log_crosswalk.get("base_stats", [])}
     return {
         "season": active,
         "memory_types": data.get("memory_types", []),
@@ -3315,6 +3334,7 @@ def get_hero_memories():
         "random_affixes": data.get("random_affixes", []),
         "base_stats": data.get("base_stats", []),
         "base_stat_scaling": _HERO_MEMORY_BASE_STATS,
+        "log_base_stats": log_crosswalk.get("base_stats", []),
     }
 
 

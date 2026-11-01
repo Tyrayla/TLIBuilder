@@ -84,6 +84,7 @@ def test_ss14_nether_king_pool_has_all_crawled_choices(monkeypatch):
 
     assert len(core) == 116
     assert len({choice["key"] for choice in core}) == 116
+    assert core[61]["game_id"] == "90000061"
 
 
 def test_genuine_duplicate_core_talent_still_collapses(monkeypatch):

@@ -43,6 +43,8 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/hero-memories': 'hero_memories',
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
+  '/tower-sequence': 'tower_sequence',
+  '/belt-blends': 'belt_blends',
   '/verification-db': 'verification_db',
   '/glossary': 'glossary',
   '/help-db': 'help_db',
@@ -361,6 +363,7 @@ export interface SlateTemplate {
 // A prism item from the imported catalog (GET /ethereal-prism). Inverse Image carries roll_ranges.
 export interface PrismCatalogItem {
   name: string
+  game_id?: number
   kind: 'inverse_image' | 'ethereal_prism'
   icon_url: string
   tags: string[]
@@ -377,6 +380,7 @@ export interface PrismImplicit {
 }
 export interface EtherealCatalogItem {
   name: string
+  game_id?: number
   short_name: string
   kind: 'ethereal_prism'
   icon_url: string
@@ -388,19 +392,23 @@ export interface EtherealCatalogItem {
   implicit: PrismImplicit
   replace_description: string   // replace prisms: the replacement Core Talent's effect text (from the glossary)
 }
-export interface AreaSizeAffix { modifier: string; cols: number; rows: number }
+export interface AreaSizeAffix { modifier: string; modifier_id?: string; modifier_ids?: string[]; cols: number; rows: number }
 export interface MiddleAffix {
   modifier: string
+  modifier_id?: string
+  modifier_ids?: string[]
   tier: 'micro' | 'medium' | 'legendary' | ''
   scaled: boolean   // true = the ×1.75 Phantasmagoria-only variant; false = base (every other prism)
 }
 export interface AdvancedAffix {
   modifier: string
+  modifier_id?: string
+  modifier_ids?: string[]
   kind: 'over_alloc' | 'ignore_prereq' | 'conditional'
   tier?: 'micro' | 'medium' | 'legendary' | ''
   count?: number
 }
-export interface DoNotReplaceAffix { modifier: string; penalty: string }
+export interface DoNotReplaceAffix { modifier: string; modifier_id?: string; modifier_ids?: string[]; penalty: string }
 export interface EtherealCatalog {
   items: EtherealCatalogItem[]
   area_size: AreaSizeAffix[]
@@ -413,7 +421,8 @@ export interface PrismCatalog {
   season: string | null
   items: PrismCatalogItem[]
   base_affixes: string[]
-  random_affixes: { modifier: string; type: string }[]
+  base_affix_modifiers?: { modifier: string; modifier_id: string | null; modifier_ids?: string[] }[]
+  random_affixes: { modifier: string; modifier_id?: string; modifier_ids?: string[]; type: string }[]
   catalog?: EtherealCatalog
 }
 // The three Inverse Image affix rolls (% multipliers; −100 = off/untempered).
@@ -565,13 +574,14 @@ export interface FolderManifest {
 
 export interface TreeNode {
   id: string
+  game_id?: string
   column: number
   row: number
   max_points: number
   node_type: string
   current_points: number
   effects: string[]
-  trait_variants?: { trait_id: string | null; unlock_level: number | null; advanced_selection: string; effects: string[] }[]
+  trait_variants?: { trait_id: string | null; unlock_level: number | null; advanced_selection: string; game_id?: string; effects: string[] }[]
   icon_url?: string | null   // CDN url; render via iconUrl('talent_tree', icon_url) → bundled webp
 }
 
@@ -642,6 +652,7 @@ export interface RebuildFilterResult {
 
 export interface SlateModifierOption {
   nodeId: string
+  game_id?: string
   treeName: string
   nodeType: string
   effects: string[]
@@ -649,6 +660,7 @@ export interface SlateModifierOption {
 
 export interface CoreTalentOption {
   key: string       // "{treeName}:{display_name_key}"
+  game_id?: string
   treeName: string
   name: string
   effects: string[]
@@ -1849,6 +1861,7 @@ export interface PactSpiritRank {
 
 export interface PactSpirit {
   item_id: string
+  game_id?: number | null
   name: string
   description: string
   portrait_url?: string | null   // spirit's main icon; render via iconUrl('pactspirit', portrait_url)
@@ -2041,6 +2054,7 @@ export interface ResolvedAffixFields {
 }
 
 export interface CraftAffix {
+  modifier_id?: string | null
   raw_text: string
   expression: string
   condition: string | null
@@ -2060,6 +2074,8 @@ export interface CraftAffix {
 
 export interface CraftBaseItem {
   name: string
+  game_id?: number | null
+  implicit_modifier_ids?: string[]
   required_level: number
   armor: string | null
   implicits: string[]  // base item implicit stats (from crawler when available)
@@ -2081,6 +2097,7 @@ export interface CraftBaseItemGroup {
 }
 
 export interface GraftAffix {
+  modifier_id?: string | null
   raw_text: string
   expression: string
   condition: string | null
@@ -2102,6 +2119,7 @@ export interface GraftAffix {
 
 export interface Graft {
   item_id: string
+  game_id?: number
   name: string
   legendary_items: string[]
   base_affixes: GraftAffix[]
@@ -3236,7 +3254,7 @@ export interface EquippedGearItem {
   // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
   beltBlend?: string | null
   // Selected Tower Sequence affix (crafted weapon/shield bases only) — the raw affix text itself,
-  // since _tower_sequence.json entries carry no stable id. Injected into the affix list at
+  // resolved from the logged modifier_id through _tower_sequence.json. Injected into the affix list at
   // stats-payload time (statsPayload.ts:_buildItemContributions), same injection point as a
   // mutation-resolved affix, and resolved backend-side by the generic modifier-text parser.
   towerSequence?: string | null
@@ -3245,6 +3263,7 @@ export interface EquippedGearItem {
 // One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
 export interface BeltBlend {
   talent_id: string
+  modifier_id?: string
   talent_type: 'core' | 'aromatic' | 'medium' | string
   talent_level: number
   talent_name: string | null
@@ -3253,10 +3272,12 @@ export interface BeltBlend {
 }
 
 // One entry from the Tower Sequence catalog (crafted-only, weapon/shield bases) — see backend
-// tools/singleton_importer.py:import_tower_sequence. No stable id; `affix` text is the identity.
+// tools/singleton_importer.py:import_tower_sequence; entries retain the TLIDB modifier ID.
 export interface TowerSequenceEntry {
   affix: string
   source: string
+  modifier_id?: string
+  log_modifier_ids?: string[]
 }
 
 export interface GearAffixContribution {
@@ -3353,7 +3374,7 @@ export interface SeasonDiff {
 }
 
 export const api = {
-  getTrees: () => get<{ name: string; color: string; icon_url?: string | null }[]>('/trees'),
+  getTrees: () => get<{ name: string; color: string; icon_url?: string | null; nodes?: { id: string; game_id?: string; trait_variants?: { game_id?: string }[] }[] }[]>('/trees'),
 
   // Cross-tree node search for the overview — trees with nodes matching the query + per-tree match count.
   searchTrees: (q: string) => get<{ name: string; match_count: number }[]>(`/tree-search?q=${encodeURIComponent(q)}`),

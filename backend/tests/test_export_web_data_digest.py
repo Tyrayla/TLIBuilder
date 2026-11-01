@@ -4,7 +4,17 @@ preview-only one by comparing manifest.json alone (bug-301 follow-up: icons were
 """
 import os
 
-from tools.export_web_data import content_digest
+from tools.export_web_data import CATALOGS, content_digest
+
+
+def test_web_export_includes_tower_sequence_modifier_ids():
+    catalog = CATALOGS["tower_sequence"]()
+    entry = next(row for row in catalog["entries"] if row.get("modifier_id") == "160419009")
+    assert entry == {
+        "affix": "+20 % additional damage on Critical Strike Intermediate Sequence 1|2|5",
+        "source": "Bow",
+        "modifier_id": "160419009",
+    }
 
 
 def _write(path, data: bytes):
