@@ -4,7 +4,7 @@
 
 ### Bug fixes
 - **Youga 3's effects panel no longer overlaps the hero memory rail.** The Hero Trait screen keeps the tree at its full height and scrolls the effects below it.
-- **Talent trees now open without a loading spinner.** The app keeps each tree it has opened and loads your build's trees in the background, so a tree opens instantly.
+- **Talent trees now open without a loading spinner.** Your build's trees load in the background as soon as you open the build, and a tree you have opened stays loaded.
 
 ## [0.6.11] - 2026-10-11
 
