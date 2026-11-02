@@ -370,7 +370,12 @@ function App() {
     if (!appReady || !statsIdle) return
     const timer = setTimeout(() => {
       void getEtherealPrismCached().catch(() => {})
-      if (allTreesKey) void prefetchTrees(allTreesKey.split('|'))
+      // Stop between trees once a recalc starts, so an edit's DPS waits on at most one in-flight tree.
+      const stillIdle = () => {
+        const st = useBuildStore.getState()
+        return !st.statsLoading && st.computedVersion >= st.buildVersion
+      }
+      if (allTreesKey) void prefetchTrees(allTreesKey.split('|'), stillIdle)
     }, 250)
     return () => clearTimeout(timer)
   }, [appReady, statsIdle, allTreesKey])
@@ -1168,6 +1173,8 @@ function App() {
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
           clearTreeCache() // trees + prism catalog are per season
+          // Re-warm the build's trees for the new season (the build-trees prefetch effect won't re-fire: its key is unchanged).
+          void prefetchTrees([...new Set(useBuildStore.getState().slots.filter((s): s is TreeSlot => !!s).map(s => s.treeName))])
         }} /></Suspense>
   }
 

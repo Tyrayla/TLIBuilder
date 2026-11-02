@@ -586,17 +586,21 @@ export default function TreeViewerScreen({
 
   // Trees are season-static and cached for the session (api/treeCache): a cached tree is shown immediately,
   // and only an uncached one shows the loading state while it fetches. `live` drops a late response for a tree
-  // the user already navigated away from, so it can't overwrite the newer tree.
+  // the user already navigated away from, so it can't overwrite the newer tree. The current load's cancel lives in
+  // a ref so a Retry-started load is cancelled on navigation too (not just the effect-started one).
+  const cancelLoadRef = useRef<() => void>(() => {})
   const loadTree = useCallback(() => {
+    cancelLoadRef.current()
+    cancelLoadRef.current = () => {}
     setLoadError('')
     const cached = peekTree(treeName)
-    if (cached) { setTreeData(cached); return () => {} }
+    if (cached) { setTreeData(cached); return }
     setTreeData(null)
     let live = true
+    cancelLoadRef.current = () => { live = false }
     getTreeCached(treeName)
       .then(data => { if (live) setTreeData(data) })
       .catch(e => { if (live) setLoadError(String(e)) })
-    return () => { live = false }
   }, [treeName])
 
   useEffect(() => {
@@ -604,8 +608,8 @@ export default function TreeViewerScreen({
     setCoreTalentSelections(previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
     setExpandedSlot(null)   // collapse — a stale index can be out of range for the new tree
     setSearch('')
-    const cancelLoad = loadTree()
-    return () => { cancelLoad(); if (timerRef.current) clearTimeout(timerRef.current) }
+    loadTree()
+    return () => { cancelLoadRef.current(); if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
 
   // Re-seed the local view when the active loadout changes. Switching loadouts swaps the resolved
@@ -1312,7 +1316,7 @@ export default function TreeViewerScreen({
           <pre style={{ color: '#555', fontSize: 11 }}>{loadError}</pre>
           <pre style={{ color: '#333355', fontSize: 10 }}>API: {getApiBase()}</pre>
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <button className="btn btn-primary" onClick={() => { loadTree() }}>↺ Retry</button>
+            <button className="btn btn-primary" onClick={loadTree}>↺ Retry</button>
             <button className="btn btn-back" onClick={onBack}>← Go Back</button>
           </div>
         </div>

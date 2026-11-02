@@ -7,6 +7,7 @@
 // (deduping concurrent callers), exposes the resolved value synchronously so a cached tree renders on
 // the first frame, and supports a background prefetch. A failed fetch is evicted so a retry refetches.
 // Cleared on season change (App's DevTools onSeasonChange), alongside the reference/mapping stores.
+// Every caller shares the same cached TreeData / catalog objects: treat them as READ-ONLY (copy before mutating).
 import { api, type TreeData } from './client'
 
 type PrismCatalog = Awaited<ReturnType<typeof api.getEtherealPrism>>
@@ -64,12 +65,14 @@ export function peekEtherealPrism(): PrismCatalog | null {
 
 /**
  * Warm the cache for the given trees, one request at a time so the prefetch never floods the single
- * backend / Pyodide worker queue ahead of user-driven requests. Failures are swallowed (a real open retries).
+ * backend / Pyodide worker queue ahead of user-driven requests. `shouldContinue` is re-checked before each
+ * fetch so a caller can stop a long prefetch (e.g. when the player edits and a recalc starts). Failures are
+ * swallowed (a real open retries).
  */
-export async function prefetchTrees(names: string[]): Promise<void> {
+export async function prefetchTrees(names: string[], shouldContinue: () => boolean = () => true): Promise<void> {
   const gen = generation
   for (const name of names) {
-    if (gen !== generation) return
+    if (gen !== generation || !shouldContinue()) return
     if (treeValues.has(name)) continue
     await getTreeCached(name).catch(() => {})
   }

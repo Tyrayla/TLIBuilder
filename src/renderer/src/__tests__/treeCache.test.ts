@@ -80,4 +80,13 @@ describe('treeCache', () => {
     expect(api.getEtherealPrism).toHaveBeenCalledTimes(1)
     expect(peekEtherealPrism()?.season).toBe('SS13')
   })
+
+  it('prefetch stops before the next tree once shouldContinue turns false', async () => {
+    let idle = true
+    vi.mocked(api.getTree).mockImplementation(async name => { idle = false; return tree(name) })
+
+    await prefetchTrees(['Warrior', 'Warlord', 'Onslaughter'], () => idle)
+
+    expect(vi.mocked(api.getTree).mock.calls.map(c => c[0])).toEqual(['Warrior'])
+  })
 })

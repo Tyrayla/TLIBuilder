@@ -31,11 +31,11 @@ const TREE: TreeData = {
   node_prefix: 'tt',
 }
 
-const viewer = () => (
+const viewer = (treeName = 'Test Tree') => (
   <TreeViewerScreen
-    treeName="Test Tree"
+    treeName={treeName}
     treeColor="#e94560"
-    treeColors={{ 'Test Tree': '#e94560' }}
+    treeColors={{ [treeName]: '#e94560' }}
     treeIcons={{}}
     onBack={() => {}}
     onSlotClick={() => {}}
@@ -75,5 +75,40 @@ describe('TreeViewerScreen — session tree cache', () => {
     expect(api.getTree).toHaveBeenCalledTimes(1)
     expect(api.getEtherealPrism).toHaveBeenCalledTimes(1)
     act(() => second.unmount())
+  })
+
+  it("a slow response for a tree the player already left never replaces the newer tree", async () => {
+    const OTHER: TreeData = { ...TREE, name: 'Other Tree', nodes: [{ ...TREE.nodes[0], id: 'o1', max_points: 5 }] }
+    let resolveSlow!: (t: TreeData) => void
+    vi.mocked(api.getTree).mockImplementation(name =>
+      name === 'Test Tree' ? new Promise<TreeData>(r => { resolveSlow = r }) : Promise.resolve(OTHER))
+
+    let r!: TestRenderer.ReactTestRenderer
+    act(() => { r = TestRenderer.create(viewer('Test Tree')) })
+    act(() => { r.update(viewer('Other Tree')) })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(texts(r)).toContain('0/5')
+
+    await act(async () => { resolveSlow(TREE); await Promise.resolve(); await Promise.resolve() })
+    expect(texts(r)).toContain('0/5')
+    expect(texts(r)).not.toContain('0/3')
+    act(() => r.unmount())
+  })
+
+  it('Retry after a failed load refetches and shows the tree', async () => {
+    vi.mocked(api.getTree)
+      .mockRejectedValueOnce(new Error('GET /tree/Test Tree failed (500)'))
+      .mockResolvedValueOnce(TREE)
+
+    let r!: TestRenderer.ReactTestRenderer
+    act(() => { r = TestRenderer.create(viewer()) })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(texts(r)).toContain('Failed to load Test Tree')
+
+    const retry = r.root.findAllByType('button').find(b => b.children.join('').includes('Retry'))!
+    await act(async () => { retry.props.onClick(); await Promise.resolve(); await Promise.resolve() })
+    expect(texts(r)).toContain('0/3')
+    expect(api.getTree).toHaveBeenCalledTimes(2)
+    act(() => r.unmount())
   })
 })
