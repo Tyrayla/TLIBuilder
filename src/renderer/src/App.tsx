@@ -18,6 +18,7 @@ import { recordStartupMetric } from './utils/startupDiagnostics'
 import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
+import { clearTreeCache, getEtherealPrismCached, prefetchTrees } from './api/treeCache'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -347,6 +348,26 @@ function App() {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
   const buildVersion = useBuildStore(s => s.buildVersion)
+  const computedVersion = useBuildStore(s => s.computedVersion)
+  const statsLoading = useBuildStore(s => s.statsLoading)
+
+  // Warm the session tree cache (api/treeCache) so opening a talent tree doesn't show a loading state: the
+  // build's own trees + the prism catalog always, and every tree while a tree selector is open (the user is
+  // about to pick one). Waits until the headline recalc is idle so it never delays the DPS the user is
+  // watching; prefetchTrees fetches one tree at a time and skips anything already cached.
+  const prefetchTreeKey = [...new Set(slots.filter((s): s is TreeSlot => !!s).map(s => s.treeName))].join('|')
+  const selectorOpen = screen === 'tree-selector' || screen === 'preview-selector'
+  const allTreesKey = selectorOpen ? Object.keys(treeColors).join('|') : ''
+  const statsIdle = !statsLoading && computedVersion >= buildVersion
+  useEffect(() => {
+    if (!appReady || !statsIdle) return
+    const names = [...new Set([prefetchTreeKey, allTreesKey].filter(Boolean).join('|').split('|').filter(Boolean))]
+    const timer = setTimeout(() => {
+      void getEtherealPrismCached().catch(() => {})
+      void prefetchTrees(names)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [appReady, statsIdle, prefetchTreeKey, allTreesKey])
 
   useEffect(() => {
     if (!IS_WEB || !appReady || !draftRestored) return
@@ -1140,6 +1161,7 @@ function App() {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
+          clearTreeCache() // trees + prism catalog are per season
         }} /></Suspense>
   }
 
