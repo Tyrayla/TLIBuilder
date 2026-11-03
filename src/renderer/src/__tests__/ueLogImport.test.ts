@@ -956,7 +956,10 @@ describe('UE_game.log build conversion', () => {
       { name: 'Warrior', nodes: [{ id: 'warrior_c4_r0', column: 4, row: 0, node_type: 'Micro Talent', effects: ['+9 % Attack Damage'] }] },
       { name: 'Artisan', nodes: [{ id: 'artisan_c4_r2', column: 4, row: 2, node_type: 'Micro Talent', effects: ['+8 % Damage'] }] },
       { name: 'God of Might', nodes: [{ id: 'god_of_might_c6_r0', column: 6, row: 0, node_type: 'Legendary Medium Talent', effects: ['+1 to Attack Skill Level'] }] },
-      { name: 'Ranger', nodes: [{ id: 'ranger_c5_r2', column: 5, row: 2, node_type: 'Legendary Medium Talent', effects: ['+25 % chance to Mark the enemy on Critical Strike'] }] },
+      { name: 'Ranger', nodes: [
+        { id: 'ranger_c4_r2', game_id: '43060200', column: 4, row: 2, node_type: 'Medium Talent', effects: ['+8 % Damage'] },
+        { id: 'ranger_c5_r2', column: 5, row: 2, node_type: 'Legendary Medium Talent', effects: ['+25 % chance to Mark the enemy on Critical Strike'] },
+      ] },
     ], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
 
     expect(build.slates?.[0]?.slots[0]).toMatchObject({

@@ -977,10 +977,8 @@ function importLoggedSlates(
   const nodesByCareerPosition = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
   for (const [prefix, treeName] of Object.entries(UE_LOG_GAME_ID_TREE_NAMES)) {
     const treeNodes = talentTrees.find(tree => tree.name === treeName)?.nodes ?? []
-    // Only use encoded coordinates when this season's tree data has no game IDs to join.
-    if (treeNodes.length === 0 || treeNodes.some(node => node.game_id)) continue
     for (const node of treeNodes) {
-      if (node.column === undefined || node.row === undefined) continue
+      if (node.game_id || node.column === undefined || node.row === undefined) continue
       nodesByCareerPosition.set(`${prefix}:${node.column}:${node.row}`, {
         id: node.id, treeName, nodeType: node.node_type ?? '', effects: node.effects ?? [],
       })
@@ -1002,7 +1000,7 @@ function importLoggedSlates(
       const branded = row.enchantTalentIds.length > 0
         ? row.enchantTalentIds.map((gameId, index) => ({ gameId, slotIndex: index + 2 }))
         : (() => {
-          const compactBrandedList = row.talentSlots.length === 3
+          const compactBrandedList = kind === 'nether_kings_divinity' && row.talentSlots.length === 3
             && row.talentSlots.every((slot, index) => (slot.slotIndex ?? index) < 3)
             && !row.talentSlots.some(slot => slot.talentId && row.baseTalentIds.includes(slot.talentId))
           return row.talentSlots.flatMap((slot, arrayIndex) => {
@@ -1050,9 +1048,7 @@ function importLoggedSlates(
       : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
     const cellsShape = layouts[0]?.cells
     if (!kind) {
-      warnings.push(row.baseId !== null && NETHER_KING_VARIANT_BY_BASE_ID[row.baseId]
-        ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
-        : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
       return null
     }
     if (kind !== 'nether_kings_divinity' && (orientationIndex < 0 || orientationIndex >= orientationCount)) {
@@ -1114,6 +1110,7 @@ function importLoggedSlates(
       }
       const core = coreByGameId.get(gameId)
       const node = nodeForGameId(gameId)
+      // Logged BaseTalentList/EnchantTalentList membership is more reliable than nodeType here: a real branded slot resolves to a regular Psychic node, and NK data uses the same nodeType for fixed and branded talents.
       if (core) {
         if (!slot.canBeCore) {
           warnings.push(`Slate at board index ${row.index}: ${core.name} is a Core Talent, but the Builder's ${kind} slate has no Core Talent slot; it was left out.`)
