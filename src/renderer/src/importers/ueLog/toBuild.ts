@@ -6,7 +6,7 @@ import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
 // The owner's latest log and pact screen identify servantId 18230 as Kitty Express.
 const UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES: Record<number, string> = { 18230: 'kitty_express' }
 
-// Career-to-tree pairs verified in docs/LOG_IMPORT_INVESTIGATION.md (F13). Unverified career IDs stay unresolved.
+// Career-to-tree pairs verified against talent game-ID prefixes in docs/LOG_IMPORT_INVESTIGATION.md (F27).
 export const UE_LOG_CAREER_TREE_NAMES: Record<number, string> = {
   1: 'God of Might', 12: 'Onslaughter', 4: 'God of War', 42: 'Ronin', 62: 'Steel Vanguard', 54: 'Lich',
 }
@@ -1060,7 +1060,7 @@ function importLoggedPrisms(
     const anchorPosition = row.anchorTalentId ? loggedTalentCoordinates(row.anchorTalentId) : null
     const anchor = allNodes.find(node => node.game_id === row.anchorTalentId)
       ?? (mappedTreeName && anchorPosition ? allNodes.find(node => node.treeName === mappedTreeName
-        && node.column === anchorPosition.column && node.row === anchorPosition.row) : undefined)
+        && !node.game_id && node.column === anchorPosition.column && node.row === anchorPosition.row) : undefined)
     if (!enriched || !item || !anchor) {
       warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
       return []
@@ -1184,7 +1184,7 @@ export function createUeLogBuild(
       const treeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
       const coordinates = loggedTalentCoordinates(allocation.id)
       const positioned = treeName && coordinates ? talentTrees.find(tree => tree.name === treeName)?.nodes?.find(node =>
-        node.column === coordinates.column && node.row === coordinates.row) : undefined
+        !node.game_id && node.column === coordinates.column && node.row === coordinates.row) : undefined
       const node = known ?? (positioned ? { treeName: treeName!, nodeId: positioned.id } : undefined)
       if (!node) {
         unmappedTalentCount++

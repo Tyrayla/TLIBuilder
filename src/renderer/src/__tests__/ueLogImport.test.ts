@@ -546,6 +546,18 @@ describe('UE_game.log build conversion', () => {
     ])
   })
 
+  it('does not map unknown talent IDs to coordinates occupied by a different known game ID', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [{ id: '12010300', rank: 1 }] }], truncatedSections: [],
+    }, [], [], [], [], [], [], [], [{ name: 'Onslaughter', nodes: [
+      { id: 'onslaughter_c0_r2', game_id: '12010301', column: 0, row: 2 },
+   ] }])
+
+    expect(result.build.slots[0]).toBeNull()
+    expect(result.warnings).toContain('1 allocated talent node could not be matched to current TLIDB data and was skipped.')
+  })
+
   it('maps logged core talent game IDs to the catalogued Builder slots', () => {
     const result = createUeLogBuild({
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,

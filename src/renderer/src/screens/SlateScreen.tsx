@@ -703,7 +703,7 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor, nethe
 
   // canBeCore slots (e.g. Pedigree's bottom two) show ONE mixed, searchable list of core talents AND regular
   // modifiers — no mode toggle. Plain slots show only modifiers.
-  const modOptions = pool && !netherKingBrandPool
+  const modOptions = pool && !netherKingBrandPool && !netherKingFixedPool
     ? getSlotModifierPool(pool, slot.slotType).filter(m => {
         if (m.nodeId === slot.selectedNodeId) return true
         if (usedNodeIds.has(m.nodeId)) return false
