@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findNetherKingPlacement, netherKingOrientationCells } from '../utils/netherKingSlate'
+import { findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingOrientationCells } from '../utils/netherKingSlate'
 import { SLATE_BOARD_VALID } from '../utils/slateGeometry'
 
 describe('findNetherKingPlacement', () => {
@@ -26,5 +26,22 @@ describe('findNetherKingPlacement', () => {
 
   it('does not allow Judgment outside the four middle corners', () => {
     expect(findNetherKingPlacement('judgment', [2, 2], new Map(), () => true)).toBeNull()
+  })
+})
+
+describe('Nether King branded talent filtering', () => {
+  it('offers variant-tagged branded nodes only for their active variant', () => {
+    // These phrases match the SS14 Nether King catalog and the supplied in-game screenshots.
+    const judgment = ['When Judgment is active, +5 % Effect Increase Multiplier for Divinity Slate along the connecting line']
+    const contamination = ['When Contamination is active, +12 % Projection Effect for all Divinity Slate (Max Divinity Effect: 1)']
+    const banishment = ['When Banishment is active, for every 1 adjacent Divinity Slate, gains: +3 % Aura Effect']
+
+    expect(isNetherKingBrandNodeForVariant(judgment, 'judgment')).toBe(true)
+    expect(isNetherKingBrandNodeForVariant(judgment, 'contamination')).toBe(false)
+    expect(isNetherKingBrandNodeForVariant(contamination, 'contamination')).toBe(true)
+    expect(isNetherKingBrandNodeForVariant(contamination, 'banishment')).toBe(false)
+    expect(isNetherKingBrandNodeForVariant(banishment, 'banishment')).toBe(true)
+    expect(isNetherKingBrandNodeForVariant(banishment, 'judgment')).toBe(false)
+    expect(isNetherKingBrandNodeForVariant(['+9 % damage'], 'judgment')).toBe(true)
   })
 })

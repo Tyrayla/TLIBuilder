@@ -114,7 +114,7 @@ describe('UE_game.log preview', () => {
 
     expect(result.characters[0].talentTrees).toEqual([{
       careerId: 12,
-      allocations: [{ id: '12010100', rank: 2, inPrismArea: true }, { id: '12020100', rank: 1 }],
+      allocations: [{ id: '12010100', rank: 2 }, { id: '12020100', rank: 1 }],
     }])
   })
 
@@ -204,6 +204,14 @@ describe('UE_game.log preview', () => {
     expect(imported.slots?.[0]).toMatchObject({ treeName: 'Onslaughter', nodeStates: { onslaughter_c5_r2: 2 } })
     expect(imported.prisms?.[0]).toMatchObject({ anchorCol: 5, anchorRow: 3, boxAllocations: {},
       ethereal: { replacementTalentId: '80002000', implicit: '+12% Max Life' } })
+  })
+
+  it('leaves the slate snapshot absent when the log has no bag section', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+player+Name [Sage]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0]).not.toHaveProperty('slates')
   })
 
   it('retains follower and servant IDs for import auditing', async () => {
@@ -502,14 +510,29 @@ describe('UE_game.log build conversion', () => {
   it('uses the latest slate board snapshot instead of retaining removed slates', () => {
     const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
       rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
-    const capture = (dumpNumber: number, modifiedAt: number, slates: typeof slate[]) => ({
+    const capture = (dumpNumber: number, modifiedAt: number, slates?: typeof slate[]) => ({
       fileNumber: dumpNumber,
       modifiedAt,
-      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], slates, truncatedSections: [] },
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [],
+        ...(slates === undefined ? {} : { slates }), truncatedSections: [] },
     })
     const [group] = groupUeLogCaptures([capture(1, 100, [slate]), capture(2, 200, [])])
 
     expect(group.preview.slates).toEqual([])
+  })
+
+  it('keeps the latest available slate snapshot when a later capture omits the bag section', () => {
+    const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
+      rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
+    const capture = (dumpNumber: number, modifiedAt: number, slates?: typeof slate[]) => ({
+      fileNumber: dumpNumber,
+      modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [],
+        ...(slates === undefined ? {} : { slates }), truncatedSections: [] },
+    })
+    const [group] = groupUeLogCaptures([capture(1, 100, [slate]), capture(2, 200)])
+
+    expect(group.preview.slates).toEqual([slate])
   })
 
   it('maps logged talent game IDs into Builder tree slots and node states', () => {
@@ -549,7 +572,7 @@ describe('UE_game.log build conversion', () => {
       gear: [], skills: [], truncatedSections: [],
       slates: [{ index: 31, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
         rarityValue: 3, baseTalentIds: ['43060400'], enchantTalentIds: [], talentSlots: [] }],
-      talentTrees: [{ careerId: 12, allocations: [{ id: '12060300', rank: 2, inPrismArea: true }], prism: {
+      talentTrees: [{ careerId: 12, allocations: [{ id: '12060300', rank: 2 }], prism: {
         anchorTalentId: '12060400', baseId: 360620, uniqueItemId: null, rarityValue: 3,
         prefixAffixes: [{ id: '12040001', source: null, values: [] }], baseAffixes: [],
         baseAttrAffixes: [],
@@ -595,6 +618,13 @@ describe('UE_game.log build conversion', () => {
     })) }
     const rolled = createUeLogBuild(withImplicitRoll, [], [], [], [], [], [], [], trees, [], { etherealPrisms, slatePool } as any)
     expect(rolled.warnings).toContain('Ethereal Prism: Miraculous Touch: logged prism implicit roll values are not stored by the current Builder prism configuration.')
+
+    const withoutPositions: UeLogCharacterPreview = { ...character, talentTrees: character.talentTrees?.map(tree => ({
+      ...tree, prism: tree.prism ? { ...tree.prism, effectPositions: [] } : undefined,
+    })) }
+    const missingAreaCells = createUeLogBuild(withoutPositions, [], [], [], [], [], [], [], trees, [], { etherealPrisms, slatePool } as any)
+    expect(missingAreaCells.warnings).toContain('Ethereal Prism: Miraculous Touch: no prism area cells were logged; imported area uses the matched 3 by 2 modifier.')
+    expect(missingAreaCells.warnings.some(warning => warning.includes('undefined columns'))).toBe(false)
 
     const unverifiedRarity = createUeLogBuild({
       ...character,

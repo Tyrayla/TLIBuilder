@@ -114,6 +114,9 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
       fileNumber: capture.fileNumber,
       preview: {
         ...capture.preview,
+        ...(capture.preview.slates !== undefined || previous?.preview.slates !== undefined
+          ? { slates: capture.preview.slates ?? previous?.preview.slates }
+          : {}),
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
         skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
         ...(treesByCareer.size ? { talentTrees: [...treesByCareer.values()] } : {}),
@@ -1078,7 +1081,9 @@ function importLoggedPrisms(
     const positions = row.effectPositions.map(({ x, y }) => ({ col: y - 1, row: x - 1 }))
     const boxCols = positions.length ? Math.max(...positions.map(p => p.col)) - Math.min(...positions.map(p => p.col)) + 1 : undefined
     const boxRows = positions.length ? Math.max(...positions.map(p => p.row)) - Math.min(...positions.map(p => p.row)) + 1 : undefined
-    if (area && (boxCols !== area.cols || boxRows !== area.rows)) {
+    if (area && positions.length === 0) {
+      warnings.push(`${item.name}: no prism area cells were logged; imported area uses the matched ${area.cols} by ${area.rows} modifier.`)
+    } else if (area && (boxCols !== area.cols || boxRows !== area.rows)) {
       warnings.push(`${item.name}: logged area spans ${boxCols} columns by ${boxRows} rows, but the matched modifier says ${area?.cols} by ${area?.rows}; imported area follows the logged cells.`)
     }
     return [{

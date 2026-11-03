@@ -96,7 +96,7 @@ export interface UeLogCharacterPreview {
   skills: UeLogSkillItem[]
   talentTrees?: Array<{
     careerId: number | null
-    allocations: Array<{ id: string; rank: number; inPrismArea?: boolean }>
+    allocations: Array<{ id: string; rank: number }>
     coreTalentSelections?: string[]
     prism?: UeLogPrism
   }>
@@ -355,8 +355,7 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
         .map(key => numberValue(scalar(row[key] ?? value[key])))
         .find((n): n is number => n !== null && n > 0)
       if (rank === undefined) return []
-      const inPrismArea = scalar(row.inPrismArea ?? value.inPrismArea) === 'true'
-      return [{ id, rank, ...(inPrismArea ? { inPrismArea: true } : {}) }]
+      return [{ id, rank }]
     })
     const coreTalentSelections = info.bonusGeniusInfo === undefined ? undefined : entries(info.bonusGeniusInfo).flatMap(entry => {
       if (!entry || typeof entry !== 'object') return []
@@ -392,8 +391,9 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
   })
 }
 
-function loggedSlates(tree: Record<string, unknown>): UeLogSlate[] {
+function loggedSlates(tree: Record<string, unknown>): UeLogSlate[] | undefined {
   const bag = tree.bag as Record<string, unknown> | undefined
+  if (!bag || !Object.prototype.hasOwnProperty.call(bag, 'dressingTalentBlocks')) return undefined
   return entries(bag?.dressingTalentBlocks).flatMap(raw => {
     if (!raw || typeof raw !== 'object') return []
     const row = raw as Record<string, unknown>
@@ -471,6 +471,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     return [{ areaId, servantId, rank: ownedSpiritRanks.get(servantId) ?? null }]
   })
   const ingredientChoices = loggedIngredientChoices(tree)
+  const slates = loggedSlates(tree)
   return {
     dumpNumber,
     characterName: typeof scalar(player.Name) === 'string' ? scalar(player.Name) as string : null,
@@ -480,7 +481,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     gear: gearRows(tree),
     skills: skillRows(tree),
     talentTrees: loggedTalentTrees(tree),
-    slates: loggedSlates(tree),
+    ...(slates === undefined ? {} : { slates }),
     followServantId: numberValue(scalar(player.FollowServant)),
     servantIds: entries(servantInfos?.servantData).flatMap(raw => {
       if (!raw || typeof raw !== 'object') return []
