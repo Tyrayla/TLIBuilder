@@ -1,5 +1,28 @@
-import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
-import type { UeLogCharacterPreview, UeLogGearItem, UeLogMemory, UeLogPactContract, UeLogSkillItem } from './parse'
+import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type PrismCatalog, type SavedSlateSlot, type SlatePool, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
+import { initSlateSlots, LEGENDARY_ORIENTATIONS, NETHER_KING_ORIGIN_OFFSETS } from '../../crosswalk/slateGeometry'
+import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
+import { netherKingBrandVariant, netherKingOrientationCells, type NetherKingVariant } from '../../utils/netherKingSlate'
+
+// Owner-confirmed servant identity where the current spirit catalog does not expose a servant game ID.
+// The owner's latest log and pact screen identify servantId 18230 as Kitty Express.
+const UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES: Record<number, string> = { 18230: 'kitty_express' }
+
+// Career-to-tree pairs verified against talent game-ID prefixes in docs/LOG_IMPORT_INVESTIGATION.md (F27).
+export const UE_LOG_CAREER_TREE_NAMES: Record<number, string> = {
+  1: 'God of Might', 12: 'Onslaughter', 4: 'God of War', 42: 'Ronin', 62: 'Steel Vanguard', 54: 'Lich',
+}
+const UE_LOG_CAREER_GAME_ID_PREFIXES: Record<number, string> = {
+  1: '10', 12: '12', 4: '40', 42: '42', 62: '62', 54: '54',
+}
+
+function loggedTalentCoordinates(gameId: string): { column: number; row: number } | null {
+  const match = /^(\d{2})(\d{2})(\d{2})/.exec(gameId)
+  if (!match) return null
+  const encodedY = Number(match[2]), encodedX = Number(match[3])
+  if (encodedX < 1 || encodedY < 1) return null
+  return { column: encodedY - 1, row: encodedX - 1 }
+}
+import type { UeLogCharacterPreview, UeLogGearItem, UeLogMemory, UeLogPactContract, UeLogSkillItem, UeLogSlate } from './parse'
 
 export interface UeLogBuildResult {
   build: Build
@@ -12,9 +35,12 @@ export interface UeLogReferenceCatalogs {
     fixed_affixes: HeroMemoryAffix[]
     random_affixes: HeroMemoryAffix[]
     log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
+    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string }[]
   } | null
   traits?: HeroTrait[] | null
   revivalAffixes?: HeroMemoryAffix[] | null
+  etherealPrisms?: PrismCatalog | null
+  slatePool?: SlatePool | null
 }
 
 export interface UeLogCapture {
@@ -30,7 +56,11 @@ export interface UeLogCharacterGroup {
 }
 
 export function describeUeLogCaptureMerge(loginCount: number): string {
-  return `This character has ${loginCount} login captures. Later entries replace earlier gear, skill, memory, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.`
+  return `This character has ${loginCount} login captures. The latest complete entry provides the slate board; if the slate section is truncated, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.`
+}
+
+function hasTruncatedSection(preview: UeLogCharacterPreview, path: string): boolean {
+  return preview.truncatedSections.some(section => section.replace(/^[| ]+/, '').startsWith(`+${path}+`))
 }
 
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
@@ -53,12 +83,6 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const skillsBySlot = new Map<number, UeLogSkillItem>()
     for (const skill of previous?.preview.skills ?? []) skillsBySlot.set(skill.logIndex, skill)
     for (const skill of capture.preview.skills) skillsBySlot.set(skill.logIndex, skill)
-    const talentsByCareer = new Map<number | null, Map<string, { id: string; rank: number }>>()
-    for (const talentTree of [...(previous?.preview.talentTrees ?? []), ...(capture.preview.talentTrees ?? [])]) {
-      const nodes = talentsByCareer.get(talentTree.careerId) ?? new Map<string, { id: string; rank: number }>()
-      for (const allocation of talentTree.allocations) nodes.set(allocation.id, allocation)
-      talentsByCareer.set(talentTree.careerId, nodes)
-    }
     const servantIds = new Set([
       ...(previous?.preview.servantIds ?? []),
       ...(capture.preview.servantIds ?? []),
@@ -67,6 +91,8 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
       ...(previous?.preview.truncatedSections ?? []),
       ...capture.preview.truncatedSections,
     ])
+    const slateSectionTruncated = hasTruncatedSection(capture.preview, 'bag+dressingTalentBlocks')
+    const talentSectionTruncated = hasTruncatedSection(capture.preview, 'geniusInfos')
     const memoriesBySlot = new Map<number, UeLogMemory>()
     for (const memory of previous?.preview.memories ?? []) if (memory.slot !== null) memoriesBySlot.set(memory.slot, memory)
     for (const memory of capture.preview.memories ?? []) if (memory.slot !== null) memoriesBySlot.set(memory.slot, memory)
@@ -82,13 +108,34 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const ingredientsBySlot = new Map<string, NonNullable<UeLogCharacterPreview['ingredientChoices']>[number]>()
     for (const choice of previous?.preview.ingredientChoices ?? []) ingredientsBySlot.set(`${choice.bottleSlot}:${choice.materialSlot}`, choice)
     for (const choice of capture.preview.ingredientChoices ?? []) ingredientsBySlot.set(`${choice.bottleSlot}:${choice.materialSlot}`, choice)
+    const treesByCareer = new Map<number | null, NonNullable<UeLogCharacterPreview['talentTrees']>[number]>()
+    for (const talentTree of [...(previous?.preview.talentTrees ?? []), ...(capture.preview.talentTrees ?? [])]) {
+      const earlier = treesByCareer.get(talentTree.careerId)
+      treesByCareer.set(talentTree.careerId, {
+        ...talentTree,
+        allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
+        ...(talentTree.coreTalentSelections !== undefined
+          ? { coreTalentSelections: talentSectionTruncated
+            ? [...new Set([...(earlier?.coreTalentSelections ?? []), ...talentTree.coreTalentSelections])]
+            : talentTree.coreTalentSelections }
+          : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
+        // A complete later tree without prismInfo means the prism was removed. Truncation
+        // inside geniusInfos makes absence inconclusive for this prism.
+        prism: talentTree.prism ?? (talentSectionTruncated ? earlier?.prism : undefined),
+      })
+    }
     groups.set(key, {
       fileNumber: capture.fileNumber,
       preview: {
         ...capture.preview,
+        ...(capture.preview.slates !== undefined || previous?.preview.slates !== undefined
+          ? { slates: slateSectionTruncated && previous?.preview.slates !== undefined
+            ? previous.preview.slates
+            : capture.preview.slates ?? previous?.preview.slates }
+          : {}),
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
         skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
-        ...(talentsByCareer.size ? { talentTrees: [...talentsByCareer].map(([careerId, nodes]) => ({ careerId, allocations: [...nodes.values()] })) } : {}),
+        ...(treesByCareer.size ? { talentTrees: [...treesByCareer.values()] } : {}),
         followServantId: capture.preview.followServantId ?? previous?.preview.followServantId ?? null,
         servantIds: [...servantIds],
         ...(memoriesBySlot.size ? { memories: [...memoriesBySlot.values()].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)) } : {}),
@@ -651,10 +698,14 @@ const MEMORY_RARITY_LABEL: Record<MemoryRarity, string> = {
 
 function loggedMemorySelection(
   row: UeLogMemory['fixedAffixes'][number], pool: HeroMemoryAffix[], source: string,
+  group: 'base_stats' | 'fixed_affixes' | 'random_affixes', logAffixes: NonNullable<UeLogReferenceCatalogs['memories']>['log_affixes'],
   warnings: string[], label: string,
 ): MemorySlotSelection | null {
-  const match = pool.find(candidate => candidate.source === source
-    && (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id)
+  const logAffix = logAffixes?.find(entry => entry.log_modifier_id === row.id && entry.source === source && entry.group === group)
+  const match = pool.find(candidate => candidate.source === source && (
+    (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id
+    || (!!logAffix && candidate.uuid === logAffix.affix_uuid)
+  ))
   if (!match) {
     warnings.push(`${label}: one logged memory affix could not be matched to TLIDB and was left out.`)
     return null
@@ -673,10 +724,10 @@ function loggedMemorySelection(
 
 function loggedMemoryBaseStatSelection(
   row: UeLogMemory['baseAttrAffixes'][number], catalog: NonNullable<UeLogReferenceCatalogs['memories']>,
-  source: string, warnings: string[], label: string,
+  source: string, logAffixes: NonNullable<UeLogReferenceCatalogs['memories']>['log_affixes'], warnings: string[], label: string,
 ): MemorySlotSelection | null {
   const crosswalk = catalog.log_base_stats?.find(entry => entry.log_modifier_id === row.id && entry.source === source)
-  if (!crosswalk) return loggedMemorySelection(row, catalog.base_stats, source, warnings, label)
+  if (!crosswalk) return loggedMemorySelection(row, catalog.base_stats, source, 'base_stats', logAffixes, warnings, label)
 
   const candidates = catalog.base_stats.filter(entry => entry.source === source
     && entry.modifier.replace(/^\s*[+-]?\d+(?:\.\d+)?\s*%?\s*/, '').trim() === crosswalk.stat_name)
@@ -713,15 +764,15 @@ function loggedMemory(
   const source = MEMORY_SOURCE_BY_TYPE[memoryType]
   const baseStatRow = row.baseAttrAffixes[0]
   const baseStat = baseStatRow && catalog
-    ? loggedMemoryBaseStatSelection(baseStatRow, catalog, source, warnings, `${source} base stat`)
+    ? loggedMemoryBaseStatSelection(baseStatRow, catalog, source, catalog.log_affixes, warnings, `${source} base stat`)
     : null
   if (!baseStatRow || !baseStat) {
     warnings.push(`${source}: its base stat is not mapped in the log import data.`)
   }
-  const mapPool = (rows: UeLogMemory['fixedAffixes'], pool: HeroMemoryAffix[], group: string) =>
-    rows.map(affix => loggedMemorySelection(affix, pool, source, warnings, `${source} ${group}`))
-  const fixed = mapPool(row.fixedAffixes, catalog?.fixed_affixes ?? [], 'fixed affix')
-  const random = mapPool(row.randomAffixes, catalog?.random_affixes ?? [], 'random affix')
+  const mapPool = (rows: UeLogMemory['fixedAffixes'], pool: HeroMemoryAffix[], group: 'fixed_affixes' | 'random_affixes', label: string) =>
+    rows.map(affix => loggedMemorySelection(affix, pool, source, group, catalog?.log_affixes, warnings, `${source} ${label}`))
+  const fixed = mapPool(row.fixedAffixes, catalog?.fixed_affixes ?? [], 'fixed_affixes', 'fixed affix')
+  const random = mapPool(row.randomAffixes, catalog?.random_affixes ?? [], 'random_affixes', 'random affix')
   const fixedAffixes: CreatedHeroMemory['fixedAffixes'] = [fixed[0] ?? null, fixed[1] ?? null]
   const randomAffixes: CreatedHeroMemory['randomAffixes'] = [random[0] ?? null, random[1] ?? null]
   return {
@@ -830,6 +881,316 @@ function loggedElixirIngredients(
   return { ingredients, unmapped }
 }
 
+type SlatePlacementLayout = { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }
+type SlatePlacementInput = { sourceIndex: number; row: UeLogSlate; indexCell: [number, number]; layouts: SlatePlacementLayout[] }
+type SlatePlacement = { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }
+
+/** Find the largest compatible slate layout and omit positions that differ across explored solutions. */
+export function resolveSlatePlacements(
+  prepared: SlatePlacementInput[], maxSearchNodes = 100_000,
+): { placements: Map<number, SlatePlacement>; bestSolution: Map<number, SlatePlacement>; ambiguousPlacements: Set<number>; searchLimitReached: boolean; hasSolution: boolean } {
+  const current = new Map<number, SlatePlacement>()
+  const firstSolution = new Map<number, SlatePlacement>()
+  const ambiguousPlacements = new Set<number>()
+  let bestPlacedCount = -1
+  let searchNodes = 0
+  let searchLimitReached = false
+  const search = (remaining: SlatePlacementInput[], occupied: Set<string>): boolean => {
+    if (++searchNodes > maxSearchNodes) {
+      searchLimitReached = true
+      return true
+    }
+    if (current.size + remaining.length < bestPlacedCount) return false
+    if (!remaining.length) {
+      if (current.size > bestPlacedCount) {
+        bestPlacedCount = current.size
+        firstSolution.clear()
+        ambiguousPlacements.clear()
+        for (const [key, value] of current) {
+          firstSolution.set(key, { anchor: [...value.anchor], cells: value.cells.map(cell => [...cell]), orientationIndex: value.orientationIndex })
+        }
+      } else {
+        for (const piece of prepared) {
+          const first = firstSolution.get(piece.sourceIndex)
+          const placement = current.get(piece.sourceIndex)
+          if (!!first !== !!placement || (first && placement && JSON.stringify(first) !== JSON.stringify(placement))) {
+            ambiguousPlacements.add(piece.sourceIndex)
+          }
+        }
+      }
+      return false
+    }
+    const piece = remaining[0]!
+    const [ir, ic] = piece.indexCell
+    for (const layout of piece.layouts) for (const [dr, dc] of (layout.originOffset ? [layout.originOffset] : layout.cells ?? [])) {
+      if (!layout.cells) continue
+      const anchor: [number, number] = [ir - dr, ic - dc]
+      const cells = layout.cells.map(([r, c]) => [anchor[0] + r, anchor[1] + c] as [number, number])
+      if (cells.some(([r, c]) => r < 0 || r >= 6 || c < 0 || c >= 6
+        || !SLATE_BOARD_VALID[r]?.[c] || occupied.has(`${r},${c}`))) continue
+      cells.forEach(([r, c]) => occupied.add(`${r},${c}`))
+      current.set(piece.sourceIndex, { anchor, cells, orientationIndex: layout.orientationIndex })
+      if (search(remaining.slice(1), occupied)) return true
+      cells.forEach(([r, c]) => occupied.delete(`${r},${c}`))
+      current.delete(piece.sourceIndex)
+    }
+    // Keep the largest representable subset so one malformed or incompatible slate does not erase
+    // every independently placeable slate.
+    if (current.size + remaining.length - 1 >= bestPlacedCount && search(remaining.slice(1), occupied)) return true
+    return false
+  }
+  search(prepared, new Set())
+  const placements = new Map<number, SlatePlacement>()
+  for (const piece of prepared) {
+    const placement = firstSolution.get(piece.sourceIndex)
+    if (placement && (searchLimitReached || !ambiguousPlacements.has(piece.sourceIndex))) placements.set(piece.sourceIndex, placement)
+  }
+  return { placements, bestSolution: firstSolution, ambiguousPlacements, searchLimitReached, hasSolution: bestPlacedCount >= 0 }
+}
+
+function importLoggedSlates(
+  rows: UeLogSlate[], talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; node_type?: string; effects?: string[] }[] }>, pool: SlatePool | null | undefined, warnings: string[],
+): NonNullable<Build['slates']> {
+  const nodesByGameId = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
+  for (const tree of talentTrees) for (const node of tree.nodes ?? []) {
+    if (node.game_id) nodesByGameId.set(node.game_id, { id: node.id, treeName: tree.name, nodeType: node.node_type ?? '', effects: node.effects ?? [] })
+  }
+  for (const option of [...(pool?.magic ?? []), ...(pool?.rare ?? []), ...(pool?.legendary ?? [])]) {
+    if (option.game_id && !nodesByGameId.has(option.game_id)) {
+      nodesByGameId.set(option.game_id, { id: option.nodeId, treeName: option.treeName, nodeType: option.nodeType, effects: option.effects })
+    }
+  }
+  const kindByUniqueId: Record<number, string> = { 1003: 'fallen_starlight', 1005: 'corner_of_divinity', 1010: 'pedigree' }
+  const treeByBaseId: Record<number, string> = { 260504: 'God of Might', 260304: 'God of War', 260306: 'God of War' }
+  const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
+  const prepared = rows.map((row, sourceIndex) => {
+    const kind = row.baseId === 394004 ? 'nether_kings_divinity'
+      : row.uniqueItemId && row.uniqueItemId !== 0 ? kindByUniqueId[row.uniqueItemId] : 'base'
+    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
+    const talentSlots = row.talentSlots.some(slot => slot.talentId)
+      ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }] : [])
+      : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
+    const taggedVariants = kind === 'nether_kings_divinity' ? [...new Set(talentSlots.flatMap(({ gameId, slotIndex }) => {
+      if (slotIndex < 2) return []
+      const variant = netherKingBrandVariant(coreByGameId.get(gameId)?.effects ?? [])
+      return variant ? [variant] : []
+    }))] : []
+    const netherKingVariant: NetherKingVariant = taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment'
+    const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind ?? '']?.length ?? 1
+    const rawOrientation = kind === 'base' ? (row.direction ?? 0) : row.direction === null ? -1 : row.direction - 1
+    const orientationIndex = rawOrientation ?? -1
+    const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
+      ? netherKingVariant === 'judgment'
+        ? (LEGENDARY_ORIENTATIONS[kind] ?? []).map((cells, index) => ({ cells, orientationIndex: index, originOffset: NETHER_KING_ORIGIN_OFFSETS[index] }))
+        : [{
+          cells: netherKingOrientationCells(netherKingVariant, 0), orientationIndex: 0,
+          originOffset: netherKingVariant === 'contamination' ? [0, 0] : [0, 2],
+        }]
+      : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
+    const cellsShape = layouts[0]?.cells
+    if (!kind) {
+      warnings.push(row.baseId === 394004
+        ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
+        : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      return null
+    }
+    if (kind !== 'nether_kings_divinity' && (orientationIndex < 0 || orientationIndex >= orientationCount)) {
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: logged direction ${row.direction ?? 'missing'} is outside the verified range and was left out.`)
+      return null
+    }
+    if (!cellsShape) {
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      return null
+    }
+    if (row.index === null || row.index < 1) {
+      warnings.push('An equipped slate has no valid board index and was left out.')
+      return null
+    }
+    if (kind === 'corner_of_divinity') {
+      warnings.push(`A Corner of Divinity at board index ${row.index}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
+    }
+    if (kind === 'base') {
+      warnings.push(`Base slate at board index ${row.index}: the ShapeId ${row.shapeId} direction mapping is inferred; confirm its orientation.`)
+    }
+    // The log encodes Index as SlotId=10*column+row (1-based); it identifies a cell occupied by the piece.
+    return { row, sourceIndex, kind, shapeIndex: shapeIndex ?? 0, orientationIndex, layouts, netherKingVariant, taggedVariants,
+      indexCell: [(row.index - 1) % 10, Math.floor((row.index - 1) / 10) - 1] as [number, number] }
+  }).filter((piece): piece is NonNullable<typeof piece> => !!piece)
+  const { placements: resolvedPlacements, bestSolution, ambiguousPlacements, searchLimitReached, hasSolution } = resolveSlatePlacements(prepared)
+  if (searchLimitReached) {
+    warnings.push('Slate placement search reached its safety limit. The best arrangement found so far was imported; review slate positions in the draft.')
+    for (const piece of prepared) {
+      if (bestSolution.has(piece.sourceIndex)) {
+        if (ambiguousPlacements.has(piece.sourceIndex)) {
+          warnings.push(`Slate at board index ${piece.row.index}: its best-known position was imported, but the placement search hit its limit before ambiguity could be resolved.`)
+        }
+      } else {
+        warnings.push(`Slate at board index ${piece.row.index}: no position was found before the placement search limit; review the imported board.`)
+      }
+    }
+  } else if (hasSolution) {
+    for (const piece of prepared) {
+      if (ambiguousPlacements.has(piece.sourceIndex)) {
+        warnings.push(`Slate at board index ${piece.row.index}: its anchor is ambiguous among the best-fitting layouts and was left out.`)
+      } else if (!bestSolution.has(piece.sourceIndex)) {
+        warnings.push(`Slate at board index ${piece.row.index}: it could not fit with the other logged slates and was left out.`)
+      }
+    }
+  }
+  return prepared.flatMap(piece => {
+    const { row, sourceIndex: index, kind, shapeIndex } = piece
+    const placement = resolvedPlacements.get(index)
+    if (!placement) return []
+    const { anchor, cells, orientationIndex } = placement
+    const gameIdSlots = row.talentSlots.some(slot => slot.talentId)
+      ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId
+        ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }]
+        : [])
+      : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
+    const gameIds = gameIdSlots.map(slot => slot.gameId)
+    const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
+    gameIdSlots.forEach(({ gameId, slotIndex }) => {
+      const slot = slots[slotIndex]
+      if (!slot) {
+        warnings.push(`Slate at board index ${row.index}: logged talent ${gameId} exceeds the Builder's ${kind} slots and was left out.`)
+        return
+      }
+      const core = coreByGameId.get(gameId)
+      const node = nodesByGameId.get(gameId)
+      if (kind === 'nether_kings_divinity') {
+        const candidate = core ?? node
+        const isBrandNode = candidate?.treeName === 'Nether King' && candidate.nodeType === 'Ultimate Nether King Talent Node'
+        const belongsToNetherKing = candidate?.treeName === 'Nether King'
+        const matchesSlotPool = slotIndex < 2
+          ? belongsToNetherKing && !isBrandNode
+          : belongsToNetherKing && isBrandNode
+        if (!matchesSlotPool) {
+          const poolName = slotIndex < 2 ? 'fixed Nether King' : `${piece.netherKingVariant} branded Nether King`
+          warnings.push(`Nether King's Divinity at board index ${row.index}: talent ${gameId} does not match its ${poolName} slot and was left empty.`)
+          return
+        }
+      }
+      if (core) {
+        if (!slot.canBeCore) {
+          warnings.push(`Slate at board index ${row.index}: ${core.name} is a Core Talent, but the Builder's ${kind} slate has no Core Talent slot; it was left out.`)
+          return
+        }
+        Object.assign(slot, { isCore: true, selectedCoreKey: core.key, coreName: core.name, effects: core.effects })
+        return
+      }
+      if (!node) {
+        warnings.push(`Slate at board index ${row.index}: talent ${gameId} could not be matched to a current tree node and was left empty.`)
+        return
+      }
+      const category = (['magic', 'rare', 'legendary'] as const).find(type =>
+        (pool?.[type] ?? []).some(option => option.game_id === gameId))
+        ?? (node.nodeType.includes('Legendary Medium') ? 'legendary' : node.nodeType.includes('Medium') ? 'rare' : 'magic')
+      const rank: Record<typeof category, number> = { magic: 0, rare: 1, legendary: 2 }
+      if (rank[category] > rank[slot.maxType]) {
+        warnings.push(`Slate at board index ${row.index}: ${node.nodeType || category} does not fit slot ${slotIndex + 1} on ${kind}; it was left empty.`)
+        return
+      }
+      Object.assign(slot, { isCore: false, slotType: category, selectedNodeId: node.id, effects: node.effects, nodeType: node.nodeType })
+    })
+    const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
+      : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
+    if (kind === 'base' && !treeType) warnings.push(`Slate at board index ${row.index}: its talent tree could not be identified from the base item or selected talent IDs; choose the tree manually.`)
+    if (kind === 'nether_kings_divinity') {
+      if (piece.netherKingVariant !== 'judgment' || orientationIndex !== 0) {
+        const variantLabel = `${piece.netherKingVariant[0]!.toUpperCase()}${piece.netherKingVariant.slice(1)}`
+        warnings.push(`Nether King's Divinity at board index ${row.index}: its ${variantLabel} placement is inferred from the occupied cell; review its board position.`)
+      }
+      if (piece.taggedVariants.length === 0) {
+        warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
+      } else if (piece.taggedVariants.length > 1) {
+        warnings.push(`Nether King's Divinity at board index ${row.index}: its branded talents identify conflicting variants; imported as Judgment. Confirm the variant and board placement.`)
+      }
+    }
+    return [{ id: `ue-log-slate-${row.index}-${index}`, kind, cells, orientationIndex,
+      shapeIndex, anchor, slots, ...(treeType ? { treeType } : {}),
+      ...(kind === 'nether_kings_divinity' ? { netherKingVariant: piece.netherKingVariant } : {}) }]
+  })
+}
+
+function importLoggedPrisms(
+  character: UeLogCharacterPreview,
+  talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; column?: number; row?: number }[] }>,
+  catalog: PrismCatalog | null | undefined, warnings: string[],
+): NonNullable<Build['prisms']> {
+  const enriched = catalog?.catalog
+  return (character.talentTrees ?? []).flatMap((loggedTree, index) => {
+    const row = loggedTree.prism
+    if (!row) return []
+    const item = enriched?.items.find(candidate => candidate.game_id === row.baseId)
+    const allNodes = talentTrees.flatMap(tree => (tree.nodes ?? []).map(node => ({ ...node, treeName: tree.name })))
+    const mappedTreeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
+    const anchorPosition = row.anchorTalentId ? loggedTalentCoordinates(row.anchorTalentId) : null
+    const anchorPrefix = row.anchorTalentId?.slice(0, 2)
+    const exactAnchor = allNodes.find(node => node.game_id === row.anchorTalentId)
+    const inferredAnchor = !exactAnchor && mappedTreeName && anchorPosition ? allNodes.find(node => node.treeName === mappedTreeName
+        && !node.game_id && node.column === anchorPosition.column && node.row === anchorPosition.row
+        && anchorPrefix === UE_LOG_CAREER_GAME_ID_PREFIXES[loggedTree.careerId ?? -1]) : undefined
+    const anchor = exactAnchor ?? inferredAnchor
+    if (!enriched || !item || !anchor) {
+      warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
+      return []
+    }
+    const anchorCol = anchor.column ?? anchorPosition?.column
+    const anchorRow = anchor.row ?? anchorPosition?.row
+    if (anchorCol === undefined || anchorRow === undefined) {
+      warnings.push(`${item.name}: its anchor has no usable grid coordinates; the prism was left out.`)
+      return []
+    }
+    if (inferredAnchor) warnings.push(`${item.name}: its anchor was matched by inferred grid coordinates; confirm the imported position.`)
+    const mappedRarity = row.rarityValue === 3 ? 'rare' : null
+    const rarity = mappedRarity && item.rarities.includes(mappedRarity) ? mappedRarity : item.default_rarity
+    if (row.rarityValue !== null && (!mappedRarity || !item.rarities.includes(mappedRarity))) {
+      warnings.push(`${item.name}: logged prism rarity ${row.rarityValue} has no verified mapping; the catalog default was used.`)
+    }
+    const ids = new Set([...row.prefixAffixes, ...row.baseAffixes, ...row.baseAttrAffixes].flatMap(affix => affix.id ? [affix.id] : []))
+    const matches = (affix: { modifier_id?: string | null; modifier_ids?: string[] }) =>
+      (!!affix.modifier_id && ids.has(affix.modifier_id)) || (affix.modifier_ids ?? []).some(id => ids.has(id))
+    const area = enriched.area_size.find(matches)
+    const middle = enriched.middle.find(matches)
+    const advanced = [...enriched.advanced, ...(enriched.do_not_replace[item.short_name] ?? [])].find(matches)
+    const implicit = item.implicit.kind === 'add_choice'
+      ? catalog?.base_affix_modifiers?.find(affix => matches(affix))?.modifier ?? ''
+      : item.implicit.text ?? ''
+    if (!implicit) warnings.push(`${item.name}: the logged implicit option could not be matched to current catalog data.`)
+    for (const affix of row.prefixAffixes) {
+      const knownAffixId = affix.id && [area, middle, advanced].some(candidate => candidate
+        && (candidate.modifier_id === affix.id || candidate.modifier_ids?.includes(affix.id!)))
+      if (affix.id && !knownAffixId) {
+        warnings.push(`${item.name}: prism affix ${affix.id} is missing from the current prism catalog and was left out.`)
+      }
+      if (affix.values.length) warnings.push(`${item.name}: logged prism affix roll values are not stored by the current Builder prism configuration.`)
+    }
+    if ([...row.baseAffixes, ...row.baseAttrAffixes].some(affix => affix.values.length)) {
+      warnings.push(`${item.name}: logged prism implicit roll values are not stored by the current Builder prism configuration.`)
+    }
+    const positions = row.effectPositions.map(({ x, y }) => ({ col: y - 1, row: x - 1 }))
+    const boxCols = positions.length ? Math.max(...positions.map(p => p.col)) - Math.min(...positions.map(p => p.col)) + 1 : undefined
+    const boxRows = positions.length ? Math.max(...positions.map(p => p.row)) - Math.min(...positions.map(p => p.row)) + 1 : undefined
+    if (area && positions.length === 0) {
+      warnings.push(`${item.name}: no prism area cells were logged; imported area uses the matched ${area.cols} by ${area.rows} modifier.`)
+    } else if (area && (boxCols !== area.cols || boxRows !== area.rows)) {
+      warnings.push(`${item.name}: logged area spans ${boxCols} columns by ${boxRows} rows, but the matched modifier says ${area?.cols} by ${area?.rows}; imported area follows the logged cells.`)
+    }
+    return [{
+      id: `ue-log-prism-${row.baseId}-${index}`, templateId: `ue-log-prism-template-${row.baseId}-${index}`,
+      kind: 'ethereal_prism', name: item.name, iconUrl: item.icon_url,
+      rolls: { micro: -100, medium: -100, legendary: -100 },
+      ethereal: { shortName: item.short_name, rarity, implicit, tintWhenRare: item.tint_when_rare,
+        ...(area ? { areaSize: area.modifier, boxCols: boxCols ?? area.cols, boxRows: boxRows ?? area.rows } : boxCols && boxRows ? { boxCols, boxRows } : {}),
+        ...(middle ? { middle: middle.modifier } : {}), ...(advanced ? { advanced: advanced.modifier } : {}),
+        ...(row.replacementTalentId ? { replacementTalentId: row.replacementTalentId } : {}) },
+      // Ethereal prisms change effects on the real allocated tree nodes. The Builder's boxAllocations field
+      // represents Inverse Image copies only; keep it empty here.
+      treeName: anchor.treeName, anchorCol, anchorRow, boxAllocations: {},
+    }]
+  })
+}
+
 /** Create an editable Builder draft from the game data that can be joined by logged IDs. */
 export function createUeLogBuild(
   character: UeLogCharacterPreview,
@@ -840,7 +1201,11 @@ export function createUeLogBuild(
   towerSequences: TowerSequenceEntry[] = [],
   skillCatalog: SkillItem[] = [],
   beltBlends: BeltBlend[] = [],
-  talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; trait_variants?: { game_id?: string }[] }[] }> = [],
+  talentTrees: Array<{
+    name: string
+    nodes?: { id: string; game_id?: string; column?: number; row?: number; node_type?: string; effects?: string[]; trait_variants?: { game_id?: string }[] }[]
+    core_talent_slots?: { options: { id: string; name: string; effects: string[] }[] }[]
+  }> = [],
   pactSpiritCatalog: PactSpirit[] = [],
   referenceCatalogs: UeLogReferenceCatalogs = {},
 ): UeLogBuildResult {
@@ -890,33 +1255,79 @@ export function createUeLogBuild(
   }
   const slots: Build['slots'] = [null, null, null, null]
   let unmappedTalentCount = 0
+  let inferredTalentCount = 0
   for (const [index, loggedTree] of (character.talentTrees ?? []).entries()) {
     const mappedNodes = loggedTree.allocations.flatMap(allocation => {
-      const node = treeByGameId.get(allocation.id)
+      const known = treeByGameId.get(allocation.id)
+      const treeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
+      const expectedPrefix = UE_LOG_CAREER_GAME_ID_PREFIXES[loggedTree.careerId ?? -1]
+      const coordinates = allocation.id.slice(0, 2) === expectedPrefix ? loggedTalentCoordinates(allocation.id) : null
+      const positioned = treeName && coordinates ? talentTrees.find(tree => tree.name === treeName)?.nodes?.find(node =>
+        !node.game_id && node.column === coordinates.column && node.row === coordinates.row) : undefined
+      if (!known && positioned) inferredTalentCount++
+      const node = known ?? (positioned ? { treeName: treeName!, nodeId: positioned.id } : undefined)
       if (!node) {
         unmappedTalentCount++
         return []
       }
       return [{ ...allocation, ...node }]
     })
-    const treeName = mappedNodes[0]?.treeName
-    if (!treeName) continue
+    const coreOptions = (loggedTree.coreTalentSelections ?? []).map(gameId => ({
+      gameId,
+      option: referenceCatalogs.slatePool?.core.find(candidate => candidate.game_id === gameId),
+    }))
+    const treeName = mappedNodes[0]?.treeName ?? coreOptions.find(row => row.option)?.option?.treeName
+    if (!treeName) {
+      for (const { gameId } of coreOptions) warnings.push(`Core talent ${gameId} could not be associated with a current talent tree and was skipped.`)
+      continue
+    }
     if (mappedNodes.some(node => node.treeName !== treeName)) {
       warnings.push(`Logged talent allocations for career ${loggedTree.careerId ?? 'unknown'} span multiple trees; only the first tree was imported.`)
     }
     const nodeStates = Object.fromEntries(mappedNodes.filter(node => node.treeName === treeName).map(node => [node.nodeId, node.rank]))
-    if (index < slots.length) slots[index] = { treeName, nodeStates }
+    const coreTalentSelections: Record<string, string> = {}
+    for (const { gameId, option } of coreOptions) {
+      if (!option) {
+        warnings.push(`Core talent ${gameId} could not be matched to the current catalog and was skipped.`)
+        continue
+      }
+      if (option.treeName !== treeName) {
+        warnings.push(`Core talent ${option.name} belongs to ${option.treeName}, not ${treeName}; it was skipped.`)
+        continue
+      }
+      const detail = talentTrees.find(tree => tree.name === treeName)
+      const key = option.key.startsWith(`${treeName}:`) ? option.key.slice(treeName.length + 1).replace(/#\d+$/, '') : ''
+      const slotIndex = detail?.core_talent_slots?.findIndex(slot => slot.options.some(candidate =>
+        candidate.id === key || (candidate.name === option.name && JSON.stringify(candidate.effects) === JSON.stringify(option.effects)))) ?? -1
+      const selected = slotIndex >= 0 ? detail?.core_talent_slots?.[slotIndex]?.options.find(candidate =>
+        candidate.id === key || (candidate.name === option.name && JSON.stringify(candidate.effects) === JSON.stringify(option.effects))) : undefined
+      if (!selected) {
+        warnings.push(`Core talent ${option.name} could not be matched to a selectable slot in ${treeName} and was skipped.`)
+        continue
+      }
+      coreTalentSelections[String(slotIndex)] = selected.id
+    }
+    if (index < slots.length) slots[index] = { treeName, nodeStates, ...(Object.keys(coreTalentSelections).length ? { coreTalentSelections } : {}) }
     else warnings.push(`Talent tree ${treeName} exceeded Builder's four tree slots and was skipped.`)
   }
   if (unmappedTalentCount) {
     warnings.push(`${unmappedTalentCount} allocated talent node${unmappedTalentCount === 1 ? '' : 's'} could not be matched to current TLIDB data and ${unmappedTalentCount === 1 ? 'was' : 'were'} skipped.`)
   }
+  if (inferredTalentCount) {
+    warnings.push(`${inferredTalentCount} allocated talent node${inferredTalentCount === 1 ? ' was' : 's were'} matched by inferred grid coordinates; confirm ${inferredTalentCount === 1 ? 'that node' : 'those nodes'} in the imported tree.`)
+  }
+  const importedSlates = importLoggedSlates(character.slates ?? [], talentTrees, referenceCatalogs.slatePool, warnings)
+  const importedPrisms = importLoggedPrisms(character, talentTrees, referenceCatalogs.etherealPrisms, warnings)
   // player.FollowServant identifies the cosmetic pet, not the combat follower. The log does not expose
   // the mercenary selection, so do not turn that unrelated pet value into an import warning.
   const importedPactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null] = [null, null, null]
   for (const contract of character.pactContracts ?? []) {
     if (contract.areaId < 1 || contract.areaId > 3) continue
-    const spirit = pactSpiritCatalog.find(candidate => candidate.game_id === contract.servantId)
+    const byGameId = pactSpiritCatalog.find(candidate => candidate.game_id === contract.servantId)
+    const overrideItemId = UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES[contract.servantId]
+    const spirit = byGameId ?? (overrideItemId
+      ? pactSpiritCatalog.find(candidate => candidate.item_id === overrideItemId)
+      : undefined)
     if (!spirit) {
       warnings.push(`The pact spirit in battle slot ${contract.areaId} is not present in the current TLIDB catalog.`)
       continue
@@ -939,7 +1350,7 @@ export function createUeLogBuild(
   const truncatedSectionCount = character.truncatedSections?.length ?? 0
   if (truncatedSectionCount > 0) {
     warnings.push(
-      'The game log omitted some player data, so a few equipped skill details and pact spirit ranks may be incomplete.',
+      'The game log omitted some player data, so slate placement, equipped skill details, or pact spirit ranks may be incomplete.',
     )
   }
 
@@ -947,6 +1358,8 @@ export function createUeLogBuild(
     build: {
       name: `${character.characterName || `Hero ${character.heroId ?? 'unknown'}`} · Level ${character.level ?? 'unknown'}`,
       slots,
+      ...(importedSlates.length ? { slates: importedSlates } : {}),
+      ...(importedPrisms.length ? { prisms: importedPrisms } : {}),
       gear,
       skills,
       ...importedTrait,

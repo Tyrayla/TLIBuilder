@@ -66,6 +66,24 @@ def test_random_affix_pools_split_and_dedupe():
     assert all("Gains huge Defense" not in k for k in cat["do_not_replace"])
 
 
+def test_area_size_matches_current_tlidb_wording():
+    modifier = "The area of effect expands to 2x4 Rectangle"
+    catalog = {
+        "items": [],
+        "base_affixes": [],
+        "random_affixes": [{"modifier": modifier, "type": "Random Affix", "modifier_id": "1234308061"}],
+    }
+
+    result = categorize_prism_catalog(catalog)
+
+    assert result["area_size"] == [{
+        "modifier": modifier,
+        "cols": 2,
+        "rows": 4,
+        "modifier_id": "1234308061",
+    }]
+
+
 def test_phantasmagoria_base_and_scaled_tagged_overalloc_counts_kept():
     cat = categorize_prism_catalog(_RAW)
     blocks = {m["modifier"]: m["scaled"] for m in cat["middle"] if "Block Ratio" in m["modifier"]}

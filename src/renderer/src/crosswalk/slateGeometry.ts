@@ -104,8 +104,8 @@ export function resolveGeometry(shapeId: string, rotation = 0, flipH = false, fl
   return { shapeIndex: baseIndex, orientationIndex: steps, cells, matched: false }
 }
 
-// Legendary divinity slates are their own shapes (not the 6 base tetrominoes). Copied from
-// SlateScreen.tsx LEGENDARY_ORIENTATIONS. Builder keys these by `kind` (a LegendaryKind), not shapeIndex.
+// Canonical layouts for legendary divinity slates. Both the board and import crosswalk use
+// these cells so orientation indexes keep the same meaning across import, editing, and placement.
 export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
   pedigree: [[[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],[[0,0],[0,1],[1,0],[1,1],[1,2],[2,1],[2,2]]],
   fallen_starlight: [[[0,0],[0,1]],[[0,0],[1,0]]],
@@ -114,7 +114,22 @@ export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
   when_sparks_set_prairie_ablaze: [[[0,0]]],
   space_rift: [[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]]],
   residence_of_stars: [[[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]]],
+  // Three separated 1x1 cells. The log records Index 52; the owner identifies it as upper-right.
+  // The footprint occupies the upper-right, lower-left, and lower-right corners.
+  nether_kings_divinity: [
+    [[0,3],[3,0],[3,3]],
+    [[0,0],[3,0],[3,3]],
+    [[0,0],[0,3],[3,0]],
+    [[0,0],[0,3],[3,3]],
+  ],
 }
+
+/**
+ * The logged origin cell for each Judgment orientation, in the same order as editor placement.
+ * The log contains Index 52; the owner identifies it as upper-right. The remaining offsets follow the
+ * owner-confirmed four-corner placement geometry and have not been independently matched to logs.
+ */
+export const NETHER_KING_ORIGIN_OFFSETS: Cell[] = [[0,3],[0,0],[3,0],[3,3]]
 
 // Compendium legendary-slate template name → Builder LegendaryKind.
 const LEGENDARY_TEMPLATE_TO_KIND: Record<string, string> = {
@@ -163,6 +178,10 @@ const SLATE_SLOT_CONFIG: Record<string, SlateSectionDef[]> = {
   when_sparks_set_prairie_ablaze: [],
   space_rift: [],
   residence_of_stars: [],
+  nether_kings_divinity: [
+    { count: 2, maxType: 'legendary', canBeCore: true },
+    { count: 3, maxType: 'legendary', canBeCore: true },
+  ],
 }
 
 export interface SlateSlot {

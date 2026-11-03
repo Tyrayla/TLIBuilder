@@ -61,6 +61,31 @@ export interface UeLogIngredientChoice {
   optionId: string
 }
 
+export interface UeLogSlate {
+  index: number | null
+  pageId: number | null
+  baseId: number | null
+  uniqueItemId: number | null
+  shapeId: number | null
+  direction: number | null
+  rarityValue: number | null
+  baseTalentIds: string[]
+  enchantTalentIds: string[]
+  talentSlots: Array<{ color: string | null; talentId: string | null; rarity: number | null; slotIndex?: number }>
+}
+
+export interface UeLogPrism {
+  anchorTalentId: string | null
+  baseId: number | null
+  uniqueItemId: number | null
+  rarityValue: number | null
+  prefixAffixes: UeLogAffix[]
+  baseAffixes: UeLogAffix[]
+  baseAttrAffixes: UeLogAffix[]
+  effectPositions: Array<{ x: number; y: number }>
+  replacementTalentId: string | null
+}
+
 export interface UeLogCharacterPreview {
   dumpNumber: number
   characterName: string | null
@@ -69,7 +94,13 @@ export interface UeLogCharacterPreview {
   heroPurchaseId: number | null
   gear: UeLogGearItem[]
   skills: UeLogSkillItem[]
-  talentTrees?: Array<{ careerId: number | null; allocations: Array<{ id: string; rank: number }> }>
+  talentTrees?: Array<{
+    careerId: number | null
+    allocations: Array<{ id: string; rank: number }>
+    coreTalentSelections?: string[]
+    prism?: UeLogPrism
+  }>
+  slates?: UeLogSlate[]
   followServantId?: number | null
   servantIds?: number[]
   activeTraitIds?: number[]
@@ -98,6 +129,15 @@ function entries(value: unknown): unknown[] {
     .filter(key => /^\d+$/.test(key))
     .sort((a, b) => Number(a) - Number(b))
     .map(key => (value as Record<string, unknown>)[key])
+}
+
+function indexedEntries(value: unknown): Array<[number, unknown]> {
+  if (Array.isArray(value)) return value.map((entry, index) => [index, entry])
+  if (!value || typeof value !== 'object') return []
+  return Object.keys(value as object)
+    .filter(key => /^\d+$/.test(key))
+    .sort((a, b) => Number(a) - Number(b))
+    .map(key => [Math.max(0, Number(key) - 1), (value as Record<string, unknown>)[key]])
 }
 
 function scalar(value: unknown): unknown {
@@ -313,10 +353,84 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       const id = String(rawId)
       const rank = ['rank', 'point', 'points', 'talentPoint', 'level', 'value']
         .map(key => numberValue(scalar(row[key] ?? value[key])))
-        .find((n): n is number => n !== null && n > 0) ?? 1
+        .find((n): n is number => n !== null && n > 0)
+      if (rank === undefined) return []
       return [{ id, rank }]
     })
-    return allocations.length ? [{ careerId, allocations }] : []
+    // A complete genius record is a snapshot: no bonusGeniusInfo means no selected core choices.
+    // Truncated captures are handled by groupUeLogCaptures, which retains earlier choices there.
+    const coreTalentSelections = entries(info.bonusGeniusInfo).flatMap(entry => {
+      if (!entry || typeof entry !== 'object') return []
+      const row = entry as Record<string, unknown>
+      const value = row.value && typeof row.value === 'object' ? row.value as Record<string, unknown> : {}
+      if (scalar(value.isPrismSkill) === 'true') return []
+      const rawId = scalar(row.geniusId ?? value.geniusId)
+      return typeof rawId === 'string' ? [rawId] : []
+    })
+    const prismInfo = info.prismInfo && typeof info.prismInfo === 'object' ? info.prismInfo as Record<string, unknown> : null
+    const prismItem = prismInfo?.item && typeof prismInfo.item === 'object' ? prismInfo.item as Record<string, unknown> : {}
+    const rawAnchor = scalar(prismInfo?.geniusId)
+    const rawReplacement = scalar(info.prismGeniusId)
+    const prism = prismInfo ? {
+      anchorTalentId: typeof rawAnchor === 'string' ? rawAnchor : null,
+      baseId: numberValue(scalar(prismItem.BaseId)),
+      uniqueItemId: numberValue(scalar(prismItem.UniqueItmId)),
+      rarityValue: numberValue(scalar(prismItem.RareValue)),
+      prefixAffixes: affixRows(prismItem.Prefix),
+      baseAffixes: affixRows(prismItem.BaseAffix),
+      baseAttrAffixes: affixRows(prismItem.BaseAttrAffix),
+      effectPositions: entries(info.prismEffectPositions).flatMap(position => {
+        if (!position || typeof position !== 'object') return []
+        const row = position as Record<string, unknown>
+        const x = numberValue(scalar(row.x)), y = numberValue(scalar(row.y))
+        return x === null || y === null ? [] : [{ x, y }]
+      }),
+      replacementTalentId: typeof rawReplacement === 'string' ? rawReplacement : null,
+    } : undefined
+    return allocations.length || prism || coreTalentSelections.length || careerId !== null
+      ? [{ careerId, allocations, ...(coreTalentSelections ? { coreTalentSelections } : {}), ...(prism ? { prism } : {}) }]
+      : []
+  })
+}
+
+function findTruncatedSections(body: string): string[] {
+  const sections: string[] = []
+  let parentPath = 'unknown'
+  for (const line of body.split(/\r?\n/)) {
+    if (/^[| ]*\+\d+\+\.\.\./.test(line)) {
+      sections.push(`+${parentPath}+...`)
+      continue
+    }
+    const path = line.match(/^[| ]*\+([^\s\[]+)/)?.[1]
+    if (!path) continue
+    const parts = path.split('+')
+    parentPath = parts[0] === 'bag' ? parts.slice(0, 2).join('+') : parts[0]!
+  }
+  return sections
+}
+
+function loggedSlates(tree: Record<string, unknown>): UeLogSlate[] | undefined {
+  const bag = tree.bag as Record<string, unknown> | undefined
+  if (!bag || !Object.prototype.hasOwnProperty.call(bag, 'dressingTalentBlocks')) return undefined
+  return entries(bag?.dressingTalentBlocks).flatMap(raw => {
+    if (!raw || typeof raw !== 'object') return []
+    const row = raw as Record<string, unknown>
+    const item = row.Item && typeof row.Item === 'object' ? row.Item as Record<string, unknown> : {}
+    const readIds = (value: unknown) => entries(value).map(scalar).filter((id): id is string => typeof id === 'string')
+    return [{
+      index: numberValue(scalar(row.Index)), pageId: numberValue(scalar(row.PageId)),
+      baseId: numberValue(scalar(item.BaseId)), uniqueItemId: numberValue(scalar(item.UniqueItmId)),
+      shapeId: numberValue(scalar(item.ShapeId)), direction: numberValue(scalar(item.Direction)),
+      rarityValue: numberValue(scalar(item.RareValue)),
+      baseTalentIds: readIds(item.BaseTalentList), enchantTalentIds: readIds(item.EnchantTalentList),
+      talentSlots: indexedEntries(item.talentSlotList).flatMap(([slotIndex, slot]) => {
+        if (!slot || typeof slot !== 'object') return []
+        const value = slot as Record<string, unknown>
+        const talentId = scalar(value.talentId)
+        return [{ color: typeof scalar(value.color) === 'string' ? scalar(value.color) as string : null,
+          talentId: typeof talentId === 'string' ? talentId : null, rarity: numberValue(scalar(value.rarity)), slotIndex }]
+      }),
+    }]
   })
 }
 
@@ -375,6 +489,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     return [{ areaId, servantId, rank: ownedSpiritRanks.get(servantId) ?? null }]
   })
   const ingredientChoices = loggedIngredientChoices(tree)
+  const slates = loggedSlates(tree)
   return {
     dumpNumber,
     characterName: typeof scalar(player.Name) === 'string' ? scalar(player.Name) as string : null,
@@ -384,6 +499,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     gear: gearRows(tree),
     skills: skillRows(tree),
     talentTrees: loggedTalentTrees(tree),
+    ...(slates === undefined ? {} : { slates }),
     followServantId: numberValue(scalar(player.FollowServant)),
     servantIds: entries(servantInfos?.servantData).flatMap(raw => {
       if (!raw || typeof raw !== 'object') return []
@@ -395,7 +511,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     ...(baseMemory?.baseId !== null && baseMemory?.baseId !== undefined ? { baseMemory } : {}),
     ...(pactContracts.length ? { pactContracts } : {}),
     ...(ingredientChoices.length ? { ingredientChoices } : {}),
-    truncatedSections: [...body.matchAll(/^[| ]*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
+    truncatedSections: findTruncatedSections(body),
   }
 }
 

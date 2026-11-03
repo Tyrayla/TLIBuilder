@@ -343,6 +343,8 @@ export interface SavedSlate {
   slots: SavedSlateSlot[]
   treeType?: string
   mothDirection?: string
+  netherKingVariant?: 'judgment' | 'contamination' | 'banishment'
+  netherKingBanishmentEffect?: 'demolisher' | 'steep_strike' | 'shadow_strike' | 'spell_burst' | 'ill_omen' | 'quagmire' | 'projection' | 'provision' | 'tangle' | 'indomitable'
 }
 
 // A configured slate kept in the build's saved-slates inventory (no board placement) — re-placeable.
@@ -354,6 +356,8 @@ export interface SlateTemplate {
   slots: SavedSlateSlot[]
   treeType?: string
   mothDirection?: string
+  netherKingVariant?: 'judgment' | 'contamination' | 'banishment'
+  netherKingBanishmentEffect?: 'demolisher' | 'steep_strike' | 'shadow_strike' | 'spell_burst' | 'ill_omen' | 'quagmire' | 'projection' | 'provision' | 'tangle' | 'indomitable'
   // User label/title (like gear's displayName) — DISPLAY name only; the true kind name stays in the card/tooltip.
   // Cleared when the entered label is empty. Rides in the build/share payload.
   displayName?: string
@@ -443,6 +447,7 @@ export interface EtherealConfig {
   boxRows?: number
   middle?: string              // chosen Slot-2 middle-tier modifier
   advanced?: string            // chosen Slot-3 advanced/do-not-replace modifier (legendary only)
+  replacementTalentId?: string   // game talent ID granted by prismGeniusId
 }
 // A crafted prism kept in the build's prism inventory (no tree placement) — re-placeable, like SlateTemplate.
 // `rolls` is used by Inverse Image; `ethereal` by Ethereal Prisms.
@@ -454,8 +459,9 @@ export interface CraftedPrism {
   rolls: PrismRolls
   ethereal?: EtherealConfig
 }
-// A prism installed on a tree. anchorCol/anchorRow = the node it sits on; boxAllocations = points spent in the
-// reflected box (kept OUT of the DPS path in Plan 1), keyed by the existing node id at each reflected position.
+// A prism installed on a tree. anchorCol/anchorRow = its node. boxAllocations stores Inverse Image points
+// spent in the reflected box, keyed by Builder grid position as "column,row" (positions can be empty cells).
+// Ethereal Prism replacements leave this map empty; their effect area dimensions come from ethereal.boxCols/boxRows.
 export interface PlacedPrism {
   id: string
   templateId: string
@@ -663,6 +669,7 @@ export interface CoreTalentOption {
   game_id?: string
   treeName: string
   name: string
+  nodeType?: string
   effects: string[]
 }
 
@@ -2132,6 +2139,7 @@ export interface DestinyItem {
 }
 
 export interface HeroMemoryAffix {
+  uuid?: string
   tier: number | null
   modifier: string
   level: number | null
@@ -3491,6 +3499,8 @@ export const api = {
     random_affixes: HeroMemoryAffix[]
     base_stats: HeroMemoryAffix[]
     base_stat_scaling?: HeroMemoryBaseStatScaling
+    log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
+    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string }[]
   }>('/hero-memories'),
 
   importMemoryRevival: (seasonName: string, data: object) =>
