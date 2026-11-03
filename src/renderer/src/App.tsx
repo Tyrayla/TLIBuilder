@@ -18,6 +18,7 @@ import { recordStartupMetric } from './utils/startupDiagnostics'
 import { useReferenceStore } from './store/referenceStore'
 import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
+import { clearTreeCache, getEtherealPrismCached, prefetchTrees } from './api/treeCache'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -347,6 +348,37 @@ function App() {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
   const buildVersion = useBuildStore(s => s.buildVersion)
+  const computedVersion = useBuildStore(s => s.computedVersion)
+  const statsLoading = useBuildStore(s => s.statsLoading)
+
+  // Warm the session tree cache (api/treeCache) so opening a talent tree doesn't show a loading state.
+  // 1) The build's own trees load as soon as the build opens (or its tree set changes), in the background, so
+  //    they're ready before the player visits the tree page. This runs synchronously on the slots change, so the
+  //    (≤4, small) tree requests reach the backend / Pyodide queue just ahead of the debounced headline recalc.
+  const buildTreesKey = [...new Set(slots.filter((s): s is TreeSlot => !!s).map(s => s.treeName))].join('|')
+  useEffect(() => {
+    if (!appReady || !buildTreesKey) return
+    void prefetchTrees(buildTreesKey.split('|'))
+  }, [appReady, buildTreesKey])
+  // 2) The prism catalog (~150 KB) and, while a tree selector is open, every other tree (the player is about to
+  //    pick one) wait until the headline recalc is idle so they never delay the DPS the player is watching.
+  //    prefetchTrees fetches one tree at a time and skips anything already cached.
+  const selectorOpen = screen === 'tree-selector' || screen === 'preview-selector'
+  const allTreesKey = selectorOpen ? Object.keys(treeColors).join('|') : ''
+  const statsIdle = !statsLoading && computedVersion >= buildVersion
+  useEffect(() => {
+    if (!appReady || !statsIdle) return
+    const timer = setTimeout(() => {
+      void getEtherealPrismCached().catch(() => {})
+      // Stop between trees once a recalc starts, so an edit's DPS waits on at most one in-flight tree.
+      const stillIdle = () => {
+        const st = useBuildStore.getState()
+        return !st.statsLoading && st.computedVersion >= st.buildVersion
+      }
+      if (allTreesKey) void prefetchTrees(allTreesKey.split('|'), stillIdle)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [appReady, statsIdle, allTreesKey])
 
   useEffect(() => {
     if (!IS_WEB || !appReady || !draftRestored) return
@@ -1140,6 +1172,9 @@ function App() {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
+          clearTreeCache() // trees + prism catalog are per season
+          // Re-warm the build's trees for the new season (the build-trees prefetch effect won't re-fire: its key is unchanged).
+          void prefetchTrees([...new Set(useBuildStore.getState().slots.filter((s): s is TreeSlot => !!s).map(s => s.treeName))])
         }} /></Suspense>
   }
 
