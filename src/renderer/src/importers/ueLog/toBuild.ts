@@ -1042,7 +1042,6 @@ function importLoggedSlates(
         : [])
       : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
     const gameIds = gameIdSlots.map(slot => slot.gameId)
-    const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
     const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
     gameIdSlots.forEach(({ gameId, slotIndex }) => {
       const slot = slots[slotIndex]
@@ -1091,6 +1090,9 @@ function importLoggedSlates(
       : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
     if (kind === 'base' && !treeType) warnings.push(`Slate at board index ${row.index}: its talent tree could not be identified from the base item or selected talent IDs; choose the tree manually.`)
     if (kind === 'nether_kings_divinity') {
+      if (piece.netherKingVariant !== 'judgment') {
+        warnings.push(`Nether King's Divinity at board index ${row.index}: the ${piece.netherKingVariant} footprint was inferred from the logged occupied cell; review its board placement.`)
+      }
       if (piece.taggedVariants.length === 0) {
         warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
       } else if (piece.taggedVariants.length > 1) {

@@ -461,7 +461,7 @@ export interface CraftedPrism {
 }
 // A prism installed on a tree. anchorCol/anchorRow = its node. boxAllocations stores Inverse Image points
 // spent in the reflected box, keyed by Builder grid position as "column,row" (positions can be empty cells).
-// Ethereal Prism replacements leave this map empty; their effect area comes from ethereal.effectPositions.
+// Ethereal Prism replacements leave this map empty; their effect area dimensions come from ethereal.boxCols/boxRows.
 export interface PlacedPrism {
   id: string
   templateId: string
