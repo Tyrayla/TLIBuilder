@@ -722,6 +722,20 @@ describe('UE_game.log build conversion', () => {
     expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual(['12010100', '12020100'])
   })
 
+  it('keeps the fuller core talent list when a truncated capture has partial selections', () => {
+    const capture = (fileNumber: number, modifiedAt: number, coreTalentSelections: string[], truncatedSections: string[] = []) => ({
+      fileNumber, modifiedAt,
+      preview: { dumpNumber: fileNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [], coreTalentSelections }], truncatedSections },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, ['12010100', '12020100']),
+      capture(2, 200, ['12010100'], ['+geniusInfos+info+1+...']),
+    ])
+
+    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual(['12010100', '12020100'])
+  })
+
   it('maps logged core talent game IDs to the catalogued Builder slots', () => {
     const result = createUeLogBuild({
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,

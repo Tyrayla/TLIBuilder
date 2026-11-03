@@ -115,12 +115,12 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         ...talentTree,
         allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
         ...(talentTree.coreTalentSelections !== undefined
-          ? { coreTalentSelections: talentSectionTruncated && talentTree.coreTalentSelections.length === 0
+          ? { coreTalentSelections: talentSectionTruncated
             ? earlier?.coreTalentSelections ?? talentTree.coreTalentSelections
             : talentTree.coreTalentSelections }
           : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
-        // A complete later tree without prismInfo means the prism was removed. If any part of
-        // Only truncation inside geniusInfos makes absence inconclusive for this prism.
+        // A complete later tree without prismInfo means the prism was removed. Truncation
+        // inside geniusInfos makes absence inconclusive for this prism.
         prism: talentTree.prism ?? (talentSectionTruncated ? earlier?.prism : undefined),
       })
     }
