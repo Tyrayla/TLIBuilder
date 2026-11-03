@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { scanUeGameLog } from '../importers/ueLog/parse'
-import type { UeLogCharacterPreview } from '../importers/ueLog/parse'
-import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures } from '../importers/ueLog/toBuild'
+import type { UeLogCharacterPreview, UeLogSlate } from '../importers/ueLog/parse'
+import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures, resolveSlatePlacements } from '../importers/ueLog/toBuild'
 import { migrateLegendaryItem } from '../utils/gearItem'
 import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, PactSpirit, SkillItem, CreatedHeroMemory } from '../api/client'
 
@@ -338,6 +338,19 @@ describe('UE_game.log preview', () => {
 })
 
 describe('UE_game.log build conversion', () => {
+  it('keeps the best-known slate layout when the placement search reaches its limit', () => {
+    const result = resolveSlatePlacements([{
+      sourceIndex: 0, row: { index: 33 } as UeLogSlate, indexCell: [2, 2],
+      layouts: [
+        { cells: [[0, 0]], orientationIndex: 0 },
+        { cells: [[0, 1]], orientationIndex: 1 },
+      ],
+    }], 2)
+
+    expect(result.searchLimitReached).toBe(true)
+    expect(result.placements.get(0)).toEqual({ anchor: [2, 2], cells: [[2, 2]], orientationIndex: 0 })
+  })
+
   it('imports Sage memory rolls and the Licorice Note selections shown by the current log', () => {
     const character = {
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
@@ -546,6 +559,16 @@ describe('UE_game.log build conversion', () => {
     ])
   })
 
+  it('warns when a logged talent is matched by its inferred grid coordinates', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [{ id: '12010200', rank: 1 }] }], truncatedSections: [],
+    }, [], [], [], [], [], [], [], [{ name: 'Onslaughter', nodes: [{ id: 'onslaughter_c0_r1', column: 0, row: 1 }] }])
+
+    expect(result.build.slots[0]).toEqual({ treeName: 'Onslaughter', nodeStates: { onslaughter_c0_r1: 1 } })
+    expect(result.warnings).toContain('1 allocated talent node was matched by inferred grid coordinates; confirm that node in the imported tree.')
+  })
+
   it('does not map unknown talent IDs to coordinates occupied by a different known game ID', () => {
     const result = createUeLogBuild({
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
@@ -586,6 +609,24 @@ describe('UE_game.log build conversion', () => {
     ])
 
     expect(group.preview.talentTrees?.[0]?.prism).toBeUndefined()
+  })
+
+  it('keeps an earlier Ethereal Prism when a later talent-tree capture is truncated', () => {
+    const prism = {
+      anchorTalentId: '12060400', baseId: 360620, uniqueItemId: null, rarityValue: 3,
+      prefixAffixes: [], baseAffixes: [], baseAttrAffixes: [], effectPositions: [], replacementTalentId: null,
+    }
+    const capture = (fileNumber: number, modifiedAt: number, talentTrees: NonNullable<UeLogCharacterPreview['talentTrees']>, truncatedSections: string[] = []) => ({
+      fileNumber, modifiedAt,
+      preview: { dumpNumber: fileNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], talentTrees, truncatedSections },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, [{ careerId: 12, allocations: [], prism }]),
+      capture(2, 200, [{ careerId: 12, allocations: [{ id: '12010100', rank: 1 }] }], ['+geniusInfos+info+1+...']),
+    ])
+
+    expect(group.preview.talentTrees?.[0]?.prism).toEqual(prism)
   })
 
   it('maps logged core talent game IDs to the catalogued Builder slots', () => {
@@ -731,7 +772,28 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.[0]?.slots[2]).toMatchObject({ selectedCoreKey: 'Nether King:Contamination Brand', isCore: true,
       effects: ['When Contamination is active, +12% Projection Effect'] })
     expect(build.slates?.[0]?.netherKingVariant).toBe('contamination')
+    expect(build.slates?.[0]?.cells).toEqual([[1, 4], [2, 4], [3, 4]])
     expect(warnings).not.toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
+  })
+
+  it('imports Banishment with its diagonal footprint when a branded node identifies the variant', () => {
+    const character: UeLogCharacterPreview = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], talentTrees: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
+          { color: null, talentId: '90000117', rarity: null, slotIndex: 2 },
+        ] }],
+    }
+    const slatePool = { magic: [], rare: [], legendary: [], core: [{ key: 'Nether King:Banishment Brand', game_id: '90000117',
+      treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node', name: 'Banishment Brand',
+      effects: ['When Banishment is active, +12% damage'] }] }
+    const { build } = createUeLogBuild(character, [], [], [], [], [], [], [], [], [], { slatePool } as any)
+
+    expect(build.slates?.[0]).toMatchObject({
+      netherKingVariant: 'banishment', anchor: [1, 2], orientationIndex: 0,
+      cells: [[1, 4], [2, 3], [3, 2]],
+    })
   })
 
   it('maps known unique slate IDs to the Builder slate kinds', () => {
@@ -760,6 +822,18 @@ describe('UE_game.log build conversion', () => {
       expect(build.slates ?? []).toEqual([])
       expect(warnings).toContain(`Slate ${uniqueItemId}: logged direction ${direction} is outside the verified range and was left out.`)
     }
+  })
+
+  it('warns when an empty base slate has no tree association', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 31, pageId: -4, baseId: 260599, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
+    }, [], [])
+
+    expect(result.build.slates?.[0]?.treeType).toBeUndefined()
+    expect(result.warnings).toContain('Slate at board index 31: its talent tree could not be identified from the base item or selected talent IDs; choose the tree manually.')
   })
 
   it('places the owner log slate at index 13 on the left edge', () => {
@@ -870,6 +944,18 @@ describe('UE_game.log build conversion', () => {
       { itemId: 'elixir_fairies', rank: 1 },
     ])
     expect(result.warnings).toEqual(['Preserver of Eternity: the login captures do not include its rank; rank 1 was used.'])
+  })
+
+  it('prefers a pact-spirit catalog game ID over the owner-confirmed fallback alias', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], pactContracts: [{ areaId: 2, servantId: 18230, rank: 6 }], truncatedSections: [],
+    }, [], [], [], [], [], [], [], [], [
+      { item_id: 'catalog_game_id_entry', game_id: 18230, name: 'Catalog match' },
+      { item_id: 'kitty_express', game_id: 18231, name: 'Kitty Express' },
+    ] as PactSpirit[])
+
+    expect(result.build.pactSpirits?.[1]).toEqual({ itemId: 'catalog_game_id_entry', rank: 6 })
   })
 
   it('does not report the cosmetic pet as a missing combat follower', () => {

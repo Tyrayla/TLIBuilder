@@ -1,7 +1,7 @@
 import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type PrismCatalog, type SavedSlateSlot, type SlatePool, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
 import { initSlateSlots, LEGENDARY_ORIENTATIONS, NETHER_KING_ORIGIN_OFFSETS } from '../../crosswalk/slateGeometry'
 import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
-import { netherKingBrandVariant, type NetherKingVariant } from '../../utils/netherKingSlate'
+import { netherKingBrandVariant, netherKingOrientationCells, type NetherKingVariant } from '../../utils/netherKingSlate'
 
 // Owner-confirmed servant identity where the current spirit catalog does not expose a servant game ID.
 // The owner's latest log and pact screen identify servantId 18230 as Kitty Express.
@@ -111,7 +111,9 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         ...(talentTree.coreTalentSelections !== undefined
           ? { coreTalentSelections: talentTree.coreTalentSelections }
           : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
-        prism: talentTree.prism,
+        // A complete later tree without prismInfo means the prism was removed. If any part of
+        // GetPlayerData was truncated, keep the earlier prism because absence is inconclusive.
+        prism: talentTree.prism ?? (capture.preview.truncatedSections.length ? earlier?.prism : undefined),
       })
     }
     groups.set(key, {
@@ -869,82 +871,39 @@ function loggedElixirIngredients(
   return { ingredients, unmapped }
 }
 
-function importLoggedSlates(
-  rows: UeLogSlate[], talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; node_type?: string; effects?: string[] }[] }>, pool: SlatePool | null | undefined, warnings: string[],
-): NonNullable<Build['slates']> {
-  const nodesByGameId = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
-  for (const tree of talentTrees) for (const node of tree.nodes ?? []) {
-    if (node.game_id) nodesByGameId.set(node.game_id, { id: node.id, treeName: tree.name, nodeType: node.node_type ?? '', effects: node.effects ?? [] })
-  }
-  for (const option of [...(pool?.magic ?? []), ...(pool?.rare ?? []), ...(pool?.legendary ?? [])]) {
-    if (option.game_id && !nodesByGameId.has(option.game_id)) {
-      nodesByGameId.set(option.game_id, { id: option.nodeId, treeName: option.treeName, nodeType: option.nodeType, effects: option.effects })
-    }
-  }
-  const kindByUniqueId: Record<number, string> = { 1003: 'fallen_starlight', 1005: 'corner_of_divinity', 1010: 'pedigree' }
-  const treeByBaseId: Record<number, string> = { 260504: 'God of Might', 260304: 'God of War', 260306: 'God of War' }
-  const prepared = rows.map((row, sourceIndex) => {
-    const kind = row.baseId === 394004 ? 'nether_kings_divinity'
-      : row.uniqueItemId && row.uniqueItemId !== 0 ? kindByUniqueId[row.uniqueItemId] : 'base'
-    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
-    const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind ?? '']?.length ?? 1
-    const rawOrientation = kind === 'base' ? (row.direction ?? 0) : row.direction === null ? -1 : row.direction - 1
-    const orientationIndex = rawOrientation ?? -1
-    const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
-      ? (LEGENDARY_ORIENTATIONS[kind] ?? []).map((cells, index) => ({ cells, orientationIndex: index, originOffset: NETHER_KING_ORIGIN_OFFSETS[index] }))
-      : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
-    const cellsShape = layouts[0]?.cells
-    if (!kind) {
-      warnings.push(row.baseId === 394004
-        ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
-        : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
-      return null
-    }
-    if (kind !== 'nether_kings_divinity' && (orientationIndex < 0 || orientationIndex >= orientationCount)) {
-      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: logged direction ${row.direction ?? 'missing'} is outside the verified range and was left out.`)
-      return null
-    }
-    if (kind === 'corner_of_divinity') {
-      warnings.push(`A Corner of Divinity at board index ${row.index ?? '?'}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
-    }
-    if (!cellsShape) {
-      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
-      return null
-    }
-    if (row.index === null || row.index < 1) {
-      warnings.push('An equipped slate has no valid board index and was left out.')
-      return null
-    }
-    // The log encodes Index as SlotId=10*column+row (1-based); it identifies a cell occupied by the piece.
-    return { row, sourceIndex, kind, shapeIndex: shapeIndex ?? 0, orientationIndex, layouts,
-      indexCell: [(row.index - 1) % 10, Math.floor((row.index - 1) / 10) - 1] as [number, number] }
-  }).filter((piece): piece is NonNullable<typeof piece> => !!piece)
-  const placements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
-  const firstSolution = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
+type SlatePlacementLayout = { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }
+type SlatePlacementInput = { sourceIndex: number; row: UeLogSlate; indexCell: [number, number]; layouts: SlatePlacementLayout[] }
+type SlatePlacement = { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }
+
+/** Find the largest compatible slate layout and omit positions that differ across explored solutions. */
+export function resolveSlatePlacements(
+  prepared: SlatePlacementInput[], maxSearchNodes = 100_000,
+): { placements: Map<number, SlatePlacement>; bestSolution: Map<number, SlatePlacement>; ambiguousPlacements: Set<number>; searchLimitReached: boolean; hasSolution: boolean } {
+  const current = new Map<number, SlatePlacement>()
+  const firstSolution = new Map<number, SlatePlacement>()
   const ambiguousPlacements = new Set<number>()
   let bestPlacedCount = -1
   let searchNodes = 0
   let searchLimitReached = false
-  const MAX_SEARCH_NODES = 100_000
-  const search = (remaining: typeof prepared, occupied: Set<string>): boolean => {
-    if (++searchNodes > MAX_SEARCH_NODES) {
+  const search = (remaining: SlatePlacementInput[], occupied: Set<string>): boolean => {
+    if (++searchNodes > maxSearchNodes) {
       searchLimitReached = true
       return true
     }
-    if (placements.size + remaining.length < bestPlacedCount) return false
+    if (current.size + remaining.length < bestPlacedCount) return false
     if (!remaining.length) {
-      if (placements.size > bestPlacedCount) {
-        bestPlacedCount = placements.size
+      if (current.size > bestPlacedCount) {
+        bestPlacedCount = current.size
         firstSolution.clear()
         ambiguousPlacements.clear()
-        for (const [key, value] of placements) {
-          firstSolution.set(key, { anchor: [...value.anchor] as [number, number], cells: value.cells.map(cell => [...cell] as [number, number]), orientationIndex: value.orientationIndex })
+        for (const [key, value] of current) {
+          firstSolution.set(key, { anchor: [...value.anchor], cells: value.cells.map(cell => [...cell]), orientationIndex: value.orientationIndex })
         }
       } else {
         for (const piece of prepared) {
           const first = firstSolution.get(piece.sourceIndex)
-          const current = placements.get(piece.sourceIndex)
-          if (!!first !== !!current || (first && current && JSON.stringify(first) !== JSON.stringify(current))) {
+          const placement = current.get(piece.sourceIndex)
+          if (!!first !== !!placement || (first && placement && JSON.stringify(first) !== JSON.stringify(placement))) {
             ambiguousPlacements.add(piece.sourceIndex)
           }
         }
@@ -960,26 +919,104 @@ function importLoggedSlates(
       if (cells.some(([r, c]) => r < 0 || r >= 6 || c < 0 || c >= 6
         || !SLATE_BOARD_VALID[r]?.[c] || occupied.has(`${r},${c}`))) continue
       cells.forEach(([r, c]) => occupied.add(`${r},${c}`))
-      placements.set(piece.sourceIndex, { anchor, cells, orientationIndex: layout.orientationIndex })
+      current.set(piece.sourceIndex, { anchor, cells, orientationIndex: layout.orientationIndex })
       if (search(remaining.slice(1), occupied)) return true
       cells.forEach(([r, c]) => occupied.delete(`${r},${c}`))
-      placements.delete(piece.sourceIndex)
+      current.delete(piece.sourceIndex)
     }
     // Keep the largest representable subset so one malformed or incompatible slate does not erase
-    // every independently placeable slate from the imported build.
-    if (placements.size + remaining.length - 1 >= bestPlacedCount && search(remaining.slice(1), occupied)) return true
+    // every independently placeable slate.
+    if (current.size + remaining.length - 1 >= bestPlacedCount && search(remaining.slice(1), occupied)) return true
     return false
   }
   search(prepared, new Set())
-  const resolvedPlacements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
+  const placements = new Map<number, SlatePlacement>()
+  for (const piece of prepared) {
+    const placement = firstSolution.get(piece.sourceIndex)
+    if (placement && !ambiguousPlacements.has(piece.sourceIndex)) placements.set(piece.sourceIndex, placement)
+  }
+  return { placements, bestSolution: firstSolution, ambiguousPlacements, searchLimitReached, hasSolution: bestPlacedCount >= 0 }
+}
+
+function importLoggedSlates(
+  rows: UeLogSlate[], talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; node_type?: string; effects?: string[] }[] }>, pool: SlatePool | null | undefined, warnings: string[],
+): NonNullable<Build['slates']> {
+  const nodesByGameId = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
+  for (const tree of talentTrees) for (const node of tree.nodes ?? []) {
+    if (node.game_id) nodesByGameId.set(node.game_id, { id: node.id, treeName: tree.name, nodeType: node.node_type ?? '', effects: node.effects ?? [] })
+  }
+  for (const option of [...(pool?.magic ?? []), ...(pool?.rare ?? []), ...(pool?.legendary ?? [])]) {
+    if (option.game_id && !nodesByGameId.has(option.game_id)) {
+      nodesByGameId.set(option.game_id, { id: option.nodeId, treeName: option.treeName, nodeType: option.nodeType, effects: option.effects })
+    }
+  }
+  const kindByUniqueId: Record<number, string> = { 1003: 'fallen_starlight', 1005: 'corner_of_divinity', 1010: 'pedigree' }
+  const treeByBaseId: Record<number, string> = { 260504: 'God of Might', 260304: 'God of War', 260306: 'God of War' }
+  const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
+  const prepared = rows.map((row, sourceIndex) => {
+    const kind = row.baseId === 394004 ? 'nether_kings_divinity'
+      : row.uniqueItemId && row.uniqueItemId !== 0 ? kindByUniqueId[row.uniqueItemId] : 'base'
+    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
+    const talentSlots = row.talentSlots.some(slot => slot.talentId)
+      ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }] : [])
+      : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
+    const taggedVariants = kind === 'nether_kings_divinity' ? [...new Set(talentSlots.flatMap(({ gameId, slotIndex }) => {
+      if (slotIndex < 2) return []
+      const variant = netherKingBrandVariant(coreByGameId.get(gameId)?.effects ?? [])
+      return variant ? [variant] : []
+    }))] : []
+    const netherKingVariant: NetherKingVariant = taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment'
+    const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind ?? '']?.length ?? 1
+    const rawOrientation = kind === 'base' ? (row.direction ?? 0) : row.direction === null ? -1 : row.direction - 1
+    const orientationIndex = rawOrientation ?? -1
+    const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
+      ? netherKingVariant === 'judgment'
+        ? (LEGENDARY_ORIENTATIONS[kind] ?? []).map((cells, index) => ({ cells, orientationIndex: index, originOffset: NETHER_KING_ORIGIN_OFFSETS[index] }))
+        : [{
+          cells: netherKingOrientationCells(netherKingVariant, 0), orientationIndex: 0,
+          originOffset: netherKingVariant === 'contamination' ? [0, 0] : [0, 2],
+        }]
+      : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
+    const cellsShape = layouts[0]?.cells
+    if (!kind) {
+      warnings.push(row.baseId === 394004
+        ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
+        : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      return null
+    }
+    if (kind !== 'nether_kings_divinity' && (orientationIndex < 0 || orientationIndex >= orientationCount)) {
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: logged direction ${row.direction ?? 'missing'} is outside the verified range and was left out.`)
+      return null
+    }
+    if (kind === 'corner_of_divinity') {
+      warnings.push(`A Corner of Divinity at board index ${row.index ?? '?'}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
+    }
+    if (kind === 'base') {
+      warnings.push(`Base slate at board index ${row.index}: the ShapeId ${row.shapeId} direction mapping is inferred; confirm its orientation.`)
+    }
+    if (!cellsShape) {
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      return null
+    }
+    if (row.index === null || row.index < 1) {
+      warnings.push('An equipped slate has no valid board index and was left out.')
+      return null
+    }
+    // The log encodes Index as SlotId=10*column+row (1-based); it identifies a cell occupied by the piece.
+    return { row, sourceIndex, kind, shapeIndex: shapeIndex ?? 0, orientationIndex, layouts, netherKingVariant, taggedVariants,
+      indexCell: [(row.index - 1) % 10, Math.floor((row.index - 1) / 10) - 1] as [number, number] }
+  }).filter((piece): piece is NonNullable<typeof piece> => !!piece)
+  const { placements: resolvedPlacements, bestSolution, ambiguousPlacements, searchLimitReached, hasSolution } = resolveSlatePlacements(prepared)
   if (searchLimitReached) {
-    warnings.push('Slate placement search reached its safety limit; placements were left out because their anchors could not be proven unique.')
-  } else if (bestPlacedCount >= 0) {
+    warnings.push('Slate placement search reached its safety limit. The best arrangement found so far was imported; review slate positions in the draft.')
+  }
+  if (hasSolution) {
     for (const piece of prepared) {
-      const placement = firstSolution.get(piece.sourceIndex)
-      if (placement && !ambiguousPlacements.has(piece.sourceIndex)) resolvedPlacements.set(piece.sourceIndex, placement)
-      else if (ambiguousPlacements.has(piece.sourceIndex)) warnings.push(`Slate at board index ${piece.row.index}: its anchor is ambiguous among the best-fitting layouts and was left out.`)
-      else if (!placement) warnings.push(`Slate at board index ${piece.row.index}: it could not fit with the other logged slates and was left out.`)
+      if (ambiguousPlacements.has(piece.sourceIndex)) {
+        warnings.push(`Slate at board index ${piece.row.index}: its anchor is ambiguous among the best-fitting layouts and was left out.`)
+      } else if (!bestSolution.has(piece.sourceIndex)) {
+        warnings.push(`Slate at board index ${piece.row.index}: it could not fit with the other logged slates and was left out.`)
+      }
     }
   }
   return prepared.flatMap(piece => {
@@ -994,13 +1031,6 @@ function importLoggedSlates(
       : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
     const gameIds = gameIdSlots.map(slot => slot.gameId)
     const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
-    const taggedVariants = [...new Set(gameIdSlots.flatMap(({ gameId, slotIndex }) => {
-      if (slotIndex < 2) return []
-      const core = coreByGameId.get(gameId)
-      const variant = core ? netherKingBrandVariant(core.effects) : null
-      return variant ? [variant] : []
-    }))]
-    const netherKingVariant: NetherKingVariant = taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment'
     const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
     gameIdSlots.forEach(({ gameId, slotIndex }) => {
       const slot = slots[slotIndex]
@@ -1018,7 +1048,7 @@ function importLoggedSlates(
           ? belongsToNetherKing && !isBrandNode
           : belongsToNetherKing && isBrandNode
         if (!matchesSlotPool) {
-          const poolName = slotIndex < 2 ? 'fixed Nether King' : 'Judgment branded Nether King'
+          const poolName = slotIndex < 2 ? 'fixed Nether King' : `${piece.netherKingVariant} branded Nether King`
           warnings.push(`Nether King's Divinity at board index ${row.index}: talent ${gameId} does not match its ${poolName} slot and was left empty.`)
           return
         }
@@ -1047,16 +1077,17 @@ function importLoggedSlates(
     })
     const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
       : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
+    if (kind === 'base' && !treeType) warnings.push(`Slate at board index ${row.index}: its talent tree could not be identified from the base item or selected talent IDs; choose the tree manually.`)
     if (kind === 'nether_kings_divinity') {
-      if (taggedVariants.length === 0) {
+      if (piece.taggedVariants.length === 0) {
         warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
-      } else if (taggedVariants.length > 1) {
+      } else if (piece.taggedVariants.length > 1) {
         warnings.push(`Nether King's Divinity at board index ${row.index}: its branded talents identify conflicting variants; imported as Judgment. Confirm the variant and board placement.`)
       }
     }
     return [{ id: `ue-log-slate-${row.index}-${index}`, kind, cells, orientationIndex,
       shapeIndex, anchor, slots, ...(treeType ? { treeType } : {}),
-      ...(kind === 'nether_kings_divinity' ? { netherKingVariant } : {}) }]
+      ...(kind === 'nether_kings_divinity' ? { netherKingVariant: piece.netherKingVariant } : {}) }]
   })
 }
 
@@ -1074,14 +1105,16 @@ function importLoggedPrisms(
     const mappedTreeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
     const anchorPosition = row.anchorTalentId ? loggedTalentCoordinates(row.anchorTalentId) : null
     const anchorPrefix = row.anchorTalentId?.slice(0, 2)
-    const anchor = allNodes.find(node => node.game_id === row.anchorTalentId)
-      ?? (mappedTreeName && anchorPosition ? allNodes.find(node => node.treeName === mappedTreeName
+    const exactAnchor = allNodes.find(node => node.game_id === row.anchorTalentId)
+    const inferredAnchor = !exactAnchor && mappedTreeName && anchorPosition ? allNodes.find(node => node.treeName === mappedTreeName
         && !node.game_id && node.column === anchorPosition.column && node.row === anchorPosition.row
-        && anchorPrefix === UE_LOG_CAREER_GAME_ID_PREFIXES[loggedTree.careerId ?? -1]) : undefined)
+        && anchorPrefix === UE_LOG_CAREER_GAME_ID_PREFIXES[loggedTree.careerId ?? -1]) : undefined
+    const anchor = exactAnchor ?? inferredAnchor
     if (!enriched || !item || !anchor) {
       warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
       return []
     }
+    if (inferredAnchor) warnings.push(`${item.name}: its anchor was matched by inferred grid coordinates; confirm the imported position.`)
     const mappedRarity = row.rarityValue === 3 ? 'rare' : null
     const rarity = mappedRarity && item.rarities.includes(mappedRarity) ? mappedRarity : item.default_rarity
     if (row.rarityValue !== null && (!mappedRarity || !item.rarities.includes(mappedRarity))) {
@@ -1195,6 +1228,7 @@ export function createUeLogBuild(
   }
   const slots: Build['slots'] = [null, null, null, null]
   let unmappedTalentCount = 0
+  let inferredTalentCount = 0
   for (const [index, loggedTree] of (character.talentTrees ?? []).entries()) {
     const mappedNodes = loggedTree.allocations.flatMap(allocation => {
       const known = treeByGameId.get(allocation.id)
@@ -1203,6 +1237,7 @@ export function createUeLogBuild(
       const coordinates = allocation.id.slice(0, 2) === expectedPrefix ? loggedTalentCoordinates(allocation.id) : null
       const positioned = treeName && coordinates ? talentTrees.find(tree => tree.name === treeName)?.nodes?.find(node =>
         !node.game_id && node.column === coordinates.column && node.row === coordinates.row) : undefined
+      if (!known && positioned) inferredTalentCount++
       const node = known ?? (positioned ? { treeName: treeName!, nodeId: positioned.id } : undefined)
       if (!node) {
         unmappedTalentCount++
@@ -1251,6 +1286,9 @@ export function createUeLogBuild(
   if (unmappedTalentCount) {
     warnings.push(`${unmappedTalentCount} allocated talent node${unmappedTalentCount === 1 ? '' : 's'} could not be matched to current TLIDB data and ${unmappedTalentCount === 1 ? 'was' : 'were'} skipped.`)
   }
+  if (inferredTalentCount) {
+    warnings.push(`${inferredTalentCount} allocated talent node${inferredTalentCount === 1 ? ' was' : 's were'} matched by inferred grid coordinates; confirm ${inferredTalentCount === 1 ? 'that node' : 'those nodes'} in the imported tree.`)
+  }
   const importedSlates = importLoggedSlates(character.slates ?? [], talentTrees, referenceCatalogs.slatePool, warnings)
   const importedPrisms = importLoggedPrisms(character, talentTrees, referenceCatalogs.etherealPrisms, warnings)
   // player.FollowServant identifies the cosmetic pet, not the combat follower. The log does not expose
@@ -1258,10 +1296,11 @@ export function createUeLogBuild(
   const importedPactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null] = [null, null, null]
   for (const contract of character.pactContracts ?? []) {
     if (contract.areaId < 1 || contract.areaId > 3) continue
+    const byGameId = pactSpiritCatalog.find(candidate => candidate.game_id === contract.servantId)
     const overrideItemId = UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES[contract.servantId]
-    const spirit = overrideItemId
+    const spirit = byGameId ?? (overrideItemId
       ? pactSpiritCatalog.find(candidate => candidate.item_id === overrideItemId)
-      : pactSpiritCatalog.find(candidate => candidate.game_id === contract.servantId)
+      : undefined)
     if (!spirit) {
       warnings.push(`The pact spirit in battle slot ${contract.areaId} is not present in the current TLIDB catalog.`)
       continue

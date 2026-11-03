@@ -19,7 +19,7 @@ export const BANISHMENT_EFFECTS = [
 
 export const NETHER_KING_VARIANTS: { id: NetherKingVariant; label: string; iconFile: string; summary: string; specialRule: string }[] = [
   { id: 'judgment', label: 'Judgment', iconFile: 'UI_S15Devilblock_shenpan_3_3_112.webp', summary: 'Three cells at the four middle corners', specialRule: 'Increases Divinity Slate Talent effects by 40% along its path between the two other occupied corners. Calculation is not modeled.' },
-  { id: 'contamination', label: 'Contamination', iconFile: 'UI_S15Devilblock_qinran_3_3_112.webp', summary: 'Three cells stacked vertically', specialRule: 'Projects Branded talent effects onto directly adjacent Divinity Slates with -88% Effect for Projected Talents (12% of the base value). Calculation is not modeled.' },
+  { id: 'contamination', label: 'Contamination', iconFile: 'UI_S15Devilblock_qinran_3_3_112.webp', summary: 'Three cells stacked vertically', specialRule: 'Projects Branded talent effects onto directly adjacent Divinity Slates with -88% Effect for Projected Talents. Calculation is not modeled.' },
   { id: 'banishment', label: 'Banishment', iconFile: 'UI_S15Devilblock_fangzhu_3_3_112.webp', summary: 'Three cells in a diagonal line', specialRule: 'Its bonus effect activates when both adjacent and non-adjacent Divinity Slate counts are at least 3. Calculation is not modeled.' },
 ]
 
