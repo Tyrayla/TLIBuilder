@@ -46,7 +46,7 @@ function chunkedFile(text: string, chunkSize = 17): File {
 describe('UE_game.log preview', () => {
   it('describes how repeated login captures are combined', () => {
     expect(describeUeLogCaptureMerge(2)).toBe(
-      'This character has 2 login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.',
+      'This character has 2 login captures. The latest complete entry provides the slate board; if the latest capture is truncated and its slate list is empty, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.',
     )
   })
 
@@ -550,6 +550,19 @@ describe('UE_game.log build conversion', () => {
     expect(group.preview.slates).toEqual([slate])
   })
 
+  it('keeps the earlier slate board when a truncated later capture has no slate entries', () => {
+    const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
+      rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
+    const capture = (dumpNumber: number, modifiedAt: number, slates: typeof slate[], truncatedSections: string[]) => ({
+      fileNumber: dumpNumber,
+      modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], slates, truncatedSections },
+    })
+    const [group] = groupUeLogCaptures([capture(1, 100, [slate], []), capture(2, 200, [], ['...'])])
+
+    expect(group.preview.slates).toEqual([slate])
+  })
+
   it('maps logged talent game IDs into Builder tree slots and node states', () => {
     const result = createUeLogBuild({
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
@@ -919,13 +932,16 @@ describe('UE_game.log build conversion', () => {
       { index: 55, orientationIndex: 3, cells: [[1, 1], [1, 4], [4, 4]] },
     ] as const
     for (const expected of cases) {
-      const { build } = createUeLogBuild({
+      const { build, warnings } = createUeLogBuild({
         dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
         gear: [], skills: [], truncatedSections: [],
         slates: [{ index: expected.index, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null,
           direction: null, rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
       }, [], [])
       expect(build.slates?.[0]).toMatchObject({ orientationIndex: expected.orientationIndex, anchor: [1, 1], cells: expected.cells })
+      if (expected.orientationIndex !== 0) {
+        expect(warnings).toContain(`Nether King's Divinity at board index ${expected.index}: its Judgment placement is inferred from the occupied cell; review its board position.`)
+      }
     }
   })
 
@@ -1004,7 +1020,7 @@ describe('UE_game.log build conversion', () => {
     }, [], [])
 
     expect(result.warnings).toEqual([
-      'The game log omitted some player data, so a few equipped skill details and pact spirit ranks may be incomplete.',
+      'The game log omitted some player data, so slate placement, equipped skill details, or pact spirit ranks may be incomplete.',
     ])
   })
 

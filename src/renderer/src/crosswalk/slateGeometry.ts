@@ -114,8 +114,8 @@ export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
   when_sparks_set_prairie_ablaze: [[[0,0]]],
   space_rift: [[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]]],
   residence_of_stars: [[[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]]],
-  // Three separated 1x1 cells. Index 52 in the verified log is the upper-right
-  // origin; its footprint is the upper-right, lower-left, and lower-right corners.
+  // Three separated 1x1 cells. The log records Index 52; the owner identifies it as upper-right.
+  // The footprint occupies the upper-right, lower-left, and lower-right corners.
   nether_kings_divinity: [
     [[0,3],[3,0],[3,3]],
     [[0,0],[3,0],[3,3]],
@@ -126,7 +126,7 @@ export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
 
 /**
  * The logged origin cell for each Judgment orientation, in the same order as editor placement.
- * The owner's log contains Index 52; the screenshot maps it to upper-right. The remaining offsets follow the
+ * The log contains Index 52; the owner identifies it as upper-right. The remaining offsets follow the
  * owner-confirmed four-corner placement geometry and have not been independently matched to logs.
  */
 export const NETHER_KING_ORIGIN_OFFSETS: Cell[] = [[0,3],[0,0],[3,0],[3,3]]

@@ -56,7 +56,7 @@ export interface UeLogCharacterGroup {
 }
 
 export function describeUeLogCaptureMerge(loginCount: number): string {
-  return `This character has ${loginCount} login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.`
+  return `This character has ${loginCount} login captures. The latest complete entry provides the slate board; if the latest capture is truncated and its slate list is empty, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.`
 }
 
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
@@ -123,7 +123,9 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
       preview: {
         ...capture.preview,
         ...(capture.preview.slates !== undefined || previous?.preview.slates !== undefined
-          ? { slates: capture.preview.slates ?? previous?.preview.slates }
+          ? { slates: capture.preview.truncatedSections.length && capture.preview.slates?.length === 0
+            ? previous?.preview.slates ?? capture.preview.slates
+            : capture.preview.slates ?? previous?.preview.slates }
           : {}),
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
         skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
@@ -1088,8 +1090,9 @@ function importLoggedSlates(
       : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
     if (kind === 'base' && !treeType) warnings.push(`Slate at board index ${row.index}: its talent tree could not be identified from the base item or selected talent IDs; choose the tree manually.`)
     if (kind === 'nether_kings_divinity') {
-      if (piece.netherKingVariant !== 'judgment') {
-        warnings.push(`Nether King's Divinity at board index ${row.index}: the ${piece.netherKingVariant} footprint was inferred from the logged occupied cell; review its board placement.`)
+      if (piece.netherKingVariant !== 'judgment' || orientationIndex !== 0) {
+        const variantLabel = `${piece.netherKingVariant[0]!.toUpperCase()}${piece.netherKingVariant.slice(1)}`
+        warnings.push(`Nether King's Divinity at board index ${row.index}: its ${variantLabel} placement is inferred from the occupied cell; review its board position.`)
       }
       if (piece.taggedVariants.length === 0) {
         warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
@@ -1335,7 +1338,7 @@ export function createUeLogBuild(
   const truncatedSectionCount = character.truncatedSections?.length ?? 0
   if (truncatedSectionCount > 0) {
     warnings.push(
-      'The game log omitted some player data, so a few equipped skill details and pact spirit ranks may be incomplete.',
+      'The game log omitted some player data, so slate placement, equipped skill details, or pact spirit ranks may be incomplete.',
     )
   }
 
