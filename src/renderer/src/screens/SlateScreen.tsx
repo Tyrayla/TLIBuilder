@@ -9,7 +9,7 @@ import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBa
 import { summarizeSlateBonuses } from '../utils/slateBonusSummary'
 import { nextOrientationIndex } from './slateOrientation'
 import { BASE_SLATE_SHAPES as BASE_SHAPES, LEGENDARY_ORIENTATIONS, SLATE_BOARD_VALID as BOARD_VALID } from '../utils/slateGeometry'
-import { BANISHMENT_EFFECTS, DEFAULT_NETHER_KING_VARIANT, NETHER_KING_VARIANTS, findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingIconFile, type NetherKingBanishmentEffect, type NetherKingVariant } from '../utils/netherKingSlate'
+import { BANISHMENT_EFFECTS, DEFAULT_NETHER_KING_VARIANT, NETHER_KING_VARIANTS, findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingIconFile, netherKingOrientationCells, type NetherKingBanishmentEffect, type NetherKingVariant } from '../utils/netherKingSlate'
 
 // One selectable slate modifier option (its effects badged for engine support). Extracted so the
 // status hook isn't called inside the options .map().
@@ -101,8 +101,9 @@ const ROTATION_LABELS = ['↑ 0°', '→ 90°', '↓ 180°', '← 270°']
 
 // ── Legendary orientations ────────────────────────────────────────────────────
 
-function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number): [number, number][] {
+function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, netherKingVariant?: NetherKingVariant): [number, number][] {
   if (kind === 'base') return BASE_SHAPES[shapeIndex]?.rotations[orientationIndex] ?? BASE_SHAPES[0].rotations[0]
+  if (kind === 'nether_kings_divinity') return netherKingOrientationCells(netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT, orientationIndex)
   const orientations = LEGENDARY_ORIENTATIONS[kind as LegendaryKind]
   return orientations?.[orientationIndex] ?? orientations?.[0] ?? [[0, 0]]
 }
@@ -126,15 +127,15 @@ function getCenterOffset(cells: [number, number][]): [number, number] {
   return best
 }
 
-function centeredAnchor(kind: SlateKind, shapeIndex: number, orientationIndex: number, cursor: [number, number]): [number, number] {
-  const cells = getOrientationCells(kind, shapeIndex, orientationIndex)
+function centeredAnchor(kind: SlateKind, shapeIndex: number, orientationIndex: number, cursor: [number, number], netherKingVariant?: NetherKingVariant): [number, number] {
+  const cells = getOrientationCells(kind, shapeIndex, orientationIndex, netherKingVariant)
   const [cr, cc] = getCenterOffset(cells)
   return [cursor[0] - cr, cursor[1] - cc]
 }
 
-function anchorCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, anchor: [number, number]): [number, number][] {
+function anchorCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, anchor: [number, number], netherKingVariant?: NetherKingVariant): [number, number][] {
   const [ar, ac] = anchor
-  return getOrientationCells(kind, shapeIndex, orientationIndex).map(([dr, dc]) => [ar + dr, ac + dc] as [number, number])
+  return getOrientationCells(kind, shapeIndex, orientationIndex, netherKingVariant).map(([dr, dc]) => [ar + dr, ac + dc] as [number, number])
 }
 
 function netherKingPlacement(primary: [number, number], occupied: Map<string, string>, variant: NetherKingVariant) {
@@ -1253,8 +1254,8 @@ export default function SlateScreen({ treeColors }: Props) {
         const dragOccupied = new Map<string, string>()
         for (const item of placed) if (item.id !== slate.id) for (const [r, c] of item.cells) dragOccupied.set(`${r},${c}`, item.id)
         const nk = slate.kind === 'nether_kings_divinity' ? netherKingPlacement(hover, dragOccupied, slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) : null
-        const anchor = nk?.anchor ?? centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
-        const cells = nk?.cells ?? anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor)
+        const anchor = nk?.anchor ?? centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover, slate.netherKingVariant)
+        const cells = nk?.cells ?? anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor, slate.netherKingVariant)
         if ((slate.kind !== 'nether_kings_divinity' || nk) && cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) {
           setPlaced(prev => {
             const moved = prev.find(s => s.id === slate.id)
@@ -1326,8 +1327,8 @@ export default function SlateScreen({ treeColors }: Props) {
     const { slate } = dragSlate
     const nk = slate.kind === 'nether_kings_divinity' ? netherKingPlacement(hover, occupied, slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) : null
     if (slate.kind !== 'nether_kings_divinity' || nk) {
-      const anchor = nk?.anchor ?? centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
-      dragTarget = { cells: nk?.cells ?? anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor), anchor, ...(nk ? { orientationIndex: nk.orientationIndex } : {}) }
+      const anchor = nk?.anchor ?? centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover, slate.netherKingVariant)
+      dragTarget = { cells: nk?.cells ?? anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor, slate.netherKingVariant), anchor, ...(nk ? { orientationIndex: nk.orientationIndex } : {}) }
     }
   }
   // Placed slates as rendered: the dragged slate shown at its live target while moving, and moved to the END so
@@ -1344,8 +1345,8 @@ export default function SlateScreen({ treeColors }: Props) {
       const placement = netherKingPlacement(hover, occupied, creator.netherKingVariant)
       ghostCells = placement?.cells ?? []
     } else {
-      const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover)
-      ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
+      const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover, creator.netherKingVariant)
+      ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor, creator.netherKingVariant)
     }
   }
   const ghostSet = new Set(ghostCells.map(([r, c]) => `${r},${c}`))
@@ -1542,8 +1543,8 @@ export default function SlateScreen({ treeColors }: Props) {
     const nkPlacement = creator.kind === 'nether_kings_divinity' ? netherKingPlacement([row, col], occupied, creator.netherKingVariant) : null
     if (creator.kind === 'nether_kings_divinity' && (!nkPlacement || (creator.netherKingVariant === 'banishment' && !creator.netherKingBanishmentEffect))) return
     const orientationIndex = nkPlacement?.orientationIndex ?? creator.orientationIndex
-    const anchor = nkPlacement?.anchor ?? centeredAnchor(creator.kind, creator.shapeIndex, orientationIndex, [row, col])
-    const cells = nkPlacement?.cells ?? anchorCells(creator.kind, creator.shapeIndex, orientationIndex, anchor)
+    const anchor = nkPlacement?.anchor ?? centeredAnchor(creator.kind, creator.shapeIndex, orientationIndex, [row, col], creator.netherKingVariant)
+    const cells = nkPlacement?.cells ?? anchorCells(creator.kind, creator.shapeIndex, orientationIndex, anchor, creator.netherKingVariant)
     if (!cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) return
 
     const id = `${Date.now()}-${Math.random()}`

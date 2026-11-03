@@ -30,6 +30,14 @@ export const DEFAULT_NETHER_KING_VARIANT: NetherKingVariant = 'judgment'
 
 const JUDGMENT_MIDDLE_CORNERS = new Set(['1,1', '1,4', '4,1', '4,4'])
 
+/** Cell offsets for the selected variant's orientation, shared by placement and template rendering. */
+export function netherKingOrientationCells(variant: NetherKingVariant, orientationIndex: number): SlateCell[] {
+  if (variant === 'judgment') return LEGENDARY_ORIENTATIONS.nether_kings_divinity[orientationIndex] ?? LEGENDARY_ORIENTATIONS.nether_kings_divinity[0]!
+  if (variant === 'contamination') return [[0, 0], [1, 0], [2, 0]]
+  const banishment: SlateCell[][] = [[[0, 2], [1, 1], [2, 0]], [[0, 0], [1, 1], [2, 2]]]
+  return banishment[orientationIndex] ?? banishment[0]!
+}
+
 export function netherKingIconFile(variant?: string | null): string {
   return NETHER_KING_VARIANTS.find(option => option.id === variant)?.iconFile ?? NETHER_KING_VARIANTS[0]!.iconFile
 }
@@ -58,13 +66,13 @@ export function findNetherKingPlacement(
       '4,4': 3,
     }
     const orientationIndex = orientationByPrimary[`${primary[0]},${primary[1]}`]
-    const cells = fits(anchor, LEGENDARY_ORIENTATIONS.nether_kings_divinity[orientationIndex]!)
+    const cells = fits(anchor, netherKingOrientationCells(variant, orientationIndex))
     return cells ? { anchor, orientationIndex, cells } : null
   }
 
   const layouts: SlateCell[][] = variant === 'contamination'
-    ? [[[0, 0], [1, 0], [2, 0]]]
-    : [[[0, 2], [1, 1], [2, 0]], [[0, 0], [1, 1], [2, 2]]]
+    ? [netherKingOrientationCells(variant, 0)]
+    : [netherKingOrientationCells(variant, 0), netherKingOrientationCells(variant, 1)]
   for (const [orientationIndex, offsets] of layouts.entries()) {
     for (const [r, c] of offsets) {
       const anchor: SlateCell = [primary[0] - r, primary[1] - c]

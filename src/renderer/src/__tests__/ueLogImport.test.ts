@@ -537,7 +537,9 @@ describe('UE_game.log build conversion', () => {
           rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
       }, [], [])
       expect(build.slates?.[0]?.kind).toBe(kind)
-      expect(warnings).toEqual([])
+      if (kind === 'corner_of_divinity') {
+        expect(warnings).toContain('A Corner of Divinity at board index 13: its direction mapping is inferred from other unique slates; confirm its orientation.')
+      } else expect(warnings).toEqual([])
     }
   })
 

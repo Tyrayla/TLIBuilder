@@ -124,7 +124,7 @@ export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
   ],
 }
 
-/** Origin-cell offset for each Nether King's Divinity orientation, from the captured game board. */
+/** Judgment origin-cell offsets: orientation 0 matches the captured board; the others follow the owner's four-corner placement rule. */
 export const NETHER_KING_ORIGIN_OFFSETS: Cell[] = [[0,3],[3,3],[3,0],[0,0]]
 
 // Compendium legendary-slate template name → Builder LegendaryKind.

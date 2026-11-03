@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { findNetherKingPlacement } from '../utils/netherKingSlate'
+import { findNetherKingPlacement, netherKingOrientationCells } from '../utils/netherKingSlate'
 import { SLATE_BOARD_VALID } from '../utils/slateGeometry'
 
 describe('findNetherKingPlacement', () => {
+  it('uses variant-specific geometry for template orientations', () => {
+    expect(netherKingOrientationCells('contamination', 0)).toEqual([[0, 0], [1, 0], [2, 0]])
+    expect(netherKingOrientationCells('banishment', 0)).toEqual([[0, 2], [1, 1], [2, 0]])
+    expect(netherKingOrientationCells('banishment', 1)).toEqual([[0, 0], [1, 1], [2, 2]])
+  })
+
   it('anchors Judgment on each allowed middle corner using the shared orientation order', () => {
     const cases = [
       { primary: [1, 1] as [number, number], orientationIndex: 1, cells: [[1, 1], [4, 1], [4, 4]] },

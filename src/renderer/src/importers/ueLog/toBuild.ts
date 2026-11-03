@@ -898,6 +898,9 @@ function importLoggedSlates(
       warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: logged direction ${row.direction ?? 'missing'} is outside the verified range and was left out.`)
       return null
     }
+    if (kind === 'corner_of_divinity') {
+      warnings.push(`A Corner of Divinity at board index ${row.index ?? '?'}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
+    }
     if (!cellsShape) {
       warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
       return null
