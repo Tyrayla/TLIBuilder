@@ -1019,7 +1019,7 @@ function importLoggedSlates(
         warnings.push(`Slate at board index ${row.index}: ${node.nodeType || category} does not fit slot ${slotIndex + 1} on ${kind}; it was left empty.`)
         return
       }
-      Object.assign(slot, { slotType: category, selectedNodeId: node.id, effects: node.effects, nodeType: node.nodeType })
+      Object.assign(slot, { isCore: false, slotType: category, selectedNodeId: node.id, effects: node.effects, nodeType: node.nodeType })
     })
     const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
       : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)

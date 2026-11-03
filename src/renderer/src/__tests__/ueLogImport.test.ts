@@ -656,6 +656,22 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.[0]?.slots[1]).toMatchObject({ selectedNodeId: 'ranger_c3_r4', effects: ['+18 % Melee Damage'] })
   })
 
+  it('clears the core flag when a regular talent fills a core-eligible slate slot', () => {
+    const character: UeLogCharacterPreview = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], talentTrees: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+        ] }],
+    }
+    const trees = [{ name: 'Ranger', nodes: [{ id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] }] }]
+    const slatePool = { magic: [], rare: [], legendary: [], core: [] }
+    const { build } = createUeLogBuild(character, [], [], [], [], [], [], [], trees, [], { slatePool } as any)
+
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({ canBeCore: true, isCore: false, selectedNodeId: 'ranger_c3_r4' })
+  })
+
   it('maps known unique slate IDs to the Builder slate kinds', () => {
     for (const [uniqueItemId, kind] of [[1003, 'fallen_starlight'], [1005, 'corner_of_divinity']] as const) {
       const { build, warnings } = createUeLogBuild({
