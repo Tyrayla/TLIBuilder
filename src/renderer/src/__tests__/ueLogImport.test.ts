@@ -882,8 +882,8 @@ describe('UE_game.log build conversion', () => {
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
       gear: [], skills: [], truncatedSections: [], talentTrees: [],
       slates: [{ index: 52, pageId: -4, baseId: 394005, uniqueItemId: 0, shapeId: null, direction: null,
-        rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
-          { color: null, talentId: '90000062', rarity: null, slotIndex: 2 },
+        rarityValue: 4, baseTalentIds: [], enchantTalentIds: ['90000062'], talentSlots: [
+          { color: null, talentId: '90000062', rarity: null, slotIndex: 0 },
         ] }],
     }
     const slatePool = { magic: [], rare: [], legendary: [], core: [{ key: 'Nether King:Contamination Brand', game_id: '90000062',
@@ -1023,6 +1023,23 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.[0]?.slots.map(slot => slot.selectedNodeId)).toEqual([
       'onslaughter_c6_r1', 'warrior_c4_r4', 'warrior_c3_r0', 'warlord_c6_r4', 'onslaughter_c6_r0',
     ])
+  })
+
+  it('keeps EnchantTalentList when talentSlotList repeats a base slate talent', () => {
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['42070500'], enchantTalentIds: ['43060400'], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]?.selectedNodeId).toBe('ranger_c3_r4')
+    expect(build.slates?.[0]?.slots[2]?.selectedNodeId).toBe('ranger_c4_r3')
   })
 
   it('warns when an empty base slate has no tree association', () => {
