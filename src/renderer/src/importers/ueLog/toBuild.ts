@@ -1011,8 +1011,6 @@ function importLoggedSlates(
   const { placements: resolvedPlacements, bestSolution, ambiguousPlacements, searchLimitReached, hasSolution } = resolveSlatePlacements(prepared)
   if (searchLimitReached) {
     warnings.push('Slate placement search reached its safety limit. The best arrangement found so far was imported; review slate positions in the draft.')
-  }
-  if (searchLimitReached) {
     for (const piece of prepared) {
       if (bestSolution.has(piece.sourceIndex)) {
         if (ambiguousPlacements.has(piece.sourceIndex)) {

@@ -690,7 +690,7 @@ describe('UE_game.log build conversion', () => {
       base_affix_modifiers: [],
       catalog: {
         items: [{ name: 'Ethereal Prism: Miraculous Touch', game_id: 360620, short_name: 'Miraculous Touch', kind: 'ethereal_prism' as const,
-          icon_url: 'https://cdn.tlidb.com/prism.webp', tags: [], detail: [], rarities: ['rare', 'legendary'] as ('rare' | 'legendary')[],
+          icon_url: 'test-prism.webp', tags: [], detail: [], rarities: ['rare', 'legendary'] as ('rare' | 'legendary')[],
           default_rarity: 'legendary' as const, tint_when_rare: true,
           implicit: { kind: 'replace' as const, text: 'Replaces the Core Talent with Miraculous Touch' }, replace_description: 'Effect' }],
         area_size: [{ modifier: 'Effect Area expands to 3 x 2', modifier_id: '12040001', cols: 3, rows: 2 }],
