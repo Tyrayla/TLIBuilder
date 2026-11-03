@@ -115,7 +115,23 @@ describe('UE_game.log preview', () => {
     expect(result.characters[0].talentTrees).toEqual([{
       careerId: 12,
       allocations: [{ id: '12010100', rank: 2 }, { id: '12020100', rank: 1 }],
+      coreTalentSelections: [],
     }])
+  })
+
+  it('clears earlier core choices when a complete later genius record has no bonus choices', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+geniusInfos+info+1+geniusCareerId [4]
+|+geniusInfos+info+1+geniusList+1+geniusId [40010300]
+|+geniusInfos+info+1+geniusList+1+point [3]
+----Socket RecvMessage End----`))
+    const [group] = groupUeLogCaptures([
+      { fileNumber: 1, modifiedAt: 100, preview: { ...result.characters[0]!, dumpNumber: 1,
+        talentTrees: [{ careerId: 4, allocations: [], coreTalentSelections: ['40001200'] }] } },
+      { fileNumber: 2, modifiedAt: 200, preview: { ...result.characters[0]!, dumpNumber: 2 } },
+    ])
+
+    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual([])
   })
 
   it('omits genius nodes without an explicit positive allocation count', async () => {
@@ -130,7 +146,7 @@ describe('UE_game.log preview', () => {
 ----Socket RecvMessage End----`))
 
     expect(result.characters[0]?.talentTrees).toEqual([{
-      careerId: 4, allocations: [{ id: '40010300', rank: 3 }],
+      careerId: 4, allocations: [{ id: '40010300', rank: 3 }], coreTalentSelections: [],
     }])
   })
 

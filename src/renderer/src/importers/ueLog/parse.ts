@@ -357,7 +357,9 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       if (rank === undefined) return []
       return [{ id, rank }]
     })
-    const coreTalentSelections = info.bonusGeniusInfo === undefined ? undefined : entries(info.bonusGeniusInfo).flatMap(entry => {
+    // A complete genius record is a snapshot: no bonusGeniusInfo means no selected core choices.
+    // Truncated captures are handled by groupUeLogCaptures, which retains earlier choices there.
+    const coreTalentSelections = entries(info.bonusGeniusInfo).flatMap(entry => {
       if (!entry || typeof entry !== 'object') return []
       const row = entry as Record<string, unknown>
       const value = row.value && typeof row.value === 'object' ? row.value as Record<string, unknown> : {}
