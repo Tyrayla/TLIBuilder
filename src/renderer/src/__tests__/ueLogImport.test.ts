@@ -344,11 +344,13 @@ describe('UE_game.log build conversion', () => {
       layouts: [
         { cells: [[0, 0]], orientationIndex: 0 },
         { cells: [[0, 1]], orientationIndex: 1 },
+        { cells: [[1, 0]], orientationIndex: 2 },
       ],
-    }], 2)
+    }], 3)
 
     expect(result.searchLimitReached).toBe(true)
     expect(result.placements.get(0)).toEqual({ anchor: [2, 2], cells: [[2, 2]], orientationIndex: 0 })
+    expect(result.ambiguousPlacements.has(0)).toBe(true)
   })
 
   it('imports Sage memory rolls and the Licorice Note selections shown by the current log', () => {
@@ -627,6 +629,20 @@ describe('UE_game.log build conversion', () => {
     ])
 
     expect(group.preview.talentTrees?.[0]?.prism).toEqual(prism)
+  })
+
+  it('keeps earlier core talent choices when a later talent-tree capture is truncated', () => {
+    const capture = (fileNumber: number, modifiedAt: number, coreTalentSelections: string[], truncatedSections: string[] = []) => ({
+      fileNumber, modifiedAt,
+      preview: { dumpNumber: fileNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [], coreTalentSelections }], truncatedSections },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, ['12010100', '12020100']),
+      capture(2, 200, [], ['+geniusInfos+info+1+...']),
+    ])
+
+    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual(['12010100', '12020100'])
   })
 
   it('maps logged core talent game IDs to the catalogued Builder slots', () => {

@@ -109,7 +109,9 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         ...talentTree,
         allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
         ...(talentTree.coreTalentSelections !== undefined
-          ? { coreTalentSelections: talentTree.coreTalentSelections }
+          ? { coreTalentSelections: capture.preview.truncatedSections.length && talentTree.coreTalentSelections.length === 0
+            ? earlier?.coreTalentSelections ?? talentTree.coreTalentSelections
+            : talentTree.coreTalentSelections }
           : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
         // A complete later tree without prismInfo means the prism was removed. If any part of
         // GetPlayerData was truncated, keep the earlier prism because absence is inconclusive.
@@ -933,7 +935,7 @@ export function resolveSlatePlacements(
   const placements = new Map<number, SlatePlacement>()
   for (const piece of prepared) {
     const placement = firstSolution.get(piece.sourceIndex)
-    if (placement && !ambiguousPlacements.has(piece.sourceIndex)) placements.set(piece.sourceIndex, placement)
+    if (placement && (searchLimitReached || !ambiguousPlacements.has(piece.sourceIndex))) placements.set(piece.sourceIndex, placement)
   }
   return { placements, bestSolution: firstSolution, ambiguousPlacements, searchLimitReached, hasSolution: bestPlacedCount >= 0 }
 }
@@ -988,12 +990,6 @@ function importLoggedSlates(
       warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: logged direction ${row.direction ?? 'missing'} is outside the verified range and was left out.`)
       return null
     }
-    if (kind === 'corner_of_divinity') {
-      warnings.push(`A Corner of Divinity at board index ${row.index ?? '?'}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
-    }
-    if (kind === 'base') {
-      warnings.push(`Base slate at board index ${row.index}: the ShapeId ${row.shapeId} direction mapping is inferred; confirm its orientation.`)
-    }
     if (!cellsShape) {
       warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
       return null
@@ -1001,6 +997,12 @@ function importLoggedSlates(
     if (row.index === null || row.index < 1) {
       warnings.push('An equipped slate has no valid board index and was left out.')
       return null
+    }
+    if (kind === 'corner_of_divinity') {
+      warnings.push(`A Corner of Divinity at board index ${row.index}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
+    }
+    if (kind === 'base') {
+      warnings.push(`Base slate at board index ${row.index}: the ShapeId ${row.shapeId} direction mapping is inferred; confirm its orientation.`)
     }
     // The log encodes Index as SlotId=10*column+row (1-based); it identifies a cell occupied by the piece.
     return { row, sourceIndex, kind, shapeIndex: shapeIndex ?? 0, orientationIndex, layouts, netherKingVariant, taggedVariants,
@@ -1010,7 +1012,17 @@ function importLoggedSlates(
   if (searchLimitReached) {
     warnings.push('Slate placement search reached its safety limit. The best arrangement found so far was imported; review slate positions in the draft.')
   }
-  if (hasSolution) {
+  if (searchLimitReached) {
+    for (const piece of prepared) {
+      if (bestSolution.has(piece.sourceIndex)) {
+        if (ambiguousPlacements.has(piece.sourceIndex)) {
+          warnings.push(`Slate at board index ${piece.row.index}: its best-known position was imported, but the placement search hit its limit before ambiguity could be resolved.`)
+        }
+      } else {
+        warnings.push(`Slate at board index ${piece.row.index}: no position was found before the placement search limit; review the imported board.`)
+      }
+    }
+  } else if (hasSolution) {
     for (const piece of prepared) {
       if (ambiguousPlacements.has(piece.sourceIndex)) {
         warnings.push(`Slate at board index ${piece.row.index}: its anchor is ambiguous among the best-fitting layouts and was left out.`)
