@@ -56,7 +56,11 @@ export interface UeLogCharacterGroup {
 }
 
 export function describeUeLogCaptureMerge(loginCount: number): string {
-  return `This character has ${loginCount} login captures. The latest complete entry provides the slate board; if the latest capture is truncated and its slate list is empty, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.`
+  return `This character has ${loginCount} login captures. The latest complete entry provides the slate board; if the slate section is truncated, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.`
+}
+
+function hasTruncatedSection(preview: UeLogCharacterPreview, path: string): boolean {
+  return preview.truncatedSections.some(section => section.replace(/^[| ]+/, '').startsWith(`+${path}+`))
 }
 
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
@@ -87,6 +91,8 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
       ...(previous?.preview.truncatedSections ?? []),
       ...capture.preview.truncatedSections,
     ])
+    const slateSectionTruncated = hasTruncatedSection(capture.preview, 'bag+dressingTalentBlocks')
+    const talentSectionTruncated = hasTruncatedSection(capture.preview, 'geniusInfos')
     const memoriesBySlot = new Map<number, UeLogMemory>()
     for (const memory of previous?.preview.memories ?? []) if (memory.slot !== null) memoriesBySlot.set(memory.slot, memory)
     for (const memory of capture.preview.memories ?? []) if (memory.slot !== null) memoriesBySlot.set(memory.slot, memory)
@@ -109,13 +115,13 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         ...talentTree,
         allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
         ...(talentTree.coreTalentSelections !== undefined
-          ? { coreTalentSelections: capture.preview.truncatedSections.length && talentTree.coreTalentSelections.length === 0
+          ? { coreTalentSelections: talentSectionTruncated && talentTree.coreTalentSelections.length === 0
             ? earlier?.coreTalentSelections ?? talentTree.coreTalentSelections
             : talentTree.coreTalentSelections }
           : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
         // A complete later tree without prismInfo means the prism was removed. If any part of
-        // GetPlayerData was truncated, keep the earlier prism because absence is inconclusive.
-        prism: talentTree.prism ?? (capture.preview.truncatedSections.length ? earlier?.prism : undefined),
+        // Only truncation inside geniusInfos makes absence inconclusive for this prism.
+        prism: talentTree.prism ?? (talentSectionTruncated ? earlier?.prism : undefined),
       })
     }
     groups.set(key, {
@@ -123,8 +129,8 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
       preview: {
         ...capture.preview,
         ...(capture.preview.slates !== undefined || previous?.preview.slates !== undefined
-          ? { slates: capture.preview.truncatedSections.length && capture.preview.slates?.length === 0
-            ? previous?.preview.slates ?? capture.preview.slates
+          ? { slates: slateSectionTruncated && previous?.preview.slates !== undefined
+            ? previous.preview.slates
             : capture.preview.slates ?? previous?.preview.slates }
           : {}),
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),

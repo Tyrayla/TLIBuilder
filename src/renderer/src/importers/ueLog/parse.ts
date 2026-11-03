@@ -393,6 +393,22 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
   })
 }
 
+function findTruncatedSections(body: string): string[] {
+  const sections: string[] = []
+  let parentPath = 'unknown'
+  for (const line of body.split(/\r?\n/)) {
+    if (/^[| ]*\+\d+\+\.\.\./.test(line)) {
+      sections.push(`+${parentPath}+...`)
+      continue
+    }
+    const path = line.match(/^[| ]*\+([^\s\[]+)/)?.[1]
+    if (!path) continue
+    const parts = path.split('+')
+    parentPath = parts[0] === 'bag' ? parts.slice(0, 2).join('+') : parts[0]!
+  }
+  return sections
+}
+
 function loggedSlates(tree: Record<string, unknown>): UeLogSlate[] | undefined {
   const bag = tree.bag as Record<string, unknown> | undefined
   if (!bag || !Object.prototype.hasOwnProperty.call(bag, 'dressingTalentBlocks')) return undefined
@@ -495,7 +511,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     ...(baseMemory?.baseId !== null && baseMemory?.baseId !== undefined ? { baseMemory } : {}),
     ...(pactContracts.length ? { pactContracts } : {}),
     ...(ingredientChoices.length ? { ingredientChoices } : {}),
-    truncatedSections: [...body.matchAll(/^[| ]*\+\d+\+\.\.\./gm)].map(match => match[0].trim()),
+    truncatedSections: findTruncatedSections(body),
   }
 }
 

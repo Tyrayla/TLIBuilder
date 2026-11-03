@@ -46,7 +46,7 @@ function chunkedFile(text: string, chunkSize = 17): File {
 describe('UE_game.log preview', () => {
   it('describes how repeated login captures are combined', () => {
     expect(describeUeLogCaptureMerge(2)).toBe(
-      'This character has 2 login captures. The latest complete entry provides the slate board; if the latest capture is truncated and its slate list is empty, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.',
+      'This character has 2 login captures. The latest complete entry provides the slate board; if the slate section is truncated, the earlier slate board is kept. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.',
     )
   })
 
@@ -98,6 +98,19 @@ describe('UE_game.log preview', () => {
 ----Socket RecvMessage End----`))
 
     expect(result.characters[0].talentTrees).toEqual([])
+  })
+
+  it('records the parent section for list truncation markers', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+bag+dressingTalentBlocks+30+Index [63]
+|+31+...
+|+ServantInfos+servantData+30+servantId [19330]
+|+31+...
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0]?.truncatedSections).toEqual([
+      '+bag+dressingTalentBlocks+...', '+ServantInfos+...',
+    ])
   })
 
   it('reads allocated genius nodes and careers separately from legacy SP3 talent IDs', async () => {
@@ -572,9 +585,46 @@ describe('UE_game.log build conversion', () => {
       modifiedAt,
       preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], slates, truncatedSections },
     })
-    const [group] = groupUeLogCaptures([capture(1, 100, [slate], []), capture(2, 200, [], ['...'])])
+    const [group] = groupUeLogCaptures([capture(1, 100, [slate], []), capture(2, 200, [], ['+bag+dressingTalentBlocks+...'])])
 
     expect(group.preview.slates).toEqual([slate])
+  })
+
+  it('does not replace a full slate board with a partial truncated slate list', () => {
+    const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
+      rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
+    const partialSlate = { ...slate, index: 24 }
+    const capture = (dumpNumber: number, modifiedAt: number, slates: typeof slate[], truncatedSections: string[]) => ({
+      fileNumber: dumpNumber, modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], slates, truncatedSections },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, [slate], []), capture(2, 200, [partialSlate], ['+bag+dressingTalentBlocks+...']),
+    ])
+
+    expect(group.preview.slates).toEqual([slate])
+  })
+
+  it('does not let truncation in an unrelated section preserve stale slates or talents', () => {
+    const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
+      rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
+    const capture = (dumpNumber: number, modifiedAt: number, preview: Partial<UeLogCharacterPreview>) => ({
+      fileNumber: dumpNumber, modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], truncatedSections: [], ...preview },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, { slates: [slate], talentTrees: [{ careerId: 12, allocations: [],
+        coreTalentSelections: ['12010100'], prism: { anchorTalentId: '12060400', baseId: 360620, uniqueItemId: null,
+          rarityValue: 3, prefixAffixes: [], baseAffixes: [], baseAttrAffixes: [], effectPositions: [], replacementTalentId: null } }] }),
+      capture(2, 200, { slates: [], talentTrees: [{ careerId: 12, allocations: [], coreTalentSelections: [] }],
+        truncatedSections: ['+ServantInfos+servantData+...'] }),
+    ])
+
+    expect(group.preview.slates).toEqual([])
+    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual([])
+    expect(group.preview.talentTrees?.[0]?.prism).toBeUndefined()
   })
 
   it('maps logged talent game IDs into Builder tree slots and node states', () => {
