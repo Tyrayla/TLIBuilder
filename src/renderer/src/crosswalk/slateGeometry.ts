@@ -124,8 +124,8 @@ export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
   ],
 }
 
-/** Judgment origin-cell offsets: orientation 0 matches the captured board; the others follow the owner's four-corner placement rule. */
-export const NETHER_KING_ORIGIN_OFFSETS: Cell[] = [[0,3],[3,3],[3,0],[0,0]]
+/** The logged origin cell for each Judgment orientation, in the same order as editor placement. */
+export const NETHER_KING_ORIGIN_OFFSETS: Cell[] = [[0,3],[0,0],[3,0],[3,3]]
 
 // Compendium legendary-slate template name → Builder LegendaryKind.
 const LEGENDARY_TEMPLATE_TO_KIND: Record<string, string> = {

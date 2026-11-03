@@ -461,8 +461,8 @@ allocations marked `inPrismArea`.
 
 The owner screenshot confirms the slate index mapping and the Nether King's Divinity origin and occupied
 cells. The importer uses that origin to resolve its four corner orientations even though this item has no
-`ShapeId` or `Direction`. Its first two slots reuse tree-node entries and its third reuses the Nether King
-core talent entry. `EtherealConfig` has no field for prism affix roll values, so the importer preserves
+`ShapeId` or `Direction`. Its two fixed talent slots and three branded talent slots reuse the matching
+Nether King talent pool entries. `EtherealConfig` has no field for prism affix roll values, so the importer preserves
 recognized affix choices but cannot store those rolls.
 
 The importer does not include combat follower or mercenary state. The inspected player dump does not

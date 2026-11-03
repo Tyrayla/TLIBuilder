@@ -18,7 +18,7 @@ export const BANISHMENT_EFFECTS = [
 ] as const
 
 export const NETHER_KING_VARIANTS: { id: NetherKingVariant; label: string; iconFile: string; summary: string; specialRule: string }[] = [
-  { id: 'judgment', label: 'Judgment', iconFile: 'UI_S15Devilblock_shenpan_3_3_112.webp', summary: 'Three cells at the four middle corners', specialRule: 'Increases Divinity Slate Talent effects along the lines connecting Offspring to Offspring. The SS14 catalog lists a +5% general effect increase, with additional bonuses for specific slate categories. Calculation is not modeled.' },
+  { id: 'judgment', label: 'Judgment', iconFile: 'UI_S15Devilblock_shenpan_3_3_112.webp', summary: 'Three cells at the four middle corners', specialRule: 'Increases Divinity Slate Talent effects by 40% along its path between the two other occupied corners. Calculation is not modeled.' },
   { id: 'contamination', label: 'Contamination', iconFile: 'UI_S15Devilblock_qinran_3_3_112.webp', summary: 'Three cells stacked vertically', specialRule: 'Projects Branded talent effects onto directly adjacent Divinity Slates with -88% Effect for Projected Talents (12% of the base value). Calculation is not modeled.' },
   { id: 'banishment', label: 'Banishment', iconFile: 'UI_S15Devilblock_fangzhu_3_3_112.webp', summary: 'Three cells in a diagonal line', specialRule: 'Its bonus effect activates when both adjacent and non-adjacent Divinity Slate counts are at least 3. Calculation is not modeled.' },
 ]
@@ -26,7 +26,7 @@ export const NETHER_KING_VARIANTS: { id: NetherKingVariant; label: string; iconF
 export const DEFAULT_NETHER_KING_VARIANT: NetherKingVariant = 'judgment'
 
 // Contamination +12% and Banishment threshold 3 match the hydrated SS14 Nether King catalog.
-// Footprints follow the owner's in-game screenshots. Judgment's effect description follows the SS14 Nether King catalog.
+// Footprints and Judgment's +40% path effect follow the owner's in-game screenshots and instructions.
 
 const JUDGMENT_MIDDLE_CORNERS = new Set(['1,1', '1,4', '4,1', '4,4'])
 

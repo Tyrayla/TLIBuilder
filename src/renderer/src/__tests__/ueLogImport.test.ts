@@ -759,6 +759,24 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')?.netherKingVariant).toBe('judgment')
   })
 
+  it('maps each logged Judgment origin to the same orientation as editor placement', () => {
+    const cases = [
+      { index: 22, orientationIndex: 1, cells: [[1, 1], [4, 1], [4, 4]] },
+      { index: 52, orientationIndex: 0, cells: [[1, 4], [4, 1], [4, 4]] },
+      { index: 25, orientationIndex: 2, cells: [[1, 1], [1, 4], [4, 1]] },
+      { index: 55, orientationIndex: 3, cells: [[1, 1], [1, 4], [4, 4]] },
+    ] as const
+    for (const expected of cases) {
+      const { build } = createUeLogBuild({
+        dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
+        gear: [], skills: [], truncatedSections: [],
+        slates: [{ index: expected.index, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null,
+          direction: null, rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
+      }, [], [])
+      expect(build.slates?.[0]).toMatchObject({ orientationIndex: expected.orientationIndex, anchor: [1, 1], cells: expected.cells })
+    }
+  })
+
   it('maps known logged pact game IDs into the three battle slots and warns when rank is missing', () => {
     const character: UeLogCharacterPreview = {
       dumpNumber: 1,
