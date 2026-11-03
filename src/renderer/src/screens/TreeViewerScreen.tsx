@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
-import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
+import { getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
   PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls, EtherealCatalog, EtherealConfig } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import ScreenHeader from '../components/ScreenHeader'
 import LoadingState from '../components/LoadingState'
+import { getTreeCached, peekTree, getEtherealPrismCached, peekEtherealPrism } from '../api/treeCache'
 import PreviewWatermark from '../components/PreviewWatermark'
 import PrismOverlay, { RARE_TINT, condensePrismImplicit } from '../components/PrismOverlay'
 import { isPrimary } from '../treeGroups'
@@ -519,7 +520,8 @@ export default function TreeViewerScreen({
     return 'unused'
   }, [grantedCoreNames, consumedStats, universe])
 
-  const [treeData, setTreeData] = useState<TreeData | null>(null)
+  // Seeded from the session tree cache so a previously opened (or prefetched) tree renders with no loading frame.
+  const [treeData, setTreeData] = useState<TreeData | null>(() => peekTree(treeName) ?? null)
   const [loadError, setLoadError] = useState('')
   const [nodeStates, setNodeStates] = useState<Record<string, number>>(() => previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
   const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(() => previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
@@ -555,8 +557,8 @@ export default function TreeViewerScreen({
   const prismInventory = useBuildStore(s => s.prismInventory)
   const setPrisms = useBuildStore(s => s.setPrisms)
   const setPrismInventory = useBuildStore(s => s.setPrismInventory)
-  const [prismCatalog, setPrismCatalog] = useState<PrismCatalogItem[]>([])
-  const [etherealCat, setEtherealCat] = useState<EtherealCatalog | null>(null)
+  const [prismCatalog, setPrismCatalog] = useState<PrismCatalogItem[]>(() => peekEtherealPrism()?.items ?? [])
+  const [etherealCat, setEtherealCat] = useState<EtherealCatalog | null>(() => peekEtherealPrism()?.catalog ?? null)
   const [prismOverlayOpen, setPrismOverlayOpen] = useState(false)
   const [placingPrism, setPlacingPrism] = useState<CraftedPrism | null>(null)
   const [editingPlaced, setEditingPlaced] = useState<PlacedPrism | null>(null)
@@ -577,17 +579,28 @@ export default function TreeViewerScreen({
     return () => mq.removeEventListener('change', onChange)
   }, [])
   useEffect(() => {
-    api.getEtherealPrism().then(r => { setPrismCatalog(r.items ?? []); setEtherealCat(r.catalog ?? null) }).catch(() => {})
+    getEtherealPrismCached().then(r => { setPrismCatalog(r.items ?? []); setEtherealCat(r.catalog ?? null) }).catch(() => {})
   }, [])
   // The prism installed on THIS tree (Plan 1: ≤1 per tree). previewMode never shows prisms.
   const treePrism = previewMode ? undefined : prisms.find(p => p.treeName === treeName)
 
+  // Trees are season-static and cached for the session (api/treeCache): a cached tree is shown immediately,
+  // and only an uncached one shows the loading state while it fetches. `live` drops a late response for a tree
+  // the user already navigated away from, so it can't overwrite the newer tree. The current load's cancel lives in
+  // a ref so a Retry-started load is cancelled on navigation too (not just the effect-started one).
+  const cancelLoadRef = useRef<() => void>(() => {})
   const loadTree = useCallback(() => {
-    setTreeData(null)
+    cancelLoadRef.current()
+    cancelLoadRef.current = () => {}
     setLoadError('')
-    api.getTree(treeName)
-      .then(data => setTreeData(data))
-      .catch(e => setLoadError(String(e)))
+    const cached = peekTree(treeName)
+    if (cached) { setTreeData(cached); return }
+    setTreeData(null)
+    let live = true
+    cancelLoadRef.current = () => { live = false }
+    getTreeCached(treeName)
+      .then(data => { if (live) setTreeData(data) })
+      .catch(e => { if (live) setLoadError(String(e)) })
   }, [treeName])
 
   useEffect(() => {
@@ -596,7 +609,7 @@ export default function TreeViewerScreen({
     setExpandedSlot(null)   // collapse — a stale index can be out of range for the new tree
     setSearch('')
     loadTree()
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+    return () => { cancelLoadRef.current(); if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
 
   // Re-seed the local view when the active loadout changes. Switching loadouts swaps the resolved

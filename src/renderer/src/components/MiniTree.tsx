@@ -3,7 +3,8 @@
 // deterministic 7×5 SVG grid that TreeViewerScreen draws (same nodeX/nodeY math), but with no interaction,
 // search, or core-talent chrome. Tree data is fetched once per tree name and cached for the session.
 import React, { useEffect, useState } from 'react'
-import { api, TreeData } from '../api/client'
+import type { TreeData } from '../api/client'
+import { getTreeCached } from '../api/treeCache'
 
 const COLS = 7
 const ROWS = 5
@@ -16,14 +17,6 @@ const NODE_R = 28
 
 const nodeX = (col: number) => col * CELL_W + CELL_W / 2
 const nodeY = (row: number) => HEADER + row * CELL_H + CELL_H / 2
-
-// One in-flight/resolved promise per tree name — trees aren't in the reference store, so cache here.
-const _treeCache = new Map<string, Promise<TreeData>>()
-function getTreeCached(name: string): Promise<TreeData> {
-  let p = _treeCache.get(name)
-  if (!p) { p = api.getTree(name); _treeCache.set(name, p) }
-  return p
-}
 
 export function MiniTree({ treeName, nodeId }: { treeName: string; nodeId: string }) {
   const [tree, setTree] = useState<TreeData | null>(null)

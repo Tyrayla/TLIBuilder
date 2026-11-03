@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
-import { api, type TreeSlot } from '../api/client'
+import type { TreeSlot } from '../api/client'
+import { getTreeCached } from '../api/treeCache'
 import NotesEditor from '../components/notes/NotesEditor'
 import type { NoteResolveCtx, NodeIndexEntry } from '../utils/noteEntities'
 
@@ -34,7 +35,7 @@ export default function NotesScreen() {
   )
   useEffect(() => {
     let cancelled = false
-    Promise.all(treeNames.map(n => api.getTree(n).catch(() => null))).then(trees => {
+    Promise.all(treeNames.map(n => getTreeCached(n).catch(() => null))).then(trees => {
       if (cancelled) return
       const out: NodeIndexEntry[] = []
       for (const t of trees) {
