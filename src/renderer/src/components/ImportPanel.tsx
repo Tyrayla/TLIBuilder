@@ -161,7 +161,8 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
           treeSummaries = await api.getTrees()
         } catch { catalogUnavailable = true }
       }
-      if (preview.slates?.length) {
+      const hasCoreTalentSelections = preview.talentTrees?.some(tree => tree.coreTalentSelections?.length)
+      if (preview.slates?.length || hasCoreTalentSelections) {
         try { slatePool = await api.getSlatePoolAll() }
         catch { catalogUnavailable = true }
       }
@@ -183,6 +184,12 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       }
       for (const option of [...(slatePool?.magic ?? []), ...(slatePool?.rare ?? []), ...(slatePool?.legendary ?? []), ...(slatePool?.core ?? [])]) {
         if (option.game_id && relevantSlateIds.has(option.game_id)) treeNames.add(option.treeName)
+      }
+      for (const loggedTree of preview.talentTrees ?? []) {
+        for (const gameId of loggedTree.coreTalentSelections ?? []) {
+          const option = slatePool?.core.find(candidate => candidate.game_id === gameId)
+          if (option) treeNames.add(option.treeName)
+        }
       }
       treeNames.delete('')
       talentTrees = [...treeSummaries]

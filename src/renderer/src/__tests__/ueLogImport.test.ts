@@ -46,7 +46,7 @@ function chunkedFile(text: string, chunkSize = 17): File {
 describe('UE_game.log preview', () => {
   it('describes how repeated login captures are combined', () => {
     expect(describeUeLogCaptureMerge(2)).toBe(
-      'This character has 2 login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined.',
+      'This character has 2 login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.',
     )
   })
 
@@ -115,6 +115,36 @@ describe('UE_game.log preview', () => {
     expect(result.characters[0].talentTrees).toEqual([{
       careerId: 12,
       allocations: [{ id: '12010100', rank: 2, inPrismArea: true }, { id: '12020100', rank: 1 }],
+    }])
+  })
+
+  it('omits genius nodes without an explicit positive allocation count', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+geniusInfos+info+1+geniusCareerId [4]
+|+geniusInfos+info+1+geniusList+1+geniusId [40010300]
+|+geniusInfos+info+1+geniusList+1+point [3]
+|+geniusInfos+info+1+geniusList+2+geniusId [40020200]
+|+geniusInfos+info+1+geniusList+2+prePointNeed [-1]
+|+geniusInfos+info+1+geniusList+2+position+x [2]
+|+geniusInfos+info+1+geniusList+2+position+y [2]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0]?.talentTrees).toEqual([{
+      careerId: 4, allocations: [{ id: '40010300', rank: 3 }],
+    }])
+  })
+
+  it('reads selected core talents from each genius info and skips Prism replacement talents', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+geniusInfos+info+1+geniusCareerId [4]
+|+geniusInfos+info+1+bonusGeniusInfo+1+value+geniusId [40001200]
+|+geniusInfos+info+1+bonusGeniusInfo+2+value+geniusId [40002200]
+|+geniusInfos+info+1+bonusGeniusInfo+3+value+geniusId [80001400]
+|+geniusInfos+info+1+bonusGeniusInfo+3+value+isPrismSkill [true]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0]?.talentTrees).toEqual([{
+      careerId: 4, allocations: [], coreTalentSelections: ['40001200', '40002200'],
     }])
   })
 
@@ -452,6 +482,18 @@ describe('UE_game.log build conversion', () => {
     ])
   })
 
+  it('uses the latest core talent choices for a tree when captures disagree', () => {
+    const capture = (dumpNumber: number, modifiedAt: number, coreTalentSelections: string[]) => ({
+      fileNumber: dumpNumber,
+      modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [],
+        talentTrees: [{ careerId: 4, allocations: [], coreTalentSelections }], truncatedSections: [] },
+    })
+    const [group] = groupUeLogCaptures([capture(1, 100, ['40001200']), capture(2, 200, ['40002200'])])
+
+    expect(group.preview.talentTrees).toEqual([{ careerId: 4, allocations: [], coreTalentSelections: ['40002200'] }])
+  })
+
   it('uses the latest slate board snapshot instead of retaining removed slates', () => {
     const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
       rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
@@ -474,6 +516,26 @@ describe('UE_game.log build conversion', () => {
     expect(result.build.slots).toEqual([
       { treeName: 'Onslaughter', nodeStates: { onslaughter_c0_r0: 2 } }, null, null, null,
     ])
+  })
+
+  it('maps logged core talent game IDs to the catalogued Builder slots', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], talentTrees: [{ careerId: 4, allocations: [], coreTalentSelections: ['40001200', '40002200'] }], truncatedSections: [],
+    }, [], [], [], [], [], [], [], [{
+      name: 'God of War', nodes: [], core_talent_slots: [
+        { options: [{ id: 'god_of_war_blunt', name: 'Blunt', effects: ['+30 % additional Physical Damage', 'Enemies +20 % Injury Buffer (Max Active Divinity: 1)'] }] },
+        { options: [{ id: 'god_of_war_gravity', name: 'Gravity', effects: ['+25 % additional Melee Damage', 'Melee Skill has reversed knockback direction (Max Active Divinity: 1)'] }] },
+      ],
+    }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [
+      { key: 'God of War:god_of_war_blunt', game_id: '40001200', treeName: 'God of War', name: 'Blunt', effects: ['+30 % additional Physical Damage', 'Enemies +20 % Injury Buffer (Max Active Divinity: 1)'] },
+      { key: 'God of War:god_of_war_gravity', game_id: '40002200', treeName: 'God of War', name: 'Gravity', effects: ['+25 % additional Melee Damage', 'Melee Skill has reversed knockback direction (Max Active Divinity: 1)'] },
+    ] } })
+
+    expect(result.build.slots[0]).toEqual({
+      treeName: 'God of War', nodeStates: {}, coreTalentSelections: { '0': 'god_of_war_blunt', '1': 'god_of_war_gravity' },
+    })
+    expect(result.warnings).toEqual([])
   })
 
   it('imports slate effects and Ethereal Prism item and placement by canonical game IDs', () => {

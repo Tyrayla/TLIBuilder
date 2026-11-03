@@ -94,7 +94,12 @@ export interface UeLogCharacterPreview {
   heroPurchaseId: number | null
   gear: UeLogGearItem[]
   skills: UeLogSkillItem[]
-  talentTrees?: Array<{ careerId: number | null; allocations: Array<{ id: string; rank: number; inPrismArea?: boolean }>; prism?: UeLogPrism }>
+  talentTrees?: Array<{
+    careerId: number | null
+    allocations: Array<{ id: string; rank: number; inPrismArea?: boolean }>
+    coreTalentSelections?: string[]
+    prism?: UeLogPrism
+  }>
   slates?: UeLogSlate[]
   followServantId?: number | null
   servantIds?: number[]
@@ -339,9 +344,18 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       const id = String(rawId)
       const rank = ['rank', 'point', 'points', 'talentPoint', 'level', 'value']
         .map(key => numberValue(scalar(row[key] ?? value[key])))
-        .find((n): n is number => n !== null && n > 0) ?? 1
+        .find((n): n is number => n !== null && n > 0)
+      if (rank === undefined) return []
       const inPrismArea = scalar(row.inPrismArea ?? value.inPrismArea) === 'true'
       return [{ id, rank, ...(inPrismArea ? { inPrismArea: true } : {}) }]
+    })
+    const coreTalentSelections = info.bonusGeniusInfo === undefined ? undefined : entries(info.bonusGeniusInfo).flatMap(entry => {
+      if (!entry || typeof entry !== 'object') return []
+      const row = entry as Record<string, unknown>
+      const value = row.value && typeof row.value === 'object' ? row.value as Record<string, unknown> : {}
+      if (scalar(value.isPrismSkill) === 'true') return []
+      const rawId = scalar(row.geniusId ?? value.geniusId)
+      return typeof rawId === 'string' ? [rawId] : []
     })
     const prismInfo = info.prismInfo && typeof info.prismInfo === 'object' ? info.prismInfo as Record<string, unknown> : null
     const prismItem = prismInfo?.item && typeof prismInfo.item === 'object' ? prismInfo.item as Record<string, unknown> : {}
@@ -363,7 +377,9 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       }),
       replacementTalentId: typeof rawReplacement === 'string' ? rawReplacement : null,
     } : undefined
-    return allocations.length || prism ? [{ careerId, allocations, ...(prism ? { prism } : {}) }] : []
+    return allocations.length || prism || coreTalentSelections?.length
+      ? [{ careerId, allocations, ...(coreTalentSelections ? { coreTalentSelections } : {}), ...(prism ? { prism } : {}) }]
+      : []
   })
 }
 

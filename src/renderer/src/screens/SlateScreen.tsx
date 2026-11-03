@@ -232,6 +232,53 @@ function footprintOutline(cells: [number, number][]): [number, number][] {
   return corners.map(([cr, cc]) => [cc * PITCH - GAP / 2, cr * PITCH - GAP / 2] as P)
 }
 
+// Trace every perimeter loop separately. Some slate footprints touch only at diagonal corners;
+// choosing a single outgoing edge per vertex joins those separate boundaries with a false diagonal.
+function footprintOutlineLoops(cells: [number, number][]): [number, number][][] {
+  type GridPoint = [number, number]
+  type Edge = { start: GridPoint; end: GridPoint; direction: number; used: boolean }
+  const occupied = new Set(cells.map(([r, c]) => `${r},${c}`))
+  const has = (r: number, c: number) => occupied.has(`${r},${c}`)
+  const edges: Edge[] = []
+  for (const [r, c] of cells) {
+    if (!has(r - 1, c)) edges.push({ start: [r, c], end: [r, c + 1], direction: 0, used: false })
+    if (!has(r, c + 1)) edges.push({ start: [r, c + 1], end: [r + 1, c + 1], direction: 1, used: false })
+    if (!has(r + 1, c)) edges.push({ start: [r + 1, c + 1], end: [r + 1, c], direction: 2, used: false })
+    if (!has(r, c - 1)) edges.push({ start: [r + 1, c], end: [r, c], direction: 3, used: false })
+  }
+  const key = ([r, c]: GridPoint) => `${r},${c}`
+  const outgoing = new Map<string, Edge[]>()
+  for (const edge of edges) {
+    const list = outgoing.get(key(edge.start)) ?? []
+    list.push(edge)
+    outgoing.set(key(edge.start), list)
+  }
+
+  const loops: [number, number][][] = []
+  for (const first of edges) {
+    if (first.used) continue
+    const start = first.start
+    const gridPoints: GridPoint[] = [start]
+    let edge: Edge | undefined = first
+    for (let guard = 0; edge && guard <= edges.length; guard++) {
+      edge.used = true
+      gridPoints.push(edge.end)
+      if (key(edge.end) === key(start)) break
+      const candidates = (outgoing.get(key(edge.end)) ?? []).filter(candidate => !candidate.used)
+      // Keep the occupied cells on the same side of the walk. A right turn separates diagonal contacts.
+      const turnPriority = [1, 0, 3, 2]
+      candidates.sort((a, b) =>
+        turnPriority.indexOf((a.direction - edge!.direction + 4) % 4)
+        - turnPriority.indexOf((b.direction - edge!.direction + 4) % 4))
+      edge = candidates[0]
+    }
+    if (gridPoints.length > 3 && key(gridPoints[gridPoints.length - 1]) === key(start)) {
+      loops.push(gridPoints.map(([r, c]) => [c * PITCH - GAP / 2, r * PITCH - GAP / 2]))
+    }
+  }
+  return loops
+}
+
 // Drop collinear vertices so edges strictly alternate horizontal/vertical (the per-cell tracer emits one edge
 // per cell side, leaving collinear points along straight runs).
 function simplifyRectilinear(pts: [number, number][]): [number, number][] {
@@ -2003,15 +2050,15 @@ export default function SlateScreen({ treeColors }: Props) {
                     // controls rotation. This prevents different atlas padding from shifting individual tiles.
                     const variant = slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT
                     const [cropX, cropY] = NETHER_KING_TILE_CROPS[variant]
-                    // Keep atlas pixels at native size and center the square tile in the board cell.
-                    // Enlarging the crop to fill the 72px cell made the art blurry and magnified
-                    // transparent padding differently across variants.
+                    // Give every emblem a full-cell viewport and scale its 42px atlas crop with it.
+                    // This keeps each occupied cell filled consistently as the board rotates.
+                    const pieceScale = CELL / 42
                     iconTile = {
-                      position: 'absolute', width: 42, height: 42,
-                      left: (CELL - 42) / 2, top: (CELL - 42) / 2,
+                      position: 'absolute', width: CELL, height: CELL,
+                      left: 0, top: 0,
                       backgroundImage: `url(${slateIconSrc})`,
-                      backgroundSize: '112px 160px',
-                      backgroundPosition: `${-cropX}px ${-cropY}px`,
+                      backgroundSize: `${112 * pieceScale}px ${160 * pieceScale}px`,
+                      backgroundPosition: `${-cropX * pieceScale}px ${-cropY * pieceScale}px`,
                       backgroundRepeat: 'no-repeat',
                       pointerEvents: 'none',
                     }
@@ -2031,7 +2078,9 @@ export default function SlateScreen({ treeColors }: Props) {
                 // Overlay slates stay fully bare — the art + the whole-slate outline do all the drawing, incl.
                 // conflict (red outline) and selection/hover state. No per-cell tint/border.
                 const cellBg = useArtOverlay ? 'transparent' : bg
-                const cellBorder = useArtOverlay ? 'transparent' : borderColor
+                const netherKingUsesWholeOutline = slate?.kind === 'nether_kings_divinity'
+                  && (slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) !== 'judgment'
+                const cellBorder = netherKingUsesWholeOutline || useArtOverlay ? 'transparent' : borderColor
 
                 return (
                   <div key={key}
@@ -2051,7 +2100,9 @@ export default function SlateScreen({ treeColors }: Props) {
                     onMouseLeave={() => { setHoverSlateId(null) }}
                     style={{
                       width: CELL, height: CELL, boxSizing: 'border-box',
-                      backgroundColor: cellBg, ...iconBg, border: `2px solid ${cellBorder}`, borderRadius: 6,
+                      backgroundColor: cellBg, ...iconBg, border: `2px solid ${cellBorder}`,
+                      borderRadius: slate?.kind === 'nether_kings_divinity'
+                        && (slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) === 'judgment' ? 0 : 6,
                       cursor: (creator && mode.type === 'creating') ? 'crosshair' : dragSlate ? 'grabbing' : slate ? 'grab' : 'default',
                       transition: 'border-color 60ms, background-color 60ms',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end',
@@ -2125,9 +2176,11 @@ export default function SlateScreen({ treeColors }: Props) {
             {/* Whole-slate outline: a single frame tracing each art-overlay slate's outer shape (board-space,
                 so it follows the real cells). Brightens when the slate is selected / hovered. */}
             {renderPlaced.map(s => {
-              if (!ART_OVERLAY_KINDS.has(s.kind)) return null
-              const pts = footprintOutline(s.cells)
-              if (!pts.length) return null
+              const netherKingUsesWholeOutline = s.kind === 'nether_kings_divinity'
+                && (s.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) !== 'judgment'
+              if (!ART_OVERLAY_KINDS.has(s.kind) && !netherKingUsesWholeOutline) return null
+              const loops = footprintOutlineLoops(s.cells)
+              if (!loops.length) return null
               const sel = s.id === editingSlateId
               const hov = s.id === hoverSlateId
               const conflict = s.cells.some(([r, c]) => conflictedCells.has(`${r},${c}`))
@@ -2135,7 +2188,7 @@ export default function SlateScreen({ treeColors }: Props) {
               return (
                 <svg key={`out-${s.id}`} width={BOARD_PX} height={BOARD_PX}
                   style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', overflow: 'visible' }}>
-                  <polygon points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={col}
+                  <path d={loops.map(points => `M ${points.map(p => p.join(' ')).join(' L ')} Z`).join(' ')} fill="none" stroke={col}
                     strokeWidth={conflict ? 3.5 : sel ? 3.5 : hov ? 2.5 : 2} strokeOpacity={conflict || sel ? 1 : hov ? 0.95 : 0.7} strokeLinejoin="round" />
                 </svg>
               )

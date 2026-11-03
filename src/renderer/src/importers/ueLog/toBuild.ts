@@ -52,7 +52,7 @@ export interface UeLogCharacterGroup {
 }
 
 export function describeUeLogCaptureMerge(loginCount: number): string {
-  return `This character has ${loginCount} login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined.`
+  return `This character has ${loginCount} login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined; later core talent choices replace earlier choices for the same tree.`
 }
 
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
@@ -104,6 +104,9 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
       treesByCareer.set(talentTree.careerId, {
         ...talentTree,
         allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
+        ...(talentTree.coreTalentSelections !== undefined
+          ? { coreTalentSelections: talentTree.coreTalentSelections }
+          : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
         ...(talentTree.prism ? { prism: talentTree.prism } : earlier?.prism ? { prism: earlier.prism } : {}),
       })
     }
@@ -1100,7 +1103,11 @@ export function createUeLogBuild(
   towerSequences: TowerSequenceEntry[] = [],
   skillCatalog: SkillItem[] = [],
   beltBlends: BeltBlend[] = [],
-  talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; column?: number; row?: number; node_type?: string; effects?: string[]; trait_variants?: { game_id?: string }[] }[] }> = [],
+  talentTrees: Array<{
+    name: string
+    nodes?: { id: string; game_id?: string; column?: number; row?: number; node_type?: string; effects?: string[]; trait_variants?: { game_id?: string }[] }[]
+    core_talent_slots?: { options: { id: string; name: string; effects: string[] }[] }[]
+  }> = [],
   pactSpiritCatalog: PactSpirit[] = [],
   referenceCatalogs: UeLogReferenceCatalogs = {},
 ): UeLogBuildResult {
@@ -1164,13 +1171,42 @@ export function createUeLogBuild(
       }
       return [{ ...allocation, ...node }]
     })
-    const treeName = mappedNodes[0]?.treeName
-    if (!treeName) continue
+    const coreOptions = (loggedTree.coreTalentSelections ?? []).map(gameId => ({
+      gameId,
+      option: referenceCatalogs.slatePool?.core.find(candidate => candidate.game_id === gameId),
+    }))
+    const treeName = mappedNodes[0]?.treeName ?? coreOptions.find(row => row.option)?.option?.treeName
+    if (!treeName) {
+      for (const { gameId } of coreOptions) warnings.push(`Core talent ${gameId} could not be associated with a current talent tree and was skipped.`)
+      continue
+    }
     if (mappedNodes.some(node => node.treeName !== treeName)) {
       warnings.push(`Logged talent allocations for career ${loggedTree.careerId ?? 'unknown'} span multiple trees; only the first tree was imported.`)
     }
     const nodeStates = Object.fromEntries(mappedNodes.filter(node => node.treeName === treeName).map(node => [node.nodeId, node.rank]))
-    if (index < slots.length) slots[index] = { treeName, nodeStates }
+    const coreTalentSelections: Record<string, string> = {}
+    for (const { gameId, option } of coreOptions) {
+      if (!option) {
+        warnings.push(`Core talent ${gameId} could not be matched to the current catalog and was skipped.`)
+        continue
+      }
+      if (option.treeName !== treeName) {
+        warnings.push(`Core talent ${option.name} belongs to ${option.treeName}, not ${treeName}; it was skipped.`)
+        continue
+      }
+      const detail = talentTrees.find(tree => tree.name === treeName)
+      const key = option.key.startsWith(`${treeName}:`) ? option.key.slice(treeName.length + 1).replace(/#\d+$/, '') : ''
+      const slotIndex = detail?.core_talent_slots?.findIndex(slot => slot.options.some(candidate =>
+        candidate.id === key || (candidate.name === option.name && JSON.stringify(candidate.effects) === JSON.stringify(option.effects)))) ?? -1
+      const selected = slotIndex >= 0 ? detail?.core_talent_slots?.[slotIndex]?.options.find(candidate =>
+        candidate.id === key || (candidate.name === option.name && JSON.stringify(candidate.effects) === JSON.stringify(option.effects))) : undefined
+      if (!selected) {
+        warnings.push(`Core talent ${option.name} could not be matched to a selectable slot in ${treeName} and was skipped.`)
+        continue
+      }
+      coreTalentSelections[String(slotIndex)] = selected.id
+    }
+    if (index < slots.length) slots[index] = { treeName, nodeStates, ...(Object.keys(coreTalentSelections).length ? { coreTalentSelections } : {}) }
     else warnings.push(`Talent tree ${treeName} exceeded Builder's four tree slots and was skipped.`)
   }
   if (unmappedTalentCount) {
