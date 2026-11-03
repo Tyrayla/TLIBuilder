@@ -71,7 +71,7 @@ export interface UeLogSlate {
   rarityValue: number | null
   baseTalentIds: string[]
   enchantTalentIds: string[]
-  talentSlots: Array<{ color: string | null; talentId: string | null; rarity: number | null }>
+  talentSlots: Array<{ color: string | null; talentId: string | null; rarity: number | null; slotIndex?: number }>
 }
 
 export interface UeLogPrism {
@@ -129,6 +129,15 @@ function entries(value: unknown): unknown[] {
     .filter(key => /^\d+$/.test(key))
     .sort((a, b) => Number(a) - Number(b))
     .map(key => (value as Record<string, unknown>)[key])
+}
+
+function indexedEntries(value: unknown): Array<[number, unknown]> {
+  if (Array.isArray(value)) return value.map((entry, index) => [index, entry])
+  if (!value || typeof value !== 'object') return []
+  return Object.keys(value as object)
+    .filter(key => /^\d+$/.test(key))
+    .sort((a, b) => Number(a) - Number(b))
+    .map(key => [Math.max(0, Number(key) - 1), (value as Record<string, unknown>)[key]])
 }
 
 function scalar(value: unknown): unknown {
@@ -396,12 +405,12 @@ function loggedSlates(tree: Record<string, unknown>): UeLogSlate[] {
       shapeId: numberValue(scalar(item.ShapeId)), direction: numberValue(scalar(item.Direction)),
       rarityValue: numberValue(scalar(item.RareValue)),
       baseTalentIds: readIds(item.BaseTalentList), enchantTalentIds: readIds(item.EnchantTalentList),
-      talentSlots: entries(item.talentSlotList).flatMap(slot => {
+      talentSlots: indexedEntries(item.talentSlotList).flatMap(([slotIndex, slot]) => {
         if (!slot || typeof slot !== 'object') return []
         const value = slot as Record<string, unknown>
         const talentId = scalar(value.talentId)
         return [{ color: typeof scalar(value.color) === 'string' ? scalar(value.color) as string : null,
-          talentId: typeof talentId === 'string' ? talentId : null, rarity: numberValue(scalar(value.rarity)) }]
+          talentId: typeof talentId === 'string' ? talentId : null, rarity: numberValue(scalar(value.rarity)), slotIndex }]
       }),
     }]
   })

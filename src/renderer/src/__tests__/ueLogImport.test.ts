@@ -157,6 +157,8 @@ describe('UE_game.log preview', () => {
 |+bag+dressingTalentBlocks+1+Item+Direction [1]
 |+bag+dressingTalentBlocks+1+Item+BaseTalentList+1 [42070500]
 |+bag+dressingTalentBlocks+1+Item+EnchantTalentList+1 [43060400]
+|+bag+dressingTalentBlocks+1+Item+talentSlotList+1+color [Blue]
+|+bag+dressingTalentBlocks+1+Item+talentSlotList+2+talentId [42070500]
 |+geniusInfos+info+1+geniusCareerId [12]
 |+geniusInfos+info+1+geniusList+1+geniusId [12060300]
 |+geniusInfos+info+1+geniusList+1+rank [2]
@@ -173,7 +175,10 @@ describe('UE_game.log preview', () => {
 
     expect(result.characters[0].slates).toEqual([{
       index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1, rarityValue: null,
-      baseTalentIds: ['42070500'], enchantTalentIds: ['43060400'], talentSlots: [],
+      baseTalentIds: ['42070500'], enchantTalentIds: ['43060400'], talentSlots: [
+        { color: 'Blue', talentId: null, rarity: null, slotIndex: 0 },
+        { color: null, talentId: '42070500', rarity: null, slotIndex: 1 },
+      ],
     }])
     expect(result.characters[0].talentTrees?.[0]).toMatchObject({
       careerId: 12,
@@ -601,6 +606,24 @@ describe('UE_game.log build conversion', () => {
     } as any)
     expect(unverifiedRarity.build.prisms?.[0]?.ethereal?.rarity).toBe('rare')
     expect(unverifiedRarity.warnings).toContain('Ethereal Prism: Miraculous Touch: logged prism rarity 4 has no verified mapping; the catalog default was used.')
+  })
+
+  it('keeps slate talent IDs in their logged slot when earlier slots are empty', () => {
+    const character: UeLogCharacterPreview = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], talentTrees: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
+          { color: 'Blue', talentId: null, rarity: null, slotIndex: 0 },
+          { color: null, talentId: '42070500', rarity: null, slotIndex: 1 },
+        ] }],
+    }
+    const trees = [{ name: 'Ranger', nodes: [{ id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] }] }]
+    const slatePool = { magic: [], rare: [{ nodeId: 'ranger_c3_r4', game_id: '42070500', treeName: 'Ranger', nodeType: 'Medium Talent', effects: ['+18 % Melee Damage'] }], legendary: [], core: [] }
+    const { build } = createUeLogBuild(character, [], [], [], [], [], [], [], trees, [], { slatePool } as any)
+
+    expect(build.slates?.[0]?.slots[0]?.selectedNodeId).toBeNull()
+    expect(build.slates?.[0]?.slots[1]).toMatchObject({ selectedNodeId: 'ranger_c3_r4', effects: ['+18 % Melee Damage'] })
   })
 
   it('maps known unique slate IDs to the Builder slate kinds', () => {

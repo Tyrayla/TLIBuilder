@@ -980,12 +980,15 @@ function importLoggedSlates(
     const placement = resolvedPlacements.get(index)
     if (!placement) return []
     const { anchor, cells, orientationIndex } = placement
-    const gameIds = row.talentSlots.some(slot => slot.talentId)
-      ? row.talentSlots.flatMap(slot => slot.talentId ? [slot.talentId] : [])
-      : [...row.baseTalentIds, ...row.enchantTalentIds]
+    const gameIdSlots = row.talentSlots.some(slot => slot.talentId)
+      ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId
+        ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }]
+        : [])
+      : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
+    const gameIds = gameIdSlots.map(slot => slot.gameId)
     const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
     const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
-    gameIds.forEach((gameId, slotIndex) => {
+    gameIdSlots.forEach(({ gameId, slotIndex }) => {
       const slot = slots[slotIndex]
       if (!slot) {
         warnings.push(`Slate at board index ${row.index}: logged talent ${gameId} exceeds the Builder's ${kind} slots and was left out.`)
