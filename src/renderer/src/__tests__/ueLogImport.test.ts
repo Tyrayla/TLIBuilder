@@ -996,6 +996,27 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.[0]?.slots[4]).toMatchObject({ selectedCoreKey: 'Nether King:brand-b', isCore: true })
   })
 
+  it('maps a compact Nether King talentSlotList to all three branded slots without EnchantTalentList', () => {
+    const core = ['92100017', '92100011', '92100012'].map((game_id, index) => ({
+      key: `Nether King:brand-${index}`, game_id, treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node',
+      name: `Brand ${index}`, effects: [`Branded effect ${index}`],
+    }))
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: ['90000202'], enchantTalentIds: [], talentSlots: [
+          { color: null, talentId: '92100017', rarity: null, slotIndex: 0 },
+          { color: null, talentId: '92100011', rarity: null, slotIndex: 1 },
+          { color: null, talentId: '92100012', rarity: null, slotIndex: 2 },
+        ] }],
+    }, [], [], [], [], [], [], [], [], [], { slatePool: { magic: [], rare: [], legendary: [], core } } as any)
+
+    expect(build.slates?.[0]?.slots.slice(2, 5).map(slot => slot.selectedCoreKey)).toEqual([
+      'Nether King:brand-0', 'Nether King:brand-1', 'Nether King:brand-2',
+    ])
+  })
+
   it('keeps base slate talents and enchant slots instead of dropping the fixed notes', () => {
     const { build } = createUeLogBuild({
       dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,

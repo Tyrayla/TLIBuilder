@@ -1000,10 +1000,27 @@ function importLoggedSlates(
     if ((kind === 'base' || kind === 'nether_kings_divinity') && (row.baseTalentIds.length > 0 || row.enchantTalentIds.length > 0)) {
       const fixed = row.baseTalentIds.map((gameId, slotIndex) => ({ gameId, slotIndex }))
       const branded = row.enchantTalentIds.length > 0
-        ? row.enchantTalentIds.map((gameId, slotIndex) => ({ gameId, slotIndex: slotIndex + 2 }))
-        : row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId && (slot.slotIndex ?? arrayIndex) >= 2
-          ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }]
-          : [])
+        ? (() => {
+          const loggedBrandedSlots = row.enchantTalentIds.flatMap(gameId => {
+            const slot = row.talentSlots.find(candidate => candidate.talentId === gameId)
+            return slot?.slotIndex !== undefined ? [slot.slotIndex] : []
+          })
+          const indexesAreBuilderSlots = loggedBrandedSlots.some(slotIndex => slotIndex > 2)
+          return row.enchantTalentIds.map((gameId, index) => {
+            const loggedIndex = row.talentSlots.find(slot => slot.talentId === gameId)?.slotIndex
+            const localIndex = loggedIndex === undefined ? index : indexesAreBuilderSlots ? loggedIndex - 2 : loggedIndex
+            return { gameId, slotIndex: localIndex + 2 }
+          })
+        })()
+        : (() => {
+          const compactBrandedList = row.talentSlots.length === 3 && row.talentSlots.every((slot, index) => (slot.slotIndex ?? index) < 3)
+          return row.talentSlots.flatMap((slot, arrayIndex) => {
+            if (!slot.talentId || (slot.slotIndex ?? arrayIndex) < 2 && row.baseTalentIds.includes(slot.talentId)) return []
+            const sourceIndex = slot.slotIndex ?? arrayIndex
+            if (compactBrandedList) return [{ gameId: slot.talentId, slotIndex: sourceIndex + 2 }]
+            return sourceIndex >= 2 ? [{ gameId: slot.talentId, slotIndex: sourceIndex }] : []
+          })
+        })()
       return [...fixed, ...branded]
     }
     return row.talentSlots.some(slot => slot.talentId)
@@ -1024,10 +1041,12 @@ function importLoggedSlates(
     const netherKingVariant: NetherKingVariant = baseVariant ?? (taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment')
     const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind ?? '']?.length ?? 1
     const rawOrientation = kind === 'base' ? (row.direction ?? 0) : row.direction === null ? -1 : row.direction - 1
-    const orientationIndex = kind !== 'base' && rawOrientation >= 0 && rawOrientation < 4 && orientationCount > 0
+    // Square-grid shapes have 1, 2, or 4 distinct rotations; only those counts can safely collapse the game's four directions.
+    const canCollapseSymmetricRotations = orientationCount === 1 || orientationCount === 2 || orientationCount === 4
+    const orientationIndex = kind !== 'base' && rawOrientation >= 0 && rawOrientation < 4 && canCollapseSymmetricRotations
       ? rawOrientation % orientationCount
       : rawOrientation
-    if (kind !== 'base' && rawOrientation >= orientationCount && rawOrientation < 4) {
+    if (kind !== 'base' && canCollapseSymmetricRotations && rawOrientation >= orientationCount && rawOrientation < 4) {
       warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: symmetric-shape direction mapping is inferred; confirm orientation ${row.direction}.`)
     }
     const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
@@ -1104,17 +1123,6 @@ function importLoggedSlates(
       }
       const core = coreByGameId.get(gameId)
       const node = nodeForGameId(gameId)
-      if (kind === 'nether_kings_divinity') {
-        const candidate = core ?? node
-        const belongsToNetherKing = candidate?.treeName === 'Nether King'
-        const isNetherKingBrand = candidate?.treeName === 'Nether King' && candidate.nodeType === 'Ultimate Nether King Talent Node'
-        const isWrongSlot = slotIndex < 2 ? !belongsToNetherKing || isNetherKingBrand : !isNetherKingBrand
-        if (candidate && isWrongSlot) {
-          // Preserve the logged choice but surface that its catalog classification is unusual.
-          const expected = slotIndex < 2 ? 'fixed' : 'branded'
-          warnings.push(`Nether King's Divinity at board index ${row.index}: talent ${gameId} does not match its ${expected} slot classification; confirm this talent.`)
-        }
-      }
       if (core) {
         if (!slot.canBeCore) {
           warnings.push(`Slate at board index ${row.index}: ${core.name} is a Core Talent, but the Builder's ${kind} slate has no Core Talent slot; it was left out.`)
