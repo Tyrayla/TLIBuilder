@@ -1,6 +1,5 @@
 import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type PrismCatalog, type SavedSlateSlot, type SlatePool, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
 import { initSlateSlots, LEGENDARY_ORIENTATIONS, NETHER_KING_ORIGIN_OFFSETS } from '../../crosswalk/slateGeometry'
-import { isNetherKingBrandNodeForVariant } from '../../utils/netherKingSlate'
 import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
 
 // Owner-confirmed servant identity where the current spirit catalog does not expose a servant game ID.
@@ -1006,7 +1005,7 @@ function importLoggedSlates(
         const belongsToNetherKing = candidate?.treeName === 'Nether King'
         const matchesSlotPool = slotIndex < 2
           ? belongsToNetherKing && !isBrandNode
-          : belongsToNetherKing && isBrandNode && isNetherKingBrandNodeForVariant(candidate.effects, 'judgment')
+          : belongsToNetherKing && isBrandNode
         if (!matchesSlotPool) {
           const poolName = slotIndex < 2 ? 'fixed Nether King' : 'Judgment branded Nether King'
           warnings.push(`Nether King's Divinity at board index ${row.index}: talent ${gameId} does not match its ${poolName} slot and was left empty.`)

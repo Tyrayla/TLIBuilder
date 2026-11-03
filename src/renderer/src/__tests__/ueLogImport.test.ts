@@ -672,7 +672,7 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.[0]?.slots[0]).toMatchObject({ canBeCore: true, isCore: false, selectedNodeId: 'nether_king_fixed_1' })
   })
 
-  it('leaves a branded node empty when it does not match the imported Nether King variant', () => {
+  it('preserves a branded node when the log does not identify its Nether King variant', () => {
     const character: UeLogCharacterPreview = {
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
       gear: [], skills: [], truncatedSections: [], talentTrees: [],
@@ -686,8 +686,10 @@ describe('UE_game.log build conversion', () => {
       effects: ['When Contamination is active, +12% Projection Effect'] }] }
     const { build, warnings } = createUeLogBuild(character, [], [], [], [], [], [], [], [], [], { slatePool } as any)
 
-    expect(build.slates?.[0]?.slots[2]).toMatchObject({ selectedCoreKey: null, selectedNodeId: null })
-    expect(warnings).toContain("Nether King's Divinity at board index 52: talent 90000062 does not match its Judgment branded Nether King slot and was left empty.")
+    expect(build.slates?.[0]?.slots[2]).toMatchObject({ selectedCoreKey: 'Nether King:Contamination Brand', isCore: true,
+      effects: ['When Contamination is active, +12% Projection Effect'] })
+    expect(build.slates?.[0]?.netherKingVariant).toBe('judgment')
+    expect(warnings).toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
   })
 
   it('maps known unique slate IDs to the Builder slate kinds', () => {
