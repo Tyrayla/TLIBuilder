@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingOrientationCells } from '../utils/netherKingSlate'
+import { findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingOrientationCells, netherKingTemplateMetadata } from '../utils/netherKingSlate'
 import { SLATE_BOARD_VALID } from '../utils/slateGeometry'
 
 describe('findNetherKingPlacement', () => {
@@ -44,5 +44,14 @@ describe('Nether King branded talent filtering', () => {
     expect(isNetherKingBrandNodeForVariant(banishment, 'judgment')).toBe(false)
     expect(isNetherKingBrandNodeForVariant(['+9 % damage'], 'judgment')).toBe(true)
     expect(isNetherKingBrandNodeForVariant(['When Judgment is discussed, When Banishment is active, +3 % Aura Effect'], 'judgment')).toBe(false)
+  })
+})
+
+describe('Nether King template metadata', () => {
+  it('does not add Nether King fields to other slate kinds', () => {
+    expect(netherKingTemplateMetadata('base', 'judgment')).toEqual({})
+    expect(netherKingTemplateMetadata('nether_kings_divinity', 'banishment', 'shadow_strike')).toEqual({
+      netherKingVariant: 'banishment', netherKingBanishmentEffect: 'shadow_strike',
+    })
   })
 })

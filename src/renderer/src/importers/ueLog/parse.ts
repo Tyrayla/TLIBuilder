@@ -387,7 +387,7 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       }),
       replacementTalentId: typeof rawReplacement === 'string' ? rawReplacement : null,
     } : undefined
-    return allocations.length || prism || coreTalentSelections?.length
+    return allocations.length || prism || coreTalentSelections.length || careerId !== null
       ? [{ careerId, allocations, ...(coreTalentSelections ? { coreTalentSelections } : {}), ...(prism ? { prism } : {}) }]
       : []
   })

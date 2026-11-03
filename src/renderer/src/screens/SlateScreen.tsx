@@ -9,7 +9,7 @@ import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBa
 import { summarizeSlateBonuses } from '../utils/slateBonusSummary'
 import { nextOrientationIndex } from './slateOrientation'
 import { BASE_SLATE_SHAPES as BASE_SHAPES, LEGENDARY_ORIENTATIONS, SLATE_BOARD_VALID as BOARD_VALID } from '../utils/slateGeometry'
-import { BANISHMENT_EFFECTS, DEFAULT_NETHER_KING_VARIANT, NETHER_KING_VARIANTS, findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingIconFile, netherKingOrientationCells, type NetherKingBanishmentEffect, type NetherKingVariant } from '../utils/netherKingSlate'
+import { BANISHMENT_EFFECTS, DEFAULT_NETHER_KING_VARIANT, NETHER_KING_VARIANTS, findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingIconFile, netherKingOrientationCells, netherKingTemplateMetadata, type NetherKingBanishmentEffect, type NetherKingVariant } from '../utils/netherKingSlate'
 
 // One selectable slate modifier option (its effects badged for engine support). Extracted so the
 // status hook isn't called inside the options .map().
@@ -557,7 +557,7 @@ function toTemplate(s: PlacedSlate): SlateTemplate {
     id: s.templateId,
     kind: s.kind, orientationIndex: s.orientationIndex, shapeIndex: s.shapeIndex,
     slots: s.slots.map(sl => ({ ...sl })),
-    treeType: s.treeType, mothDirection: s.mothDirection, netherKingVariant: s.netherKingVariant, netherKingBanishmentEffect: s.netherKingBanishmentEffect,
+    treeType: s.treeType, mothDirection: s.mothDirection, ...netherKingTemplateMetadata(s.kind, s.netherKingVariant, s.netherKingBanishmentEffect),
   }
 }
 
@@ -567,7 +567,8 @@ function creatorToTemplate(c: CreatorState, id: string): SlateTemplate {
     id,
     kind: c.kind, orientationIndex: c.orientationIndex, shapeIndex: c.shapeIndex,
     slots: c.slots.map(sl => ({ ...sl })),
-    treeType: c.treeType ?? undefined, mothDirection: c.mothDirection ?? undefined, netherKingVariant: c.netherKingVariant, netherKingBanishmentEffect: c.netherKingBanishmentEffect ?? undefined,
+    treeType: c.treeType ?? undefined, mothDirection: c.mothDirection ?? undefined,
+    ...netherKingTemplateMetadata(c.kind, c.netherKingVariant, c.netherKingBanishmentEffect),
   }
 }
 

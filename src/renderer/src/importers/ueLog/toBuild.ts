@@ -1129,6 +1129,12 @@ function importLoggedPrisms(
       warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
       return []
     }
+    const anchorCol = anchor.column ?? anchorPosition?.column
+    const anchorRow = anchor.row ?? anchorPosition?.row
+    if (anchorCol === undefined || anchorRow === undefined) {
+      warnings.push(`${item.name}: its anchor has no usable grid coordinates; the prism was left out.`)
+      return []
+    }
     if (inferredAnchor) warnings.push(`${item.name}: its anchor was matched by inferred grid coordinates; confirm the imported position.`)
     const mappedRarity = row.rarityValue === 3 ? 'rare' : null
     const rarity = mappedRarity && item.rarities.includes(mappedRarity) ? mappedRarity : item.default_rarity
@@ -1174,7 +1180,7 @@ function importLoggedPrisms(
         ...(row.replacementTalentId ? { replacementTalentId: row.replacementTalentId } : {}) },
       // Ethereal prisms change effects on the real allocated tree nodes. The Builder's boxAllocations field
       // represents Inverse Image copies only; keep it empty here.
-      treeName: anchor.treeName, anchorCol: anchor.column ?? 0, anchorRow: anchor.row ?? 0, boxAllocations: {},
+      treeName: anchor.treeName, anchorCol, anchorRow, boxAllocations: {},
     }]
   })
 }

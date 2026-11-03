@@ -25,6 +25,15 @@ export const NETHER_KING_VARIANTS: { id: NetherKingVariant; label: string; iconF
 
 export const DEFAULT_NETHER_KING_VARIANT: NetherKingVariant = 'judgment'
 
+/** Persist Nether King metadata only on Nether King slate templates. */
+export function netherKingTemplateMetadata(kind: string, variant?: NetherKingVariant, banishmentEffect?: NetherKingBanishmentEffect | null) {
+  if (kind !== 'nether_kings_divinity') return {}
+  return {
+    ...(variant ? { netherKingVariant: variant } : {}),
+    ...(banishmentEffect ? { netherKingBanishmentEffect: banishmentEffect } : {}),
+  }
+}
+
 // Contamination +12% and Banishment threshold 3 match the hydrated SS14 Nether King catalog.
 // The owner supplied Judgment's +40% path effect; it has not been independently verified or modeled.
 

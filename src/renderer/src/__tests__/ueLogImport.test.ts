@@ -122,8 +122,6 @@ describe('UE_game.log preview', () => {
   it('clears earlier core choices when a complete later genius record has no bonus choices', async () => {
     const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
 |+geniusInfos+info+1+geniusCareerId [4]
-|+geniusInfos+info+1+geniusList+1+geniusId [40010300]
-|+geniusInfos+info+1+geniusList+1+point [3]
 ----Socket RecvMessage End----`))
     const [group] = groupUeLogCaptures([
       { fileNumber: 1, modifiedAt: 100, preview: { ...result.characters[0]!, dumpNumber: 1,
