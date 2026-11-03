@@ -126,7 +126,7 @@ export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
 
 /**
  * The logged origin cell for each Judgment orientation, in the same order as editor placement.
- * Index 52 -> upper-right is observed in the owner's log; the remaining offsets follow the
+ * The owner's log contains Index 52; the screenshot maps it to upper-right. The remaining offsets follow the
  * owner-confirmed four-corner placement geometry and have not been independently matched to logs.
  */
 export const NETHER_KING_ORIGIN_OFFSETS: Cell[] = [[0,3],[0,0],[3,0],[3,3]]
