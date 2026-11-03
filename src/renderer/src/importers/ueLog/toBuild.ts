@@ -14,6 +14,20 @@ export const UE_LOG_CAREER_TREE_NAMES: Record<number, string> = {
 const UE_LOG_CAREER_GAME_ID_PREFIXES: Record<number, string> = {
   1: '10', 12: '12', 4: '40', 42: '42', 62: '62', 54: '54',
 }
+// F27: the first two digits of a talent game_id are the career/tree prefix.
+// These mappings come from the exact TLIDB talent_id join recorded in the investigation.
+export const UE_LOG_GAME_ID_TREE_NAMES: Record<string, string> = {
+  '10': 'God of Might', '11': 'The Brave', '12': 'Onslaughter', '13': 'Warlord', '14': 'Warrior',
+  '20': 'Goddess of Hunting', '21': 'Marksman', '22': 'Bladerunner', '23': 'Druid', '24': 'Assassin',
+  '30': 'Goddess of Knowledge', '31': 'Magister', '32': 'Arcanist', '33': 'Elementalist', '34': 'Prophet',
+  '40': 'God of War', '41': 'Shadowdancer', '42': 'Ronin', '43': 'Ranger', '44': 'Sentinel',
+  '50': 'Goddess of Deception', '51': 'Shadowmaster', '52': 'Psychic', '53': 'Warlock', '54': 'Lich',
+  '60': 'God of Machines', '61': 'Machinist', '62': 'Steel Vanguard', '63': 'Alchemist', '64': 'Artisan',
+}
+// TLIDB's Nether King's Divinity item records expose one internal ID per variant.
+const NETHER_KING_VARIANT_BY_BASE_ID: Record<number, NetherKingVariant> = {
+  394004: 'judgment', 394005: 'contamination', 394006: 'banishment',
+}
 
 function loggedTalentCoordinates(gameId: string): { column: number; row: number } | null {
   const match = /^(\d{2})(\d{2})(\d{2})/.exec(gameId)
@@ -949,7 +963,7 @@ export function resolveSlatePlacements(
 }
 
 function importLoggedSlates(
-  rows: UeLogSlate[], talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; node_type?: string; effects?: string[] }[] }>, pool: SlatePool | null | undefined, warnings: string[],
+  rows: UeLogSlate[], talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; column?: number; row?: number; node_type?: string; effects?: string[] }[] }>, pool: SlatePool | null | undefined, warnings: string[],
 ): NonNullable<Build['slates']> {
   const nodesByGameId = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
   for (const tree of talentTrees) for (const node of tree.nodes ?? []) {
@@ -960,25 +974,46 @@ function importLoggedSlates(
       nodesByGameId.set(option.game_id, { id: option.nodeId, treeName: option.treeName, nodeType: option.nodeType, effects: option.effects })
     }
   }
+  const nodesByCareerPosition = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
+  for (const [prefix, treeName] of Object.entries(UE_LOG_GAME_ID_TREE_NAMES)) {
+    for (const node of talentTrees.find(tree => tree.name === treeName)?.nodes ?? []) {
+      if (node.column === undefined || node.row === undefined) continue
+      nodesByCareerPosition.set(`${prefix}:${node.column}:${node.row}`, {
+        id: node.id, treeName, nodeType: node.node_type ?? '', effects: node.effects ?? [],
+      })
+    }
+  }
+  const nodeForGameId = (gameId: string) => {
+    const exact = nodesByGameId.get(gameId)
+    if (exact) return exact
+    const coordinates = loggedTalentCoordinates(gameId)
+    const prefix = gameId.slice(0, 2)
+    return coordinates ? nodesByCareerPosition.get(`${prefix}:${coordinates.column}:${coordinates.row}`) : undefined
+  }
   const kindByUniqueId: Record<number, string> = { 1003: 'fallen_starlight', 1005: 'corner_of_divinity', 1010: 'pedigree' }
   const treeByBaseId: Record<number, string> = { 260504: 'God of Might', 260304: 'God of War', 260306: 'God of War' }
   const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
   const prepared = rows.map((row, sourceIndex) => {
-    const kind = row.baseId === 394004 ? 'nether_kings_divinity'
+    const kind = NETHER_KING_VARIANT_BY_BASE_ID[row.baseId ?? -1] ? 'nether_kings_divinity'
       : row.uniqueItemId && row.uniqueItemId !== 0 ? kindByUniqueId[row.uniqueItemId] : 'base'
-    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
+    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4, 1045: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
     const talentSlots = row.talentSlots.some(slot => slot.talentId)
       ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }] : [])
       : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
+    const usesSeparateNetherKingTalentLists = row.baseTalentIds.length > 0 || row.enchantTalentIds.length > 0
     const taggedVariants = kind === 'nether_kings_divinity' ? [...new Set(talentSlots.flatMap(({ gameId, slotIndex }) => {
-      if (slotIndex < 2) return []
+      const builderSlotIndex = usesSeparateNetherKingTalentLists ? 2 + slotIndex : slotIndex
+      if (builderSlotIndex < 2) return []
       const variant = netherKingBrandVariant(coreByGameId.get(gameId)?.effects ?? [])
       return variant ? [variant] : []
     }))] : []
-    const netherKingVariant: NetherKingVariant = taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment'
+    const baseVariant = NETHER_KING_VARIANT_BY_BASE_ID[row.baseId ?? -1]
+    const netherKingVariant: NetherKingVariant = baseVariant ?? (taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment')
     const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind ?? '']?.length ?? 1
     const rawOrientation = kind === 'base' ? (row.direction ?? 0) : row.direction === null ? -1 : row.direction - 1
-    const orientationIndex = rawOrientation ?? -1
+    const orientationIndex = kind !== 'base' && rawOrientation >= 0 && orientationCount > 0
+      ? rawOrientation % orientationCount
+      : rawOrientation
     const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
       ? netherKingVariant === 'judgment'
         ? (LEGENDARY_ORIENTATIONS[kind] ?? []).map((cells, index) => ({ cells, orientationIndex: index, originOffset: NETHER_KING_ORIGIN_OFFSETS[index] }))
@@ -989,7 +1024,7 @@ function importLoggedSlates(
       : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
     const cellsShape = layouts[0]?.cells
     if (!kind) {
-      warnings.push(row.baseId === 394004
+      warnings.push(row.baseId !== null && NETHER_KING_VARIANT_BY_BASE_ID[row.baseId]
         ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
         : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
       return null
@@ -1042,7 +1077,18 @@ function importLoggedSlates(
     const placement = resolvedPlacements.get(index)
     if (!placement) return []
     const { anchor, cells, orientationIndex } = placement
-    const gameIdSlots = row.talentSlots.some(slot => slot.talentId)
+    const gameIdSlots = (kind === 'nether_kings_divinity' || kind === 'base')
+      && (row.baseTalentIds.length > 0 || row.enchantTalentIds.length > 0)
+      ? [
+        ...row.baseTalentIds.map((gameId, slotIndex) => ({ gameId, slotIndex })),
+        ...(row.talentSlots.some(slot => slot.talentId)
+          ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId
+            ? [{ gameId: slot.talentId, slotIndex: (kind === 'nether_kings_divinity' ? 2 : row.baseTalentIds.length) + (slot.slotIndex ?? arrayIndex) }]
+            : [])
+          : row.enchantTalentIds.map((gameId, slotIndex) => ({ gameId,
+            slotIndex: slotIndex + (kind === 'nether_kings_divinity' ? 2 : row.baseTalentIds.length) }))),
+      ]
+      : row.talentSlots.some(slot => slot.talentId)
       ? row.talentSlots.flatMap((slot, arrayIndex) => slot.talentId
         ? [{ gameId: slot.talentId, slotIndex: slot.slotIndex ?? arrayIndex }]
         : [])
@@ -1056,20 +1102,7 @@ function importLoggedSlates(
         return
       }
       const core = coreByGameId.get(gameId)
-      const node = nodesByGameId.get(gameId)
-      if (kind === 'nether_kings_divinity') {
-        const candidate = core ?? node
-        const isBrandNode = candidate?.treeName === 'Nether King' && candidate.nodeType === 'Ultimate Nether King Talent Node'
-        const belongsToNetherKing = candidate?.treeName === 'Nether King'
-        const matchesSlotPool = slotIndex < 2
-          ? belongsToNetherKing && !isBrandNode
-          : belongsToNetherKing && isBrandNode
-        if (!matchesSlotPool) {
-          const poolName = slotIndex < 2 ? 'fixed Nether King' : `${piece.netherKingVariant} branded Nether King`
-          warnings.push(`Nether King's Divinity at board index ${row.index}: talent ${gameId} does not match its ${poolName} slot and was left empty.`)
-          return
-        }
-      }
+      const node = nodeForGameId(gameId)
       if (core) {
         if (!slot.canBeCore) {
           warnings.push(`Slate at board index ${row.index}: ${core.name} is a Core Talent, but the Builder's ${kind} slate has no Core Talent slot; it was left out.`)
@@ -1093,16 +1126,16 @@ function importLoggedSlates(
       Object.assign(slot, { isCore: false, slotType: category, selectedNodeId: node.id, effects: node.effects, nodeType: node.nodeType })
     })
     const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
-      : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
+      : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodeForGameId(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
     if (kind === 'base' && !treeType) warnings.push(`Slate at board index ${row.index}: its talent tree could not be identified from the base item or selected talent IDs; choose the tree manually.`)
     if (kind === 'nether_kings_divinity') {
       if (piece.netherKingVariant !== 'judgment' || orientationIndex !== 0) {
         const variantLabel = `${piece.netherKingVariant[0]!.toUpperCase()}${piece.netherKingVariant.slice(1)}`
         warnings.push(`Nether King's Divinity at board index ${row.index}: its ${variantLabel} placement is inferred from the occupied cell; review its board position.`)
       }
-      if (piece.taggedVariants.length === 0) {
+      if (!NETHER_KING_VARIANT_BY_BASE_ID[row.baseId ?? -1] && piece.taggedVariants.length === 0) {
         warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
-      } else if (piece.taggedVariants.length > 1) {
+      } else if (!NETHER_KING_VARIANT_BY_BASE_ID[row.baseId ?? -1] && piece.taggedVariants.length > 1) {
         warnings.push(`Nether King's Divinity at board index ${row.index}: its branded talents identify conflicting variants; imported as Judgment. Confirm the variant and board placement.`)
       }
     }
