@@ -1,3 +1,5 @@
+import { LEGENDARY_ORIENTATIONS } from '../crosswalk/slateGeometry'
+
 export type NetherKingVariant = 'judgment' | 'contamination' | 'banishment'
 export type SlateCell = [number, number]
 export type NetherKingBanishmentEffect = typeof BANISHMENT_EFFECTS[number]['id']
@@ -23,14 +25,6 @@ export const NETHER_KING_VARIANTS: { id: NetherKingVariant; label: string; iconF
 
 export const DEFAULT_NETHER_KING_VARIANT: NetherKingVariant = 'judgment'
 
-// Each click on one of the four middle corners selects the matching orientation. The raw Judgment art
-// shows TL/TR/BR (orientation 0); its three cells rotate clockwise from there.
-const JUDGMENT_LAYOUTS: SlateCell[][] = [
-  [[0, 0], [0, 3], [3, 3]], // leave bottom-left open
-  [[0, 3], [3, 3], [3, 0]], // leave top-left open
-  [[3, 3], [3, 0], [0, 0]], // leave top-right open
-  [[3, 0], [0, 0], [0, 3]], // leave bottom-right open
-]
 const JUDGMENT_MIDDLE_CORNERS = new Set(['1,1', '1,4', '4,1', '4,4'])
 
 export function netherKingIconFile(variant?: string | null): string {
@@ -52,16 +46,16 @@ export function findNetherKingPlacement(
   if (variant === 'judgment') {
     if (!JUDGMENT_MIDDLE_CORNERS.has(`${primary[0]},${primary[1]}`)) return null
     const anchor: SlateCell = [1, 1]
-    // The clicked middle corner is the origin cue. Upper clicks leave the opposite upper corner open;
-    // lower clicks leave the opposite lower corner open. This makes all four holes reachable without rotation UI.
+    // Reuse the crosswalk orientation order so imported and placed cells share one meaning.
+    // The clicked middle corner anchors the two other occupied corners around the board's edge.
     const orientationByPrimary: Record<string, number> = {
-      '1,1': 2, // top-left origin -> leave top-right open
-      '1,4': 1, // top-right origin -> leave top-left open
-      '4,1': 3, // bottom-left origin -> leave bottom-right open
-      '4,4': 0, // bottom-right origin -> leave bottom-left open
+      '1,1': 1,
+      '1,4': 0,
+      '4,1': 2,
+      '4,4': 3,
     }
     const orientationIndex = orientationByPrimary[`${primary[0]},${primary[1]}`]
-    const cells = fits(anchor, JUDGMENT_LAYOUTS[orientationIndex]!)
+    const cells = fits(anchor, LEGENDARY_ORIENTATIONS.nether_kings_divinity[orientationIndex]!)
     return cells ? { anchor, orientationIndex, cells } : null
   }
 

@@ -1,11 +1,10 @@
 # Importing a character from `UE_game.log` — investigation and design
 
-Status (2026-11-01): the Import Build modal scans selected UE_game logs and creates editable drafts.
-The current worktree maps gear, skills and supports, talent trees, Sage trait state and Scent Bottle
-choices, memories, character level, and pact-spirit contracts when the required data is available.
-Slate and prism identities remain unmapped, and some support rolls or pact-spirit ranks are missing
-from TLIDB or capped log sections. The implementation is in review on the game-log import branch. Raw logs
-remain gitignored and are never committed.
+Status (2026-11-02): the Import Build modal scans selected UE_game logs and creates editable drafts.
+The importer maps gear, skills and supports, talent trees, Sage trait state and Scent Bottle choices,
+memories, character level, pact-spirit contracts, divinity slates, and Ethereal Prisms when the required
+catalog data is available. Some support rolls, prism rarity values, and pact-spirit ranks remain unknown
+when TLIDB lacks a mapping or the log section is capped. Raw logs remain gitignored and are never committed.
 
 **Clean-room statement.** An existing third-party log importer is source-available, not open source. Nothing here was
 copied or derived from its code or its ID dictionary. Everything marked **VERIFIED** was
@@ -104,7 +103,7 @@ these rows and the item `game_id` values.
 | F17 | Hero memories: `heroCharacterv3OverView.reminiscenceOverView.reminiscence[1..3]` with `BaseId` 71001/71002/71003, `BaseAttrAffix`, `BaseAffix`, `Suffix` arrays of `{Id, DynArgs[]}`. Hero traits: only `pointOverView.activeId = {1800011,1800021,1800031}`. | read |
 | F18 | **Pactspirits.** `ContractInfosV2.ContractDatas[]` holds 6 `{areaId, servantId}` entries in arbitrary order; `areaId` 1-3 are the battle slots, 4-6 the reserve. Owner names: slot 1 `5330` = **Preserver of Eternity**, slot 2 `18230` = **Kitty Express**, slot 3 `19230` = **Elixir Fairies**. The reserve is not constant in the file: dumps 1 and 3-6 show `15110/15120/15130`, dump 2 shows `6330/6130/19330` (the owner's Chalk Spirit, Captain Shadow, Twilight Sparks; see F34). `6130` and `6330` are different spirits that share family 6, and `15120`/`15130` look like different creatures, so **the family/tier/variant digits are a grouping, not a naming rule**: treat servant ids as opaque keys. `CPT_SLOT.TotalNum` is 3 on the live account and 1 on the older level-94 dump (which still lists six contracts), so usable battle slots are probably `min(3, CPT_SLOT.TotalNum)` (HYPOTHESIS). `ServantInfos.servantData[]` = `{servantId, starLevel?}` is the owned collection, capped at 30 and **re-shuffled at every login** (6 dumps: 108 distinct ids). **Rank rule verified on screen:** rank = `min(6, starLevel+1)`, and a present entry with no `starLevel` is rank 1: `5330` (starLevel 2) shows 3, `18230` (starLevel 5) shows 6, `19230` (no starLevel) shows 1, and the reserve `15120` (starLevel 4) shows 5 on the screenshots (F33). An id missing from every dump is unknown, not rank 1. `player.FollowServant` (`11230`, identical in all 6 dumps) is the **cosmetic pet that follows the character** (owner-confirmed), not a pactspirit and not the follower; it is not in `servantData` at all. | pacts spike, 6 dumps + owner screenshots |
 | F19 | The log contains personal data: platform account name, `playerId`/`userId`/device ids, IP addresses, guild id, chat-free but account-bound progress. | grep |
-| F20 | **Prism placement (VERIFIED on the live Onslaughter tree).** `prismInfo.geniusId` (`12060400`) is the anchor node. `prismEffectPositions[]` cells map log `x` to Builder row `x-1` and log `y` to Builder column `y-1`; the six observed cells (x 3–5, y 6–7) become columns 5–6 and rows 2–4. Allocated genius IDs resolve through canonical node coordinates into `PlacedPrism.boxAllocations` keys (`column,row`) with logged ranks. `prismGeniusId` (`80002000`) is preserved as `EtherealConfig.replacementTalentId`. Item, rarity, and affix IDs join the current 32-item prism catalog. When active tree nodes lack `game_id`, the importer uses the F12 ID coordinate encoding and a verified career-to-tree mapping to resolve the same canonical grid node; unsupported career IDs warn and leave the prism unplaced. Unknown IDs/options and unrepresentable affix rolls warn. | read, one prism |
+| F20 | **Prism placement (VERIFIED on the live Onslaughter tree).** `prismInfo.geniusId` (`12060400`) is the anchor node. `prismEffectPositions[]` cells map log `x` to Builder row `x-1` and log `y` to Builder column `y-1`; the six observed cells (x 3–5, y 6–7) become columns 5–6 and rows 2–4. Logged allocations remain ordinary talent-tree allocations. `prismEffectPositions[]` sets the prism effect area dimensions; the Builder's `boxAllocations` field is reserved for Inverse Image copies and stays empty for Ethereal Prisms. `prismGeniusId` (`80002000`) is preserved as `EtherealConfig.replacementTalentId`. Item and affix IDs join the current prism catalog. The observed rarity value 3 maps to rare; other values use the catalog default and warn until their mapping is verified. When active tree nodes lack `game_id`, the importer uses the F12 ID coordinate encoding and a verified career-to-tree mapping to resolve the same canonical grid node; unsupported career IDs warn and leave the prism unplaced. Unknown IDs/options and unrepresentable affix rolls warn. | read, one prism |
 | F21 | **Divinity slate placement fitted to the owner’s 6×6 board.** `dressingTalentBlocks[]` are installed slates (`{Item, Index, PageId=-4}`); `Index` is `SlotId` encoded as `10*column+row` (both 1-based) and identifies an occupied cell, not a fixed top-left anchor. Observed base ShapeIds include `1033`, `1035`, `1043`, and `1045`; only explicitly mapped shapes/orientations are imported. Known unique IDs include `1003` Fallen Starlight, `1005` A Corner of Divinity, and `1010` Pedigree of Gods. Talent IDs resolve through tree node IDs or canonical slate core options; category comes from the canonical slate pool. Unknown shapes, identities, talent categories, or layouts that cannot be resolved safely warn rather than being inferred. See F27 for talent identity mapping. | owner screenshot + 6 items |
 | F22 | **Slate effects are tlidb talent ids.** `talentBlockInfluence[]` is keyed by the slate item Id and lists `EffectTalentIds` (`BaseTalentList` + enchant talents, in order), `TalentIdDevour`, `TalentIdInfluence` (e.g. `-30`) and, for base slates, `DevilLineBoostTalentIds/Influence` (`40`). Every `EnchantTalentList`/`talentSlotList` id (10/10) and 13 of 14 `BaseTalentList` ids equal a tlidb `talent_id` in our crawler output (F27), so a slate slot resolves by id to a named node in a named tree: `43060400` = Ranger medium talent "+18 % Melee Damage", `42070500` = Ronin legendary medium talent "+20 % Fervor effect", `63001300` = Alchemist core talent. That is exactly Builder's `SavedSlateSlot.selectedNodeId` model, with no geometry guess. The only miss is `90000061`, the base talent of the Nether King slate. `Color` Orange/Purple and `rarity` per slot are also present. | read + id join |
 | F23 | **Installed destinies/fates/kismets live in `ContractInfosV2.pointDatas`.** `contractPointId` = `<areaId><2-digit node>`; `selectContract` 1 = empty, **2 = installed**, and then `tattoInfo` holds the item (`BaseId`, `Level`, `BaseAffix{Id, DynArgs}`). The list is capped at 30 and re-shuffled at each login. **Measured over the 6 dumps of one character:** distinct nodes seen 30, 45, 55, 60, 61, 62 after 1..6 logins; installed items found 3, 4, 6, 7, 7, 7. All of the owner's six items are on area 1 (the first battle spirit): lightning micro `350003` on nodes 103 and 104, fire micro `350001` on 105 and 106, **Kismet: Guillotine `350503` on 108**, medium fire `350301` on 109. That puts the micro nodes at 101-106 and the medium nodes at 107-110 (4 = `CPT_MIDDLE`), with the owner's "2nd kismet" = 108 and "3rd medium" = 109 (HYPOTHESIS for the numbering rule). A seventh item, a lightning micro `350003` on node 301 (area 3), was not in the owner's list. `unlockInfo` gives `CPT_SMALL` 9, `CPT_MIDDLE` 4, `CPT_SLOT` 3, `CPT_SECRET` 15. | 6 dumps + owner |
@@ -149,20 +148,17 @@ SS12–SS14 + crosswalk (`docs/local/log-import/bridge*.py`).
 | Hero id (18001/1800) and trait ids (`1800011`...) | **0/4** | `crosswalk/SS13/hero-traits.json` `gameId` is null on all 27 rows | **GAP-5** |
 | `geniusId` | **119/120** | tlidb `talent_id` in `output/SS13/talent_tree/*.json` (F27); the geometry rule (F12) is only a cross-check | **resolved by id** |
 | Core talents (`bonusGeniusInfo`) | **all** | tlidb core-talent `talent_id` (`y=00`) | resolved by id; slot rule still HYPOTHESIS |
-| Slate `BaseId` (`2603xx`, `2605xx`, `2610xx`) | **1/6** (only `394004` = Nether King's Judgement, tlidb `internal_id`) | base/legendary slates have no ids in `divinity_slate` | **GAP-6** |
+| Slate `BaseId` (`2603xx`, `2605xx`, `2610xx`) | resolved for known base and legendary slates | `slate-mods.json` and the Nether King's Divinity record in canonical data | mapped kinds import; unknown IDs warn |
 | Slate talent ids (`BaseTalentList`, `EnchantTalentList`, `talentSlotList`) | join by canonical `game_id` where the ID names a tree node or slate-pool core option | SS14 tree nodes and Nether King core talents expose `game_id` | resolved for catalogued options |
 | `EffectTalentIds` (slate to node) | resolved by id | same `talent_id` join | resolved |
-| Ethereal Prism item and craft affix IDs | join by item `game_id` and affix `modifier_id` in the refreshed SS14 prism catalog | 32 catalog rows carry item IDs; the categorized craft pools carry modifier IDs | resolved when the catalog has the logged ID |
-| Pactspirit `servantId` | **0/30 real** (4 numeric collisions with unrelated skill ids) | `crosswalk/SS13/pactspirits.json` `gameId` null on 175/175 | **GAP-8** (see section 5 for the clean-source search) |
+| Ethereal Prism item and craft affix IDs | join by item `game_id` and affix `modifier_id` in the refreshed SS14 prism catalog | catalog rows carry item IDs; categorized craft pools carry modifier IDs | resolved when the catalog has the logged ID; unknown rarity values use the catalog default with a warning |
+| Pactspirit `servantId` | owner-confirmed IDs map through Builder overrides where the canonical catalog has no game ID | current account's three battle-spirit IDs and names were confirmed by the owner | mapped for known IDs; unknown IDs remain unresolved |
 
-**Current coverage:** the canonical catalogs provide `game_id` for ordinary bases, unique gear,
-all 784 SS14 Builder skills, and Vorax grafts, plus `modifier_id` for the refreshed craft, Graft,
-and Tower Sequence tables. The importer maps Vorax, crafted, and unique gear, plus active/passive
-skills, supports, slot indexes, and recorded levels. Support prefix rolls and ranks still warn and
-use Builder defaults (GAP-3). Hero/trait, memory base-stat, slate, prism, and pactspirit joins remain
-incomplete or unavailable from the current TLIDB pages. The older archived capture also contains
-skill ID `7493`, which has no match in the current SS14 TLIDB crawl or available crosswalk; keep it
-unmapped until a source page or authoritative older-season catalog supplies the ID.
+**Current coverage:** the importer joins gear, skills, talents, memories, slates, prisms, and
+pact-spirit contracts against canonical IDs where available. Unknown support rolls and capped log
+sections can still leave data out; the importer reports those gaps. The older archived capture also
+contains skill ID `7493`, which has no match in the current SS14 TLIDB crawl or available crosswalk;
+keep it unmapped until a source page or authoritative older-season catalog supplies the ID.
 
 ## 3. Mapping to the TLI Builder build model
 
@@ -177,7 +173,7 @@ does not change the frozen `tli1_` codec or `backend/build_code.py`.
 | `geniusInfos.info` | Talent allocation IDs join canonical talent `game_id` values and apply to the four talent trees. Unknown nodes are skipped with a concise warning. |
 | Hero memories and trait state | Maps Sage Licorice Note and its selected advanced traits, equipped memories, and the Progress base-slot memory. Memory base stats use the owner-verified tli-data crosswalk. |
 | `customSkillSlots` | Maps selected Scent Bottle ingredients by bottle slot, ingredient category, and option position using the canonical Licorice Note ingredient catalog. |
-| Slate and prism data | Log placement and effects are present, but reliable joins from slate/prism IDs to canonical records are not implemented. |
+| Slate and prism data | Known slate IDs and prism item/affix IDs join canonical data. Slate placement is fitted against the board; prism effect positions set the imported area. Unknown IDs or unverified prism rarities produce warnings. |
 | Pact spirits and contracts | Contract `servantId` joins canonical pact-spirit `game_id`; rank imports when the corresponding servant entry is available in the capture. |
 | Character level | Imports `player.Level` into `Build.characterLevel` and the initial condition state. |
 | Truncated lists | Reports truncation. Multiple captures can recover shuffled gear and skill entries, but cannot recover talent nodes cut from every captured dump. |
@@ -209,10 +205,10 @@ The importer preserves user privacy by parsing files in the renderer and discard
 | GAP-2 crafted affix ids/tiers | Resolved in the pending SS14 refresh: `_craft_base_types.json` carries affix `modifier_id` and tier data. The Builder importer maps those fields. |
 | GAP-3 support line rolls | crawler: ids for support/medium `Prefix` lines; or accept engine midpoints |
 | GAP-4 memory base-attr ids | extend `memory-affixes.json` with the `4031…` base-stat ids |
-| GAP-5 hero + trait ids | The log IDs are parsed, but no TLIDB bridge to the hero and trait records has been established. |
-| GAP-6 slate ids | add slate `BaseId` and `BaseTalentList` ids to `slate-mods.json` |
-| GAP-7 prism ids | add prism `BaseId` and affix ids |
-| GAP-8 pactspirit ids | map `servantId` to spirit. **Clean-source search:** tli-data and the crosswalk carry no servant id; the game's loose files hold ids only (`Local/AccountCache/*/NewPetRedDotData` lists ~148 ids, no names; the config packs are encrypted with no known key, `tli-decompiler/TLI_DATA_RECON.md`); no log line pairs an id with a name; the id digits are a grouping, not a name (F18). **Clean way to fill it:** observation by the owner (section 10), plus the crawler probing whether a tlidb pactspirit page shows an `id:` line the way legendary-gear pages do. Do not copy any third-party bundle table. |
+| GAP-5 hero + trait ids | Owner-confirmed hero and trait mappings are stored in the canonical crosswalk and used by the importer. |
+| GAP-6 slate ids | Known base and legendary slate IDs map through canonical slate data; unknown IDs still warn. |
+| GAP-7 prism ids | Prism item and affix IDs map through the canonical prism catalog; unknown IDs still warn. Rarity values beyond the confirmed value 3 remain unmapped. |
+| GAP-8 pactspirit ids | The importer maps owner-confirmed battle-spirit IDs where catalog data is absent. Other IDs still need an authoritative mapping; do not infer names from numeric patterns. |
 | GAP-9 destiny / kismet ids | micro `3500NN` and medium `3503NN` follow the tlidb icon number (F29); kismet range unseen. Crawler: add the `id:` line or the icon-number-derived id to `destiny.json` once confirmed on one page |
 | GAP-10 scent-bottle option ids | Importer resolves option positions through the canonical Licorice Note ingredient categories. |
 | F13/F16 | **resolved for the prefix table** (F27, from tlidb `talent_id`); core-talent slot rule still needs one more log (HYPOTHESIS) |
@@ -222,10 +218,9 @@ The importer preserves user privacy by parsing files in the renderer and discard
 
 1. Resolve support-roll IDs only when TLIDB or another allowed source exposes a reliable mapping.
    The importer currently warns and omits unknown lines.
-2. Find a source for the five-digit `TalentTree` allocation IDs, hero and trait IDs, prism IDs, slate
-   base IDs, pactspirit IDs, and destiny IDs. Do not infer a mapping from numeric patterns alone.
-3. Map slate base identities, prism identities/effects, and fates to canonical data. Slate placement
-   and effects are visible in the log, but the base joins are still unresolved.
+2. Find authoritative mappings for remaining pact-spirit and destiny IDs. Do not infer a mapping
+   from numeric patterns alone.
+3. Confirm additional prism rarity values and remaining item/affix IDs against allowed sources.
 4. Compare every equipped slot and affix in representative real logs against TLIDB. Multi-capture
    merging recovers gear and skills omitted by per-list caps, but talent lists can remain truncated.
 5. Keep the import client-side. Never store or display account identifiers, and report lists truncated
@@ -263,7 +258,7 @@ fidelity depends on step 5.
 
 ## 8. Owner experiments still needed
 
-1. The owner confirmed three battle Pact Spirits from the current log: Preserver of Eternity (`5330`, rank 3), Captain Kitty of the Furious Sea (`18230`, rank 6), and Elixir Fairies (`19230`, rank 1). Their `game_id` values are added to the pending canonical-data branch. `ServantInfos` is truncated in the current captures, so the log does not supply those ranks.
+1. The owner confirmed three battle Pact Spirits from the current log: Preserver of Eternity (`5330`, rank 3), Kitty Express (`18230`, rank 6), and Elixir Fairies (`19230`, rank 1). The owner corrected an earlier misidentification of `18230` as Captain Kitty of the Furious Sea. `ServantInfos` is truncated in the current captures, so the log does not supply those ranks.
 2. **Vorax data (F32):** the refreshed Graft crawl supplies the known base and affix IDs. Continue to report any game-log ID that is absent from TLIDB instead of inventing a mapping.
 3. **A tree with 31-32 non-core nodes** and the top-row legendary nodes allocated (Warrior, The Brave, Ranger, Magister, Warlock, Prophet, Marksman, Elementalist, Artisan, Arcanist, Alchemist), to measure the tree cutoff directly (section 9).
 4. **Other unobserved changes:** a hero-memory or trait change, and an ethereal prism.
@@ -405,7 +400,7 @@ skills. The log's `FollowServant` value is `11230`, the owner-confirmed cosmetic
 The canonical talent trees contain 48 Thea "Prophecy of Revelation" replacement variants. Each now
 maps to `wisdom_of_the_gods` at unlock level 60, and all 25 variant effects with a max-divinity cap
 carry `max_divinity_effect`.
-TLIDB's [Pactspirit page](https://tlidb.com/en/Pactspirit) lists names and effects but no matching `servantId` field. The owner verified the current battle slots against the log: `5330` is Preserver of Eternity, `18230` is Captain Kitty of the Furious Sea, and `19230` is Elixir Fairies. These three IDs are in the pending SS14 canonical-data changes. In this log, `ContractInfosV2.ContractDatas` has only `areaId` and `servantId`; the `ServantInfos` section is emitted as `...`, so equipped ranks are unavailable here. Other captures can include `ServantInfos.servantData[].starLevel`, which the importer converts to rank. `dropServantContractData[].starLevel` is drop configuration and does not identify the equipped spirits' ranks.
+TLIDB's [Pactspirit page](https://tlidb.com/en/Pactspirit) lists names and effects but no matching `servantId` field. The owner verified the current battle slots against the log and Pact Spirits screen: `5330` is Preserver of Eternity, `18230` is Kitty Express, and `19230` is Elixir Fairies. The owner corrected an earlier misidentification of `18230` as Captain Kitty of the Furious Sea. In this log, `ContractInfosV2.ContractDatas` has only `areaId` and `servantId`; the `ServantInfos` section is emitted as `...`, so equipped ranks are unavailable here. Other captures can include `ServantInfos.servantData[].starLevel`, which the importer converts to rank. `dropServantContractData[].starLevel` is drop configuration and does not identify the equipped spirits' ranks.
 
 ### Gaps still visible in representative logs
 

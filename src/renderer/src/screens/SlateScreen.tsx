@@ -8,7 +8,7 @@ import { TooltipContributions } from '../components/tooltip/TooltipContributions
 import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
 import { summarizeSlateBonuses } from '../utils/slateBonusSummary'
 import { nextOrientationIndex } from './slateOrientation'
-import { BASE_SLATE_SHAPES as BASE_SHAPES, SLATE_BOARD_VALID as BOARD_VALID } from '../utils/slateGeometry'
+import { BASE_SLATE_SHAPES as BASE_SHAPES, LEGENDARY_ORIENTATIONS, SLATE_BOARD_VALID as BOARD_VALID } from '../utils/slateGeometry'
 import { BANISHMENT_EFFECTS, DEFAULT_NETHER_KING_VARIANT, NETHER_KING_VARIANTS, findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingIconFile, type NetherKingBanishmentEffect, type NetherKingVariant } from '../utils/netherKingSlate'
 
 // One selectable slate modifier option (its effects badged for engine support). Extracted so the
@@ -100,25 +100,6 @@ const BASE_FORMS: BaseForm[] = [
 const ROTATION_LABELS = ['↑ 0°', '→ 90°', '↓ 180°', '← 270°']
 
 // ── Legendary orientations ────────────────────────────────────────────────────
-
-const LEGENDARY_ORIENTATIONS: Record<LegendaryKind, [number, number][][]> = {
-  pedigree: [
-    [[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],
-    [[0,0],[0,1],[1,0],[1,1],[1,2],[2,1],[2,2]],
-  ],
-  fallen_starlight: [[[0,0],[0,1]], [[0,0],[1,0]]],
-  corner_of_divinity: [
-    [[0,0],[0,1],[1,0]],
-    [[0,0],[0,1],[1,1]],
-    [[0,1],[1,0],[1,1]],
-    [[0,0],[1,0],[1,1]],
-  ],
-  spark_of_moth_fire:             [[[0,0]]],
-  when_sparks_set_prairie_ablaze: [[[0,0]]],
-  space_rift:                     [[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]]],            // 6 tall × 1 wide
-  residence_of_stars:             [[[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]]], // pinwheel (matches the LL1 art)
-  nether_kings_divinity:           [[[0,3],[3,0],[3,3]], [[0,0],[3,0],[3,3]], [[0,0],[0,3],[3,0]], [[0,0],[0,3],[3,3]]],
-}
 
 function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number): [number, number][] {
   if (kind === 'base') return BASE_SHAPES[shapeIndex]?.rotations[orientationIndex] ?? BASE_SHAPES[0].rotations[0]

@@ -512,6 +512,17 @@ describe('UE_game.log build conversion', () => {
     })) }
     const rolled = createUeLogBuild(withImplicitRoll, [], [], [], [], [], [], [], trees, [], { etherealPrisms, slatePool } as any)
     expect(rolled.warnings).toContain('Ethereal Prism: Miraculous Touch: logged prism implicit roll values are not stored by the current Builder prism configuration.')
+
+    const unverifiedRarity = createUeLogBuild({
+      ...character,
+      talentTrees: character.talentTrees?.map(tree => tree.prism ? { ...tree, prism: { ...tree.prism, rarityValue: 4 } } : tree),
+    }, [], [], [], [], [], [], [], trees, [], {
+      etherealPrisms: { ...etherealPrisms, catalog: { ...etherealPrisms.catalog,
+        items: etherealPrisms.catalog.items.map(prism => ({ ...prism, default_rarity: 'rare' as const })) } },
+      slatePool,
+    } as any)
+    expect(unverifiedRarity.build.prisms?.[0]?.ethereal?.rarity).toBe('rare')
+    expect(unverifiedRarity.warnings).toContain('Ethereal Prism: Miraculous Touch: logged prism rarity 4 has no verified mapping; the catalog default was used.')
   })
 
   it('maps known unique slate IDs to the Builder slate kinds', () => {

@@ -565,7 +565,7 @@ def _collect_pool(tree_names: list[str]) -> dict:
             out_key = f"{tree_name}:{raw_key}" if n == 1 else f"{tree_name}:{raw_key}#{n}"
             # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
             display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
-            node_type = raw_key.removeprefix("nether_king_").replace("_", " ").title() if tree_name == "Nether King" else None
+            node_type = ct.get("name") if tree_name == "Nether King" else None
             core_pool.append({"key": out_key, "game_id": str(ct["game_id"]) if ct.get("game_id") is not None else None,
                               "treeName": tree_name, "name": display_name, "effects": effects, "nodeType": node_type})
 

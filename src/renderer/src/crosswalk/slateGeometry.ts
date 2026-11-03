@@ -104,8 +104,8 @@ export function resolveGeometry(shapeId: string, rotation = 0, flipH = false, fl
   return { shapeIndex: baseIndex, orientationIndex: steps, cells, matched: false }
 }
 
-// Legendary divinity slates are their own shapes (not the 6 base tetrominoes). Copied from
-// SlateScreen.tsx LEGENDARY_ORIENTATIONS. Builder keys these by `kind` (a LegendaryKind), not shapeIndex.
+// Canonical layouts for legendary divinity slates. Both the board and import crosswalk use
+// these cells so orientation indexes keep the same meaning across import, editing, and placement.
 export const LEGENDARY_ORIENTATIONS: Record<string, Cell[][]> = {
   pedigree: [[[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],[[0,0],[0,1],[1,0],[1,1],[1,2],[2,1],[2,2]]],
   fallen_starlight: [[[0,0],[0,1]],[[0,0],[1,0]]],

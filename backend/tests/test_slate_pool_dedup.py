@@ -87,6 +87,25 @@ def test_ss14_nether_king_pool_has_all_crawled_choices(monkeypatch):
     assert core[61]["game_id"] == "90000061"
 
 
+def test_nether_king_core_pool_exposes_crawled_tier_name(monkeypatch):
+    """Slate editors filter Nether King options by the catalog's node name, not its internal key."""
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS14")
+    tree = {
+        "nodes": [],
+        "core_talents": [{
+            "game_id": "90000115",
+            "name": "Ultimate Nether King Talent Node",
+            "display_name_key": "nether_king_ultimate_nether_king_talent_node",
+            "effects": ["When Contamination is active, +12% Projection Effect"],
+        }],
+    }
+    monkeypatch.setattr(season_manager, "load_season_tree", lambda season, slug, raw=False: tree if slug == "nether_king" else None)
+
+    option = next(option for option in _collect_pool(["Nether King"])["core"] if option["game_id"] == "90000115")
+
+    assert option["nodeType"] == "Ultimate Nether King Talent Node"
+
+
 def test_genuine_duplicate_core_talent_still_collapses(monkeypatch):
     """A TRUE duplicate — same raw_key AND same effects — still collapses to a single pool entry; the dedup
     fix must not over-preserve. A sibling that shares the raw_key but carries DIFFERENT effects survives

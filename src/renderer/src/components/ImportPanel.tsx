@@ -146,8 +146,8 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     try {
       let towerSequences: Awaited<ReturnType<typeof api.getTowerSequence>>['entries'] = []
       let beltBlends: Awaited<ReturnType<typeof api.getBeltBlends>>['blends'] = []
-      let talentTrees: Awaited<ReturnType<typeof api.getTree>>[] = []
       let treeSummaries: Awaited<ReturnType<typeof api.getTrees>> = []
+      let talentTrees: Array<Awaited<ReturnType<typeof api.getTree>> | Awaited<ReturnType<typeof api.getTrees>>[number]> = []
       let pactSpiritCatalog: Awaited<ReturnType<typeof api.getPactSpirits>>['spirits'] = []
       let etherealPrisms: Awaited<ReturnType<typeof api.getEtherealPrism>> | null = null
       let slatePool: Awaited<ReturnType<typeof api.getSlatePoolAll>> | null = null
@@ -169,19 +169,31 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
         ...slate.baseTalentIds, ...slate.enchantTalentIds,
         ...slate.talentSlots.flatMap(slot => slot.talentId ? [slot.talentId] : []),
       ]))
+      const relevantTreeNodeIds = new Set([
+        ...relevantSlateIds,
+        ...(preview.talentTrees ?? []).flatMap(tree => [
+          ...tree.allocations.map(allocation => allocation.id),
+          ...(tree.prism?.anchorTalentId ? [tree.prism.anchorTalentId] : []),
+        ]),
+      ])
       const treeNames = new Set((preview.talentTrees ?? []).flatMap(tree => tree.careerId === null
         ? [] : [UE_LOG_CAREER_TREE_NAMES[tree.careerId] ?? '']))
       for (const tree of treeSummaries) {
-        if (tree.nodes?.some(node => node.game_id && relevantSlateIds.has(node.game_id))) treeNames.add(tree.name)
+        if (tree.nodes?.some(node => node.game_id && relevantTreeNodeIds.has(node.game_id))) treeNames.add(tree.name)
       }
       for (const option of [...(slatePool?.magic ?? []), ...(slatePool?.rare ?? []), ...(slatePool?.legendary ?? []), ...(slatePool?.core ?? [])]) {
         if (option.game_id && relevantSlateIds.has(option.game_id)) treeNames.add(option.treeName)
       }
       treeNames.delete('')
+      talentTrees = [...treeSummaries]
       if (treeNames.size) {
         const trees = await Promise.all([...treeNames].map(name => api.getTree(name).catch(() => null)))
-        talentTrees = trees.filter((tree): tree is NonNullable<typeof tree> => !!tree)
-        if (talentTrees.length !== treeNames.size) catalogUnavailable = true
+        const detailedTrees = trees.filter((tree): tree is NonNullable<typeof tree> => !!tree)
+        const detailedByName = new Map(detailedTrees.map(tree => [tree.name, tree]))
+        talentTrees = talentTrees.map(tree => detailedByName.get(tree.name) ?? tree)
+        const knownTreeNames = new Set(talentTrees.map(tree => tree.name))
+        talentTrees.push(...detailedTrees.filter(tree => !knownTreeNames.has(tree.name)))
+        if (detailedTrees.length !== treeNames.size) catalogUnavailable = true
       }
       if (preview.talentTrees?.some(tree => tree.prism)) {
         try { etherealPrisms = await api.getEtherealPrism() }

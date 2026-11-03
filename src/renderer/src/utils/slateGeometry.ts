@@ -2,6 +2,8 @@ export type SlateCell = [number, number]
 
 import { BASE_SHAPES } from '../crosswalk/slateGeometry'
 
+export { LEGENDARY_ORIENTATIONS } from '../crosswalk/slateGeometry'
+
 // Keep the UI labels derived from the geometry table used by the import crosswalk.
 export const BASE_SLATE_SHAPES = BASE_SHAPES.map((shape, index) => ({
   label: ['O', 'L', 'Z', 'T', 'J', 'S'][index]!,

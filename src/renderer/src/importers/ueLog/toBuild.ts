@@ -2,8 +2,8 @@ import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftB
 import { initSlateSlots, LEGENDARY_ORIENTATIONS, NETHER_KING_ORIGIN_OFFSETS } from '../../crosswalk/slateGeometry'
 import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
 
-// Owner-confirmed current game-log identity corrections where the hydrated catalog assigns the same ID to an older spirit.
-// In the owner's latest log, servantId 18230 is Kitty Express; the local SS14 catalog incorrectly assigns it to Captain Kitty.
+// Owner-confirmed servant identity where the current spirit catalog does not expose a servant game ID.
+// The owner's latest log and pact screen identify servantId 18230 as Kitty Express.
 const UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES: Record<number, string> = { 18230: 'kitty_express' }
 
 // Career-to-tree pairs verified in docs/LOG_IMPORT_INVESTIGATION.md (F13). Unverified career IDs stay unresolved.
@@ -909,11 +909,23 @@ function importLoggedSlates(
       indexCell: [(row.index - 1) % 10, Math.floor((row.index - 1) / 10) - 1] as [number, number] }
   }).filter((piece): piece is NonNullable<typeof piece> => !!piece)
   const placements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
-  const solutions: Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>[] = []
+  const firstSolution = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
+  const ambiguousPlacements = new Set<number>()
+  let searchNodes = 0
+  let searchLimitReached = false
+  const MAX_SEARCH_NODES = 100_000
   const search = (remaining: typeof prepared, occupied: Set<string>): boolean => {
-    if (solutions.length >= 2) return true
+    if (++searchNodes > MAX_SEARCH_NODES) {
+      searchLimitReached = true
+      return true
+    }
     if (!remaining.length) {
-      solutions.push(new Map([...placements].map(([key, value]) => [key, { anchor: [...value.anchor] as [number, number], cells: value.cells.map(cell => [...cell] as [number, number]), orientationIndex: value.orientationIndex }])))
+      for (const [key, value] of placements) {
+        const snapshot = { anchor: [...value.anchor] as [number, number], cells: value.cells.map(cell => [...cell] as [number, number]), orientationIndex: value.orientationIndex }
+        const first = firstSolution.get(key)
+        if (!first) firstSolution.set(key, snapshot)
+        else if (JSON.stringify(first) !== JSON.stringify(snapshot)) ambiguousPlacements.add(key)
+      }
       return false
     }
     const piece = remaining[0]!
@@ -934,12 +946,11 @@ function importLoggedSlates(
   }
   search(prepared, new Set())
   const resolvedPlacements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
-  if (solutions.length === 1) for (const entry of solutions[0]!) resolvedPlacements.set(...entry)
-  else if (solutions.length > 1) {
-    const [first, second] = solutions
-    for (const [sourceIndex, placement] of first!) {
-      const other = second!.get(sourceIndex)
-      if (other && JSON.stringify(placement) === JSON.stringify(other)) resolvedPlacements.set(sourceIndex, placement)
+  if (searchLimitReached) {
+    warnings.push('Slate placement search reached its safety limit; placements were left out because their anchors could not be proven unique.')
+  } else if (firstSolution.size) {
+    for (const [sourceIndex, placement] of firstSolution) {
+      if (!ambiguousPlacements.has(sourceIndex)) resolvedPlacements.set(sourceIndex, placement)
       else warnings.push(`Slate at board index ${prepared.find(piece => piece.sourceIndex === sourceIndex)?.row.index}: its anchor remains ambiguous after fitting the logged slates and was left out.`)
     }
   } else if (prepared.length) warnings.push('Slate Index values do not resolve to a non-overlapping layout on the 6×6 board; slate placements were left out.')
@@ -1010,7 +1021,10 @@ function importLoggedPrisms(
       warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
       return []
     }
-    const rarity = row.rarityValue === 3 ? 'rare' : row.rarityValue === 4 ? 'legendary' : item.default_rarity
+    const rarity = row.rarityValue === 3 ? 'rare' : item.default_rarity
+    if (row.rarityValue !== null && row.rarityValue !== 3) {
+      warnings.push(`${item.name}: logged prism rarity ${row.rarityValue} has no verified mapping; the catalog default was used.`)
+    }
     const ids = new Set([...row.prefixAffixes, ...row.baseAffixes].flatMap(affix => affix.id ? [affix.id] : []))
     const matches = (affix: { modifier_id?: string | null; modifier_ids?: string[] }) =>
       (!!affix.modifier_id && ids.has(affix.modifier_id)) || (affix.modifier_ids ?? []).some(id => ids.has(id))
