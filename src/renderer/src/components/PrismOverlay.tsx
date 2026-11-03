@@ -42,13 +42,17 @@ type EthDraft = {
   rarity: PrismRarity
   implicit: string
   areaSize?: string
+  boxCols?: number
+  boxRows?: number
   middle?: string
   advanced?: string
+  replacementTalentId?: string
 }
 
 function draftFromConfig(item: EtherealCatalogItem, cfg: EtherealConfig): EthDraft {
   return { item, rarity: cfg.rarity, implicit: cfg.implicit,
-    areaSize: cfg.areaSize, middle: cfg.middle, advanced: cfg.advanced }
+    areaSize: cfg.areaSize, boxCols: cfg.boxCols, boxRows: cfg.boxRows,
+    middle: cfg.middle, advanced: cfg.advanced, replacementTalentId: cfg.replacementTalentId }
 }
 function freshDraft(item: EtherealCatalogItem): EthDraft {
   const implicit = item.implicit.kind === 'add_choice'
@@ -93,8 +97,9 @@ export default function PrismOverlay({ items, ethereal, inventory, setInventory,
     const cfg: EtherealConfig = {
       shortName: d.item.short_name, rarity: d.rarity, implicit: d.implicit,
       tintWhenRare: d.item.tint_when_rare,
-      areaSize: d.areaSize, boxCols: area?.cols, boxRows: area?.rows,
+      areaSize: d.areaSize, boxCols: d.boxCols ?? area?.cols, boxRows: d.boxRows ?? area?.rows,
       middle: d.middle, advanced: d.rarity === 'legendary' ? d.advanced : undefined,
+      replacementTalentId: d.replacementTalentId,
     }
     return { id, kind: 'ethereal_prism', name: d.item.name, iconUrl: d.item.icon_url, rolls: OFF_ROLLS, ethereal: cfg }
   }
@@ -379,7 +384,10 @@ function EtherealForm({ draft, ethereal, setDraft, actions }: {
       {/* Slot 1 — area size */}
       <Dropdown label="Slot 1 — Effect Area" value={draft.areaSize}
         options={ethereal.area_size.map(a => ({ v: a.modifier, t: `${a.cols}×${a.rows} Rectangle` }))}
-        onChange={v => setDraft({ ...draft, areaSize: v })} placeholder="— choose an area size —" />
+        onChange={v => {
+          const selected = ethereal?.area_size.find(option => option.modifier === v)
+          setDraft({ ...draft, areaSize: v, boxCols: selected?.cols, boxRows: selected?.rows })
+        }} placeholder="— choose an area size —" />
 
       {/* Slot 2 — middle tier */}
       <Dropdown label="Slot 2 — Area Bonus" value={draft.middle} options={middleOpts}

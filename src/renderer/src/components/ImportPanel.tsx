@@ -7,7 +7,7 @@ import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/co
 import compendiumExportImg from '../assets/compendium-export.png'
 import { copyableErrorDetails, normalizeError, type TliErrorPayload } from '../errors/tliError'
 import { scanUeGameLog, type UeLogCharacterPreview } from '../importers/ueLog/parse'
-import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures } from '../importers/ueLog/toBuild'
+import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures, UE_LOG_CAREER_TREE_NAMES } from '../importers/ueLog/toBuild'
 
 /**
  * Shared import UI used by BOTH the main-menu import modal (BuildSelectScreen) and the in-build Import/Export
@@ -146,17 +146,46 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     try {
       let towerSequences: Awaited<ReturnType<typeof api.getTowerSequence>>['entries'] = []
       let beltBlends: Awaited<ReturnType<typeof api.getBeltBlends>>['blends'] = []
-      let talentTrees: Awaited<ReturnType<typeof api.getTrees>> = []
+      let talentTrees: Awaited<ReturnType<typeof api.getTree>>[] = []
+      let treeSummaries: Awaited<ReturnType<typeof api.getTrees>> = []
       let pactSpiritCatalog: Awaited<ReturnType<typeof api.getPactSpirits>>['spirits'] = []
+      let etherealPrisms: Awaited<ReturnType<typeof api.getEtherealPrism>> | null = null
+      let slatePool: Awaited<ReturnType<typeof api.getSlatePoolAll>> | null = null
       let catalogUnavailable = false
       try { towerSequences = (await api.getTowerSequence()).entries }
       catch { catalogUnavailable = true }
       try { beltBlends = (await api.getBeltBlends()).blends }
       catch { catalogUnavailable = true }
-      if (preview.talentTrees?.length) {
+      if (preview.talentTrees?.length || preview.slates?.length) {
         try {
-          talentTrees = await api.getTrees()
+          treeSummaries = await api.getTrees()
         } catch { catalogUnavailable = true }
+      }
+      if (preview.slates?.length) {
+        try { slatePool = await api.getSlatePoolAll() }
+        catch { catalogUnavailable = true }
+      }
+      const relevantSlateIds = new Set((preview.slates ?? []).flatMap(slate => [
+        ...slate.baseTalentIds, ...slate.enchantTalentIds,
+        ...slate.talentSlots.flatMap(slot => slot.talentId ? [slot.talentId] : []),
+      ]))
+      const treeNames = new Set((preview.talentTrees ?? []).flatMap(tree => tree.careerId === null
+        ? [] : [UE_LOG_CAREER_TREE_NAMES[tree.careerId] ?? '']))
+      for (const tree of treeSummaries) {
+        if (tree.nodes?.some(node => node.game_id && relevantSlateIds.has(node.game_id))) treeNames.add(tree.name)
+      }
+      for (const option of [...(slatePool?.magic ?? []), ...(slatePool?.rare ?? []), ...(slatePool?.legendary ?? []), ...(slatePool?.core ?? [])]) {
+        if (option.game_id && relevantSlateIds.has(option.game_id)) treeNames.add(option.treeName)
+      }
+      treeNames.delete('')
+      if (treeNames.size) {
+        const trees = await Promise.all([...treeNames].map(name => api.getTree(name).catch(() => null)))
+        talentTrees = trees.filter((tree): tree is NonNullable<typeof tree> => !!tree)
+        if (talentTrees.length !== treeNames.size) catalogUnavailable = true
+      }
+      if (preview.talentTrees?.some(tree => tree.prism)) {
+        try { etherealPrisms = await api.getEtherealPrism() }
+        catch { catalogUnavailable = true }
       }
       if (preview.pactContracts?.length) {
         try { pactSpiritCatalog = (await api.getPactSpirits()).spirits }
@@ -166,8 +195,10 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
         memories: refHeroMemories,
         traits: refHeroTraits,
         revivalAffixes: refMemoryRevival,
+        etherealPrisms,
+        slatePool,
       })
-      if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; Tower Sequence chips, belt blends, pact spirits, or talent allocations may be omitted.')
+      if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; some Tower Sequence chips, belt blends, pact spirits, talents, slates, or prisms may be omitted.')
       if (loginCount > 1) result.warnings.splice(1, 0, describeUeLogCaptureMerge(loginCount))
       setPendingBuild(result.build)
       setWarnings(result.warnings)

@@ -5,7 +5,7 @@ import { scanUeGameLog } from '../importers/ueLog/parse'
 import type { UeLogCharacterPreview } from '../importers/ueLog/parse'
 import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures } from '../importers/ueLog/toBuild'
 import { migrateLegendaryItem } from '../utils/gearItem'
-import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, PactSpirit, SkillItem } from '../api/client'
+import type { BeltBlend, CraftBaseItemGroup, CraftBaseType, Graft, LegendaryGearItem, PactSpirit, SkillItem, CreatedHeroMemory } from '../api/client'
 
 const log = `prefix before dump\n----Socket RecvMessage STT----GetPlayerData----SynId = 1\n|+player+Level [98]\n|+player+HeroId [700]\n|+heroCharacterv3OverView+heroPurchaseId [3002]\n|+bag+wearItems+1+Index [7]\n|+bag+wearItems+1+Item+BaseId [380009]\n|+bag+wearItems+1+Item+Level [89]\n|+bag+wearItems+1+Item+UniqueItmId [0]\n|+bag+wearItems+1+Item+BaseAttrAffix+1+Id [800000]\n|+bag+wearItems+1+Item+BaseAffix+1+Id [172103200]\n|+bag+wearItems+1+Item+ChipAffix+1+Id [160567034]\n|+bag+wearItems+1+Item+EnchantAffixs+1+Id [3704005]\n|+bag+wearItems+1+Item+Corrode [true]\n|+bag+wearItems+1+Item+Prefix+1+Id [251471001]\n|+bag+wearItems+1+Item+Prefix+1+source [16]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+1 [2.0]\n|+bag+wearItems+1+Item+Prefix+1+DynArgs+2 [-3.0]\n|+bag+wearItems+1+Item+Suffix+1+Id [51533751]\n|+bag+wearItems+1+Item+Suffix+1+source [17]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+1 [1.0]\n|+bag+wearItems+1+Item+Suffix+1+DynArgs+2 [3.0]\n----Socket RecvMessage End----\ntail after dump\n`
 
@@ -46,7 +46,7 @@ function chunkedFile(text: string, chunkSize = 17): File {
 describe('UE_game.log preview', () => {
   it('describes how repeated login captures are combined', () => {
     expect(describeUeLogCaptureMerge(2)).toBe(
-      'This character has 2 login captures. Later entries replace earlier gear, skill, memory, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.',
+      'This character has 2 login captures. Later entries replace earlier gear, skill, memory, slate, prism, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.',
     )
   })
 
@@ -105,6 +105,7 @@ describe('UE_game.log preview', () => {
 |+geniusInfos+info+1+geniusCareerId [12]
 |+geniusInfos+info+1+geniusList+1+geniusId [12010100]
 |+geniusInfos+info+1+geniusList+1+rank [2]
+|+geniusInfos+info+1+geniusList+1+inPrismArea [true]
 |+geniusInfos+info+1+geniusList+2+geniusId [12020100]
 |+geniusInfos+info+1+geniusList+2+rank [1]
 |+SP3Base+TalentTree+1+key [12228]
@@ -113,8 +114,59 @@ describe('UE_game.log preview', () => {
 
     expect(result.characters[0].talentTrees).toEqual([{
       careerId: 12,
-      allocations: [{ id: '12010100', rank: 2 }, { id: '12020100', rank: 1 }],
+      allocations: [{ id: '12010100', rank: 2, inPrismArea: true }, { id: '12020100', rank: 1 }],
     }])
+  })
+
+  it('reads equipped slate item identity, board index, effects, and prism placement fields', async () => {
+    const result = await scanUeGameLog(chunkedFile(`----Socket RecvMessage STT----GetPlayerData
+|+bag+dressingTalentBlocks+1+Index [22]
+|+bag+dressingTalentBlocks+1+PageId [-4]
+|+bag+dressingTalentBlocks+1+Item+BaseId [260504]
+|+bag+dressingTalentBlocks+1+Item+ShapeId [1035]
+|+bag+dressingTalentBlocks+1+Item+Direction [1]
+|+bag+dressingTalentBlocks+1+Item+BaseTalentList+1 [42070500]
+|+bag+dressingTalentBlocks+1+Item+EnchantTalentList+1 [43060400]
+|+geniusInfos+info+1+geniusCareerId [12]
+|+geniusInfos+info+1+geniusList+1+geniusId [12060300]
+|+geniusInfos+info+1+geniusList+1+rank [2]
+|+geniusInfos+info+1+geniusList+1+inPrismArea [true]
+|+geniusInfos+info+1+prismInfo+geniusId [12060400]
+|+geniusInfos+info+1+prismInfo+item+BaseId [360620]
+|+geniusInfos+info+1+prismInfo+item+RareValue [3]
+|+geniusInfos+info+1+prismInfo+item+Prefix+1+Id [12040001]
+|+geniusInfos+info+1+prismEffectPositions+1+x [3]
+|+geniusInfos+info+1+prismEffectPositions+1+y [6]
+|+geniusInfos+info+1+prismGeniusId [80002000]
+----Socket RecvMessage End----`))
+
+    expect(result.characters[0].slates).toEqual([{
+      index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1, rarityValue: null,
+      baseTalentIds: ['42070500'], enchantTalentIds: ['43060400'], talentSlots: [],
+    }])
+    expect(result.characters[0].talentTrees?.[0]).toMatchObject({
+      careerId: 12,
+      prism: {
+        anchorTalentId: '12060400', baseId: 360620, rarityValue: 3, uniqueItemId: null,
+        prefixAffixes: [{ id: '12040001', source: null, values: [] }],
+        effectPositions: [{ x: 3, y: 6 }], replacementTalentId: '80002000',
+      },
+    })
+    const trees = [{ name: 'Onslaughter', nodes: [
+      { id: 'onslaughter_c5_r3', column: 5, row: 3 },
+      { id: 'onslaughter_c5_r2', column: 5, row: 2 },
+    ] }]
+    const catalog = { season: 'SS14', items: [], base_affixes: [], random_affixes: [], base_affix_modifiers: [], catalog: {
+      items: [{ name: 'Ethereal Prism: Miraculous Touch', game_id: 360620, short_name: 'Miraculous Touch', kind: 'ethereal_prism',
+        icon_url: '', tags: [], detail: [], rarities: ['rare'], default_rarity: 'rare', tint_when_rare: true,
+        implicit: { kind: 'replace', text: 'Replaces Core Talent' }, replace_description: 'Effect' }],
+      area_size: [], middle: [], advanced: [], do_not_replace: {}, penalties: [],
+    } }
+    const imported = createUeLogBuild(result.characters[0]!, [], [], [], [], [], [], [], trees as any, [],
+      { etherealPrisms: catalog as any }).build
+    expect(imported.slots?.[0]).toMatchObject({ treeName: 'Onslaughter', nodeStates: { onslaughter_c5_r2: 2 } })
+    expect(imported.prisms?.[0]).toMatchObject({ anchorCol: 5, anchorRow: 3, boxAllocations: {},
+      ethereal: { replacementTalentId: '80002000' } })
   })
 
   it('retains follower and servant IDs for import auditing', async () => {
@@ -359,6 +411,28 @@ describe('UE_game.log build conversion', () => {
     expect(warnings.some(w => /base stat/i.test(w))).toBe(false)
   })
 
+  it('matches log-only memory affix IDs through the TLIDB UUID crosswalk', () => {
+    const uuid = 'fb9a7ce9-d199-5093-ad56-dc400b786e55'
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], memories: [{ slot: 1, baseId: 71001, rarityValue: 3, level: 40,
+        baseAttrAffixes: [{ id: '403101411', source: null, values: [90] }],
+        fixedAffixes: [{ id: '402151902', source: null, values: [23] }], randomAffixes: [], awakenAffixes: [],
+      }],
+    }, [], [], [], [], [], [], [], [], [], { memories: {
+      memory_types: [], base_stat_scaling: { stats: [] },
+      base_stats: [{ source: 'Memory of Origin', modifier: '+90 Strength', tier: 1 }],
+      fixed_affixes: [{ uuid, source: 'Memory of Origin', modifier: '+(20?26) % Critical Strike Damage', tier: 2 }],
+      random_affixes: [],
+      log_base_stats: [{ log_modifier_id: '403101411', source: 'Memory of Origin', stat_name: 'Strength' }],
+      log_affixes: [{ log_modifier_id: '402151902', source: 'Memory of Origin', group: 'fixed_affixes', affix_uuid: uuid }],
+    } } as any)
+    expect((result.build.heroMemories?.[0] as CreatedHeroMemory).fixedAffixes[0]).toEqual({
+      modifier: '+(20?26) % Critical Strike Damage', tier: 2, rolledValue: 23,
+    })
+    expect(result.warnings.some(warning => warning.includes('logged memory affix'))).toBe(false)
+  })
+
   it('groups captures by character and hero, then keeps the latest file for import', () => {
     const capture = (fileNumber: number, modifiedAt: number, characterName: string, heroId: number, level: number) => ({
       fileNumber,
@@ -385,6 +459,129 @@ describe('UE_game.log build conversion', () => {
     expect(result.build.slots).toEqual([
       { treeName: 'Onslaughter', nodeStates: { onslaughter_c0_r0: 2 } }, null, null, null,
     ])
+  })
+
+  it('imports slate effects and Ethereal Prism item and placement by canonical game IDs', () => {
+    const character: UeLogCharacterPreview = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 31, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['43060400'], enchantTalentIds: [], talentSlots: [] }],
+      talentTrees: [{ careerId: 12, allocations: [{ id: '12060300', rank: 2, inPrismArea: true }], prism: {
+        anchorTalentId: '12060400', baseId: 360620, uniqueItemId: null, rarityValue: 3,
+        prefixAffixes: [{ id: '12040001', source: null, values: [] }], baseAffixes: [],
+        effectPositions: [{ x: 3, y: 6 }, { x: 5, y: 7 }], replacementTalentId: '80002000',
+      } }],
+    }
+    const trees = [
+      { name: 'Ranger', nodes: [{ id: 'ranger_c3_r4', game_id: '43060400', column: 3, row: 4, node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] }] },
+      { name: 'Onslaughter', nodes: [
+        { id: 'onslaughter_c5_r3', game_id: '12060400', column: 5, row: 3, node_type: 'Medium Talent', effects: ['+8 % Damage'] },
+        { id: 'onslaughter_c5_r2', column: 5, row: 2, node_type: 'Micro Talent', effects: ['+9 % Damage'] },
+      ] },
+    ]
+    const etherealPrisms = {
+      season: 'SS14', items: [], base_affixes: [], random_affixes: [],
+      base_affix_modifiers: [],
+      catalog: {
+        items: [{ name: 'Ethereal Prism: Miraculous Touch', game_id: 360620, short_name: 'Miraculous Touch', kind: 'ethereal_prism' as const,
+          icon_url: 'https://cdn.tlidb.com/prism.webp', tags: [], detail: [], rarities: ['rare', 'legendary'] as ('rare' | 'legendary')[],
+          default_rarity: 'legendary' as const, tint_when_rare: true,
+          implicit: { kind: 'replace' as const, text: 'Replaces the Core Talent with Miraculous Touch' }, replace_description: 'Effect' }],
+        area_size: [{ modifier: 'Effect Area expands to 3 x 2', modifier_id: '12040001', cols: 3, rows: 2 }],
+        middle: [], advanced: [], do_not_replace: {}, penalties: [],
+      },
+    }
+
+    const slatePool = { magic: [], rare: [{ nodeId: 'ranger_c3_r4', game_id: '43060400', treeName: 'Ranger', nodeType: 'Medium Talent', effects: ['+18 % Melee Damage'] }], legendary: [], core: [{ key: 'Nether King:Core Option', game_id: '90000061',
+      treeName: 'Nether King', name: 'Nether King Core Option', effects: ['+12 % Damage'] }] }
+    const { build, warnings } = createUeLogBuild(character, [], [], [], [], [], [], [], trees, [], { etherealPrisms, slatePool } as any)
+
+    expect(build.slates?.[0]).toMatchObject({ kind: 'base', shapeIndex: 1, orientationIndex: 1, anchor: [0, 2],
+      cells: [[0, 2], [0, 3], [1, 2], [2, 2]] })
+    expect(build.slates?.[0]?.slots).toHaveLength(5)
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({ selectedNodeId: 'ranger_c3_r4', effects: ['+18 % Melee Damage'], nodeType: 'Medium Talent' })
+    expect(build.prisms?.[0]).toMatchObject({ kind: 'ethereal_prism', name: 'Ethereal Prism: Miraculous Touch',
+      treeName: 'Onslaughter', anchorCol: 5, anchorRow: 3,
+      ethereal: { shortName: 'Miraculous Touch', rarity: 'rare', areaSize: 'Effect Area expands to 3 x 2', boxCols: 2, boxRows: 3,
+        replacementTalentId: '80002000' },
+      boxAllocations: {} })
+    expect(warnings).toEqual([])
+    const withImplicitRoll: UeLogCharacterPreview = { ...character, talentTrees: character.talentTrees?.map(tree => ({
+      ...tree, prism: tree.prism ? { ...tree.prism, baseAffixes: [{ id: 'logged-implicit', source: null, values: [12] }] } : undefined,
+    })) }
+    const rolled = createUeLogBuild(withImplicitRoll, [], [], [], [], [], [], [], trees, [], { etherealPrisms, slatePool } as any)
+    expect(rolled.warnings).toContain('Ethereal Prism: Miraculous Touch: logged prism implicit roll values are not stored by the current Builder prism configuration.')
+  })
+
+  it('maps known unique slate IDs to the Builder slate kinds', () => {
+    for (const [uniqueItemId, kind] of [[1003, 'fallen_starlight'], [1005, 'corner_of_divinity']] as const) {
+      const { build, warnings } = createUeLogBuild({
+        dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+        gear: [], skills: [], truncatedSections: [],
+        slates: [{ index: 13, pageId: -4, baseId: 261003, uniqueItemId, shapeId: 2020, direction: 1,
+          rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
+      }, [], [])
+      expect(build.slates?.[0]?.kind).toBe(kind)
+      expect(warnings).toEqual([])
+    }
+  })
+
+  it('wraps logged unique-slate directions to the available rotations', () => {
+    for (const [uniqueItemId, kind, direction, orientationIndex] of [
+      [1003, 'fallen_starlight', 3, 0],
+      [1010, 'pedigree', 3, 0],
+    ] as const) {
+      const { build, warnings } = createUeLogBuild({
+        dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+        gear: [], skills: [], truncatedSections: [],
+        slates: [{ index: 13, pageId: -4, baseId: 261003, uniqueItemId, shapeId: 2020, direction,
+          rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
+      }, [], [])
+      expect(build.slates?.[0]).toMatchObject({ kind, orientationIndex })
+      expect(warnings).toEqual([])
+    }
+  })
+
+  it('places the owner log slate at index 13 on the left edge', () => {
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 2,
+        rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
+    }, [], [])
+
+    expect(build.slates).toMatchObject([{
+      kind: 'fallen_starlight', orientationIndex: 1, anchor: [2, 0], cells: [[2, 0], [3, 0]],
+    }])
+  })
+
+  it('fits the shape-less Nether King slate from its logged origin cell', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [
+        { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 2, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 32, pageId: -4, baseId: 261010, uniqueItemId: 1010, shapeId: 2090, direction: 3, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 34, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1045, direction: 3, rarityValue: 3, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 43, pageId: -4, baseId: 261005, uniqueItemId: 1005, shapeId: 2030, direction: 1, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 45, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 2, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null, rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 64, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 3, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+      ],
+    }, [], [])
+
+    expect(build.slates?.map(slate => [slate.anchor, slate.cells])).toEqual([
+      [[2, 0], [[2, 0], [3, 0]]],
+      [[0, 1], [[0, 2], [0, 3], [1, 1], [1, 2], [1, 3], [2, 1], [2, 2]]],
+      [[3, 1], [[3, 1], [3, 2], [4, 2], [5, 2]]],
+      [[2, 3], [[2, 3], [2, 4], [3, 3]]],
+      [[4, 3], [[4, 3], [5, 3]]],
+      [[1, 1], [[1, 4], [4, 1], [4, 4]]],
+      [[3, 4], [[3, 4], [3, 5]]],
+    ])
+    expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')).toMatchObject({ orientationIndex: 0, treeType: 'Nether King' })
+    expect(warnings).not.toContain("Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.")
   })
 
   it('maps known logged pact game IDs into the three battle slots and warns when rank is missing', () => {

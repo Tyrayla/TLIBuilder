@@ -61,6 +61,30 @@ export interface UeLogIngredientChoice {
   optionId: string
 }
 
+export interface UeLogSlate {
+  index: number | null
+  pageId: number | null
+  baseId: number | null
+  uniqueItemId: number | null
+  shapeId: number | null
+  direction: number | null
+  rarityValue: number | null
+  baseTalentIds: string[]
+  enchantTalentIds: string[]
+  talentSlots: Array<{ color: string | null; talentId: string | null; rarity: number | null }>
+}
+
+export interface UeLogPrism {
+  anchorTalentId: string | null
+  baseId: number | null
+  uniqueItemId: number | null
+  rarityValue: number | null
+  prefixAffixes: UeLogAffix[]
+  baseAffixes: UeLogAffix[]
+  effectPositions: Array<{ x: number; y: number }>
+  replacementTalentId: string | null
+}
+
 export interface UeLogCharacterPreview {
   dumpNumber: number
   characterName: string | null
@@ -69,7 +93,8 @@ export interface UeLogCharacterPreview {
   heroPurchaseId: number | null
   gear: UeLogGearItem[]
   skills: UeLogSkillItem[]
-  talentTrees?: Array<{ careerId: number | null; allocations: Array<{ id: string; rank: number }> }>
+  talentTrees?: Array<{ careerId: number | null; allocations: Array<{ id: string; rank: number; inPrismArea?: boolean }>; prism?: UeLogPrism }>
+  slates?: UeLogSlate[]
   followServantId?: number | null
   servantIds?: number[]
   activeTraitIds?: number[]
@@ -314,9 +339,53 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       const rank = ['rank', 'point', 'points', 'talentPoint', 'level', 'value']
         .map(key => numberValue(scalar(row[key] ?? value[key])))
         .find((n): n is number => n !== null && n > 0) ?? 1
-      return [{ id, rank }]
+      const inPrismArea = scalar(row.inPrismArea ?? value.inPrismArea) === 'true'
+      return [{ id, rank, ...(inPrismArea ? { inPrismArea: true } : {}) }]
     })
-    return allocations.length ? [{ careerId, allocations }] : []
+    const prismInfo = info.prismInfo && typeof info.prismInfo === 'object' ? info.prismInfo as Record<string, unknown> : null
+    const prismItem = prismInfo?.item && typeof prismInfo.item === 'object' ? prismInfo.item as Record<string, unknown> : {}
+    const rawAnchor = scalar(prismInfo?.geniusId)
+    const rawReplacement = scalar(info.prismGeniusId)
+    const prism = prismInfo ? {
+      anchorTalentId: typeof rawAnchor === 'string' ? rawAnchor : null,
+      baseId: numberValue(scalar(prismItem.BaseId)),
+      uniqueItemId: numberValue(scalar(prismItem.UniqueItmId)),
+      rarityValue: numberValue(scalar(prismItem.RareValue)),
+      prefixAffixes: affixRows(prismItem.Prefix),
+      baseAffixes: affixRows(prismItem.BaseAffix),
+      effectPositions: entries(info.prismEffectPositions).flatMap(position => {
+        if (!position || typeof position !== 'object') return []
+        const row = position as Record<string, unknown>
+        const x = numberValue(scalar(row.x)), y = numberValue(scalar(row.y))
+        return x === null || y === null ? [] : [{ x, y }]
+      }),
+      replacementTalentId: typeof rawReplacement === 'string' ? rawReplacement : null,
+    } : undefined
+    return allocations.length || prism ? [{ careerId, allocations, ...(prism ? { prism } : {}) }] : []
+  })
+}
+
+function loggedSlates(tree: Record<string, unknown>): UeLogSlate[] {
+  const bag = tree.bag as Record<string, unknown> | undefined
+  return entries(bag?.dressingTalentBlocks).flatMap(raw => {
+    if (!raw || typeof raw !== 'object') return []
+    const row = raw as Record<string, unknown>
+    const item = row.Item && typeof row.Item === 'object' ? row.Item as Record<string, unknown> : {}
+    const readIds = (value: unknown) => entries(value).map(scalar).filter((id): id is string => typeof id === 'string')
+    return [{
+      index: numberValue(scalar(row.Index)), pageId: numberValue(scalar(row.PageId)),
+      baseId: numberValue(scalar(item.BaseId)), uniqueItemId: numberValue(scalar(item.UniqueItmId)),
+      shapeId: numberValue(scalar(item.ShapeId)), direction: numberValue(scalar(item.Direction)),
+      rarityValue: numberValue(scalar(item.RareValue)),
+      baseTalentIds: readIds(item.BaseTalentList), enchantTalentIds: readIds(item.EnchantTalentList),
+      talentSlots: entries(item.talentSlotList).flatMap(slot => {
+        if (!slot || typeof slot !== 'object') return []
+        const value = slot as Record<string, unknown>
+        const talentId = scalar(value.talentId)
+        return [{ color: typeof scalar(value.color) === 'string' ? scalar(value.color) as string : null,
+          talentId: typeof talentId === 'string' ? talentId : null, rarity: numberValue(scalar(value.rarity)) }]
+      }),
+    }]
   })
 }
 
@@ -384,6 +453,7 @@ function previewDump(body: string, dumpNumber: number): UeLogCharacterPreview {
     gear: gearRows(tree),
     skills: skillRows(tree),
     talentTrees: loggedTalentTrees(tree),
+    slates: loggedSlates(tree),
     followServantId: numberValue(scalar(player.FollowServant)),
     servantIds: entries(servantInfos?.servantData).flatMap(raw => {
       if (!raw || typeof raw !== 'object') return []

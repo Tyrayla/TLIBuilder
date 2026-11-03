@@ -33,6 +33,11 @@ def test_name_preserved():
     assert r["name"] == "Abyssal King Soul"
 
 
+def test_game_id_preserved_for_log_import_crosswalk():
+    r = import_crawler_spirit({**_SPIRIT, "game_id": 5330})
+    assert r["game_id"] == 5330
+
+
 def test_affinities_stored():
     r = import_crawler_spirit(_SPIRIT)
     assert r["affinities"] == ["Persistent", "Legendary"]

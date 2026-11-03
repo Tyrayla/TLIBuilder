@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-_AREA_RE = re.compile(r"Effect Area expands to\s+(\d+)\s*x\s*(\d+)", re.I)
+_AREA_RE = re.compile(r"(?:Effect Area|area of effect) expands to\s+(\d+)\s*x\s*(\d+)", re.I)
 _OVERALLOC_RE = re.compile(
     r"Points can be allocated to all\s+(Micro|Medium|Legendary Medium)\s+Talent.*?(\d+)\s+additional time", re.I)
 _MIDDLE_TIER_RE = re.compile(r"All\s+(Micro|Medium|Legendary Medium)\s+Talent within the area", re.I)

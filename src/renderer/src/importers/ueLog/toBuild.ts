@@ -1,5 +1,24 @@
-import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
-import type { UeLogCharacterPreview, UeLogGearItem, UeLogMemory, UeLogPactContract, UeLogSkillItem } from './parse'
+import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type PrismCatalog, type SavedSlateSlot, type SlatePool, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
+import { initSlateSlots, LEGENDARY_ORIENTATIONS, NETHER_KING_ORIGIN_OFFSETS } from '../../crosswalk/slateGeometry'
+import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
+
+// Owner-confirmed current game-log identity corrections where the hydrated catalog assigns the same ID to an older spirit.
+// In the owner's latest log, servantId 18230 is Kitty Express; the local SS14 catalog incorrectly assigns it to Captain Kitty.
+const UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES: Record<number, string> = { 18230: 'kitty_express' }
+
+// Career-to-tree pairs verified in docs/LOG_IMPORT_INVESTIGATION.md (F13). Unverified career IDs stay unresolved.
+export const UE_LOG_CAREER_TREE_NAMES: Record<number, string> = {
+  1: 'God of Might', 12: 'Onslaughter', 4: 'God of War', 42: 'Ronin', 62: 'Steel Vanguard', 54: 'Lich',
+}
+
+function loggedTalentCoordinates(gameId: string): { column: number; row: number } | null {
+  const match = /^(\d{2})(\d{2})(\d{2})/.exec(gameId)
+  if (!match) return null
+  const encodedY = Number(match[2]), encodedX = Number(match[3])
+  if (encodedX < 1 || encodedY < 1) return null
+  return { column: encodedY - 1, row: encodedX - 1 }
+}
+import type { UeLogCharacterPreview, UeLogGearItem, UeLogMemory, UeLogPactContract, UeLogSkillItem, UeLogSlate } from './parse'
 
 export interface UeLogBuildResult {
   build: Build
@@ -12,9 +31,12 @@ export interface UeLogReferenceCatalogs {
     fixed_affixes: HeroMemoryAffix[]
     random_affixes: HeroMemoryAffix[]
     log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
+    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string }[]
   } | null
   traits?: HeroTrait[] | null
   revivalAffixes?: HeroMemoryAffix[] | null
+  etherealPrisms?: PrismCatalog | null
+  slatePool?: SlatePool | null
 }
 
 export interface UeLogCapture {
@@ -30,7 +52,7 @@ export interface UeLogCharacterGroup {
 }
 
 export function describeUeLogCaptureMerge(loginCount: number): string {
-  return `This character has ${loginCount} login captures. Later entries replace earlier gear, skill, memory, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.`
+  return `This character has ${loginCount} login captures. Later entries replace earlier gear, skill, memory, slate, prism, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.`
 }
 
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
@@ -53,9 +75,9 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const skillsBySlot = new Map<number, UeLogSkillItem>()
     for (const skill of previous?.preview.skills ?? []) skillsBySlot.set(skill.logIndex, skill)
     for (const skill of capture.preview.skills) skillsBySlot.set(skill.logIndex, skill)
-    const talentsByCareer = new Map<number | null, Map<string, { id: string; rank: number }>>()
+    const talentsByCareer = new Map<number | null, Map<string, { id: string; rank: number; inPrismArea?: boolean }>>()
     for (const talentTree of [...(previous?.preview.talentTrees ?? []), ...(capture.preview.talentTrees ?? [])]) {
-      const nodes = talentsByCareer.get(talentTree.careerId) ?? new Map<string, { id: string; rank: number }>()
+      const nodes = talentsByCareer.get(talentTree.careerId) ?? new Map<string, { id: string; rank: number; inPrismArea?: boolean }>()
       for (const allocation of talentTree.allocations) nodes.set(allocation.id, allocation)
       talentsByCareer.set(talentTree.careerId, nodes)
     }
@@ -82,13 +104,26 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const ingredientsBySlot = new Map<string, NonNullable<UeLogCharacterPreview['ingredientChoices']>[number]>()
     for (const choice of previous?.preview.ingredientChoices ?? []) ingredientsBySlot.set(`${choice.bottleSlot}:${choice.materialSlot}`, choice)
     for (const choice of capture.preview.ingredientChoices ?? []) ingredientsBySlot.set(`${choice.bottleSlot}:${choice.materialSlot}`, choice)
+    const slatesByIndex = new Map<number, UeLogSlate>()
+    for (const slate of previous?.preview.slates ?? []) if (slate.index !== null) slatesByIndex.set(slate.index, slate)
+    for (const slate of capture.preview.slates ?? []) if (slate.index !== null) slatesByIndex.set(slate.index, slate)
+    const treesByCareer = new Map<number | null, NonNullable<UeLogCharacterPreview['talentTrees']>[number]>()
+    for (const talentTree of [...(previous?.preview.talentTrees ?? []), ...(capture.preview.talentTrees ?? [])]) {
+      const earlier = treesByCareer.get(talentTree.careerId)
+      treesByCareer.set(talentTree.careerId, {
+        ...talentTree,
+        allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
+        ...(talentTree.prism ? { prism: talentTree.prism } : earlier?.prism ? { prism: earlier.prism } : {}),
+      })
+    }
     groups.set(key, {
       fileNumber: capture.fileNumber,
       preview: {
         ...capture.preview,
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
         skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
-        ...(talentsByCareer.size ? { talentTrees: [...talentsByCareer].map(([careerId, nodes]) => ({ careerId, allocations: [...nodes.values()] })) } : {}),
+        ...(treesByCareer.size ? { talentTrees: [...treesByCareer.values()] } : talentsByCareer.size ? { talentTrees: [...talentsByCareer].map(([careerId, nodes]) => ({ careerId, allocations: [...nodes.values()] })) } : {}),
+        ...(slatesByIndex.size ? { slates: [...slatesByIndex.values()].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) } : {}),
         followServantId: capture.preview.followServantId ?? previous?.preview.followServantId ?? null,
         servantIds: [...servantIds],
         ...(memoriesBySlot.size ? { memories: [...memoriesBySlot.values()].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)) } : {}),
@@ -651,10 +686,14 @@ const MEMORY_RARITY_LABEL: Record<MemoryRarity, string> = {
 
 function loggedMemorySelection(
   row: UeLogMemory['fixedAffixes'][number], pool: HeroMemoryAffix[], source: string,
+  group: 'base_stats' | 'fixed_affixes' | 'random_affixes', logAffixes: NonNullable<UeLogReferenceCatalogs['memories']>['log_affixes'],
   warnings: string[], label: string,
 ): MemorySlotSelection | null {
-  const match = pool.find(candidate => candidate.source === source
-    && (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id)
+  const logAffix = logAffixes?.find(entry => entry.log_modifier_id === row.id && entry.source === source && entry.group === group)
+  const match = pool.find(candidate => candidate.source === source && (
+    (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id
+    || (!!logAffix && candidate.uuid === logAffix.affix_uuid)
+  ))
   if (!match) {
     warnings.push(`${label}: one logged memory affix could not be matched to TLIDB and was left out.`)
     return null
@@ -673,10 +712,10 @@ function loggedMemorySelection(
 
 function loggedMemoryBaseStatSelection(
   row: UeLogMemory['baseAttrAffixes'][number], catalog: NonNullable<UeLogReferenceCatalogs['memories']>,
-  source: string, warnings: string[], label: string,
+  source: string, logAffixes: NonNullable<UeLogReferenceCatalogs['memories']>['log_affixes'], warnings: string[], label: string,
 ): MemorySlotSelection | null {
   const crosswalk = catalog.log_base_stats?.find(entry => entry.log_modifier_id === row.id && entry.source === source)
-  if (!crosswalk) return loggedMemorySelection(row, catalog.base_stats, source, warnings, label)
+  if (!crosswalk) return loggedMemorySelection(row, catalog.base_stats, source, 'base_stats', logAffixes, warnings, label)
 
   const candidates = catalog.base_stats.filter(entry => entry.source === source
     && entry.modifier.replace(/^\s*[+-]?\d+(?:\.\d+)?\s*%?\s*/, '').trim() === crosswalk.stat_name)
@@ -713,15 +752,15 @@ function loggedMemory(
   const source = MEMORY_SOURCE_BY_TYPE[memoryType]
   const baseStatRow = row.baseAttrAffixes[0]
   const baseStat = baseStatRow && catalog
-    ? loggedMemoryBaseStatSelection(baseStatRow, catalog, source, warnings, `${source} base stat`)
+    ? loggedMemoryBaseStatSelection(baseStatRow, catalog, source, catalog.log_affixes, warnings, `${source} base stat`)
     : null
   if (!baseStatRow || !baseStat) {
     warnings.push(`${source}: its base stat is not mapped in the log import data.`)
   }
-  const mapPool = (rows: UeLogMemory['fixedAffixes'], pool: HeroMemoryAffix[], group: string) =>
-    rows.map(affix => loggedMemorySelection(affix, pool, source, warnings, `${source} ${group}`))
-  const fixed = mapPool(row.fixedAffixes, catalog?.fixed_affixes ?? [], 'fixed affix')
-  const random = mapPool(row.randomAffixes, catalog?.random_affixes ?? [], 'random affix')
+  const mapPool = (rows: UeLogMemory['fixedAffixes'], pool: HeroMemoryAffix[], group: 'fixed_affixes' | 'random_affixes', label: string) =>
+    rows.map(affix => loggedMemorySelection(affix, pool, source, group, catalog?.log_affixes, warnings, `${source} ${label}`))
+  const fixed = mapPool(row.fixedAffixes, catalog?.fixed_affixes ?? [], 'fixed_affixes', 'fixed affix')
+  const random = mapPool(row.randomAffixes, catalog?.random_affixes ?? [], 'random_affixes', 'random affix')
   const fixedAffixes: CreatedHeroMemory['fixedAffixes'] = [fixed[0] ?? null, fixed[1] ?? null]
   const randomAffixes: CreatedHeroMemory['randomAffixes'] = [random[0] ?? null, random[1] ?? null]
   return {
@@ -830,6 +869,187 @@ function loggedElixirIngredients(
   return { ingredients, unmapped }
 }
 
+function importLoggedSlates(
+  rows: UeLogSlate[], talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; node_type?: string; effects?: string[] }[] }>, pool: SlatePool | null | undefined, warnings: string[],
+): NonNullable<Build['slates']> {
+  const nodesByGameId = new Map<string, { id: string; treeName: string; nodeType: string; effects: string[] }>()
+  for (const tree of talentTrees) for (const node of tree.nodes ?? []) {
+    if (node.game_id) nodesByGameId.set(node.game_id, { id: node.id, treeName: tree.name, nodeType: node.node_type ?? '', effects: node.effects ?? [] })
+  }
+  for (const option of [...(pool?.magic ?? []), ...(pool?.rare ?? []), ...(pool?.legendary ?? [])]) {
+    if (option.game_id && !nodesByGameId.has(option.game_id)) {
+      nodesByGameId.set(option.game_id, { id: option.nodeId, treeName: option.treeName, nodeType: option.nodeType, effects: option.effects })
+    }
+  }
+  const kindByUniqueId: Record<number, string> = { 1003: 'fallen_starlight', 1005: 'corner_of_divinity', 1010: 'pedigree' }
+  const treeByBaseId: Record<number, string> = { 260504: 'God of Might', 260304: 'God of War', 260306: 'God of War' }
+  const prepared = rows.map((row, sourceIndex) => {
+    const kind = row.baseId === 394004 ? 'nether_kings_divinity'
+      : row.uniqueItemId && row.uniqueItemId !== 0 ? kindByUniqueId[row.uniqueItemId] : 'base'
+    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4, 1045: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
+    const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind]?.length ?? 1
+    const rawOrientation = kind === 'base' ? (row.direction ?? 0) : (row.direction ?? 1) - 1
+    const orientationIndex = ((rawOrientation % orientationCount) + orientationCount) % orientationCount
+    const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
+      ? (LEGENDARY_ORIENTATIONS[kind] ?? []).map((cells, index) => ({ cells, orientationIndex: index, originOffset: NETHER_KING_ORIGIN_OFFSETS[index] }))
+      : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
+    const cellsShape = layouts[0]?.cells
+    if (!kind || !cellsShape) {
+      warnings.push(row.baseId === 394004
+        ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
+        : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      return null
+    }
+    if (row.index === null || row.index < 1) {
+      warnings.push('An equipped slate has no valid board index and was left out.')
+      return null
+    }
+    // The log encodes Index as SlotId=10*column+row (1-based); it identifies a cell occupied by the piece.
+    return { row, sourceIndex, kind, shapeIndex: shapeIndex ?? 0, orientationIndex, layouts,
+      indexCell: [(row.index - 1) % 10, Math.floor((row.index - 1) / 10) - 1] as [number, number] }
+  }).filter((piece): piece is NonNullable<typeof piece> => !!piece)
+  const placements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
+  const solutions: Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>[] = []
+  const search = (remaining: typeof prepared, occupied: Set<string>): boolean => {
+    if (solutions.length >= 2) return true
+    if (!remaining.length) {
+      solutions.push(new Map([...placements].map(([key, value]) => [key, { anchor: [...value.anchor] as [number, number], cells: value.cells.map(cell => [...cell] as [number, number]), orientationIndex: value.orientationIndex }])))
+      return false
+    }
+    const piece = remaining[0]!
+    const [ir, ic] = piece.indexCell
+    for (const layout of piece.layouts) for (const [dr, dc] of (layout.originOffset ? [layout.originOffset] : layout.cells ?? [])) {
+      if (!layout.cells) continue
+      const anchor: [number, number] = [ir - dr, ic - dc]
+      const cells = layout.cells.map(([r, c]) => [anchor[0] + r, anchor[1] + c] as [number, number])
+      if (cells.some(([r, c]) => r < 0 || r >= 6 || c < 0 || c >= 6
+        || !SLATE_BOARD_VALID[r]?.[c] || occupied.has(`${r},${c}`))) continue
+      cells.forEach(([r, c]) => occupied.add(`${r},${c}`))
+      placements.set(piece.sourceIndex, { anchor, cells, orientationIndex: layout.orientationIndex })
+      if (search(remaining.slice(1), occupied)) return true
+      cells.forEach(([r, c]) => occupied.delete(`${r},${c}`))
+      placements.delete(piece.sourceIndex)
+    }
+    return false
+  }
+  search(prepared, new Set())
+  const resolvedPlacements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
+  if (solutions.length === 1) for (const entry of solutions[0]!) resolvedPlacements.set(...entry)
+  else if (solutions.length > 1) {
+    const [first, second] = solutions
+    for (const [sourceIndex, placement] of first!) {
+      const other = second!.get(sourceIndex)
+      if (other && JSON.stringify(placement) === JSON.stringify(other)) resolvedPlacements.set(sourceIndex, placement)
+      else warnings.push(`Slate at board index ${prepared.find(piece => piece.sourceIndex === sourceIndex)?.row.index}: its anchor remains ambiguous after fitting the logged slates and was left out.`)
+    }
+  } else if (prepared.length) warnings.push('Slate Index values do not resolve to a non-overlapping layout on the 6×6 board; slate placements were left out.')
+  return prepared.flatMap(piece => {
+    const { row, sourceIndex: index, kind, shapeIndex } = piece
+    const placement = resolvedPlacements.get(index)
+    if (!placement) return []
+    const { anchor, cells, orientationIndex } = placement
+    const gameIds = row.talentSlots.some(slot => slot.talentId)
+      ? row.talentSlots.flatMap(slot => slot.talentId ? [slot.talentId] : [])
+      : [...row.baseTalentIds, ...row.enchantTalentIds]
+    const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
+    const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
+    gameIds.forEach((gameId, slotIndex) => {
+      const slot = slots[slotIndex]
+      if (!slot) {
+        warnings.push(`Slate at board index ${row.index}: logged talent ${gameId} exceeds the Builder's ${kind} slots and was left out.`)
+        return
+      }
+      const core = coreByGameId.get(gameId)
+      if (core) {
+        if (!slot.canBeCore) {
+          warnings.push(`Slate at board index ${row.index}: ${core.name} is a Core Talent, but the Builder's ${kind} slate has no Core Talent slot; it was left out.`)
+          return
+        }
+        Object.assign(slot, { isCore: true, selectedCoreKey: core.key, coreName: core.name, effects: core.effects })
+        return
+      }
+      const node = nodesByGameId.get(gameId)
+      if (!node) {
+        warnings.push(`Slate at board index ${row.index}: talent ${gameId} could not be matched to a current tree node and was left empty.`)
+        return
+      }
+      const category = (['magic', 'rare', 'legendary'] as const).find(type =>
+        (pool?.[type] ?? []).some(option => option.game_id === gameId))
+        ?? (node.nodeType.includes('Legendary Medium') ? 'legendary' : node.nodeType.includes('Medium') ? 'rare' : 'magic')
+      const rank: Record<typeof category, number> = { magic: 0, rare: 1, legendary: 2 }
+      if (rank[category] > rank[slot.maxType]) {
+        warnings.push(`Slate at board index ${row.index}: ${node.nodeType || category} does not fit slot ${slotIndex + 1} on ${kind}; it was left empty.`)
+        return
+      }
+      Object.assign(slot, { slotType: category, selectedNodeId: node.id, effects: node.effects, nodeType: node.nodeType })
+    })
+    const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
+      : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
+    return [{ id: `ue-log-slate-${row.index}-${index}`, kind, cells, orientationIndex,
+      shapeIndex, anchor, slots, ...(treeType ? { treeType } : {}) }]
+  })
+}
+
+function importLoggedPrisms(
+  character: UeLogCharacterPreview,
+  talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; column?: number; row?: number }[] }>,
+  catalog: PrismCatalog | null | undefined, warnings: string[],
+): NonNullable<Build['prisms']> {
+  const enriched = catalog?.catalog
+  return (character.talentTrees ?? []).flatMap((loggedTree, index) => {
+    const row = loggedTree.prism
+    if (!row) return []
+    const item = enriched?.items.find(candidate => candidate.game_id === row.baseId)
+    const allNodes = talentTrees.flatMap(tree => (tree.nodes ?? []).map(node => ({ ...node, treeName: tree.name })))
+    const mappedTreeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
+    const anchorPosition = row.anchorTalentId ? loggedTalentCoordinates(row.anchorTalentId) : null
+    const anchor = allNodes.find(node => node.game_id === row.anchorTalentId)
+      ?? (mappedTreeName && anchorPosition ? allNodes.find(node => node.treeName === mappedTreeName
+        && node.column === anchorPosition.column && node.row === anchorPosition.row) : undefined)
+    if (!enriched || !item || !anchor) {
+      warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
+      return []
+    }
+    const rarity = row.rarityValue === 3 ? 'rare' : row.rarityValue === 4 ? 'legendary' : item.default_rarity
+    const ids = new Set([...row.prefixAffixes, ...row.baseAffixes].flatMap(affix => affix.id ? [affix.id] : []))
+    const matches = (affix: { modifier_id?: string | null; modifier_ids?: string[] }) =>
+      (!!affix.modifier_id && ids.has(affix.modifier_id)) || (affix.modifier_ids ?? []).some(id => ids.has(id))
+    const area = enriched.area_size.find(matches)
+    const middle = enriched.middle.find(matches)
+    const advanced = [...enriched.advanced, ...(enriched.do_not_replace[item.short_name] ?? [])].find(matches)
+    const implicit = item.implicit.kind === 'add_choice'
+      ? catalog?.base_affix_modifiers?.find(affix => matches(affix))?.modifier ?? ''
+      : item.implicit.text ?? ''
+    if (!implicit) warnings.push(`${item.name}: the logged implicit option could not be matched to current catalog data.`)
+    for (const affix of row.prefixAffixes) {
+      const knownAffixId = affix.id && [area, middle, advanced].some(candidate => candidate
+        && (candidate.modifier_id === affix.id || candidate.modifier_ids?.includes(affix.id!)))
+      if (affix.id && !knownAffixId) {
+        warnings.push(`${item.name}: prism affix ${affix.id} is missing from the current prism catalog and was left out.`)
+      }
+      if (affix.values.length) warnings.push(`${item.name}: logged prism affix roll values are not stored by the current Builder prism configuration.`)
+    }
+    if (row.baseAffixes.some(affix => affix.values.length)) {
+      warnings.push(`${item.name}: logged prism implicit roll values are not stored by the current Builder prism configuration.`)
+    }
+    const positions = row.effectPositions.map(({ x, y }) => ({ col: y - 1, row: x - 1 }))
+    const boxCols = positions.length ? Math.max(...positions.map(p => p.col)) - Math.min(...positions.map(p => p.col)) + 1 : undefined
+    const boxRows = positions.length ? Math.max(...positions.map(p => p.row)) - Math.min(...positions.map(p => p.row)) + 1 : undefined
+    return [{
+      id: `ue-log-prism-${row.baseId}-${index}`, templateId: `ue-log-prism-template-${row.baseId}-${index}`,
+      kind: 'ethereal_prism', name: item.name, iconUrl: item.icon_url,
+      rolls: { micro: -100, medium: -100, legendary: -100 },
+      ethereal: { shortName: item.short_name, rarity, implicit, tintWhenRare: item.tint_when_rare,
+        ...(area ? { areaSize: area.modifier, boxCols: boxCols ?? area.cols, boxRows: boxRows ?? area.rows } : boxCols && boxRows ? { boxCols, boxRows } : {}),
+        ...(middle ? { middle: middle.modifier } : {}), ...(advanced ? { advanced: advanced.modifier } : {}),
+        ...(row.replacementTalentId ? { replacementTalentId: row.replacementTalentId } : {}) },
+      // Ethereal prisms change effects on the real allocated tree nodes. The Builder's boxAllocations field
+      // represents Inverse Image copies only; keep it empty here.
+      treeName: anchor.treeName, anchorCol: anchor.column ?? 0, anchorRow: anchor.row ?? 0, boxAllocations: {},
+    }]
+  })
+}
+
 /** Create an editable Builder draft from the game data that can be joined by logged IDs. */
 export function createUeLogBuild(
   character: UeLogCharacterPreview,
@@ -840,7 +1060,7 @@ export function createUeLogBuild(
   towerSequences: TowerSequenceEntry[] = [],
   skillCatalog: SkillItem[] = [],
   beltBlends: BeltBlend[] = [],
-  talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; trait_variants?: { game_id?: string }[] }[] }> = [],
+  talentTrees: Array<{ name: string; nodes?: { id: string; game_id?: string; column?: number; row?: number; node_type?: string; effects?: string[]; trait_variants?: { game_id?: string }[] }[] }> = [],
   pactSpiritCatalog: PactSpirit[] = [],
   referenceCatalogs: UeLogReferenceCatalogs = {},
 ): UeLogBuildResult {
@@ -892,7 +1112,12 @@ export function createUeLogBuild(
   let unmappedTalentCount = 0
   for (const [index, loggedTree] of (character.talentTrees ?? []).entries()) {
     const mappedNodes = loggedTree.allocations.flatMap(allocation => {
-      const node = treeByGameId.get(allocation.id)
+      const known = treeByGameId.get(allocation.id)
+      const treeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
+      const coordinates = loggedTalentCoordinates(allocation.id)
+      const positioned = treeName && coordinates ? talentTrees.find(tree => tree.name === treeName)?.nodes?.find(node =>
+        node.column === coordinates.column && node.row === coordinates.row) : undefined
+      const node = known ?? (positioned ? { treeName: treeName!, nodeId: positioned.id } : undefined)
       if (!node) {
         unmappedTalentCount++
         return []
@@ -911,12 +1136,17 @@ export function createUeLogBuild(
   if (unmappedTalentCount) {
     warnings.push(`${unmappedTalentCount} allocated talent node${unmappedTalentCount === 1 ? '' : 's'} could not be matched to current TLIDB data and ${unmappedTalentCount === 1 ? 'was' : 'were'} skipped.`)
   }
+  const importedSlates = importLoggedSlates(character.slates ?? [], talentTrees, referenceCatalogs.slatePool, warnings)
+  const importedPrisms = importLoggedPrisms(character, talentTrees, referenceCatalogs.etherealPrisms, warnings)
   // player.FollowServant identifies the cosmetic pet, not the combat follower. The log does not expose
   // the mercenary selection, so do not turn that unrelated pet value into an import warning.
   const importedPactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null] = [null, null, null]
   for (const contract of character.pactContracts ?? []) {
     if (contract.areaId < 1 || contract.areaId > 3) continue
-    const spirit = pactSpiritCatalog.find(candidate => candidate.game_id === contract.servantId)
+    const overrideItemId = UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES[contract.servantId]
+    const spirit = overrideItemId
+      ? pactSpiritCatalog.find(candidate => candidate.item_id === overrideItemId)
+      : pactSpiritCatalog.find(candidate => candidate.game_id === contract.servantId)
     if (!spirit) {
       warnings.push(`The pact spirit in battle slot ${contract.areaId} is not present in the current TLIDB catalog.`)
       continue
@@ -947,6 +1177,8 @@ export function createUeLogBuild(
     build: {
       name: `${character.characterName || `Hero ${character.heroId ?? 'unknown'}`} · Level ${character.level ?? 'unknown'}`,
       slots,
+      ...(importedSlates.length ? { slates: importedSlates } : {}),
+      ...(importedPrisms.length ? { prisms: importedPrisms } : {}),
       gear,
       skills,
       ...importedTrait,

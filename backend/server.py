@@ -565,8 +565,9 @@ def _collect_pool(tree_names: list[str]) -> dict:
             out_key = f"{tree_name}:{raw_key}" if n == 1 else f"{tree_name}:{raw_key}#{n}"
             # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
             display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
+            node_type = raw_key.removeprefix("nether_king_").replace("_", " ").title() if tree_name == "Nether King" else None
             core_pool.append({"key": out_key, "game_id": str(ct["game_id"]) if ct.get("game_id") is not None else None,
-                              "treeName": tree_name, "name": display_name, "effects": effects})
+                              "treeName": tree_name, "name": display_name, "effects": effects, "nodeType": node_type})
 
     for ct in (season_manager.load_new_god_talents(active) or []):
         name = ct.get("name", "")
@@ -3326,7 +3327,8 @@ def get_hero_memories():
     data = season_manager.load_hero_memories(active)
     log_crosswalk = season_manager.load_hero_memory_log_crosswalk(active) or {}
     if not data:
-        return {**empty, "season": active, "log_base_stats": log_crosswalk.get("base_stats", [])}
+        return {**empty, "season": active, "log_base_stats": log_crosswalk.get("base_stats", []),
+                "log_affixes": log_crosswalk.get("affixes", [])}
     return {
         "season": active,
         "memory_types": data.get("memory_types", []),
@@ -3335,6 +3337,7 @@ def get_hero_memories():
         "base_stats": data.get("base_stats", []),
         "base_stat_scaling": _HERO_MEMORY_BASE_STATS,
         "log_base_stats": log_crosswalk.get("base_stats", []),
+        "log_affixes": log_crosswalk.get("affixes", []),
     }
 
 

@@ -47,6 +47,7 @@ def import_crawler_spirit(data: dict) -> dict:
 
     return {
         "item_id": item_id,
+        **({"game_id": data["game_id"]} if data.get("game_id") is not None else {}),
         "name": name,
         "uuid": data.get("uuid"),
         "description": data.get("description", ""),
