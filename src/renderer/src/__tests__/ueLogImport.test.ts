@@ -665,11 +665,29 @@ describe('UE_game.log build conversion', () => {
           { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
         ] }],
     }
-    const trees = [{ name: 'Ranger', nodes: [{ id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] }] }]
+    const trees = [{ name: 'Nether King', nodes: [{ id: 'nether_king_fixed_1', game_id: '42070500', node_type: 'Legendary Medium Nether King Talent Node', effects: ['+18 % Melee Damage'] }] }]
     const slatePool = { magic: [], rare: [], legendary: [], core: [] }
     const { build } = createUeLogBuild(character, [], [], [], [], [], [], [], trees, [], { slatePool } as any)
 
-    expect(build.slates?.[0]?.slots[0]).toMatchObject({ canBeCore: true, isCore: false, selectedNodeId: 'ranger_c3_r4' })
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({ canBeCore: true, isCore: false, selectedNodeId: 'nether_king_fixed_1' })
+  })
+
+  it('leaves a branded node empty when it does not match the imported Nether King variant', () => {
+    const character: UeLogCharacterPreview = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], talentTrees: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
+          { color: null, talentId: '90000062', rarity: null, slotIndex: 2 },
+        ] }],
+    }
+    const slatePool = { magic: [], rare: [], legendary: [], core: [{ key: 'Nether King:Contamination Brand', game_id: '90000062',
+      treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node', name: 'Contamination Brand',
+      effects: ['When Contamination is active, +12% Projection Effect'] }] }
+    const { build, warnings } = createUeLogBuild(character, [], [], [], [], [], [], [], [], [], { slatePool } as any)
+
+    expect(build.slates?.[0]?.slots[2]).toMatchObject({ selectedCoreKey: null, selectedNodeId: null })
+    expect(warnings).toContain("Nether King's Divinity at board index 52: talent 90000062 does not match its Judgment branded Nether King slot and was left empty.")
   })
 
   it('maps known unique slate IDs to the Builder slate kinds', () => {
