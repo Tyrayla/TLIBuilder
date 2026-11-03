@@ -1041,7 +1041,7 @@ function importLoggedPrisms(
     if (row.rarityValue !== null && (!mappedRarity || !item.rarities.includes(mappedRarity))) {
       warnings.push(`${item.name}: logged prism rarity ${row.rarityValue} has no verified mapping; the catalog default was used.`)
     }
-    const ids = new Set([...row.prefixAffixes, ...row.baseAffixes].flatMap(affix => affix.id ? [affix.id] : []))
+    const ids = new Set([...row.prefixAffixes, ...row.baseAffixes, ...row.baseAttrAffixes].flatMap(affix => affix.id ? [affix.id] : []))
     const matches = (affix: { modifier_id?: string | null; modifier_ids?: string[] }) =>
       (!!affix.modifier_id && ids.has(affix.modifier_id)) || (affix.modifier_ids ?? []).some(id => ids.has(id))
     const area = enriched.area_size.find(matches)
@@ -1059,7 +1059,7 @@ function importLoggedPrisms(
       }
       if (affix.values.length) warnings.push(`${item.name}: logged prism affix roll values are not stored by the current Builder prism configuration.`)
     }
-    if (row.baseAffixes.some(affix => affix.values.length)) {
+    if ([...row.baseAffixes, ...row.baseAttrAffixes].some(affix => affix.values.length)) {
       warnings.push(`${item.name}: logged prism implicit roll values are not stored by the current Builder prism configuration.`)
     }
     const positions = row.effectPositions.map(({ x, y }) => ({ col: y - 1, row: x - 1 }))

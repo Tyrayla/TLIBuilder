@@ -135,6 +135,7 @@ describe('UE_game.log preview', () => {
 |+geniusInfos+info+1+prismInfo+item+BaseId [360620]
 |+geniusInfos+info+1+prismInfo+item+RareValue [3]
 |+geniusInfos+info+1+prismInfo+item+Prefix+1+Id [12040001]
+|+geniusInfos+info+1+prismInfo+item+BaseAttrAffix+1+Id [12040002]
 |+geniusInfos+info+1+prismEffectPositions+1+x [3]
 |+geniusInfos+info+1+prismEffectPositions+1+y [6]
 |+geniusInfos+info+1+prismGeniusId [80002000]
@@ -149,6 +150,7 @@ describe('UE_game.log preview', () => {
       prism: {
         anchorTalentId: '12060400', baseId: 360620, rarityValue: 3, uniqueItemId: null,
         prefixAffixes: [{ id: '12040001', source: null, values: [] }],
+        baseAttrAffixes: [{ id: '12040002', source: null, values: [] }],
         effectPositions: [{ x: 3, y: 6 }], replacementTalentId: '80002000',
       },
     })
@@ -156,17 +158,17 @@ describe('UE_game.log preview', () => {
       { id: 'onslaughter_c5_r3', column: 5, row: 3 },
       { id: 'onslaughter_c5_r2', column: 5, row: 2 },
     ] }]
-    const catalog = { season: 'SS14', items: [], base_affixes: [], random_affixes: [], base_affix_modifiers: [], catalog: {
+    const catalog = { season: 'SS14', items: [], base_affixes: [], random_affixes: [], base_affix_modifiers: [{ modifier_id: '12040002', modifier: '+12% Max Life' }], catalog: {
       items: [{ name: 'Ethereal Prism: Miraculous Touch', game_id: 360620, short_name: 'Miraculous Touch', kind: 'ethereal_prism',
         icon_url: '', tags: [], detail: [], rarities: ['rare'], default_rarity: 'rare', tint_when_rare: true,
-        implicit: { kind: 'replace', text: 'Replaces Core Talent' }, replace_description: 'Effect' }],
+        implicit: { kind: 'add_choice' }, replace_description: 'Effect' }],
       area_size: [], middle: [], advanced: [], do_not_replace: {}, penalties: [],
     } }
     const imported = createUeLogBuild(result.characters[0]!, [], [], [], [], [], [], [], trees as any, [],
       { etherealPrisms: catalog as any }).build
     expect(imported.slots?.[0]).toMatchObject({ treeName: 'Onslaughter', nodeStates: { onslaughter_c5_r2: 2 } })
     expect(imported.prisms?.[0]).toMatchObject({ anchorCol: 5, anchorRow: 3, boxAllocations: {},
-      ethereal: { replacementTalentId: '80002000' } })
+      ethereal: { replacementTalentId: '80002000', implicit: '+12% Max Life' } })
   })
 
   it('retains follower and servant IDs for import auditing', async () => {
@@ -470,6 +472,7 @@ describe('UE_game.log build conversion', () => {
       talentTrees: [{ careerId: 12, allocations: [{ id: '12060300', rank: 2, inPrismArea: true }], prism: {
         anchorTalentId: '12060400', baseId: 360620, uniqueItemId: null, rarityValue: 3,
         prefixAffixes: [{ id: '12040001', source: null, values: [] }], baseAffixes: [],
+        baseAttrAffixes: [],
         effectPositions: [{ x: 3, y: 6 }, { x: 5, y: 7 }], replacementTalentId: '80002000',
       } }],
     }

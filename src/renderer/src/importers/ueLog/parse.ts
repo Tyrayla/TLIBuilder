@@ -81,6 +81,7 @@ export interface UeLogPrism {
   rarityValue: number | null
   prefixAffixes: UeLogAffix[]
   baseAffixes: UeLogAffix[]
+  baseAttrAffixes: UeLogAffix[]
   effectPositions: Array<{ x: number; y: number }>
   replacementTalentId: string | null
 }
@@ -353,6 +354,7 @@ function loggedTalentTrees(tree: Record<string, unknown>): NonNullable<UeLogChar
       rarityValue: numberValue(scalar(prismItem.RareValue)),
       prefixAffixes: affixRows(prismItem.Prefix),
       baseAffixes: affixRows(prismItem.BaseAffix),
+      baseAttrAffixes: affixRows(prismItem.BaseAttrAffix),
       effectPositions: entries(info.prismEffectPositions).flatMap(position => {
         if (!position || typeof position !== 'object') return []
         const row = position as Record<string, unknown>
