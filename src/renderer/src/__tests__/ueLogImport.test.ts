@@ -942,6 +942,7 @@ describe('UE_game.log build conversion', () => {
           rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
       }, [], [])
       expect(build.slates?.[0]?.orientationIndex).toBe(orientationIndex)
+      expect(build.slates?.[0]?.cells).toContainEqual([1, 1])
       expect(warnings).not.toContain(`Slate ${uniqueItemId}: logged direction ${direction} is outside the verified range and was left out.`)
     }
   })
@@ -951,7 +952,7 @@ describe('UE_game.log build conversion', () => {
       dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
       gear: [], skills: [], truncatedSections: [],
       slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
-        rarityValue: 3, baseTalentIds: ['14050100', '64050300', '10070100', '43060300'], enchantTalentIds: [], talentSlots: [] }],
+        rarityValue: 3, baseTalentIds: ['14050100', '64050300'], enchantTalentIds: ['10070100', '43060300'], talentSlots: [] }],
     }, [], [], [], [], [], [], [], [
       { name: 'Warrior', nodes: [{ id: 'warrior_c4_r0', column: 4, row: 0, node_type: 'Micro Talent', effects: ['+9 % Attack Damage'] }] },
       { name: 'Artisan', nodes: [{ id: 'artisan_c4_r2', column: 4, row: 2, node_type: 'Micro Talent', effects: ['+8 % Damage'] }] },
@@ -968,6 +969,20 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.[0]?.slots.slice(1, 4).map(slot => slot.selectedNodeId)).toEqual([
       'artisan_c4_r2', 'god_of_might_c6_r0', 'ranger_c5_r2',
     ])
+  })
+
+  it('does not position-match a tree node that has a different game ID', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['43060300'], enchantTalentIds: [], talentSlots: [] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c5_r2_other', game_id: '43060399', column: 5, row: 2, node_type: 'Medium Talent', effects: ['+8 % Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]?.selectedNodeId).toBeNull()
+    expect(warnings).toContain('Slate at board index 22: talent 43060300 could not be matched to a current tree node and was left empty.')
   })
 
   it('keeps Nether King fixed and branded talent IDs in their respective Builder slots', () => {

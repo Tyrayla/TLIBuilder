@@ -994,15 +994,16 @@ function importLoggedSlates(
   const kindByUniqueId: Record<number, string> = { 1003: 'fallen_starlight', 1005: 'corner_of_divinity', 1010: 'pedigree' }
   const treeByBaseId: Record<number, string> = { 260504: 'God of Might', 260304: 'God of War', 260306: 'God of War' }
   const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
+  const isCompactNetherKingTalentList = (row: UeLogSlate) => row.talentSlots.length === 3
+    && row.talentSlots.every((slot, index) => (slot.slotIndex ?? index) < 3)
+    && !row.talentSlots.some(slot => slot.talentId && row.baseTalentIds.includes(slot.talentId))
   const loggedTalentSlots = (row: UeLogSlate, kind: string) => {
     if ((kind === 'base' || kind === 'nether_kings_divinity') && (row.baseTalentIds.length > 0 || row.enchantTalentIds.length > 0)) {
-      const fixed = row.baseTalentIds.map((gameId, slotIndex) => ({ gameId, slotIndex }))
+      const fixed = row.baseTalentIds.slice(0, 2).map((gameId, slotIndex) => ({ gameId, slotIndex }))
       const branded = row.enchantTalentIds.length > 0
         ? row.enchantTalentIds.map((gameId, index) => ({ gameId, slotIndex: index + 2 }))
         : (() => {
-          const compactBrandedList = kind === 'nether_kings_divinity' && row.talentSlots.length === 3
-            && row.talentSlots.every((slot, index) => (slot.slotIndex ?? index) < 3)
-            && !row.talentSlots.some(slot => slot.talentId && row.baseTalentIds.includes(slot.talentId))
+          const compactBrandedList = kind === 'nether_kings_divinity' && isCompactNetherKingTalentList(row)
           return row.talentSlots.flatMap((slot, arrayIndex) => {
             if (!slot.talentId || (slot.slotIndex ?? arrayIndex) < 2 && row.baseTalentIds.includes(slot.talentId)) return []
             const sourceIndex = slot.slotIndex ?? arrayIndex
@@ -1067,7 +1068,9 @@ function importLoggedSlates(
       warnings.push(`A Corner of Divinity at board index ${row.index}: its direction mapping is inferred from other unique slates; confirm its orientation.`)
     }
     if (kind === 'base') {
-      warnings.push(`Base slate at board index ${row.index}: the ShapeId ${row.shapeId} shape and direction mapping is inferred; confirm its placement.`)
+      warnings.push(row.shapeId === 1045
+        ? `Base slate at board index ${row.index}: ShapeId 1045 was matched to the L2 shape by board fit; confirm its placement.`
+        : `Base slate at board index ${row.index}: the ShapeId ${row.shapeId} shape and direction mapping is inferred; confirm its placement.`)
     }
     // The log encodes Index as SlotId=10*column+row (1-based); it identifies a cell occupied by the piece.
     return { row, sourceIndex, kind, shapeIndex: shapeIndex ?? 0, orientationIndex, layouts, netherKingVariant, taggedVariants,
@@ -1099,6 +1102,12 @@ function importLoggedSlates(
     const placement = resolvedPlacements.get(index)
     if (!placement) return []
     const { anchor, cells, orientationIndex } = placement
+    if (kind === 'nether_kings_divinity' && row.enchantTalentIds.length === 0 && isCompactNetherKingTalentList(row)) {
+      warnings.push(`Nether King's Divinity at board index ${row.index}: its compact branded talent slot layout is inferred; confirm the three branded slots.`)
+    }
+    if (row.baseTalentIds.length > 2) {
+      warnings.push(`Slate at board index ${row.index}: only the first two fixed talent IDs fit the Builder's fixed slots; extra logged fixed IDs were left empty.`)
+    }
     const gameIdSlots = loggedTalentSlots(row, kind)
     const gameIds = gameIdSlots.map(slot => slot.gameId)
     const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
@@ -1111,6 +1120,9 @@ function importLoggedSlates(
       const core = coreByGameId.get(gameId)
       const node = nodeForGameId(gameId)
       // Logged BaseTalentList/EnchantTalentList membership is more reliable than nodeType here: a real branded slot resolves to a regular Psychic node, and NK data uses the same nodeType for fixed and branded talents.
+      if (kind === 'nether_kings_divinity' && core && core.treeName !== 'Nether King') {
+        warnings.push(`Nether King's Divinity at board index ${row.index}: core talent ${gameId} belongs to ${core.treeName}, not Nether King; confirm its slot.`)
+      }
       if (core) {
         if (!slot.canBeCore) {
           warnings.push(`Slate at board index ${row.index}: ${core.name} is a Core Talent, but the Builder's ${kind} slate has no Core Talent slot; it was left out.`)
