@@ -46,7 +46,7 @@ function chunkedFile(text: string, chunkSize = 17): File {
 describe('UE_game.log preview', () => {
   it('describes how repeated login captures are combined', () => {
     expect(describeUeLogCaptureMerge(2)).toBe(
-      'This character has 2 login captures. Later entries replace earlier gear, skill, memory, slate, prism, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.',
+      'This character has 2 login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined.',
     )
   })
 
@@ -450,6 +450,19 @@ describe('UE_game.log build conversion', () => {
       { fileNumber: 2, preview: { dumpNumber: 1, characterName: 'sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 2 },
       { fileNumber: 3, preview: { dumpNumber: 1, characterName: 'Other', level: 90, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], followServantId: null, servantIds: [], truncatedSections: [] }, loginCount: 1 },
     ])
+  })
+
+  it('uses the latest slate board snapshot instead of retaining removed slates', () => {
+    const slate = { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1,
+      rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }
+    const capture = (dumpNumber: number, modifiedAt: number, slates: typeof slate[]) => ({
+      fileNumber: dumpNumber,
+      modifiedAt,
+      preview: { dumpNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null, gear: [], skills: [], slates, truncatedSections: [] },
+    })
+    const [group] = groupUeLogCaptures([capture(1, 100, [slate]), capture(2, 200, [])])
+
+    expect(group.preview.slates).toEqual([])
   })
 
   it('maps logged talent game IDs into Builder tree slots and node states', () => {

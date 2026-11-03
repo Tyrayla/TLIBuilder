@@ -52,7 +52,7 @@ export interface UeLogCharacterGroup {
 }
 
 export function describeUeLogCaptureMerge(loginCount: number): string {
-  return `This character has ${loginCount} login captures. Later entries replace earlier gear, skill, memory, slate, prism, contract, and scent bottle slots. Earlier entries fill slots missing from later captures. Talent allocations and servant inventory are combined.`
+  return `This character has ${loginCount} login captures. The latest entry provides the slate board. Gear, skills, memories, contracts, and scent bottle slots merge across entries, with later entries replacing earlier slots. Talent allocations and servant inventory are combined.`
 }
 
 /** Group local captures by character name and HeroId, keeping the latest modified capture for import. */
@@ -98,9 +98,6 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const ingredientsBySlot = new Map<string, NonNullable<UeLogCharacterPreview['ingredientChoices']>[number]>()
     for (const choice of previous?.preview.ingredientChoices ?? []) ingredientsBySlot.set(`${choice.bottleSlot}:${choice.materialSlot}`, choice)
     for (const choice of capture.preview.ingredientChoices ?? []) ingredientsBySlot.set(`${choice.bottleSlot}:${choice.materialSlot}`, choice)
-    const slatesByIndex = new Map<number, UeLogSlate>()
-    for (const slate of previous?.preview.slates ?? []) if (slate.index !== null) slatesByIndex.set(slate.index, slate)
-    for (const slate of capture.preview.slates ?? []) if (slate.index !== null) slatesByIndex.set(slate.index, slate)
     const treesByCareer = new Map<number | null, NonNullable<UeLogCharacterPreview['talentTrees']>[number]>()
     for (const talentTree of [...(previous?.preview.talentTrees ?? []), ...(capture.preview.talentTrees ?? [])]) {
       const earlier = treesByCareer.get(talentTree.careerId)
@@ -117,7 +114,6 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
         skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
         ...(treesByCareer.size ? { talentTrees: [...treesByCareer.values()] } : {}),
-        ...(slatesByIndex.size ? { slates: [...slatesByIndex.values()].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) } : {}),
         followServantId: capture.preview.followServantId ?? previous?.preview.followServantId ?? null,
         servantIds: [...servantIds],
         ...(memoriesBySlot.size ? { memories: [...memoriesBySlot.values()].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)) } : {}),

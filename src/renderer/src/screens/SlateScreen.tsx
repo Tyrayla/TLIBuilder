@@ -858,7 +858,7 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
             {kind === 'spark_of_moth_fire' && 'No rotation'}
             {kind === 'when_sparks_set_prairie_ablaze' && 'No rotation'}
             {kind === 'fallen_starlight' && 'H or V orientation'}
-          {kind === 'corner_of_divinity' && '4 clockwise rotations'}
+            {kind === 'corner_of_divinity' && '4 clockwise rotations'}
           </div>
         </div>
       )}
