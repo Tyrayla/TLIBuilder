@@ -1000,25 +1000,16 @@ function importLoggedSlates(
     if ((kind === 'base' || kind === 'nether_kings_divinity') && (row.baseTalentIds.length > 0 || row.enchantTalentIds.length > 0)) {
       const fixed = row.baseTalentIds.map((gameId, slotIndex) => ({ gameId, slotIndex }))
       const branded = row.enchantTalentIds.length > 0
-        ? (() => {
-          const loggedBrandedSlots = row.enchantTalentIds.flatMap(gameId => {
-            const slot = row.talentSlots.find(candidate => candidate.talentId === gameId)
-            return slot?.slotIndex !== undefined ? [slot.slotIndex] : []
-          })
-          const indexesAreBuilderSlots = loggedBrandedSlots.some(slotIndex => slotIndex > 2)
-          return row.enchantTalentIds.map((gameId, index) => {
-            const loggedIndex = row.talentSlots.find(slot => slot.talentId === gameId)?.slotIndex
-            const localIndex = loggedIndex === undefined ? index : indexesAreBuilderSlots ? loggedIndex - 2 : loggedIndex
-            return { gameId, slotIndex: localIndex + 2 }
-          })
-        })()
+        ? row.enchantTalentIds.map((gameId, index) => ({ gameId, slotIndex: index + 2 }))
         : (() => {
-          const compactBrandedList = row.talentSlots.length === 3 && row.talentSlots.every((slot, index) => (slot.slotIndex ?? index) < 3)
+          const compactBrandedList = row.talentSlots.length === 3
+            && row.talentSlots.every((slot, index) => (slot.slotIndex ?? index) < 3)
+            && !row.talentSlots.some(slot => slot.talentId && row.baseTalentIds.includes(slot.talentId))
           return row.talentSlots.flatMap((slot, arrayIndex) => {
             if (!slot.talentId || (slot.slotIndex ?? arrayIndex) < 2 && row.baseTalentIds.includes(slot.talentId)) return []
             const sourceIndex = slot.slotIndex ?? arrayIndex
             if (compactBrandedList) return [{ gameId: slot.talentId, slotIndex: sourceIndex + 2 }]
-            return sourceIndex >= 2 ? [{ gameId: slot.talentId, slotIndex: sourceIndex }] : []
+            return [{ gameId: slot.talentId, slotIndex: sourceIndex }]
           })
         })()
       return [...fixed, ...branded]
