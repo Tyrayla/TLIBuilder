@@ -83,14 +83,19 @@ export function findNetherKingPlacement(
   return null
 }
 
+function taggedNetherKingBrandVariants(effects: string[]): NetherKingVariant[] {
+  const text = effects.join(' ').toLowerCase()
+  return NETHER_KING_VARIANTS.filter(({ id }) => new RegExp(`\\bwhen\\s+${id}\\s+is active\\b`, 'i').test(text)).map(({ id }) => id)
+}
+
+/** Return the exclusive variant tag, or null when this brand node is shared or conflicting. */
+export function netherKingBrandVariant(effects: string[]): NetherKingVariant | null {
+  const tagged = taggedNetherKingBrandVariants(effects)
+  return tagged.length === 1 ? tagged[0]! : null
+}
+
 /** Brand nodes without a variant tag are shared; tagged nodes belong only to that variant. */
 export function isNetherKingBrandNodeForVariant(effects: string[], variant: NetherKingVariant): boolean {
-  const text = effects.join(' ').toLowerCase()
-  const owners: [NetherKingVariant, string][] = [
-    ['judgment', 'judgment'],
-    ['contamination', 'contamination'],
-    ['banishment', 'banishment'],
-  ]
-  const tagged = owners.filter(([, word]) => text.includes(`when ${word} is active`) || text.includes(`when ${word} `))
-  return tagged.length === 0 || tagged.some(([owner]) => owner === variant)
+  const tagged = taggedNetherKingBrandVariants(effects)
+  return tagged.length === 0 || tagged.includes(variant)
 }

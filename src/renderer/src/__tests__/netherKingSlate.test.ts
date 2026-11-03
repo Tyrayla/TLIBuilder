@@ -43,5 +43,6 @@ describe('Nether King branded talent filtering', () => {
     expect(isNetherKingBrandNodeForVariant(banishment, 'banishment')).toBe(true)
     expect(isNetherKingBrandNodeForVariant(banishment, 'judgment')).toBe(false)
     expect(isNetherKingBrandNodeForVariant(['+9 % damage'], 'judgment')).toBe(true)
+    expect(isNetherKingBrandNodeForVariant(['When Judgment is discussed, When Banishment is active, +3 % Aura Effect'], 'judgment')).toBe(false)
   })
 })

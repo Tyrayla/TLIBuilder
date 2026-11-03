@@ -558,6 +558,36 @@ describe('UE_game.log build conversion', () => {
     expect(result.warnings).toContain('1 allocated talent node could not be matched to current TLIDB data and was skipped.')
   })
 
+  it('does not use coordinate fallback when the logged career and game ID prefix disagree', () => {
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
+      gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [{ id: '43010300', rank: 1 }] }], truncatedSections: [],
+    }, [], [], [], [], [], [], [], [{ name: 'Onslaughter', nodes: [
+      { id: 'onslaughter_c0_r2', column: 0, row: 2 },
+    ] }])
+
+    expect(result.build.slots[0]).toBeNull()
+    expect(result.warnings).toContain('1 allocated talent node could not be matched to current TLIDB data and was skipped.')
+  })
+
+  it('clears an earlier Ethereal Prism when a later capture has the tree but no prism', () => {
+    const prism = {
+      anchorTalentId: '12060400', baseId: 360620, uniqueItemId: null, rarityValue: 3,
+      prefixAffixes: [], baseAffixes: [], baseAttrAffixes: [], effectPositions: [], replacementTalentId: null,
+    }
+    const capture = (fileNumber: number, modifiedAt: number, talentTrees: NonNullable<UeLogCharacterPreview['talentTrees']>) => ({
+      fileNumber, modifiedAt,
+      preview: { dumpNumber: fileNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], talentTrees, truncatedSections: [] },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, [{ careerId: 12, allocations: [], prism }]),
+      capture(2, 200, [{ careerId: 12, allocations: [{ id: '12010100', rank: 1 }] }]),
+    ])
+
+    expect(group.preview.talentTrees?.[0]?.prism).toBeUndefined()
+  })
+
   it('maps logged core talent game IDs to the catalogued Builder slots', () => {
     const result = createUeLogBuild({
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: 18001,
@@ -700,8 +730,8 @@ describe('UE_game.log build conversion', () => {
 
     expect(build.slates?.[0]?.slots[2]).toMatchObject({ selectedCoreKey: 'Nether King:Contamination Brand', isCore: true,
       effects: ['When Contamination is active, +12% Projection Effect'] })
-    expect(build.slates?.[0]?.netherKingVariant).toBe('judgment')
-    expect(warnings).toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
+    expect(build.slates?.[0]?.netherKingVariant).toBe('contamination')
+    expect(warnings).not.toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
   })
 
   it('maps known unique slate IDs to the Builder slate kinds', () => {

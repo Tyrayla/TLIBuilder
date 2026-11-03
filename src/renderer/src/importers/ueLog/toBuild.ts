@@ -1,6 +1,7 @@
 import { deriveTraitSlotLevels, type Build, type CraftBaseItemGroup, type CraftBaseType, type CreatedHeroMemory, type EquippedGearItem, type EquippedSkill, type EquippedSupportSkill, type GearSlot, type Graft, type HeroMemoryAffix, type HeroTrait, type LegendaryAffix, type LegendaryGearItem, type MemorySlotSelection, type MemoryRarity, type PrismCatalog, type SavedSlateSlot, type SlatePool, type SkillItem, type TowerSequenceEntry, type BeltBlend, type PactSpirit, type SelectedPactSpirit } from '../../api/client'
 import { initSlateSlots, LEGENDARY_ORIENTATIONS, NETHER_KING_ORIGIN_OFFSETS } from '../../crosswalk/slateGeometry'
 import { BASE_SLATE_SHAPES, SLATE_BOARD_VALID } from '../../utils/slateGeometry'
+import { netherKingBrandVariant, type NetherKingVariant } from '../../utils/netherKingSlate'
 
 // Owner-confirmed servant identity where the current spirit catalog does not expose a servant game ID.
 // The owner's latest log and pact screen identify servantId 18230 as Kitty Express.
@@ -9,6 +10,9 @@ const UE_LOG_PACT_SPIRIT_ITEM_OVERRIDES: Record<number, string> = { 18230: 'kitt
 // Career-to-tree pairs verified against talent game-ID prefixes in docs/LOG_IMPORT_INVESTIGATION.md (F27).
 export const UE_LOG_CAREER_TREE_NAMES: Record<number, string> = {
   1: 'God of Might', 12: 'Onslaughter', 4: 'God of War', 42: 'Ronin', 62: 'Steel Vanguard', 54: 'Lich',
+}
+const UE_LOG_CAREER_GAME_ID_PREFIXES: Record<number, string> = {
+  1: '10', 12: '12', 4: '40', 42: '42', 62: '62', 54: '54',
 }
 
 function loggedTalentCoordinates(gameId: string): { column: number; row: number } | null {
@@ -107,7 +111,7 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         ...(talentTree.coreTalentSelections !== undefined
           ? { coreTalentSelections: talentTree.coreTalentSelections }
           : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
-        ...(talentTree.prism ? { prism: talentTree.prism } : earlier?.prism ? { prism: earlier.prism } : {}),
+        prism: talentTree.prism,
       })
     }
     groups.set(key, {
@@ -990,6 +994,13 @@ function importLoggedSlates(
       : [...row.baseTalentIds, ...row.enchantTalentIds].map((gameId, slotIndex) => ({ gameId, slotIndex }))
     const gameIds = gameIdSlots.map(slot => slot.gameId)
     const coreByGameId = new Map((pool?.core ?? []).flatMap(core => core.game_id ? [[core.game_id, core] as const] : []))
+    const taggedVariants = [...new Set(gameIdSlots.flatMap(({ gameId, slotIndex }) => {
+      if (slotIndex < 2) return []
+      const core = coreByGameId.get(gameId)
+      const variant = core ? netherKingBrandVariant(core.effects) : null
+      return variant ? [variant] : []
+    }))]
+    const netherKingVariant: NetherKingVariant = taggedVariants.length === 1 ? taggedVariants[0]! : 'judgment'
     const slots = initSlateSlots(kind).map(slot => ({ ...slot })) as SavedSlateSlot[]
     gameIdSlots.forEach(({ gameId, slotIndex }) => {
       const slot = slots[slotIndex]
@@ -1037,11 +1048,15 @@ function importLoggedSlates(
     const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
       : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
     if (kind === 'nether_kings_divinity') {
-      warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
+      if (taggedVariants.length === 0) {
+        warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
+      } else if (taggedVariants.length > 1) {
+        warnings.push(`Nether King's Divinity at board index ${row.index}: its branded talents identify conflicting variants; imported as Judgment. Confirm the variant and board placement.`)
+      }
     }
     return [{ id: `ue-log-slate-${row.index}-${index}`, kind, cells, orientationIndex,
       shapeIndex, anchor, slots, ...(treeType ? { treeType } : {}),
-      ...(kind === 'nether_kings_divinity' ? { netherKingVariant: 'judgment' as const } : {}) }]
+      ...(kind === 'nether_kings_divinity' ? { netherKingVariant } : {}) }]
   })
 }
 
@@ -1058,9 +1073,11 @@ function importLoggedPrisms(
     const allNodes = talentTrees.flatMap(tree => (tree.nodes ?? []).map(node => ({ ...node, treeName: tree.name })))
     const mappedTreeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
     const anchorPosition = row.anchorTalentId ? loggedTalentCoordinates(row.anchorTalentId) : null
+    const anchorPrefix = row.anchorTalentId?.slice(0, 2)
     const anchor = allNodes.find(node => node.game_id === row.anchorTalentId)
       ?? (mappedTreeName && anchorPosition ? allNodes.find(node => node.treeName === mappedTreeName
-        && !node.game_id && node.column === anchorPosition.column && node.row === anchorPosition.row) : undefined)
+        && !node.game_id && node.column === anchorPosition.column && node.row === anchorPosition.row
+        && anchorPrefix === UE_LOG_CAREER_GAME_ID_PREFIXES[loggedTree.careerId ?? -1]) : undefined)
     if (!enriched || !item || !anchor) {
       warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
       return []
@@ -1182,7 +1199,8 @@ export function createUeLogBuild(
     const mappedNodes = loggedTree.allocations.flatMap(allocation => {
       const known = treeByGameId.get(allocation.id)
       const treeName = loggedTree.careerId === null ? undefined : UE_LOG_CAREER_TREE_NAMES[loggedTree.careerId]
-      const coordinates = loggedTalentCoordinates(allocation.id)
+      const expectedPrefix = UE_LOG_CAREER_GAME_ID_PREFIXES[loggedTree.careerId ?? -1]
+      const coordinates = allocation.id.slice(0, 2) === expectedPrefix ? loggedTalentCoordinates(allocation.id) : null
       const positioned = treeName && coordinates ? talentTrees.find(tree => tree.name === treeName)?.nodes?.find(node =>
         !node.game_id && node.column === coordinates.column && node.row === coordinates.row) : undefined
       const node = known ?? (positioned ? { treeName: treeName!, nodeId: positioned.id } : undefined)
