@@ -1035,8 +1035,27 @@ describe('UE_game.log build conversion', () => {
     ])
   })
 
-  it('keeps non-compact talentSlotList entries in their logged fixed slots', () => {
+  it('keeps base slate talentSlotList entries in logged slots without overwriting fixed IDs', () => {
     const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['42070500'], enchantTalentIds: [], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+          { color: 'Blue', talentId: '43060400', rarity: null, slotIndex: 2 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots.slice(0, 3).map(slot => slot.selectedNodeId)).toEqual([
+      'ranger_c3_r4', null, 'ranger_c4_r3',
+    ])
+  })
+
+  it('warns and leaves out a base slate talent that conflicts with a fixed slot ID', () => {
+    const { build, warnings } = createUeLogBuild({
       dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
       gear: [], skills: [], truncatedSections: [],
       slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
@@ -1049,9 +1068,8 @@ describe('UE_game.log build conversion', () => {
       { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
     ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
 
-    expect(build.slates?.[0]?.slots.slice(0, 2).map(slot => slot.selectedNodeId)).toEqual([
-      'ranger_c3_r4', 'ranger_c4_r3',
-    ])
+    expect(build.slates?.[0]?.slots.slice(0, 2).map(slot => slot.selectedNodeId)).toEqual(['ranger_c3_r4', null])
+    expect(warnings).toContain('Slate at board index 22: logged talent 43060400 conflicts with fixed slot 1; the logged talent was left out.')
   })
 
   it('keeps base slate talents and enchant slots instead of dropping the fixed notes', () => {

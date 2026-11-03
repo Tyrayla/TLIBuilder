@@ -1008,6 +1008,10 @@ function importLoggedSlates(
             if (!slot.talentId || (slot.slotIndex ?? arrayIndex) < 2 && row.baseTalentIds.includes(slot.talentId)) return []
             const sourceIndex = slot.slotIndex ?? arrayIndex
             if (compactBrandedList) return [{ gameId: slot.talentId, slotIndex: sourceIndex + 2 }]
+            if (kind === 'base' && sourceIndex < 2 && row.baseTalentIds[sourceIndex] !== slot.talentId) {
+              warnings.push(`Slate at board index ${row.index}: logged talent ${slot.talentId} conflicts with fixed slot ${sourceIndex}; the logged talent was left out.`)
+              return []
+            }
             return [{ gameId: slot.talentId, slotIndex: sourceIndex }]
           })
         })()
@@ -1105,7 +1109,7 @@ function importLoggedSlates(
     if (kind === 'nether_kings_divinity' && row.enchantTalentIds.length === 0 && isCompactNetherKingTalentList(row)) {
       warnings.push(`Nether King's Divinity at board index ${row.index}: its compact branded talent slot layout is inferred; confirm the three branded slots.`)
     }
-    if (row.baseTalentIds.length > 2) {
+    if ((kind === 'base' || kind === 'nether_kings_divinity') && row.baseTalentIds.length > 2) {
       warnings.push(`Slate at board index ${row.index}: only the first two fixed talent IDs fit the Builder's fixed slots; extra logged fixed IDs were left empty.`)
     }
     const gameIdSlots = loggedTalentSlots(row, kind)
