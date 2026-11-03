@@ -2021,16 +2021,15 @@ export default function SlateScreen({ treeColors }: Props) {
                     // controls rotation. This prevents different atlas padding from shifting individual tiles.
                     const variant = slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT
                     const [cropX, cropY] = NETHER_KING_TILE_CROPS[variant]
-                    // Keep the viewport identical for every variant and every occupied cell. The
-                    // icon atlas crops are square; using the full cell avoids small per-variant
-                    // shifts caused by sizing each wrapper to its crop's measured bounds.
-                    const pieceScale = CELL / 42
+                    // Keep atlas pixels at native size and center the square tile in the board cell.
+                    // Enlarging the crop to fill the 72px cell made the art blurry and magnified
+                    // transparent padding differently across variants.
                     iconTile = {
-                      position: 'absolute', width: CELL, height: CELL,
-                      left: 0, top: 0,
+                      position: 'absolute', width: 42, height: 42,
+                      left: (CELL - 42) / 2, top: (CELL - 42) / 2,
                       backgroundImage: `url(${slateIconSrc})`,
-                      backgroundSize: `${112 * pieceScale}px ${160 * pieceScale}px`,
-                      backgroundPosition: `${-cropX * pieceScale}px ${-cropY * pieceScale}px`,
+                      backgroundSize: '112px 160px',
+                      backgroundPosition: `${-cropX}px ${-cropY}px`,
                       backgroundRepeat: 'no-repeat',
                       pointerEvents: 'none',
                     }
