@@ -506,7 +506,7 @@ describe('UE_game.log build conversion', () => {
       ethereal: { shortName: 'Miraculous Touch', rarity: 'rare', areaSize: 'Effect Area expands to 3 x 2', boxCols: 2, boxRows: 3,
         replacementTalentId: '80002000' },
       boxAllocations: {} })
-    expect(warnings).toEqual([])
+    expect(warnings).toContain('Ethereal Prism: Miraculous Touch: logged area spans 2 columns by 3 rows, but the matched modifier says 3 by 2; imported area follows the logged cells.')
     const withImplicitRoll: UeLogCharacterPreview = { ...character, talentTrees: character.talentTrees?.map(tree => ({
       ...tree, prism: tree.prism ? { ...tree.prism, baseAffixes: [{ id: 'logged-implicit', source: null, values: [12] }] } : undefined,
     })) }
@@ -567,6 +567,22 @@ describe('UE_game.log build conversion', () => {
     }])
   })
 
+  it('keeps individually placeable slates when another logged index cannot fit the board', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [
+        { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 2,
+          rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 99, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+          rarityValue: 3, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+      ],
+    }, [], [])
+
+    expect(build.slates).toMatchObject([{ kind: 'fallen_starlight', anchor: [2, 0], cells: [[2, 0], [3, 0]] }])
+    expect(warnings).toContain('Slate at board index 99: it could not fit with the other logged slates and was left out.')
+  })
+
   it('fits the shape-less Nether King slate from its logged origin cell', () => {
     const { build, warnings } = createUeLogBuild({
       dumpNumber: 1, characterName: 'Slate', level: 98, heroId: null, heroPurchaseId: null,
@@ -593,6 +609,8 @@ describe('UE_game.log build conversion', () => {
     ])
     expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')).toMatchObject({ orientationIndex: 0, treeType: 'Nether King' })
     expect(warnings).not.toContain("Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.")
+    expect(warnings).toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
+    expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')?.netherKingVariant).toBe('judgment')
   })
 
   it('maps known logged pact game IDs into the three battle slots and warns when rank is missing', () => {

@@ -75,12 +75,6 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
     const skillsBySlot = new Map<number, UeLogSkillItem>()
     for (const skill of previous?.preview.skills ?? []) skillsBySlot.set(skill.logIndex, skill)
     for (const skill of capture.preview.skills) skillsBySlot.set(skill.logIndex, skill)
-    const talentsByCareer = new Map<number | null, Map<string, { id: string; rank: number; inPrismArea?: boolean }>>()
-    for (const talentTree of [...(previous?.preview.talentTrees ?? []), ...(capture.preview.talentTrees ?? [])]) {
-      const nodes = talentsByCareer.get(talentTree.careerId) ?? new Map<string, { id: string; rank: number; inPrismArea?: boolean }>()
-      for (const allocation of talentTree.allocations) nodes.set(allocation.id, allocation)
-      talentsByCareer.set(talentTree.careerId, nodes)
-    }
     const servantIds = new Set([
       ...(previous?.preview.servantIds ?? []),
       ...(capture.preview.servantIds ?? []),
@@ -122,7 +116,7 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         ...capture.preview,
         gear: [...gearBySlot.values()].sort((a, b) => (a.equippedSlot ?? Number.MAX_SAFE_INTEGER) - (b.equippedSlot ?? Number.MAX_SAFE_INTEGER)),
         skills: [...skillsBySlot.values()].sort((a, b) => a.logIndex - b.logIndex),
-        ...(treesByCareer.size ? { talentTrees: [...treesByCareer.values()] } : talentsByCareer.size ? { talentTrees: [...talentsByCareer].map(([careerId, nodes]) => ({ careerId, allocations: [...nodes.values()] })) } : {}),
+        ...(treesByCareer.size ? { talentTrees: [...treesByCareer.values()] } : {}),
         ...(slatesByIndex.size ? { slates: [...slatesByIndex.values()].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) } : {}),
         followServantId: capture.preview.followServantId ?? previous?.preview.followServantId ?? null,
         servantIds: [...servantIds],
@@ -911,6 +905,7 @@ function importLoggedSlates(
   const placements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
   const firstSolution = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
   const ambiguousPlacements = new Set<number>()
+  let bestPlacedCount = -1
   let searchNodes = 0
   let searchLimitReached = false
   const MAX_SEARCH_NODES = 100_000
@@ -919,12 +914,23 @@ function importLoggedSlates(
       searchLimitReached = true
       return true
     }
+    if (placements.size + remaining.length < bestPlacedCount) return false
     if (!remaining.length) {
-      for (const [key, value] of placements) {
-        const snapshot = { anchor: [...value.anchor] as [number, number], cells: value.cells.map(cell => [...cell] as [number, number]), orientationIndex: value.orientationIndex }
-        const first = firstSolution.get(key)
-        if (!first) firstSolution.set(key, snapshot)
-        else if (JSON.stringify(first) !== JSON.stringify(snapshot)) ambiguousPlacements.add(key)
+      if (placements.size > bestPlacedCount) {
+        bestPlacedCount = placements.size
+        firstSolution.clear()
+        ambiguousPlacements.clear()
+        for (const [key, value] of placements) {
+          firstSolution.set(key, { anchor: [...value.anchor] as [number, number], cells: value.cells.map(cell => [...cell] as [number, number]), orientationIndex: value.orientationIndex })
+        }
+      } else {
+        for (const piece of prepared) {
+          const first = firstSolution.get(piece.sourceIndex)
+          const current = placements.get(piece.sourceIndex)
+          if (!!first !== !!current || (first && current && JSON.stringify(first) !== JSON.stringify(current))) {
+            ambiguousPlacements.add(piece.sourceIndex)
+          }
+        }
       }
       return false
     }
@@ -942,18 +948,23 @@ function importLoggedSlates(
       cells.forEach(([r, c]) => occupied.delete(`${r},${c}`))
       placements.delete(piece.sourceIndex)
     }
+    // Keep the largest representable subset so one malformed or incompatible slate does not erase
+    // every independently placeable slate from the imported build.
+    if (placements.size + remaining.length - 1 >= bestPlacedCount && search(remaining.slice(1), occupied)) return true
     return false
   }
   search(prepared, new Set())
   const resolvedPlacements = new Map<number, { anchor: [number, number]; cells: [number, number][]; orientationIndex: number }>()
   if (searchLimitReached) {
     warnings.push('Slate placement search reached its safety limit; placements were left out because their anchors could not be proven unique.')
-  } else if (firstSolution.size) {
-    for (const [sourceIndex, placement] of firstSolution) {
-      if (!ambiguousPlacements.has(sourceIndex)) resolvedPlacements.set(sourceIndex, placement)
-      else warnings.push(`Slate at board index ${prepared.find(piece => piece.sourceIndex === sourceIndex)?.row.index}: its anchor remains ambiguous after fitting the logged slates and was left out.`)
+  } else if (bestPlacedCount >= 0) {
+    for (const piece of prepared) {
+      const placement = firstSolution.get(piece.sourceIndex)
+      if (placement && !ambiguousPlacements.has(piece.sourceIndex)) resolvedPlacements.set(piece.sourceIndex, placement)
+      else if (ambiguousPlacements.has(piece.sourceIndex)) warnings.push(`Slate at board index ${piece.row.index}: its anchor is ambiguous among the best-fitting layouts and was left out.`)
+      else if (!placement) warnings.push(`Slate at board index ${piece.row.index}: it could not fit with the other logged slates and was left out.`)
     }
-  } else if (prepared.length) warnings.push('Slate Index values do not resolve to a non-overlapping layout on the 6×6 board; slate placements were left out.')
+  }
   return prepared.flatMap(piece => {
     const { row, sourceIndex: index, kind, shapeIndex } = piece
     const placement = resolvedPlacements.get(index)
@@ -996,8 +1007,12 @@ function importLoggedSlates(
     })
     const treeType = kind === 'nether_kings_divinity' ? 'Nether King'
       : treeByBaseId[row.baseId ?? -1] ?? gameIds.map(id => nodesByGameId.get(id)?.treeName ?? coreByGameId.get(id)?.treeName).find(Boolean)
+    if (kind === 'nether_kings_divinity') {
+      warnings.push(`Nether King's Divinity at board index ${row.index}: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.`)
+    }
     return [{ id: `ue-log-slate-${row.index}-${index}`, kind, cells, orientationIndex,
-      shapeIndex, anchor, slots, ...(treeType ? { treeType } : {}) }]
+      shapeIndex, anchor, slots, ...(treeType ? { treeType } : {}),
+      ...(kind === 'nether_kings_divinity' ? { netherKingVariant: 'judgment' as const } : {}) }]
   })
 }
 
@@ -1021,8 +1036,9 @@ function importLoggedPrisms(
       warnings.push(`Ethereal Prism ${row.baseId ?? ''}: its item or anchor talent could not be matched to current canonical data; it was left out.`)
       return []
     }
-    const rarity = row.rarityValue === 3 ? 'rare' : item.default_rarity
-    if (row.rarityValue !== null && row.rarityValue !== 3) {
+    const mappedRarity = row.rarityValue === 3 ? 'rare' : null
+    const rarity = mappedRarity && item.rarities.includes(mappedRarity) ? mappedRarity : item.default_rarity
+    if (row.rarityValue !== null && (!mappedRarity || !item.rarities.includes(mappedRarity))) {
       warnings.push(`${item.name}: logged prism rarity ${row.rarityValue} has no verified mapping; the catalog default was used.`)
     }
     const ids = new Set([...row.prefixAffixes, ...row.baseAffixes].flatMap(affix => affix.id ? [affix.id] : []))
@@ -1049,6 +1065,9 @@ function importLoggedPrisms(
     const positions = row.effectPositions.map(({ x, y }) => ({ col: y - 1, row: x - 1 }))
     const boxCols = positions.length ? Math.max(...positions.map(p => p.col)) - Math.min(...positions.map(p => p.col)) + 1 : undefined
     const boxRows = positions.length ? Math.max(...positions.map(p => p.row)) - Math.min(...positions.map(p => p.row)) + 1 : undefined
+    if (area && (boxCols !== area.cols || boxRows !== area.rows)) {
+      warnings.push(`${item.name}: logged area spans ${boxCols} columns by ${boxRows} rows, but the matched modifier says ${area?.cols} by ${area?.rows}; imported area follows the logged cells.`)
+    }
     return [{
       id: `ue-log-prism-${row.baseId}-${index}`, templateId: `ue-log-prism-template-${row.baseId}-${index}`,
       kind: 'ethereal_prism', name: item.name, iconUrl: item.icon_url,

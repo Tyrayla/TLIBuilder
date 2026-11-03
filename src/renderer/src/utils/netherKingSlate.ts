@@ -18,12 +18,15 @@ export const BANISHMENT_EFFECTS = [
 ] as const
 
 export const NETHER_KING_VARIANTS: { id: NetherKingVariant; label: string; iconFile: string; summary: string; specialRule: string }[] = [
-  { id: 'judgment', label: 'Judgment', iconFile: 'UI_S15Devilblock_shenpan_3_3_112.webp', summary: 'Three cells at the four middle corners', specialRule: 'Increases the effect of slate talents along its connecting path by 40% (owner-confirmed; calculation not modeled yet).' },
-  { id: 'contamination', label: 'Contamination', iconFile: 'UI_S15Devilblock_qinran_3_3_112.webp', summary: 'Three cells stacked vertically', specialRule: 'Projects its Branded talent effects onto every directly adjacent Divinity Slate at 12% effect (88% reduced; calculation not modeled yet).' },
-  { id: 'banishment', label: 'Banishment', iconFile: 'UI_S15Devilblock_fangzhu_3_3_112.webp', summary: 'Three cells in a diagonal line', specialRule: 'Requires at least 3 adjacent and 3 non-adjacent Divinity Slates for its bonus effect (calculation not modeled yet).' },
+  { id: 'judgment', label: 'Judgment', iconFile: 'UI_S15Devilblock_shenpan_3_3_112.webp', summary: 'Three cells at the four middle corners', specialRule: 'Owner-reported, not independently verified: +40% effect to slates along its connecting path. Calculation is not modeled.' },
+  { id: 'contamination', label: 'Contamination', iconFile: 'UI_S15Devilblock_qinran_3_3_112.webp', summary: 'Three cells stacked vertically', specialRule: 'Projects Branded talent effects onto directly adjacent Divinity Slates at 12% Projection Effect (88% reduced). Calculation is not modeled.' },
+  { id: 'banishment', label: 'Banishment', iconFile: 'UI_S15Devilblock_fangzhu_3_3_112.webp', summary: 'Three cells in a diagonal line', specialRule: 'Its bonus effect activates when both adjacent and non-adjacent Divinity Slate counts are at least 3. Calculation is not modeled.' },
 ]
 
 export const DEFAULT_NETHER_KING_VARIANT: NetherKingVariant = 'judgment'
+
+// Contamination +12% and Banishment threshold 3 match the hydrated SS14 Nether King catalog.
+// Footprints follow the owner's in-game screenshots. Judgment's +40% is owner-reported and remains unverified.
 
 const JUDGMENT_MIDDLE_CORNERS = new Set(['1,1', '1,4', '4,1', '4,4'])
 
