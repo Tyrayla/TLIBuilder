@@ -116,7 +116,7 @@ export function groupUeLogCaptures(captures: UeLogCapture[]): UeLogCharacterGrou
         allocations: [...new Map([...(earlier?.allocations ?? []), ...talentTree.allocations].map(row => [row.id, row])).values()],
         ...(talentTree.coreTalentSelections !== undefined
           ? { coreTalentSelections: talentSectionTruncated
-            ? earlier?.coreTalentSelections ?? talentTree.coreTalentSelections
+            ? [...new Set([...(earlier?.coreTalentSelections ?? []), ...talentTree.coreTalentSelections])]
             : talentTree.coreTalentSelections }
           : earlier?.coreTalentSelections !== undefined ? { coreTalentSelections: earlier.coreTalentSelections } : {}),
         // A complete later tree without prismInfo means the prism was removed. Truncation

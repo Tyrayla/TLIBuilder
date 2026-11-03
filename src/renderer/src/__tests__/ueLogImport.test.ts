@@ -730,10 +730,25 @@ describe('UE_game.log build conversion', () => {
     })
     const [group] = groupUeLogCaptures([
       capture(1, 100, ['12010100', '12020100']),
-      capture(2, 200, ['12010100'], ['+geniusInfos+info+1+...']),
+      capture(2, 200, ['12010100', '12030100'], ['+geniusInfos+info+1+...']),
     ])
 
-    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual(['12010100', '12020100'])
+    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual(['12010100', '12020100', '12030100'])
+  })
+
+  it('keeps newly observed core choices after a complete capture cleared the prior list', () => {
+    const capture = (fileNumber: number, modifiedAt: number, coreTalentSelections: string[], truncatedSections: string[] = []) => ({
+      fileNumber, modifiedAt,
+      preview: { dumpNumber: fileNumber, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+        gear: [], skills: [], talentTrees: [{ careerId: 12, allocations: [], coreTalentSelections }], truncatedSections },
+    })
+    const [group] = groupUeLogCaptures([
+      capture(1, 100, ['12010100', '12020100']),
+      capture(2, 200, []),
+      capture(3, 300, ['12030100'], ['+geniusInfos+info+1+...']),
+    ])
+
+    expect(group.preview.talentTrees?.[0]?.coreTalentSelections).toEqual(['12030100'])
   })
 
   it('maps logged core talent game IDs to the catalogued Builder slots', () => {
