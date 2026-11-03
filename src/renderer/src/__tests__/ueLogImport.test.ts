@@ -541,19 +541,16 @@ describe('UE_game.log build conversion', () => {
     }
   })
 
-  it('wraps logged unique-slate directions to the available rotations', () => {
-    for (const [uniqueItemId, kind, direction, orientationIndex] of [
-      [1003, 'fallen_starlight', 3, 0],
-      [1010, 'pedigree', 3, 0],
-    ] as const) {
+  it('leaves out unique slates when logged directions exceed verified rotations', () => {
+    for (const [uniqueItemId, direction] of [[1003, 3], [1010, 3]] as const) {
       const { build, warnings } = createUeLogBuild({
         dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
         gear: [], skills: [], truncatedSections: [],
         slates: [{ index: 13, pageId: -4, baseId: 261003, uniqueItemId, shapeId: 2020, direction,
           rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
       }, [], [])
-      expect(build.slates?.[0]).toMatchObject({ kind, orientationIndex })
-      expect(warnings).toEqual([])
+      expect(build.slates ?? []).toEqual([])
+      expect(warnings).toContain(`Slate ${uniqueItemId}: logged direction ${direction} is outside the verified range and was left out.`)
     }
   })
 
@@ -592,19 +589,18 @@ describe('UE_game.log build conversion', () => {
       gear: [], skills: [], truncatedSections: [],
       slates: [
         { index: 13, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 2, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
-        { index: 32, pageId: -4, baseId: 261010, uniqueItemId: 1010, shapeId: 2090, direction: 3, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 32, pageId: -4, baseId: 261010, uniqueItemId: 1010, shapeId: 2090, direction: 1, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
         { index: 34, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1045, direction: 3, rarityValue: 3, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
         { index: 43, pageId: -4, baseId: 261005, uniqueItemId: 1005, shapeId: 2030, direction: 1, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
         { index: 45, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 2, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
         { index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null, rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
-        { index: 64, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 3, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
+        { index: 64, pageId: -4, baseId: 261003, uniqueItemId: 1003, shapeId: 2020, direction: 1, rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] },
       ],
     }, [], [])
 
     expect(build.slates?.map(slate => [slate.anchor, slate.cells])).toEqual([
       [[2, 0], [[2, 0], [3, 0]]],
       [[0, 1], [[0, 2], [0, 3], [1, 1], [1, 2], [1, 3], [2, 1], [2, 2]]],
-      [[3, 1], [[3, 1], [3, 2], [4, 2], [5, 2]]],
       [[2, 3], [[2, 3], [2, 4], [3, 3]]],
       [[4, 3], [[4, 3], [5, 3]]],
       [[1, 1], [[1, 4], [4, 1], [4, 4]]],
@@ -612,6 +608,7 @@ describe('UE_game.log build conversion', () => {
     ])
     expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')).toMatchObject({ orientationIndex: 0, treeType: 'Nether King' })
     expect(warnings).not.toContain("Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.")
+    expect(warnings).toContain('Slate 1045: kind or ShapeId is not mapped from observed log data and was left out.')
     expect(warnings).toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
     expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')?.netherKingVariant).toBe('judgment')
   })

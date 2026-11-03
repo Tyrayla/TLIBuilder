@@ -880,18 +880,26 @@ function importLoggedSlates(
   const prepared = rows.map((row, sourceIndex) => {
     const kind = row.baseId === 394004 ? 'nether_kings_divinity'
       : row.uniqueItemId && row.uniqueItemId !== 0 ? kindByUniqueId[row.uniqueItemId] : 'base'
-    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4, 1045: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
-    const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind]?.length ?? 1
-    const rawOrientation = kind === 'base' ? (row.direction ?? 0) : (row.direction ?? 1) - 1
-    const orientationIndex = ((rawOrientation % orientationCount) + orientationCount) % orientationCount
+    const shapeIndex = kind === 'base' ? ({ 1033: 1, 1035: 1, 1043: 4 } as Record<number, number>)[row.shapeId ?? -1] : 0
+    const orientationCount = kind === 'base' ? 4 : LEGENDARY_ORIENTATIONS[kind ?? '']?.length ?? 1
+    const rawOrientation = kind === 'base' ? (row.direction ?? 0) : row.direction === null ? -1 : row.direction - 1
+    const orientationIndex = rawOrientation ?? -1
     const layouts: { cells: [number, number][] | undefined; orientationIndex: number; originOffset?: [number, number] }[] = kind === 'nether_kings_divinity'
       ? (LEGENDARY_ORIENTATIONS[kind] ?? []).map((cells, index) => ({ cells, orientationIndex: index, originOffset: NETHER_KING_ORIGIN_OFFSETS[index] }))
       : [{ cells: kind === 'base' ? BASE_SLATE_SHAPES[shapeIndex ?? -1]?.rotations[orientationIndex] : LEGENDARY_ORIENTATIONS[kind ?? '']?.[orientationIndex], orientationIndex }]
     const cellsShape = layouts[0]?.cells
-    if (!kind || !cellsShape) {
+    if (!kind) {
       warnings.push(row.baseId === 394004
         ? `Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.`
         : `Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
+      return null
+    }
+    if (kind !== 'nether_kings_divinity' && (orientationIndex < 0 || orientationIndex >= orientationCount)) {
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: logged direction ${row.direction ?? 'missing'} is outside the verified range and was left out.`)
+      return null
+    }
+    if (!cellsShape) {
+      warnings.push(`Slate ${row.uniqueItemId ?? row.shapeId ?? ''}: kind or ShapeId is not mapped from observed log data and was left out.`)
       return null
     }
     if (row.index === null || row.index < 1) {
