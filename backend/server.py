@@ -1079,7 +1079,7 @@ def engine_stats(req: EngineStatsRequest):
     _unresolved_grants_seen: set[str] = set()
 
     def _keep_unresolved_grant_once(name: str, raw_text: str) -> list[str]:
-        """Keep an unmatchable talent affix once; its talent/companion boundary is unknown."""
+        """Surface an unmatchable talent affix once; its talent/companion boundary is unknown."""
         if name in _unresolved_grants_seen:
             return []
         _unresolved_grants_seen.add(name)
@@ -1088,8 +1088,7 @@ def engine_stats(req: EngineStatsRequest):
             "resolved": False,
             "stat_display": "Core talent text could not be matched to the current catalog; retained once because core talents do not stack.",
         })
-        body = re.sub(r"^\s*\[[^\]]+\]\s*", "", raw_text, count=1)
-        return [body] if body else []
+        return []
 
     def _gear_texts_minus_core(gi: dict) -> list[str]:
         kept: list[str] = []
