@@ -333,7 +333,8 @@ class Stat(Enum):
     #   multiplicative factor (offense per-affix). FLAGGED for in-game pooling verification.
     PROJ_SPEED_TO_PROJ_DMG = "proj_speed_to_proj_dmg"
     # True Flame: coefficient (0.65) gated on enemy_ignited — the Affliction DoT-taken bonus also feeds Fire
-    #   HIT damage. Inert until Affliction is modeled (no DoT-bonus value to read yet); gating is wired.
+    #   HIT damage. The aggregator turns it into `true_flame_fire_hit_taken` (Fire-hit damage-taken factor)
+    #   from the final Affliction bonus while the enemy is Ignited.
     AFFLICTION_DOT_TO_FIRE_HIT = "affliction_dot_to_fire_hit"
     # United Stand (2nd line): fraction of the minions' Regain effect also granted to you. Needs Regain +
     #   in-game testing of exactly how it applies. Low priority.

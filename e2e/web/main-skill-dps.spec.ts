@@ -13,6 +13,14 @@ test('assigns a main skill and shows a non-zero Full DPS', async ({ webPage: pag
   expect(result.skillName).toBe(MAIN_SKILL)
   expect(result.level).toBe(DEFAULT_LEVEL)
   expect(result.dps).toBeGreaterThan(0)
+  const statsRuns = await page.evaluate(() => {
+    const w = window as Window & { __tliStartupMetrics?: Array<{ name: string; durationMs: number; details?: Record<string, unknown> }> }
+    return (w.__tliStartupMetrics ?? []).filter(metric =>
+      metric.name === 'worker.request-run' && metric.details?.path === '/api/engine/stats',
+    )
+  })
+  expect(statsRuns.length).toBeGreaterThan(0)
+  expect(statsRuns[0].durationMs).toBeGreaterThan(0)
 
   recordParitySample(testInfo, 'web', result.dps)
 

@@ -10,7 +10,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDeltaList, type DeltaRequest, type StateTransform, type DamageDelta, type LabeledDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
-import { legendaryToEquipped, makeCatalogItem } from '../utils/gearItem'
+import { getRandomAffixGroupForExplicit, legendaryToEquipped, makeCatalogItem } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, useTextModifierStatuses, gearModifierStatus } from '../components/ModifierBadge'
 import {
@@ -939,31 +939,8 @@ function CustomizePanel({ item, customizations, isEditing, editActions, onCustom
     onCorrosionChange(newIndices.length > 0 ? 'desecration' : corrosionType, newIndices, null, updatedAffixes, undefined)
   }
 
-  const getRandomGroupForExplicit = (explicitIdx: number): LegendaryRandomAffixGroup | null => {
-    if (!catalogItem) return null
-    const currentExplicits = explicits
-    const affix = currentExplicits[explicitIdx]
-    if (!affix || affix.affix_kind !== 'placeholder') return null
-    const baseExplicitsLen = catalogItem.variants.base?.explicits?.length ?? 0
-    if (explicitIdx < baseExplicitsLen) {
-      // Real explicit in variant — use variant-based group lookup so corroded explicits get corroded options
-      const isCorroded = corrodedExplicitIndices.includes(explicitIdx)
-      const variantKey = isCorroded && catalogItem.random_affixes['corroded'] ? 'corroded' : 'base'
-      const variantGroups = catalogItem.random_affixes[variantKey] ?? []
-      if (variantGroups.length === 0) return null
-      const variantExplicits = isCorroded
-        ? (catalogItem.variants.corroded?.explicits ?? catalogItem.variants.base?.explicits ?? [])
-        : (catalogItem.variants.base?.explicits ?? [])
-      const occurrence = variantExplicits.slice(0, explicitIdx).filter(e => e.affix_kind === 'placeholder').length
-      return variantGroups[occurrence] ?? null
-    }
-    // Synthetic placeholder appended after real explicits — text-based lookup
-    const ph = affix.raw_text
-    const allGroups = Object.values(catalogItem.random_affixes).flat()
-    const matchingGroups = allGroups.filter(g => g.placeholder === ph)
-    const occurrence = currentExplicits.slice(0, explicitIdx).filter(e => e.raw_text === ph).length
-    return matchingGroups[occurrence] ?? null
-  }
+  const getRandomGroupForExplicit = (explicitIdx: number): LegendaryRandomAffixGroup | null =>
+    getRandomAffixGroupForExplicit(catalogItem, explicitIdx, corrodedExplicitIndices)
 
   const handleSelectRandomAffix = (explicitIndex: number, modifierId: string) => {
     if (!catalogItem) return

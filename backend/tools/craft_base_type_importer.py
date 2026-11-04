@@ -114,8 +114,15 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         # Implicits stored as slim modifier-line dicts (crawler emits ModifierLine dicts; older
         # outputs had string[] / {modifier_id, text}[] — all coerce through slim()).
         implicits = [slim(imp) for imp in (bi.get("implicits") or []) if line_text(imp)]
+        implicit_modifier_ids = [
+            str(imp["modifier_id"])
+            for imp in (bi.get("implicits") or [])
+            if isinstance(imp, dict) and imp.get("modifier_id") is not None
+        ]
         base_items.append({
             "name": bi.get("name", ""),
+            "game_id": bi.get("game_id"),
+            "implicit_modifier_ids": implicit_modifier_ids,
             "required_level": bi.get("required_level", 0),
             "armor": bi.get("armor"),
             "implicits": implicits,

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.6.14] - 2026-11-03
+
+### UE_game.log import
+- **Import an editable build from UE_game.log.** Builder imports gear, skills and supports, allocated talents, Hero Traits, Hero Memories, pact spirits, divinity slates, and Ethereal Prisms when the log and current data provide enough detail. Import warnings call out selections that need review.
+- **Combine log captures for the same character.** Builder fills gaps from partial captures without restoring stale data over a newer complete capture.
+- **Import Nether King's Divinity variants with their own shapes and mod pools.** Judgment, Contamination, and Banishment use their distinct footprints and locally served icons.
+
+### Improvements
+- **Open talent trees without waiting through the loading spinner again.** Builder caches trees and loads them in the background when you open a build.
+- **Search Config conditions.** Find conditions by name, group, or key, including conditions gated by their source.
+- **Keep web builds available after a refresh.** Builder restores editing sessions and loads reference data as you need it, so shared builds open sooner.
+- **Keep unsaved edits while imported gear finishes resolving.** Builder now completes affix lookups after the initial load without replacing your changes.
+
+### Damage calculations
+- **Count True Flame once when a legendary affix grants it.** Compound affixes also keep their other bonuses, such as Skill Area.
+
 ## [0.6.13] - 2026-10-19
 
 ### Season data

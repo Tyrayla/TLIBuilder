@@ -2275,7 +2275,10 @@ def compute(
             "dot_taken": eff.total("affliction_dot_taken"),
             "initial": eff.total("affliction_initial_flat"),
             "per_second": eff.total("affliction_per_second_flat"),
-            "true_flame_conversion": eff.total("affliction_dot_to_fire_hit"),
+            # Core talent: never stacks, so report the single applied copy (see aggregator True Flame block).
+            "true_flame_conversion": max(
+                [e.amount for e in eff.source_log if e.stat == "affliction_dot_to_fire_hit"]
+                or [eff.total("affliction_dot_to_fire_hit")]),
             "true_flame_fire_taken": _true_flame_taken,
         }
         _res["level_summary"] = skill_level_summary(

@@ -263,7 +263,7 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card import-export-modal" onClick={e => e.stopPropagation()}>
+      <div className={`modal-card import-export-modal${tab === 'import' ? ' game-log-import-modal' : ''}`} onClick={e => e.stopPropagation()}>
         <div className="modal-accent" />
         {tabsAndContent}
         {dirtyPromptModal}
