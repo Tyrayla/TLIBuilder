@@ -381,7 +381,7 @@ def test_mindflame_compound_affix_applies_true_flame_once_and_skill_area_once():
 
 def test_mindflame_skill_area_not_repeated_on_dual_wield_second_slot():
     second_slot_copy = {"contributions": [], "item_name": "Magnus' Mindflame",
-                        "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+                        "unresolved_texts": [_TF_RAW + " +100 % Skill Area"], "same_item_slot_copy": True}
     r = _tf_response([_mindflame_amulet(slot="weapon1"), second_slot_copy])
     assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
     assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(1.0)
@@ -426,7 +426,7 @@ def test_companion_text_unit():
     eff = ["A foo , 5 % bar (Max Active Divinity: 1)", "Baz qux."]
     assert companion_text("[T] A foo, 5% bar Baz qux. +10 % Skill Area", eff) == "+10 % Skill Area"
     assert companion_text("[T] A foo, 5% bar Baz qux.", eff) == ""
-    assert companion_text("[T] A foo, 5% bar +10 % Skill Area", eff) is None   # second effect absent
+    assert companion_text("[T] A foo, 5% bar +10 % Skill Area", eff) == "+10 % Skill Area"  # keep unmatched clauses
     assert companion_text("[T] anything", []) is None
 
 

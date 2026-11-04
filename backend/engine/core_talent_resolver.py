@@ -305,8 +305,8 @@ def companion_text(raw_text: str, effects) -> str | None:
     The core-talent resolver applies the talent's effects (once, never stacking). Compound legendary affixes
     append further ordinary mods ("... Fire Hit Damage +100 % Skill Area") that the talent does not carry; those
     must still be applied, exactly once. Each catalog effect is located whitespace-insensitively and removed.
-    Returns the leftover text ("" when the affix is only the talent), or None when an effect could not be found
-    in the text (we then cannot tell talent from companion; the caller keeps the whole-text skip).
+    Returns the leftover text ("" when the affix is only the talent), or None when none of the catalog effects
+    could be located in the text. Unmatched catalog effects stay in the leftover for normal gear parsing.
     """
     rest = re.sub(r"^\s*\[[^\]]+\]", "", raw_text or "", count=1)
     found_any = False
@@ -316,8 +316,11 @@ def companion_text(raw_text: str, effects) -> str | None:
         if not chars:
             continue
         m = re.search(r"\s*".join(chars), rest, re.I)
+        # Catalog wording can change by season, or only some parts of a compound talent may
+        # resolve in the engine. Remove each effect we actually applied and keep unmatched
+        # clauses for the ordinary gear parser.
         if not m:
-            return None
+            continue
         found_any = True
         rest = rest[:m.start()] + " " + rest[m.end():]
     if not found_any:

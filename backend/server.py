@@ -1081,11 +1081,16 @@ def engine_stats(req: EngineStatsRequest):
         for t in gi.get("unresolved_texts") or []:
             name = _bracket_core_name(t)
             if name not in _granted_core_names:
-                kept.append(t)
+                # The grant may be unavailable or unresolved in the current catalog. The
+                # bracket is only a label; strip it so normal parsing can still handle any
+                # independent clauses that remain in the affix text.
+                kept.append(re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1) if name else t)
                 continue
             rest = companion_text(t, _resolved_core_effects.get(name))
             if rest is None:
-                kept.append(t)  # a text mismatch is not proof that the gear effect is safe to discard
+                # No catalog effect matched, so preserve the whole affix body for ordinary
+                # parsing. Its bracketed talent name is metadata, not part of the mod text.
+                kept.append(re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1))
                 continue
             if not rest:
                 continue   # the text contained only effects already applied by the core-talent resolver
