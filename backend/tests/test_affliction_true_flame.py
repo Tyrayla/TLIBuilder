@@ -486,10 +486,8 @@ def test_catalogued_compound_core_talent_is_not_repeated_across_gear_items():
             "granted_talents": ["Poisoned Relief"],
             "unresolved_texts": ["[Poisoned Relief] +25 % Injury Buffer -15 % additional damage taken at Low Life"]}
     r = _tf_response([item, {**item, "item_name": "Second Poisoned Relief", "slot": "ring1"}])
-    # The SS14 Druid tree catalog defines these two effects; grants with the same name do not stack.
-    assert [status["name"] for status in r["core_talent_statuses"]] == [
-        "Poisoned Relief", "Poisoned Relief",
-    ]
+    # The owner confirmed core talents do not stack, even when two items grant the same talent.
+    assert sum(status["name"] == "Poisoned Relief" for status in r["core_talent_statuses"]) == 1
 
 
 def test_true_flame_is_a_core_talent_and_never_stacks_across_sources():
