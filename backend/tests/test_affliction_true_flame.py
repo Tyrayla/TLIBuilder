@@ -472,7 +472,9 @@ def test_unresolved_core_grant_does_not_stack_across_distinct_items():
               "granted_talents": ["Unknown Grant"],
               "unresolved_texts": ["[Unknown Grant] unmodeled talent effect +10 % Skill Area"]}
     r = _tf_response([first, second])
-    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.2)
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
+    assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"]) == 1
 
 
 def test_partially_resolved_core_talent_does_not_repeat_resolved_effects():

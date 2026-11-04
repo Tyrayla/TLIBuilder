@@ -1075,41 +1075,21 @@ def engine_stats(req: EngineStatsRequest):
     # collapse only the explicit same-item array-slot copy.
     from engine.core_talent_resolver import companion_text_parts
     _companions_seen: set[tuple[str, str]] = set()
-    _unresolved_grant_effects_seen: set[tuple[str, str]] = set()
-    _unresolved_grant_companions_seen: set[tuple[str, str]] = set()
     _unresolved_core_effects_seen: set[tuple[str, str]] = set()
+    _unresolved_grants_seen: set[str] = set()
 
-    def _split_unresolved_grant_body(name: str, body: str, same_item_slot_copy: bool) -> list[str]:
-        """Keep a grant's leading effect once, while retaining independently parseable trailing mods.
-
-        When catalog data is missing, a bracketed grant line cannot be matched against its canonical
-        effect. A signed trailing clause that resolves on its own is a companion gear mod; keep it
-        per item. The preceding grant text is conservatively kept once per talent name.
-        """
-        starts = [m.start() for m in re.finditer(r"(?<![\w.])[+\-]\s*\d", body)]
-        for start in reversed(starts):
-            if start == 0:
-                continue
-            suffix = body[start:].strip()
-            if any(clause.get("resolved") for clause in _resolve_gear_affix_clauses(suffix)):
-                effect = body[:start].strip()
-                parts: list[str] = []
-                effect_key = (name, _norm_core_name(effect))
-                if effect and effect_key not in _unresolved_grant_effects_seen:
-                    _unresolved_grant_effects_seen.add(effect_key)
-                    parts.append(effect)
-                companion_key = (name, _norm_core_name(suffix))
-                if not same_item_slot_copy:
-                    _unresolved_grant_companions_seen.add(companion_key)
-                    parts.append(suffix)
-                elif companion_key not in _unresolved_grant_companions_seen:
-                    parts.append(suffix)
-                return parts
-        key = (name, _norm_core_name(body))
-        if key in _unresolved_grant_effects_seen:
+    def _keep_unresolved_grant_once(name: str, raw_text: str) -> list[str]:
+        """Keep an unmatchable talent affix once; its talent/companion boundary is unknown."""
+        if name in _unresolved_grants_seen:
             return []
-        _unresolved_grant_effects_seen.add(key)
-        return [body]
+        _unresolved_grants_seen.add(name)
+        gear_mod_statuses.append({
+            "text": raw_text,
+            "resolved": False,
+            "stat_display": "Core talent text could not be matched to the current catalog; retained once because core talents do not stack.",
+        })
+        body = re.sub(r"^\s*\[[^\]]+\]\s*", "", raw_text, count=1)
+        return [body] if body else []
 
     def _gear_texts_minus_core(gi: dict) -> list[str]:
         kept: list[str] = []
@@ -1120,19 +1100,15 @@ def engine_stats(req: EngineStatsRequest):
                 continue
             statuses = _core_effect_statuses.get(name, [])
             if not statuses:
-                # The grant may be unavailable or unresolved in the current catalog. The
-                # bracket is only a label; strip it so normal parsing can still handle any
-                # independent clauses that remain in the affix text. The same-item marker
-                # still lets us collapse only the re-emitted array-slot copy.
-                body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
-                kept.extend(_split_unresolved_grant_body(name, body, bool(gi.get("same_item_slot_copy"))))
+                # Without the canonical effect text, we cannot safely separate a core talent
+                # from appended mods. Retain the raw body once and surface the ambiguity.
+                kept.extend(_keep_unresolved_grant_once(name, t))
                 continue
             rest, matched_effects = companion_text_parts(t, [s.get("text") or "" for s in statuses])
             if rest is None:
-                # No catalog effect matched, so preserve the whole affix body for ordinary
-                # parsing. Its bracketed talent name is metadata, not part of the mod text.
-                body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
-                kept.extend(_split_unresolved_grant_body(name, body, bool(gi.get("same_item_slot_copy"))))
+                # The current catalog does not match this line's wording, so retain it once
+                # rather than guessing which clause is the talent and which clauses may stack.
+                kept.extend(_keep_unresolved_grant_once(name, t))
                 continue
             matched = {_norm_core_name(effect) for effect in matched_effects}
             for status in statuses:
