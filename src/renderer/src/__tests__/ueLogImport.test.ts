@@ -581,10 +581,7 @@ describe('UE_game.log build conversion', () => {
     }, [], [], [], [], [], [], [], [], [], { memories: {
       memory_types: [], base_stat_scaling: { stats: [] },
       base_stats: [{ source: 'Memory of Origin', modifier: '+90 Strength', tier: 1 }],
-      fixed_affixes: [
-        { uuid, source: 'Memory of Origin', modifier: '+(38–42) % Critical Strike Damage', tier: 1 },
-        { uuid, source: 'Memory of Origin', modifier: '+(20–26) % Critical Strike Damage', tier: 2 },
-      ],
+      fixed_affixes: [{ uuid, source: 'Memory of Origin', modifier: '+(20–26) % Critical Strike Damage', tier: 2 }],
       random_affixes: [],
       log_base_stats: [{ log_modifier_id: '403101411', source: 'Memory of Origin', stat_name: 'Strength' }],
       log_affixes: [{ log_modifier_id: '402151902', source: 'Memory of Origin', group: 'fixed_affixes', affix_uuid: uuid }],

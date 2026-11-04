@@ -710,7 +710,7 @@ const MEMORY_RARITY_LABEL: Record<MemoryRarity, string> = {
   normal: 'Normal', magic: 'Magic', rare: 'Rare', epic: 'Epic', ultimate: 'Ultimate',
 }
 
-function memoryAffixMatchesLoggedValues(modifier: string, values: number[]): boolean {
+function memoryAffixMatchesLoggedValues(modifier: string, values: number[]): boolean | null {
   const ranges = [...modifier.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*[–-]\s*(-?\d+(?:\.\d+)?)\s*\)/g)]
   if (ranges.length > 0) {
     return ranges.length === values.length && ranges.every((range, index) => {
@@ -722,7 +722,7 @@ function memoryAffixMatchesLoggedValues(modifier: string, values: number[]): boo
   }
 
   const fixedValue = modifier.match(/^\s*[+-]?\s*(\d+(?:\.\d+)?)/)?.[1]
-  return values.length === 1 && fixedValue !== undefined && Number(fixedValue) === values[0]
+  return values.length === 1 && fixedValue !== undefined ? Number(fixedValue) === values[0] : null
 }
 
 function loggedMemorySelection(
@@ -738,9 +738,14 @@ function loggedMemorySelection(
     : []
   const candidates = (directMatches.length > 0 ? directMatches : uuidMatches)
     .filter(candidate => logAffix?.tier === undefined || candidate.tier === logAffix.tier)
-  const matchingRolls = candidates.filter(candidate => memoryAffixMatchesLoggedValues(candidate.modifier, row.values))
+  const matchingRolls = candidates.filter(candidate => memoryAffixMatchesLoggedValues(candidate.modifier, row.values) === true)
+  const singleCandidateRollMatch = candidates.length === 1
+    ? memoryAffixMatchesLoggedValues(candidates[0].modifier, row.values)
+    : null
   const match = candidates.length === 1
-    ? candidates[0]
+    ? (logAffix?.tier !== undefined || row.values.length === 0 || singleCandidateRollMatch !== false
+      ? candidates[0]
+      : undefined)
     : matchingRolls.length === 1 ? matchingRolls[0] : undefined
   if (!match) {
     warnings.push(`${label}: one logged memory affix could not be matched to TLIDB and was left out.`)
