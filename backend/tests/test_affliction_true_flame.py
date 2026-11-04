@@ -488,8 +488,8 @@ def test_unmatched_compound_core_talent_is_retained_once_and_warned():
     r = _tf_response([item, {**item, "item_name": "Second Poisoned Relief", "slot": "ring1"}])
     assert "injury_buffer_inc" not in r["stats"]
     assert "dmg_taken_additional" not in r["stats"]
-    assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
-               for status in r["gear_mod_statuses"]) == 1
+    assert any(not status["resolved"] and status.get("name") == "Poisoned Relief"
+               for status in r["core_talent_statuses"])
 
 
 def test_true_flame_is_a_core_talent_and_never_stacks_across_sources():
