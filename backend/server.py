@@ -1063,20 +1063,53 @@ def engine_stats(req: EngineStatsRequest):
     affix_curses: list[dict] = []   # curses inflicted by gear affixes (craft bases / legendaries) → curse resolver
     # A legendary "[Name] <effect>" affix grants a core talent. The raw text also arrives as an unresolved
     # gear affix, so remove effect lines already applied by the core-talent resolver before parsing its remainder.
-    _resolved_core_effects: dict[str, list[str]] = {}
+    _core_effect_statuses: dict[str, list[dict]] = {}
     for status in core_talent_statuses:
         name = _norm_core_name(status.get("name"))
-        if status.get("resolved") and name:
-            _resolved_core_effects.setdefault(name, []).append(status.get("text") or "")
+        if name and status.get("text"):
+            _core_effect_statuses.setdefault(name, []).append(status)
     _all_granted_core_names = {
         _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
     }
-    _granted_core_names = _all_granted_core_names & _resolved_core_effects.keys()
     # A compound legendary affix can append ordinary mods after the talent effect. Keep those mods, and
     # collapse only the explicit same-item array-slot copy.
-    from engine.core_talent_resolver import companion_text
+    from engine.core_talent_resolver import companion_text_parts
     _companions_seen: set[tuple[str, str]] = set()
-    _unresolved_grant_texts_seen: set[tuple[str, str]] = set()
+    _unresolved_grant_effects_seen: set[tuple[str, str]] = set()
+    _unresolved_grant_companions_seen: set[tuple[str, str]] = set()
+    _unresolved_core_effects_seen: set[tuple[str, str]] = set()
+
+    def _split_unresolved_grant_body(name: str, body: str, same_item_slot_copy: bool) -> list[str]:
+        """Keep a grant's leading effect once, while retaining independently parseable trailing mods.
+
+        When catalog data is missing, a bracketed grant line cannot be matched against its canonical
+        effect. A signed trailing clause that resolves on its own is a companion gear mod; keep it
+        per item. The preceding grant text is conservatively kept once per talent name.
+        """
+        starts = [m.start() for m in re.finditer(r"(?<![\w.])[+\-]\s*\d", body)]
+        for start in reversed(starts):
+            if start == 0:
+                continue
+            suffix = body[start:].strip()
+            if any(clause.get("resolved") for clause in _resolve_gear_affix_clauses(suffix)):
+                effect = body[:start].strip()
+                parts: list[str] = []
+                effect_key = (name, _norm_core_name(effect))
+                if effect and effect_key not in _unresolved_grant_effects_seen:
+                    _unresolved_grant_effects_seen.add(effect_key)
+                    parts.append(effect)
+                companion_key = (name, _norm_core_name(suffix))
+                if not same_item_slot_copy:
+                    _unresolved_grant_companions_seen.add(companion_key)
+                    parts.append(suffix)
+                elif companion_key not in _unresolved_grant_companions_seen:
+                    parts.append(suffix)
+                return parts
+        key = (name, _norm_core_name(body))
+        if key in _unresolved_grant_effects_seen:
+            return []
+        _unresolved_grant_effects_seen.add(key)
+        return [body]
 
     def _gear_texts_minus_core(gi: dict) -> list[str]:
         kept: list[str] = []
@@ -1085,34 +1118,33 @@ def engine_stats(req: EngineStatsRequest):
             if name not in _all_granted_core_names:
                 kept.append(t)
                 continue
-            if name not in _granted_core_names:
+            statuses = _core_effect_statuses.get(name, [])
+            if not statuses:
                 # The grant may be unavailable or unresolved in the current catalog. The
                 # bracket is only a label; strip it so normal parsing can still handle any
                 # independent clauses that remain in the affix text. The same-item marker
                 # still lets us collapse only the re-emitted array-slot copy.
                 body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
-                key = (name, _norm_core_name(body))
-                # Without catalog effects we cannot split a talent line from any appended
-                # companion mods. Keep one copy of identical text for this non-stacking grant.
-                if key in _unresolved_grant_texts_seen:
-                    continue
-                _unresolved_grant_texts_seen.add(key)
-                kept.append(body)
+                kept.extend(_split_unresolved_grant_body(name, body, bool(gi.get("same_item_slot_copy"))))
                 continue
-            rest = companion_text(t, _resolved_core_effects.get(name))
+            rest, matched_effects = companion_text_parts(t, [s.get("text") or "" for s in statuses])
             if rest is None:
                 # No catalog effect matched, so preserve the whole affix body for ordinary
                 # parsing. Its bracketed talent name is metadata, not part of the mod text.
                 body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
-                key = (name, _norm_core_name(body))
-                if gi.get("same_item_slot_copy") and key in _companions_seen:
-                    continue
-                if not gi.get("same_item_slot_copy"):
-                    _companions_seen.add(key)
-                kept.append(body)
+                kept.extend(_split_unresolved_grant_body(name, body, bool(gi.get("same_item_slot_copy"))))
                 continue
+            matched = {_norm_core_name(effect) for effect in matched_effects}
+            for status in statuses:
+                effect = status.get("text") or ""
+                if status.get("resolved") or _norm_core_name(effect) not in matched:
+                    continue
+                key = (name, _norm_core_name(effect))
+                if key not in _unresolved_core_effects_seen:
+                    _unresolved_core_effects_seen.add(key)
+                    kept.append(effect)
             if not rest:
-                continue   # the text contained only effects already applied by the core-talent resolver
+                continue   # no companion mods remain after accounting for known talent effects
             # Only a second array-slot emission from the same item may be collapsed. Item names are not unique.
             key = (name, _norm_core_name(rest))
             if not gi.get("same_item_slot_copy") or key not in _companions_seen:
