@@ -1068,9 +1068,10 @@ def engine_stats(req: EngineStatsRequest):
         name = _norm_core_name(status.get("name"))
         if status.get("resolved") and name:
             _resolved_core_effects.setdefault(name, []).append(status.get("text") or "")
-    _granted_core_names = {
+    _all_granted_core_names = {
         _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
-    } & _resolved_core_effects.keys()
+    }
+    _granted_core_names = _all_granted_core_names & _resolved_core_effects.keys()
     # A compound legendary affix can append ordinary mods after the talent effect. Keep those mods, and
     # collapse only the explicit same-item array-slot copy.
     from engine.core_talent_resolver import companion_text
@@ -1080,6 +1081,9 @@ def engine_stats(req: EngineStatsRequest):
         kept: list[str] = []
         for t in gi.get("unresolved_texts") or []:
             name = _bracket_core_name(t)
+            if name not in _all_granted_core_names:
+                kept.append(t)
+                continue
             if name not in _granted_core_names:
                 # The grant may be unavailable or unresolved in the current catalog. The
                 # bracket is only a label; strip it so normal parsing can still handle any
