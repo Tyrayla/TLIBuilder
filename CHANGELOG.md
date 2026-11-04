@@ -17,7 +17,7 @@
 - **Keep unsaved edits while imported gear finishes resolving.** Builder now completes affix lookups after the initial load without replacing your changes.
 
 ### Damage calculations
-- **Count True Flame once when a legendary affix grants it.** Compound affixes also keep their other bonuses, such as Skill Area.
+- **Avoid duplicate stats from core talents on gear.** Builder counts the talent once, keeps the item's other bonuses, and avoids repeating those bonuses when the same weapon fills both slots.
 
 ## [0.6.13] - 2026-10-19
 

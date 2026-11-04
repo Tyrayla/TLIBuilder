@@ -11,6 +11,11 @@ from engine.modifier_lines import slim
 # marking a once-per-Divinity-Slate cap.
 # It STAYS in the stored text; we also parse N structurally so the engine can enforce the cap from a
 # field instead of regex-matching English at aggregation time.
+_HTML_TAG_RE = re.compile(
+    r"</?(?:a|b|br|div|em|font|h[1-6]|i|img|li|ol|p|span|strong|sub|sup|u|ul)"
+    r"(?:\s+[a-zA-Z_:][\w:.-]*\s*=\s*[^>]+)*\s*/?>",
+    re.I,
+)
 _MAX_DIV_N_RE = re.compile(
     r"\(Max\s+(?:Active\s+)?Divinity(?:\s+Effect)?\s*:\s*(\d+)[^)]*\)\s*$", re.I
 )
@@ -21,8 +26,8 @@ _TRAIT_SOURCE_METADATA = {
 
 
 def _plain_text(value: str) -> str:
-    """Remove residual page markup from crawler text without changing its words."""
-    return html.unescape(re.sub(r"<[^>]*>", " ", value)).strip()
+    """Remove recognized HTML tags without treating angle-bracket placeholders as markup."""
+    return _HTML_TAG_RE.sub(" ", html.unescape(value)).strip()
 
 
 def _effect_line(e) -> dict:

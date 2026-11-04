@@ -84,7 +84,6 @@ these rows and the item `game_id` values.
 | # | Fact | Evidence |
 |---|---|---|
 | F1 | The file starts with a UTF-8 BOM and uses CRLF. Decode as `utf-8-sig`, normalise `\r\n`. | first bytes `EF BB BF` |
-`. | first bytes `EF BB BF` |
 | F2 | The login dump is one block: `----Socket RecvMessage STT----GetPlayerData----SynId = N` … `----Socket RecvMessage End----`. This log has exactly one (lines 22156–26751), preceded by a `SendMessage … GetPlayerData` with `+clientLang [en]`. | grep |
 | F3 | The block's first line shares its line with the log prefix `[ts][frame]TLNetGame: Display: [Game] `; the tree body follows on the next physical lines (no per-line log prefix). | read |
 | F4 | Tree syntax: each line is `|`-padding then one or more `+key` segments, optionally ending in ` [value]`. The **column of each `+`** is the nesting depth. Rule that parses all 4,595 lines: a line whose first `+` is at column *c* pops every open key at column ≥ *c*; its parent is the top of what remains; the rest of the `+key` segments on that line each nest one deeper. Lists are keyed `1,2,3…`. A key with a value has a trailing space in the key text (strip it). | spike parser, whole dump parsed, 33 top-level keys |

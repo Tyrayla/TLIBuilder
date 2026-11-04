@@ -1061,27 +1061,20 @@ def engine_stats(req: EngineStatsRequest):
     gear_resolved: list[dict] = []
     gear_mod_statuses: list[dict] = []
     affix_curses: list[dict] = []   # curses inflicted by gear affixes (craft bases / legendaries) → curse resolver
-    # A legendary "[Name] <effect>" affix grants a CORE TALENT; resolve_core_talents (above) already applies
-    # it exactly once. The same raw text also arrives here as an unresolved gear affix (and again on the
-    # 2nd slot of a same-item dual wield, which carries no granted_talents), so skip bracket-named texts
-    # whose talent is granted by ANY gear item. Otherwise the effect is counted twice (True Flame x1.3).
-    # Only names the core-talent resolver FULLY resolved (every effect status resolved) are skipped; a granted
-    # name missing from the catalog, or whose effects the resolver cannot yet model (e.g. Poisoned Relief's
-    # gated line), keeps its gear-text parse so the affix is never silently dropped.
-    _status_names = {_norm_core_name(s.get("name")) for s in core_talent_statuses}
-    _resolved_core_names = {
-        n for n in _status_names
-        if all(s.get("resolved") for s in core_talent_statuses if _norm_core_name(s.get("name")) == n)
-    }
+    # A legendary "[Name] <effect>" affix grants a core talent. The raw text also arrives as an unresolved
+    # gear affix, so remove effect lines already applied by the core-talent resolver before parsing its remainder.
+    _resolved_core_effects: dict[str, list[str]] = {}
+    for status in core_talent_statuses:
+        name = _norm_core_name(status.get("name"))
+        if status.get("resolved") and name:
+            _resolved_core_effects.setdefault(name, []).append(status.get("text") or "")
     _granted_core_names = {
         _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
-    } & _resolved_core_names
-    # A compound legendary affix ("[True Flame] ... Fire Hit Damage +100 % Skill Area") carries ordinary mods
-    # AFTER the talent's own effect. Only the talent part is covered by the core-talent resolver, so keep the
-    # companion remainder and apply it once (a same-item dual-wield copy re-emits the same text: dedup it).
-    from engine.core_talent_resolver import core_talent_effects, companion_text
-    _core_catalog = core_talent_effects(season_trees, belt_blends_data) if _granted_core_names else {}
-    _companions_seen: set[tuple[str, str, str]] = set()
+    } & _resolved_core_effects.keys()
+    # A compound legendary affix can append ordinary mods after the talent effect. Keep those mods, and
+    # collapse only the explicit same-item array-slot copy.
+    from engine.core_talent_resolver import companion_text
+    _companions_seen: set[tuple[str, str]] = set()
 
     def _gear_texts_minus_core(gi: dict) -> list[str]:
         kept: list[str] = []
@@ -1090,14 +1083,17 @@ def engine_stats(req: EngineStatsRequest):
             if name not in _granted_core_names:
                 kept.append(t)
                 continue
-            rest = companion_text(t, _core_catalog.get(name))
+            rest = companion_text(t, _resolved_core_effects.get(name))
+            if rest is None:
+                kept.append(t)  # a text mismatch is not proof that the gear effect is safe to discard
+                continue
             if not rest:
-                continue   # only the talent (or not separable): the core-talent resolver owns it
-            # Dedup only the re-emitted same-item copy (same item_name); unnamed items are never merged.
-            item_name = str(gi.get("item_name") or "")
-            key = (item_name, name, _norm_core_name(rest))
-            if not item_name or key not in _companions_seen:
-                _companions_seen.add(key)
+                continue   # the text contained only effects already applied by the core-talent resolver
+            # Only a second array-slot emission from the same item may be collapsed. Item names are not unique.
+            key = (name, _norm_core_name(rest))
+            if not gi.get("same_item_slot_copy") or key not in _companions_seen:
+                if not gi.get("same_item_slot_copy"):
+                    _companions_seen.add(key)
                 kept.append(rest)
         return kept
 

@@ -3335,6 +3335,8 @@ export interface GearEngineItem {
   slot?: string | null
   // Required by slot-local defense modifiers: distinguishes an off-hand shield from an off-hand weapon.
   is_shield?: boolean
+  // Marks unresolved global text re-emitted for another slot of the same array-slot item.
+  same_item_slot_copy?: boolean
 }
 
 export interface SeasonDiffNode {

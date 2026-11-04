@@ -411,6 +411,16 @@ def test_unnamed_items_with_identical_companion_are_not_deduped():
     assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
 
 
+def test_distinct_same_named_items_keep_both_companion_affixes():
+    a = {"contributions": [], "item_name": "Mindflame", "slot": "ring1",
+         "granted_talents": ["True Flame"],
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    b = {"contributions": [], "item_name": "Mindflame", "slot": "ring2",
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    r = _tf_response([a, b])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(2.0)
+
+
 def test_companion_text_unit():
     from engine.core_talent_resolver import companion_text
     eff = ["A foo , 5 % bar (Max Active Divinity: 1)", "Baz qux."]
@@ -430,9 +440,26 @@ def test_bracket_text_with_unknown_talent_name_is_still_parsed():
 
 def test_same_item_dual_wield_does_not_repeat_true_flame():
     # buildGearPayload re-emits the unresolved texts (without granted_talents) for the 2nd weapon slot.
-    second_slot_copy = {"contributions": [], "item_name": "Mindflame", "unresolved_texts": [_TF_RAW]}
+    second_slot_copy = {"contributions": [], "item_name": "Mindflame", "unresolved_texts": [_TF_RAW],
+                        "same_item_slot_copy": True}
     r = _tf_response([_legendary(slot="weapon1"), second_slot_copy])
     assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_unmatched_core_talent_text_keeps_parseable_companion_effects():
+    item = {"contributions": [], "item_name": "Mindflame", "slot": "helmet",
+            "granted_talents": ["True Flame"],
+            "unresolved_texts": ["[True Flame] changed catalog wording +10 % Skill Area"]}
+    r = _tf_response([item])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
+
+
+def test_partially_resolved_core_talent_does_not_repeat_resolved_effects():
+    item = {"contributions": [], "item_name": "Poisoned Relief item", "slot": "helmet",
+            "granted_talents": ["Poisoned Relief"],
+            "unresolved_texts": ["[Poisoned Relief] +25 % Injury Buffer -15 % additional damage taken at Low Life"]}
+    r = _tf_response([item])
+    assert r["stats"]["injury_buffer_inc"]["total"] == pytest.approx(0.25)
 
 
 def test_true_flame_is_a_core_talent_and_never_stacks_across_sources():

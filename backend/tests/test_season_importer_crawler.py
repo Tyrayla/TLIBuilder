@@ -1,5 +1,5 @@
 import pytest
-from tools.season_importer import _effect_line, _make_display_name_key, import_crawler_tree
+from tools.season_importer import _effect_line, _make_display_name_key, _plain_text, import_crawler_tree
 
 
 # ── _make_display_name_key ──────────────────────────────────────────────────
@@ -13,6 +13,11 @@ def test_display_name_key_compound():
 
 
 # ── import_crawler_tree ─────────────────────────────────────────────────────
+
+def test_plain_text_strips_html_without_erasing_affix_placeholders():
+    assert _plain_text('<span class="highlight">Damage</span>') == "Damage"
+    assert _plain_text("<A Random Affix>") == "<A Random Affix>"
+
 
 _MINIMAL_NODE = {
     "talent_id": "01020100",
