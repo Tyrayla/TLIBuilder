@@ -14,7 +14,7 @@ export interface HeroMemoryData {
   random_affixes: HeroMemoryAffix[]
   // UE_game.log memory base-stat IDs are not exposed by TLIDB; these owner-verified rows map them to catalog stat names.
   log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
-  log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string }[]
+  log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string; tier?: number }[]
   // Season-stable base-stat scaling table (source: MinMaxedARPG) — drives the creator's auto base-stat value
   // and the crosswalk import recompute. Optional (missing on very old backends).
   base_stat_scaling?: HeroMemoryBaseStatScaling

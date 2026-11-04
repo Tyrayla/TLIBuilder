@@ -49,7 +49,7 @@ export interface UeLogReferenceCatalogs {
     fixed_affixes: HeroMemoryAffix[]
     random_affixes: HeroMemoryAffix[]
     log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
-    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string }[]
+    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string; tier?: number }[]
   } | null
   traits?: HeroTrait[] | null
   revivalAffixes?: HeroMemoryAffix[] | null
@@ -718,7 +718,8 @@ function loggedMemorySelection(
   const logAffix = logAffixes?.find(entry => entry.log_modifier_id === row.id && entry.source === source && entry.group === group)
   const match = pool.find(candidate => candidate.source === source && (
     (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id
-    || (!!logAffix && candidate.uuid === logAffix.affix_uuid)
+    || (!!logAffix && candidate.uuid === logAffix.affix_uuid
+      && (logAffix.tier === undefined || candidate.tier === logAffix.tier))
   ))
   if (!match) {
     warnings.push(`${label}: one logged memory affix could not be matched to TLIDB and was left out.`)

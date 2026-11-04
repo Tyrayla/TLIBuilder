@@ -520,6 +520,31 @@ describe('UE_game.log build conversion', () => {
     expect(result.warnings.some(warning => warning.includes('logged memory affix'))).toBe(false)
   })
 
+  it('uses the logged Hero Memory tier when a crosswalk UUID spans multiple tiers', () => {
+    const uuid = '637ddfb1-e6df-5d1f-bc5e-047b764f5eb1'
+    const result = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], memories: [{ slot: 1, baseId: 71001, rarityValue: 3, level: 40,
+        baseAttrAffixes: [{ id: '403101411', source: null, values: [90] }],
+        fixedAffixes: [{ id: '402151902', source: null, values: [23] }], randomAffixes: [], awakenAffixes: [],
+      }],
+    }, [], [], [], [], [], [], [], [], [], { memories: {
+      memory_types: [], base_stat_scaling: { stats: [] },
+      base_stats: [{ source: 'Memory of Origin', modifier: '+90 Strength', tier: 1 }],
+      fixed_affixes: [
+        { uuid, source: 'Memory of Origin', modifier: '+(38–42) % Critical Strike Damage', tier: 1 },
+        { uuid, source: 'Memory of Origin', modifier: '+(20–26) % Critical Strike Damage', tier: 2 },
+      ],
+      random_affixes: [],
+      log_base_stats: [{ log_modifier_id: '403101411', source: 'Memory of Origin', stat_name: 'Strength' }],
+      log_affixes: [{ log_modifier_id: '402151902', source: 'Memory of Origin', group: 'fixed_affixes', affix_uuid: uuid, tier: 2 }],
+    } } as any)
+
+    expect((result.build.heroMemories?.[0] as CreatedHeroMemory).fixedAffixes[0]).toEqual({
+      modifier: '+(20–26) % Critical Strike Damage', tier: 2, rolledValue: 23,
+    })
+  })
+
   it('groups captures by character and hero, then keeps the latest file for import', () => {
     const capture = (fileNumber: number, modifiedAt: number, characterName: string, heroId: number, level: number) => ({
       fileNumber,

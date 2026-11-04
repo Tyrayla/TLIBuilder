@@ -3500,7 +3500,7 @@ export const api = {
     base_stats: HeroMemoryAffix[]
     base_stat_scaling?: HeroMemoryBaseStatScaling
     log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
-    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string }[]
+    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string; tier?: number }[]
   }>('/hero-memories'),
 
   importMemoryRevival: (seasonName: string, data: object) =>
