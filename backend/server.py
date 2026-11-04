@@ -1087,14 +1087,27 @@ def engine_stats(req: EngineStatsRequest):
             if name not in _granted_core_names:
                 # The grant may be unavailable or unresolved in the current catalog. The
                 # bracket is only a label; strip it so normal parsing can still handle any
-                # independent clauses that remain in the affix text.
-                kept.append(re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1) if name else t)
+                # independent clauses that remain in the affix text. The same-item marker
+                # still lets us collapse only the re-emitted array-slot copy.
+                body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
+                key = (name, _norm_core_name(body))
+                if gi.get("same_item_slot_copy") and key in _companions_seen:
+                    continue
+                if not gi.get("same_item_slot_copy"):
+                    _companions_seen.add(key)
+                kept.append(body)
                 continue
             rest = companion_text(t, _resolved_core_effects.get(name))
             if rest is None:
                 # No catalog effect matched, so preserve the whole affix body for ordinary
                 # parsing. Its bracketed talent name is metadata, not part of the mod text.
-                kept.append(re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1))
+                body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
+                key = (name, _norm_core_name(body))
+                if gi.get("same_item_slot_copy") and key in _companions_seen:
+                    continue
+                if not gi.get("same_item_slot_copy"):
+                    _companions_seen.add(key)
+                kept.append(body)
                 continue
             if not rest:
                 continue   # the text contained only effects already applied by the core-talent resolver
@@ -1108,7 +1121,7 @@ def engine_stats(req: EngineStatsRequest):
 
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
-        if texts and _granted_core_names:
+        if texts and _all_granted_core_names:
             texts = _gear_texts_minus_core(gi)
             if texts != (gi.get("unresolved_texts") or []):
                 gi = {**gi, "unresolved_texts": texts}
