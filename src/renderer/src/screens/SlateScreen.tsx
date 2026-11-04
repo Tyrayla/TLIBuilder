@@ -8,6 +8,8 @@ import { TooltipContributions } from '../components/tooltip/TooltipContributions
 import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
 import { summarizeSlateBonuses } from '../utils/slateBonusSummary'
 import { nextOrientationIndex } from './slateOrientation'
+import { BASE_SLATE_SHAPES as BASE_SHAPES, LEGENDARY_ORIENTATIONS, SLATE_BOARD_VALID as BOARD_VALID } from '../utils/slateGeometry'
+import { BANISHMENT_EFFECTS, DEFAULT_NETHER_KING_VARIANT, NETHER_KING_VARIANTS, findNetherKingPlacement, isNetherKingBrandNodeForVariant, netherKingIconFile, netherKingOrientationCells, netherKingTemplateMetadata, type NetherKingBanishmentEffect, type NetherKingVariant } from '../utils/netherKingSlate'
 
 // One selectable slate modifier option (its effects badged for engine support). Extracted so the
 // status hook isn't called inside the options .map().
@@ -33,14 +35,6 @@ function SlateModRow({ mod, selected, accentColor, onSelect }: {
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
-const BOARD_VALID: boolean[][] = [
-  [false, false, true,  true,  false, false],
-  [false, true,  true,  true,  true,  false],
-  [true,  true,  true,  true,  true,  true ],
-  [true,  true,  true,  true,  true,  true ],
-  [false, true,  true,  true,  true,  false],
-  [false, false, true,  true,  false, false],
-]
 const BOARD_ROWS = 6
 const BOARD_COLS = 6
 const TOTAL_CELLS = 24
@@ -60,6 +54,7 @@ const PRIMARY_TREES = [
   'God of War', 'Goddess of Deception', 'God of Machines',
 ] as const
 type PrimaryTree = typeof PRIMARY_TREES[number]
+type SlateTree = PrimaryTree | 'Nether King'
 
 type LegendaryKind =
   | 'pedigree'
@@ -69,6 +64,7 @@ type LegendaryKind =
   | 'when_sparks_set_prairie_ablaze'
   | 'space_rift'
   | 'residence_of_stars'
+  | 'nether_kings_divinity'
 
 type SlateKind = 'base' | LegendaryKind
 type SlotType = 'magic' | 'rare' | 'legendary'
@@ -80,65 +76,6 @@ const LEGEND_GOLD = '#c8881a'
 // The six baseline tetromino forms (O, L, Z, T + the mirrors J=L2, S=Z2). Each form's rotation 0 matches its
 // art's natural orientation, and rotations advance 90° CW (so the overlay art rotates with orientationIndex).
 // BASE_FORMS (below) carries the matching art form/flip/sizing — kept index-aligned with BASE_SHAPES.
-
-interface BaseShape { label: string; rotations: [number, number][][] }
-
-const BASE_SHAPES: BaseShape[] = [
-  {
-    label: 'O',   // O1
-    rotations: [
-      [[0,0],[0,1],[1,0],[1,1]],
-      [[0,0],[0,1],[1,0],[1,1]],
-      [[0,0],[0,1],[1,0],[1,1]],
-      [[0,0],[0,1],[1,0],[1,1]],
-    ],
-  },
-  {
-    label: 'L',        // L1
-    rotations: [
-      [[0,0],[1,0],[1,1],[1,2]],
-      [[0,0],[0,1],[1,0],[2,0]],
-      [[0,0],[0,1],[0,2],[1,2]],
-      [[0,1],[1,1],[2,0],[2,1]],
-    ],
-  },
-  {
-    label: 'Z',        // Z1 (vertical S)
-    rotations: [
-      [[0,0],[1,0],[1,1],[2,1]],
-      [[0,1],[0,2],[1,0],[1,1]],
-      [[0,0],[1,0],[1,1],[2,1]],
-      [[0,1],[0,2],[1,0],[1,1]],
-    ],
-  },
-  {
-    label: 'T',        // T1
-    rotations: [
-      [[0,0],[0,1],[0,2],[1,1]],
-      [[0,1],[1,0],[1,1],[2,1]],
-      [[0,1],[1,0],[1,1],[1,2]],
-      [[0,0],[1,0],[1,1],[2,0]],
-    ],
-  },
-  {
-    label: 'J',        // L2 (mirror of L1)
-    rotations: [
-      [[0,2],[1,0],[1,1],[1,2]],
-      [[0,0],[1,0],[2,0],[2,1]],
-      [[0,0],[0,1],[0,2],[1,0]],
-      [[0,0],[0,1],[1,1],[2,1]],
-    ],
-  },
-  {
-    label: 'S',        // Z2 (mirror of Z1)
-    rotations: [
-      [[0,1],[1,0],[1,1],[2,0]],
-      [[0,0],[0,1],[1,1],[1,2]],
-      [[0,1],[1,0],[1,1],[2,0]],
-      [[0,0],[0,1],[1,1],[1,2]],
-    ],
-  },
-]
 
 // Per-base-form art config, index-aligned with BASE_SHAPES. Mirror forms reuse their partner's art with a
 // horizontal flip. `natural` is the art's footprint [cols, rows]; scale/offset/stretch are tuned per form.
@@ -164,26 +101,9 @@ const ROTATION_LABELS = ['↑ 0°', '→ 90°', '↓ 180°', '← 270°']
 
 // ── Legendary orientations ────────────────────────────────────────────────────
 
-const LEGENDARY_ORIENTATIONS: Record<LegendaryKind, [number, number][][]> = {
-  pedigree: [
-    [[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],
-    [[0,0],[0,1],[1,0],[1,1],[1,2],[2,1],[2,2]],
-  ],
-  fallen_starlight: [[[0,0],[0,1]], [[0,0],[1,0]]],
-  corner_of_divinity: [
-    [[0,0],[0,1],[1,0]],
-    [[0,0],[0,1],[1,1]],
-    [[0,1],[1,0],[1,1]],
-    [[0,0],[1,0],[1,1]],
-  ],
-  spark_of_moth_fire:             [[[0,0]]],
-  when_sparks_set_prairie_ablaze: [[[0,0]]],
-  space_rift:                     [[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]]],            // 6 tall × 1 wide
-  residence_of_stars:             [[[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]]], // pinwheel (matches the LL1 art)
-}
-
-function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number): [number, number][] {
+function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, netherKingVariant?: NetherKingVariant): [number, number][] {
   if (kind === 'base') return BASE_SHAPES[shapeIndex]?.rotations[orientationIndex] ?? BASE_SHAPES[0].rotations[0]
+  if (kind === 'nether_kings_divinity') return netherKingOrientationCells(netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT, orientationIndex)
   const orientations = LEGENDARY_ORIENTATIONS[kind as LegendaryKind]
   return orientations?.[orientationIndex] ?? orientations?.[0] ?? [[0, 0]]
 }
@@ -207,15 +127,19 @@ function getCenterOffset(cells: [number, number][]): [number, number] {
   return best
 }
 
-function centeredAnchor(kind: SlateKind, shapeIndex: number, orientationIndex: number, cursor: [number, number]): [number, number] {
-  const cells = getOrientationCells(kind, shapeIndex, orientationIndex)
+function centeredAnchor(kind: SlateKind, shapeIndex: number, orientationIndex: number, cursor: [number, number], netherKingVariant?: NetherKingVariant): [number, number] {
+  const cells = getOrientationCells(kind, shapeIndex, orientationIndex, netherKingVariant)
   const [cr, cc] = getCenterOffset(cells)
   return [cursor[0] - cr, cursor[1] - cc]
 }
 
-function anchorCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, anchor: [number, number]): [number, number][] {
+function anchorCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, anchor: [number, number], netherKingVariant?: NetherKingVariant): [number, number][] {
   const [ar, ac] = anchor
-  return getOrientationCells(kind, shapeIndex, orientationIndex).map(([dr, dc]) => [ar + dr, ac + dc] as [number, number])
+  return getOrientationCells(kind, shapeIndex, orientationIndex, netherKingVariant).map(([dr, dc]) => [ar + dr, ac + dc] as [number, number])
+}
+
+function netherKingPlacement(primary: [number, number], occupied: Map<string, string>, variant: NetherKingVariant) {
+  return findNetherKingPlacement(variant, primary, occupied, isValidCell)
 }
 
 // ── Unified slate art overlay ──────────────────────────────────────────────────
@@ -236,7 +160,7 @@ const ART_NATURAL_CELLS: Partial<Record<SlateKind, [number, number]>> = {
 // corner_of_divinity art (V1) is opaque at TL/BL/BR with a transparent TOP-RIGHT corner; orientation 0's empty
 // cell is BOTTOM-RIGHT, so a +90° base turn moves the art's hole TR→BR to match (then +90°/step from there).
 // fallen_starlight art is vertical; orientation 0 is the horizontal domino, so +90° turns it to match.
-const ART_BASE_ANGLE: Partial<Record<SlateKind, number>> = { corner_of_divinity: 90, fallen_starlight: 90, pedigree: 0, residence_of_stars: 0, space_rift: 0, spark_of_moth_fire: 0, when_sparks_set_prairie_ablaze: 0 }
+const ART_BASE_ANGLE: Partial<Record<SlateKind, number>> = { corner_of_divinity: 90, fallen_starlight: 90, pedigree: 0, residence_of_stars: 0, space_rift: 0, spark_of_moth_fire: 0, when_sparks_set_prairie_ablaze: 0, nether_kings_divinity: 0 }
 function artOverlayAngle(kind: SlateKind, orientationIndex: number): number {
   if (ART_FLIP_KINDS.has(kind)) return ART_BASE_ANGLE[kind] ?? 0   // flip kinds don't rotate per step
   return (ART_BASE_ANGLE[kind] ?? 0) + orientationIndex * 90       // others advance 90° clockwise per index
@@ -255,6 +179,13 @@ const ART_OVERLAY_OFFSET: Partial<Record<SlateKind, [number, number]>> = { corne
 // Extra stretch (multiplies one axis only) for arts that don't match their footprint's aspect.
 const ART_OVERLAY_STRETCH_X: Partial<Record<SlateKind, number>> = { space_rift: 1.6 }
 const ART_OVERLAY_STRETCH_Y: Partial<Record<SlateKind, number>> = { when_sparks_set_prairie_ablaze: 1.4 }
+// Nether King icons are 112×160 atlases. These 42×42 squares isolate one representative 1×1
+// emblem per variant; repeat it in each occupied cell and let board geometry control rotation.
+const NETHER_KING_TILE_CROPS: Record<NetherKingVariant, [number, number]> = {
+  judgment: [2, 29],
+  contamination: [37, 16],
+  banishment: [72, 23],
+}
 // How far the art clip is pulled in from the slate outline (px) — the visible border band between art and bars.
 const ART_INSET = 6
 // Slate outline colours — the app's light-purple slate accent (not the gold legendary colour).
@@ -299,6 +230,53 @@ function footprintOutline(cells: [number, number][]): [number, number][] {
     cur = e[1]
   }
   return corners.map(([cr, cc]) => [cc * PITCH - GAP / 2, cr * PITCH - GAP / 2] as P)
+}
+
+// Trace every perimeter loop separately. Some slate footprints touch only at diagonal corners;
+// choosing a single outgoing edge per vertex joins those separate boundaries with a false diagonal.
+function footprintOutlineLoops(cells: [number, number][]): [number, number][][] {
+  type GridPoint = [number, number]
+  type Edge = { start: GridPoint; end: GridPoint; direction: number; used: boolean }
+  const occupied = new Set(cells.map(([r, c]) => `${r},${c}`))
+  const has = (r: number, c: number) => occupied.has(`${r},${c}`)
+  const edges: Edge[] = []
+  for (const [r, c] of cells) {
+    if (!has(r - 1, c)) edges.push({ start: [r, c], end: [r, c + 1], direction: 0, used: false })
+    if (!has(r, c + 1)) edges.push({ start: [r, c + 1], end: [r + 1, c + 1], direction: 1, used: false })
+    if (!has(r + 1, c)) edges.push({ start: [r + 1, c + 1], end: [r + 1, c], direction: 2, used: false })
+    if (!has(r, c - 1)) edges.push({ start: [r + 1, c], end: [r, c], direction: 3, used: false })
+  }
+  const key = ([r, c]: GridPoint) => `${r},${c}`
+  const outgoing = new Map<string, Edge[]>()
+  for (const edge of edges) {
+    const list = outgoing.get(key(edge.start)) ?? []
+    list.push(edge)
+    outgoing.set(key(edge.start), list)
+  }
+
+  const loops: [number, number][][] = []
+  for (const first of edges) {
+    if (first.used) continue
+    const start = first.start
+    const gridPoints: GridPoint[] = [start]
+    let edge: Edge | undefined = first
+    for (let guard = 0; edge && guard <= edges.length; guard++) {
+      edge.used = true
+      gridPoints.push(edge.end)
+      if (key(edge.end) === key(start)) break
+      const candidates = (outgoing.get(key(edge.end)) ?? []).filter(candidate => !candidate.used)
+      // Keep the occupied cells on the same side of the walk. A right turn separates diagonal contacts.
+      const turnPriority = [1, 0, 3, 2]
+      candidates.sort((a, b) =>
+        turnPriority.indexOf((a.direction - edge!.direction + 4) % 4)
+        - turnPriority.indexOf((b.direction - edge!.direction + 4) % 4))
+      edge = candidates[0]
+    }
+    if (gridPoints.length > 3 && key(gridPoints[gridPoints.length - 1]) === key(start)) {
+      loops.push(gridPoints.map(([r, c]) => [c * PITCH - GAP / 2, r * PITCH - GAP / 2]))
+    }
+  }
+  return loops
 }
 
 // Drop collinear vertices so edges strictly alternate horizontal/vertical (the per-cell tracer emits one edge
@@ -348,6 +326,7 @@ const LEGENDARY_META: Record<LegendaryKind, { label: string; color: string }> = 
   when_sparks_set_prairie_ablaze: { label: 'When Sparks Set the Prairie Ablaze', color: LEGEND_GOLD },
   space_rift:                     { label: 'Space Rift',                         color: LEGEND_GOLD },
   residence_of_stars:             { label: 'Residence of Stars',                color: LEGEND_GOLD },
+  nether_kings_divinity:           { label: "Nether King's Divinity",           color: LEGEND_GOLD },
 }
 
 // Max copies allowed ON THE BOARD per kind (inventory is unlimited). Base slates have no limit.
@@ -359,6 +338,7 @@ const SLATE_LIMITS: Partial<Record<SlateKind, number>> = {
   residence_of_stars: 1,
   space_rift: 1,
   when_sparks_set_prairie_ablaze: 1,
+  nether_kings_divinity: 1,
 }
 const SLATE_LIMIT_LABEL: Partial<Record<SlateKind, string>> = {
   corner_of_divinity: 'Corners',
@@ -368,6 +348,7 @@ const SLATE_LIMIT_LABEL: Partial<Record<SlateKind, string>> = {
   residence_of_stars: 'Residence',
   space_rift: 'Space Rift',
   when_sparks_set_prairie_ablaze: 'Prairie',
+  nether_kings_divinity: 'Nether King',
 }
 
 // Bundled slate icons (served from data/images/icons/divinity_slate/, paired by basename via iconUrl).
@@ -385,7 +366,7 @@ function baseArtFile(artForm: string, treeType?: string | null): string | null {
   const abbr = TREE_ABBR[treeType as PrimaryTree]
   return abbr ? `UI_TalantNG_${artForm}_0_Icon_${abbr}_128.webp` : null
 }
-const LEGENDARY_ICON: Record<LegendaryKind, string> = {
+const LEGENDARY_ICON: Partial<Record<LegendaryKind, string>> = {
   pedigree:                       'UI_MI_TalantNG_Gold_ZZ1_0_Icon_128.webp',
   fallen_starlight:               'UI_MI_TalantNG_Gold_I1_0_Icon_128.webp',
   corner_of_divinity:             'UI_MI_TalantNG_Gold_V1_0_Icon_128.webp',
@@ -400,12 +381,13 @@ function slateIconFile(kind: SlateKind, treeType?: string | null, shapeIndex = 0
 }
 // Versioned URL — bump SLATE_ICON_V when the bundled webp are re-trimmed so the renderer cache reloads them.
 const SLATE_ICON_V = '3'
-function slateIconUrl(kind: SlateKind, treeType?: string | null, shapeIndex = 0): string | null {
+function slateIconUrl(kind: SlateKind, treeType?: string | null, shapeIndex = 0, netherKingVariant?: NetherKingVariant): string | null {
+  if (kind === 'nether_kings_divinity') return iconUrl('nether_king_divinity', netherKingIconFile(netherKingVariant))
   const u = iconUrl('divinity_slate', slateIconFile(kind, treeType, shapeIndex))
   return u ? `${u}?v=${SLATE_ICON_V}` : null
 }
-function SlateIcon({ kind, treeType, shapeIndex = 0, size = 26 }: { kind: SlateKind; treeType?: string | null; shapeIndex?: number; size?: number }) {
-  const src = slateIconUrl(kind, treeType, shapeIndex)
+function SlateIcon({ kind, treeType, shapeIndex = 0, netherKingVariant, size = 26 }: { kind: SlateKind; treeType?: string | null; shapeIndex?: number; netherKingVariant?: NetherKingVariant; size?: number }) {
+  const src = slateIconUrl(kind, treeType, shapeIndex, netherKingVariant)
   if (!src) return null
   const flip = kind === 'base' && !!BASE_FORMS[shapeIndex]?.flip
   return <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0, transform: flip ? 'scaleX(-1)' : undefined }} />
@@ -420,6 +402,7 @@ const SLATE_DESCRIPTIONS: Record<SlateKind, string> = {
   when_sparks_set_prairie_ablaze: 'Copies up to 4 adjacent slates',
   space_rift:                     "Copies a left/right neighbor's Medium talents",
   residence_of_stars:             "Copies adjacent Medium talents (no Legendary)",
+  nether_kings_divinity:          '1–2 fixed nodes · up to 3 branded Nether King nodes',
 }
 
 // ── Slot configuration ────────────────────────────────────────────────────────
@@ -456,6 +439,10 @@ const SLOT_CONFIG: Record<SlateKind, { sections: SectionDef[]; poolScope: 'tree'
   when_sparks_set_prairie_ablaze: { sections: [], poolScope: 'none' },
   space_rift:                     { sections: [], poolScope: 'none' },
   residence_of_stars:             { sections: [], poolScope: 'none' },
+  nether_kings_divinity:          { sections: [
+    { label: 'Fixed Talent Nodes', count: 2, maxType: 'legendary', canBeCore: true },
+    { label: 'Branded Nether King Nodes', count: 3, maxType: 'legendary', canBeCore: true },
+  ], poolScope: 'all' },
 }
 
 // ── Slot model ────────────────────────────────────────────────────────────────
@@ -501,8 +488,10 @@ export interface PlacedSlate {
   anchor: [number, number]
   slots: CreatorSlot[]
   pool?: SlatePool
-  treeType?: PrimaryTree
+  treeType?: SlateTree
   mothDirection?: MothDirection
+  netherKingVariant?: NetherKingVariant
+  netherKingBanishmentEffect?: NetherKingBanishmentEffect
 }
 
 // ── Creator state ─────────────────────────────────────────────────────────────
@@ -510,7 +499,7 @@ export interface PlacedSlate {
 interface CreatorState {
   kind: SlateKind
   shapeIndex: number
-  treeType: PrimaryTree | null
+  treeType: SlateTree | null
   slots: CreatorSlot[]
   orientationIndex: number
   pool: SlatePool | null
@@ -518,6 +507,8 @@ interface CreatorState {
   openPicker: number | null
   pickerSearch: string
   mothDirection: MothDirection | null
+  netherKingVariant: NetherKingVariant
+  netherKingBanishmentEffect: NetherKingBanishmentEffect | null
   templateId?: string   // set when re-placing a saved template, so the placed copy links to its inventory entry
 }
 
@@ -531,7 +522,7 @@ function defaultCreator(kind: SlateKind): CreatorState {
   return {
     kind, shapeIndex: 0, treeType: null, slots: initSlots(kind),
     orientationIndex: 0, pool: null, poolLoading: false,
-    openPicker: null, pickerSearch: '', mothDirection: null,
+    openPicker: null, pickerSearch: '', mothDirection: null, netherKingVariant: DEFAULT_NETHER_KING_VARIANT, netherKingBanishmentEffect: null,
   }
 }
 
@@ -566,7 +557,7 @@ function toTemplate(s: PlacedSlate): SlateTemplate {
     id: s.templateId,
     kind: s.kind, orientationIndex: s.orientationIndex, shapeIndex: s.shapeIndex,
     slots: s.slots.map(sl => ({ ...sl })),
-    treeType: s.treeType, mothDirection: s.mothDirection,
+    treeType: s.treeType, mothDirection: s.mothDirection, ...netherKingTemplateMetadata(s.kind, s.netherKingVariant, s.netherKingBanishmentEffect),
   }
 }
 
@@ -577,6 +568,7 @@ function creatorToTemplate(c: CreatorState, id: string): SlateTemplate {
     kind: c.kind, orientationIndex: c.orientationIndex, shapeIndex: c.shapeIndex,
     slots: c.slots.map(sl => ({ ...sl })),
     treeType: c.treeType ?? undefined, mothDirection: c.mothDirection ?? undefined,
+    ...netherKingTemplateMetadata(c.kind, c.netherKingVariant, c.netherKingBanishmentEffect),
   }
 }
 
@@ -690,12 +682,15 @@ function MiniShape({ offsets, color, size = 9 }: { offsets: [number, number][]; 
 interface ModifierSlotProps {
   slot: CreatorSlot; index: number; allSlots: CreatorSlot[]
   pool: SlatePool | null; isOpen: boolean; search: string; accentColor: string
+  netherKingBrandPool?: boolean
+  netherKingFixedPool?: boolean
+  netherKingVariant?: NetherKingVariant
   onTogglePicker: () => void; onCycleType: () => void
   onSelect: (mod: SlateModifierOption) => void; onSelectCore: (core: CoreTalentOption) => void
   onClear: () => void; onSearchChange: (s: string) => void
 }
 
-function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
+function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor, netherKingBrandPool, netherKingFixedPool, netherKingVariant,
   onTogglePicker, onCycleType, onSelect, onSelectCore, onClear, onSearchChange,
 }: ModifierSlotProps) {
   const usedNodeIds = new Set(allSlots.map(s => s.selectedNodeId).filter(Boolean) as string[])
@@ -709,7 +704,7 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
 
   // canBeCore slots (e.g. Pedigree's bottom two) show ONE mixed, searchable list of core talents AND regular
   // modifiers — no mode toggle. Plain slots show only modifiers.
-  const modOptions = pool
+  const modOptions = pool && !netherKingBrandPool && !netherKingFixedPool
     ? getSlotModifierPool(pool, slot.slotType).filter(m => {
         if (m.nodeId === slot.selectedNodeId) return true
         if (usedNodeIds.has(m.nodeId)) return false
@@ -718,13 +713,15 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
 
   const coreOptions = slot.canBeCore && pool
     ? pool.core.filter(c => {
+        if (netherKingBrandPool && (c.treeName !== "Nether King" || c.nodeType !== "Ultimate Nether King Talent Node" || !isNetherKingBrandNodeForVariant(c.effects, netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT))) return false
+        if (netherKingFixedPool && (c.treeName !== "Nether King" || c.nodeType === "Ultimate Nether King Talent Node")) return false
         if (c.key === slot.selectedCoreKey) return true
         return !search || c.effects.some(e => e.toLowerCase().includes(search.toLowerCase())) || c.name.toLowerCase().includes(search.toLowerCase())
       }) : []
 
   // canBeCore slots always show golden C
   const badgeColor = slot.canBeCore ? LEGEND_GOLD : SLOT_TYPE_COLOR[slot.slotType]
-  const badgeLabel = slot.canBeCore ? 'C' : SLOT_TYPE_LABEL[slot.slotType]
+  const badgeLabel = netherKingFixedPool ? 'F' : slot.canBeCore ? 'C' : SLOT_TYPE_LABEL[slot.slotType]
 
   return (
     <div style={{ marginBottom: 6 }}>
@@ -736,7 +733,7 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
       }}>
         <div
           onClick={e => { e.stopPropagation(); if (!slot.canBeCore) onCycleType() }}
-          title={slot.canBeCore ? 'Core talent slot' : `${slot.slotType} (click to cycle)`}
+          title={netherKingFixedPool ? 'Fixed talent node pool' : slot.canBeCore ? 'Talent node pool' : `${slot.slotType} (click to cycle)`}
           style={{
             width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
             background: badgeColor, color: '#fff', fontSize: 11, fontWeight: 700,
@@ -778,7 +775,7 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
           {/* Core talents first (canBeCore slots only), then modifiers — one combined searchable list. */}
           {slot.canBeCore && coreOptions.length > 0 && (
             <>
-              <div style={{ padding: '5px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: LEGEND_GOLD, background: '#13132a' }}>Core Talents</div>
+              <div style={{ padding: '5px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: LEGEND_GOLD, background: '#13132a' }}>{netherKingBrandPool ? 'Branded Nether King Nodes' : netherKingFixedPool ? 'Fixed Nether King Nodes' : 'Core Talents'}</div>
               {coreOptions.map(core => {
                 const selected = core.key === slot.selectedCoreKey
                 return (
@@ -875,6 +872,10 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
             </button>
           </div>
         </>
+      ) : kind === 'nether_kings_divinity' ? (
+        <div style={{ fontSize: 12, color: '#888', lineHeight: 1.7 }}>
+          Click any highlighted cell to place the selected Nether King's Divinity. Its other two cells fill automatically.
+        </div>
       ) : (
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#666', marginBottom: 8 }}>
@@ -942,7 +943,7 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
   return (
     <div style={{ minWidth: 200, maxWidth: 300, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <SlateIcon kind={slate.kind} treeType={slate.treeType} shapeIndex={slate.shapeIndex} size={30} />
+        <SlateIcon kind={slate.kind} treeType={slate.treeType} shapeIndex={slate.shapeIndex} netherKingVariant={slate.netherKingVariant} size={30} />
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color, marginBottom: 2 }}>{label}</div>
           {slate.treeType && <div style={{ fontSize: 11, color: '#666' }}>{slate.treeType}</div>}
@@ -979,6 +980,15 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
           {mediumCopyLines.length > 0
             ? mediumCopyLines.map((m, i) => <div key={i} style={{ fontSize: 12, color: '#ddd', lineHeight: 1.5, marginBottom: 3 }}>{m}</div>)
             : <div style={{ fontSize: 12, color: '#3a3a5a', fontStyle: 'italic' }}>No adjacent Medium talents</div>}
+        </div>
+      )}
+
+      {slate.kind === 'nether_kings_divinity' && (
+        <div style={{ fontSize: 12, color: '#bbb', lineHeight: 1.5 }}>
+          <strong>{NETHER_KING_VARIANTS.find(option => option.id === (slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT))?.label}</strong>
+          {slate.netherKingVariant === 'banishment' && slate.netherKingBanishmentEffect && (
+            <span> - {BANISHMENT_EFFECTS.find(effect => effect.id === slate.netherKingBanishmentEffect)?.label}</span>
+          )}
         </div>
       )}
 
@@ -1036,8 +1046,8 @@ function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDupli
     id: `tpl-${template.id}`, templateId: template.id, kind: template.kind as SlateKind, cells: [], anchor: [0, 0],
     orientationIndex: template.orientationIndex, shapeIndex: template.shapeIndex,
     slots: template.slots as unknown as CreatorSlot[],
-    treeType: template.treeType as PrimaryTree | undefined,
-    mothDirection: template.mothDirection as MothDirection | undefined,
+    treeType: template.treeType as SlateTree | undefined,
+    mothDirection: template.mothDirection as MothDirection | undefined, netherKingVariant: template.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT,
   }
   return (
     <>
@@ -1048,7 +1058,7 @@ function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDupli
             position: 'relative', width: 62, height: 62, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
           }}>
-          <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
+          <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} netherKingVariant={template.netherKingVariant} size={48} />
           <button onClick={e => { e.stopPropagation(); setRenameDraft(template.displayName ?? ''); setRenaming(true) }}
             title="Rename — set a display label" style={cornerBtn({ top: -6, left: -6 })}>✎</button>
           <button onClick={e => { e.stopPropagation(); onDuplicate() }}
@@ -1263,13 +1273,15 @@ export default function SlateScreen({ treeColors }: Props) {
             slots: slate.slots.map(s => ({ ...s })), orientationIndex: slate.orientationIndex,
             pool: slate.pool ?? null, poolLoading: needsPoolLoad, openPicker: null, pickerSearch: '',
             mothDirection: slate.mothDirection ?? null,
+            netherKingVariant: slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT,
+            netherKingBanishmentEffect: slate.netherKingBanishmentEffect ?? null,
           },
         })
         // Reload pool from API — always stripped from SavedSlate on back-navigation
         if (needsPoolLoad) {
           const slateId = slate.id
           const poolPromise = poolScope === 'tree' && slate.treeType
-            ? api.getSlatePool(slate.treeType as PrimaryTree)
+            ? api.getSlatePool(slate.treeType as SlateTree)
             : api.getSlatePoolAll()
           poolPromise
             .then(pool => setMode(prev =>
@@ -1287,13 +1299,16 @@ export default function SlateScreen({ treeColors }: Props) {
         // Drag — move to new position (allow anywhere within grid bounds); mode stays unchanged. Reorder the
         // moved slate to the END so it layers on top and is the one selected where it overlaps others.
         const { slate } = dragSlate
-        const anchor = centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
-        const cells = anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor)
-        if (cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) {
+        const dragOccupied = new Map<string, string>()
+        for (const item of placed) if (item.id !== slate.id) for (const [r, c] of item.cells) dragOccupied.set(`${r},${c}`, item.id)
+        const nk = slate.kind === 'nether_kings_divinity' ? netherKingPlacement(hover, dragOccupied, slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) : null
+        const anchor = nk?.anchor ?? centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover, slate.netherKingVariant)
+        const cells = nk?.cells ?? anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor, slate.netherKingVariant)
+        if ((slate.kind !== 'nether_kings_divinity' || nk) && cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) {
           setPlaced(prev => {
             const moved = prev.find(s => s.id === slate.id)
             if (!moved) return prev
-            return [...prev.filter(s => s.id !== slate.id), { ...moved, cells, anchor }]
+            return [...prev.filter(s => s.id !== slate.id), { ...moved, cells, anchor, ...(nk ? { orientationIndex: nk.orientationIndex } : {}) }]
           })
         }
       }
@@ -1322,20 +1337,20 @@ export default function SlateScreen({ treeColors }: Props) {
   // bonuses panel, and the build stay current as you edit, and switching to another slate keeps these changes
   // with no explicit Save. Cancel reverts from editSnapshot. Keyed on the data fields (not openPicker/search).
   const editCreatorKey = mode.type === 'editing'
-    ? JSON.stringify([mode.creator.slots, mode.creator.shapeIndex, mode.creator.orientationIndex, mode.creator.treeType, mode.creator.mothDirection, !!mode.creator.pool])
+    ? JSON.stringify([mode.creator.slots, mode.creator.shapeIndex, mode.creator.orientationIndex, mode.creator.treeType, mode.creator.mothDirection, mode.creator.netherKingVariant, mode.creator.netherKingBanishmentEffect, !!mode.creator.pool])
     : null
   useEffect(() => {
     if (mode.type !== 'editing') return
     const { slateId, creator: c } = mode
     setPlaced(prev => prev.map(s => {
       if (s.id !== slateId) return s
-      const cells = anchorCells(s.kind, c.shapeIndex, c.orientationIndex, s.anchor)
+      const cells = s.kind === 'nether_kings_divinity' ? s.cells : anchorCells(s.kind, c.shapeIndex, c.orientationIndex, s.anchor)
       const inBounds = cells.every(([r, cc]) => r >= 0 && r < BOARD_ROWS && cc >= 0 && cc < BOARD_COLS)
       return {
         ...s,
         slots: c.slots.map(sl => ({ ...sl })),
         pool: c.pool ?? s.pool, treeType: c.treeType ?? s.treeType,
-        mothDirection: c.mothDirection ?? s.mothDirection,
+        mothDirection: c.mothDirection ?? s.mothDirection, netherKingVariant: c.netherKingVariant, netherKingBanishmentEffect: c.netherKingBanishmentEffect ?? undefined,
         orientationIndex: c.orientationIndex, shapeIndex: c.shapeIndex,
         ...(inBounds ? { cells } : {}),
       }
@@ -1355,24 +1370,32 @@ export default function SlateScreen({ treeColors }: Props) {
   // cell, so clicking-without-moving leaves it put (no flash to a new spot). The slate itself follows the
   // pointer (feels attached) instead of leaving a static ghost behind.
   const dragMoved = !!(dragSlate && hover && (hover[0] !== dragSlate.startCell[0] || hover[1] !== dragSlate.startCell[1]))
-  let dragTarget: { cells: [number, number][]; anchor: [number, number] } | null = null
+  let dragTarget: { cells: [number, number][]; anchor: [number, number]; orientationIndex?: number } | null = null
   if (dragMoved && dragSlate && hover) {
     const { slate } = dragSlate
-    const anchor = centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
-    dragTarget = { cells: anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor), anchor }
+    const nk = slate.kind === 'nether_kings_divinity' ? netherKingPlacement(hover, occupied, slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) : null
+    if (slate.kind !== 'nether_kings_divinity' || nk) {
+      const anchor = nk?.anchor ?? centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover, slate.netherKingVariant)
+      dragTarget = { cells: nk?.cells ?? anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor, slate.netherKingVariant), anchor, ...(nk ? { orientationIndex: nk.orientationIndex } : {}) }
+    }
   }
   // Placed slates as rendered: the dragged slate shown at its live target while moving, and moved to the END so
   // it layers on TOP of whatever it overlaps (newest-over-area wins).
   const renderPlaced = dragTarget && dragSlate
     ? [...placed.filter(s => s.id !== dragSlate.slate.id),
-       { ...(placed.find(s => s.id === dragSlate.slate.id) ?? dragSlate.slate), cells: dragTarget.cells, anchor: dragTarget.anchor }]
+       { ...(placed.find(s => s.id === dragSlate.slate.id) ?? dragSlate.slate), cells: dragTarget.cells, anchor: dragTarget.anchor, ...(dragTarget.orientationIndex === undefined ? {} : { orientationIndex: dragTarget.orientationIndex }) }]
     : placed
 
   // Ghost cells — only the creating-mode placement preview (drag uses the live move above).
   let ghostCells: [number, number][] = []
   if (hover && creator && mode.type === 'creating') {
-    const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover)
-    ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
+    if (creator.kind === 'nether_kings_divinity') {
+      const placement = netherKingPlacement(hover, occupied, creator.netherKingVariant)
+      ghostCells = placement?.cells ?? []
+    } else {
+      const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover, creator.netherKingVariant)
+      ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor, creator.netherKingVariant)
+    }
   }
   const ghostSet = new Set(ghostCells.map(([r, c]) => `${r},${c}`))
 
@@ -1435,7 +1458,7 @@ export default function SlateScreen({ treeColors }: Props) {
     setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, ...patch } })
   }
 
-  async function loadTreePool(tree: PrimaryTree) {
+  async function loadTreePool(tree: SlateTree) {
     // Changing the tree swaps the entire modifier pool, so any modifiers already picked from the old
     // tree are now invalid — reset the slots to avoid impossible cross-tree combos. (Call site only
     // fires this when the tree actually changes, so this never wipes a same-tree re-click.)
@@ -1447,13 +1470,15 @@ export default function SlateScreen({ treeColors }: Props) {
   function startCreating(kind: SlateKind) {
     const initial = defaultCreator(kind)
     if (kind === 'base') initial.treeType = PRIMARY_TREES[0]
+    if (kind === 'nether_kings_divinity') initial.treeType = 'Nether King'
     if (kind === 'spark_of_moth_fire') initial.mothDirection = 'above'
     if (kind === 'space_rift') initial.mothDirection = 'left'   // Space Rift copies left OR right
     setMode({ type: 'creating', creator: initial })
     if (kind === 'base') {
+      const tree = PRIMARY_TREES[0]
       setTimeout(() => {
         setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
-        api.getSlatePool(PRIMARY_TREES[0])
+        api.getSlatePool(tree)
           .then(pool => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
           .catch(() => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
       }, 0)
@@ -1472,16 +1497,18 @@ export default function SlateScreen({ treeColors }: Props) {
   function placeFromTemplate(t: SlateTemplate) {
     const kind = t.kind as SlateKind
     const scope = poolScopeFor(kind)
-    const needsPool = (kind === 'base' && !!t.treeType) || scope === 'all'
+    const needsPool = (scope === 'tree' && !!t.treeType) || scope === 'all'
     setMode({ type: 'creating', creator: {
-      kind, shapeIndex: t.shapeIndex, treeType: (t.treeType as PrimaryTree) ?? null,
+      kind, shapeIndex: t.shapeIndex, treeType: (t.treeType as SlateTree) ?? null,
       slots: t.slots.map(s => ({ ...s })), orientationIndex: t.orientationIndex,
       pool: null, poolLoading: needsPool, openPicker: null, pickerSearch: '',
       mothDirection: (t.mothDirection as MothDirection) ?? null,
+      netherKingVariant: t.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT,
+      netherKingBanishmentEffect: t.netherKingBanishmentEffect ?? null,
       templateId: t.id,   // re-placed copy shares the saved entry's identity
     } })
-    if (kind === 'base' && t.treeType) {
-      api.getSlatePool(t.treeType as PrimaryTree).then(pool => updateCreator({ pool, poolLoading: false })).catch(() => updateCreator({ poolLoading: false }))
+    if (scope === 'tree' && t.treeType) {
+      api.getSlatePool(t.treeType as SlateTree).then(pool => updateCreator({ pool, poolLoading: false })).catch(() => updateCreator({ poolLoading: false }))
     } else if (scope === 'all') {
       api.getSlatePoolAll().then(pool => updateCreator({ pool, poolLoading: false })).catch(() => updateCreator({ poolLoading: false }))
     }
@@ -1561,16 +1588,19 @@ export default function SlateScreen({ treeColors }: Props) {
     if (!creator) return
     if (mode.type === 'editing') return
 
-    const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, [row, col])
-    const cells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
+    const nkPlacement = creator.kind === 'nether_kings_divinity' ? netherKingPlacement([row, col], occupied, creator.netherKingVariant) : null
+    if (creator.kind === 'nether_kings_divinity' && (!nkPlacement || (creator.netherKingVariant === 'banishment' && !creator.netherKingBanishmentEffect))) return
+    const orientationIndex = nkPlacement?.orientationIndex ?? creator.orientationIndex
+    const anchor = nkPlacement?.anchor ?? centeredAnchor(creator.kind, creator.shapeIndex, orientationIndex, [row, col], creator.netherKingVariant)
+    const cells = nkPlacement?.cells ?? anchorCells(creator.kind, creator.shapeIndex, orientationIndex, anchor, creator.netherKingVariant)
     if (!cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) return
 
     const id = `${Date.now()}-${Math.random()}`
     setPlaced(prev => [...prev, {
       id, templateId: creator.templateId ?? id, kind: creator.kind, cells, anchor,
-      orientationIndex: creator.orientationIndex, shapeIndex: creator.shapeIndex,
+      orientationIndex, shapeIndex: creator.shapeIndex,
       slots: creator.slots.map(s => ({ ...s })),
-      pool: creator.pool ?? undefined, treeType: creator.treeType ?? undefined,
+      pool: creator.pool ?? undefined, treeType: creator.treeType ?? undefined, netherKingVariant: creator.netherKingVariant, netherKingBanishmentEffect: creator.netherKingBanishmentEffect ?? undefined,
       mothDirection: creator.mothDirection ?? undefined,
     }])
     setMode({ type: 'idle' })
@@ -1659,9 +1689,9 @@ export default function SlateScreen({ treeColors }: Props) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
-          <SlateIcon kind={kind} treeType={treeType} shapeIndex={creator.shapeIndex} size={28} />
+          <SlateIcon kind={kind} treeType={treeType} shapeIndex={creator.shapeIndex} netherKingVariant={creator.netherKingVariant} size={28} />
           <span style={{ fontSize: 17, fontWeight: 700, color: kind === 'base' ? '#ccc' : accentColor }}>
-            {kind === 'base' ? 'Base Slate' : legendaryLabel(kind)}
+            {kind === 'base' ? 'Base Slate' : kind === 'nether_kings_divinity' ? `Nether King's Divinity: ${NETHER_KING_VARIANTS.find(option => option.id === creator.netherKingVariant)?.label ?? 'Judgment'}` : legendaryLabel(kind)}
           </span>
           {mode.type === 'creating' && (
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#666' }}>Click the board to place</span>
@@ -1728,6 +1758,33 @@ export default function SlateScreen({ treeColors }: Props) {
           </div>
         )}
 
+        {kind === 'nether_kings_divinity' && (
+          <div style={{ flexShrink: 0, marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#777', marginBottom: 7 }}>Nether King's Divinity type</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
+              {NETHER_KING_VARIANTS.map(option => {
+                const active = creator.netherKingVariant === option.id
+                return <button key={option.id} disabled={mode.type === 'editing'} onClick={() => updateCreator({ netherKingVariant: option.id, slots: initSlots(kind) })} title={mode.type === 'editing' ? 'Recreate this slate to change its variant' : option.summary} style={{ padding: 5, background: active ? '#29223b' : '#17172b', border: `1px solid ${active ? LEGEND_GOLD : '#303047'}`, borderRadius: 6, color: active ? '#fff' : '#999', cursor: 'pointer' }}>
+                  <img src={iconUrl('nether_king_divinity', option.iconFile) ?? undefined} alt="" style={{ width: 40, height: 44, objectFit: 'contain', display: 'block', margin: '0 auto 3px' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700 }}>{option.label}</span>
+                </button>
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: '#777', marginTop: 6 }}>{NETHER_KING_VARIANTS.find(option => option.id === creator.netherKingVariant)?.summary}. Brand-node choices update to this type.</div>
+            <div style={{ fontSize: 12, color: '#999', lineHeight: 1.55, marginTop: 8 }}>{NETHER_KING_VARIANTS.find(option => option.id === creator.netherKingVariant)?.specialRule}</div>
+            {creator.netherKingVariant === 'banishment' && (
+              <label style={{ display: 'block', marginTop: 10, fontSize: 11, color: '#aaa' }}>
+                Banishment effect
+                <select value={creator.netherKingBanishmentEffect ?? ''} onChange={e => updateCreator({ netherKingBanishmentEffect: (e.target.value || null) as NetherKingBanishmentEffect | null })} style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px', background: '#17172b', border: '1px solid #303047', borderRadius: 5, color: '#ddd' }}>
+                  <option value="">Choose an effect before placing</option>
+                  {BANISHMENT_EFFECTS.map(effect => <option key={effect.id} value={effect.id}>{effect.label}</option>)}
+                </select>
+              </label>
+            )}
+            <div style={{ fontSize: 11, color: '#777', marginTop: 7 }}>Special rules are recorded here; their build calculations are not implemented yet.</div>
+          </div>
+        )}
+
         <div className="dark-scroll" style={{ flex: 1, overflowY: 'auto' }}>
           {sections.map(({ label, indices }) => (
             <div key={label} style={{ marginBottom: 10 }}>
@@ -1747,6 +1804,9 @@ export default function SlateScreen({ treeColors }: Props) {
                 if (!slot) return null
                 return (
                   <ModifierSlot key={idx} slot={slot} index={idx} allSlots={slots} pool={pool}
+                    netherKingBrandPool={creator.kind === 'nether_kings_divinity' && idx >= 2}
+                    netherKingFixedPool={creator.kind === 'nether_kings_divinity' && idx < 2}
+                    netherKingVariant={creator.netherKingVariant}
                     isOpen={openPicker === idx} search={openPicker === idx ? pickerSearch : ''}
                     accentColor={accentColor}
                     onTogglePicker={() => handleTogglePicker(idx)}
@@ -1806,7 +1866,7 @@ export default function SlateScreen({ treeColors }: Props) {
             borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
           }}>
             <div style={{ flexShrink: 0, minWidth: 50, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
-              <SlateIcon kind={kind} size={46} />
+              <SlateIcon kind={kind} netherKingVariant={kind === 'nether_kings_divinity' ? DEFAULT_NETHER_KING_VARIANT : undefined} size={46} />
             </div>
             <div>
               <div style={{ fontSize: 17, fontWeight: 600, color: meta.color, marginBottom: 3 }}>{meta.label}</div>
@@ -1969,7 +2029,9 @@ export default function SlateScreen({ treeColors }: Props) {
                   : isDragging ? (valid ? '#1e1e3a' : 'transparent')
                   : isConflicted ? '#cc3333'
                   : isHovered ? '#9090b8'
+                  : slate?.kind === 'nether_kings_divinity' && (isEditing || isSelected) ? OUTLINE_COLOR_SELECTED
                   : isEditing || isSelected ? (sColor ?? '#888')
+                  : slate?.kind === 'nether_kings_divinity' ? OUTLINE_COLOR
                   : sColor ? `${sColor}88` : (valid ? '#1e1e3a' : 'transparent')
 
                 // The slate's icon fills its whole footprint: each occupied cell renders its slice of the
@@ -1977,28 +2039,49 @@ export default function SlateScreen({ treeColors }: Props) {
                 // Art-overlay kinds draw their art via the single overlay layer below — the cell itself stays
                 // bare (transparent fill/border unless highlighted) so the footprint reads as one unified piece.
                 const useArtOverlay = !!slate && ART_OVERLAY_KINDS.has(slate.kind) && !isDragging
-                const slateIconSrc = slate && !isDragging && !useArtOverlay ? slateIconUrl(slate.kind, slate.treeType) : null
+                const slateIconSrc = slate && !isDragging && !useArtOverlay ? slateIconUrl(slate.kind, slate.treeType, 0, slate.netherKingVariant) : null
                 let iconBg: React.CSSProperties = {}
+                let iconTile: React.CSSProperties | null = null
                 if (slate && slateIconSrc) {
                   const rs = slate.cells.map(([r]) => r), cs = slate.cells.map(([, c]) => c)
                   const minR = Math.min(...rs), minC = Math.min(...cs)
                   const cols = Math.max(...cs) - minC + 1, rows = Math.max(...rs) - minR + 1, step = CELL + 4
-                  iconBg = cols === 1 && rows === 1
-                    ? { backgroundImage: `url(${slateIconSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
-                    : {
-                        // Multi-cell: stretch the (trimmed) art across the slate's bounding box; each cell
-                        // shows its slice (step accounts for the 4px grid gaps).
-                        backgroundImage: `url(${slateIconSrc})`,
-                        backgroundSize: `${cols * CELL + (cols - 1) * 4}px ${rows * CELL + (rows - 1) * 4}px`,
-                        backgroundPosition: `-${(col - minC) * step}px -${(row - minR) * step}px`,
-                        backgroundRepeat: 'no-repeat',
-                      }
+                  if (slate.kind === 'nether_kings_divinity') {
+                    // Use one consistent atlas crop for every occupied cell; the slate footprint itself
+                    // controls rotation. This prevents different atlas padding from shifting individual tiles.
+                    const variant = slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT
+                    const [cropX, cropY] = NETHER_KING_TILE_CROPS[variant]
+                    // Give every emblem a full-cell viewport and scale its 42px atlas crop with it.
+                    // This keeps each occupied cell filled consistently as the board rotates.
+                    const pieceScale = CELL / 42
+                    iconTile = {
+                      position: 'absolute', width: CELL, height: CELL,
+                      left: 0, top: 0,
+                      backgroundImage: `url(${slateIconSrc})`,
+                      backgroundSize: `${112 * pieceScale}px ${160 * pieceScale}px`,
+                      backgroundPosition: `${-cropX * pieceScale}px ${-cropY * pieceScale}px`,
+                      backgroundRepeat: 'no-repeat',
+                      pointerEvents: 'none',
+                    }
+                  } else if (cols === 1 && rows === 1) {
+                    iconBg = { backgroundImage: `url(${slateIconSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+                  } else {
+                    const artW = cols * CELL + (cols - 1) * 4, artH = rows * CELL + (rows - 1) * 4
+                    iconBg = {
+                      backgroundImage: `url(${slateIconSrc})`,
+                      backgroundSize: `${artW}px ${artH}px`,
+                      backgroundPosition: `-${(col - minC) * step}px -${(row - minR) * step}px`,
+                      backgroundRepeat: 'no-repeat',
+                    }
+                  }
                 }
 
                 // Overlay slates stay fully bare — the art + the whole-slate outline do all the drawing, incl.
                 // conflict (red outline) and selection/hover state. No per-cell tint/border.
                 const cellBg = useArtOverlay ? 'transparent' : bg
-                const cellBorder = useArtOverlay ? 'transparent' : borderColor
+                const netherKingUsesWholeOutline = slate?.kind === 'nether_kings_divinity'
+                  && (slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) !== 'judgment'
+                const cellBorder = netherKingUsesWholeOutline || useArtOverlay ? 'transparent' : borderColor
 
                 return (
                   <div key={key}
@@ -2018,14 +2101,18 @@ export default function SlateScreen({ treeColors }: Props) {
                     onMouseLeave={() => { setHoverSlateId(null) }}
                     style={{
                       width: CELL, height: CELL, boxSizing: 'border-box',
-                      backgroundColor: cellBg, ...iconBg, border: `2px solid ${cellBorder}`, borderRadius: 6,
+                      backgroundColor: cellBg, ...iconBg, border: `2px solid ${cellBorder}`,
+                      borderRadius: slate?.kind === 'nether_kings_divinity'
+                        && (slate.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) === 'judgment' ? 0 : 6,
                       cursor: (creator && mode.type === 'creating') ? 'crosshair' : dragSlate ? 'grabbing' : slate ? 'grab' : 'default',
                       transition: 'border-color 60ms, background-color 60ms',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end',
                       padding: '3px 2px', position: 'relative', overflow: 'hidden',
-                      boxShadow: (isPlacedHere && !isGhost && !isDragging && !useArtOverlay) ? 'inset 0 0 0 2px rgba(0,0,0,0.88)' : undefined,
+                      boxShadow: (isPlacedHere && !isGhost && !isDragging && !useArtOverlay && slate?.kind !== 'nether_kings_divinity') ? 'inset 0 0 0 2px rgba(0,0,0,0.88)' : undefined,
                     }}
-                  />
+                  >
+                    {iconTile && <div style={iconTile} />}
+                  </div>
                 )
               })
             ).flat()}
@@ -2049,10 +2136,12 @@ export default function SlateScreen({ treeColors }: Props) {
                 angle = s.orientationIndex * 90; flipX = form.flip
                 sx = form.scale * (form.stretchX ?? 1); sy = form.scale * (form.stretchY ?? 1)
               } else {
-                src = slateIconUrl(s.kind, s.treeType)
+                src = slateIconUrl(s.kind, s.treeType, 0, s.netherKingVariant)
                 const scale = ART_OVERLAY_SCALE[s.kind] ?? 1
                 ;[ox, oy] = ART_OVERLAY_OFFSET[s.kind] ?? [0, 0]
-                natural = ART_NATURAL_CELLS[s.kind] ?? placedCR
+                natural = s.kind === 'nether_kings_divinity' && s.netherKingVariant === 'contamination'
+                  ? [3, 3] // source is a 3x3 composite with the vertical art in its center column
+                  : ART_NATURAL_CELLS[s.kind] ?? placedCR // Judgment/ Banishment start fitted to their full board footprint
                 angle = artOverlayAngle(s.kind, s.orientationIndex); flipX = artOverlayFlipX(s.kind, s.orientationIndex)
                 sx = scale * (ART_OVERLAY_STRETCH_X[s.kind] ?? 1); sy = scale * (ART_OVERLAY_STRETCH_Y[s.kind] ?? 1)
               }
@@ -2088,9 +2177,11 @@ export default function SlateScreen({ treeColors }: Props) {
             {/* Whole-slate outline: a single frame tracing each art-overlay slate's outer shape (board-space,
                 so it follows the real cells). Brightens when the slate is selected / hovered. */}
             {renderPlaced.map(s => {
-              if (!ART_OVERLAY_KINDS.has(s.kind)) return null
-              const pts = footprintOutline(s.cells)
-              if (!pts.length) return null
+              const netherKingUsesWholeOutline = s.kind === 'nether_kings_divinity'
+                && (s.netherKingVariant ?? DEFAULT_NETHER_KING_VARIANT) !== 'judgment'
+              if (!ART_OVERLAY_KINDS.has(s.kind) && !netherKingUsesWholeOutline) return null
+              const loops = footprintOutlineLoops(s.cells)
+              if (!loops.length) return null
               const sel = s.id === editingSlateId
               const hov = s.id === hoverSlateId
               const conflict = s.cells.some(([r, c]) => conflictedCells.has(`${r},${c}`))
@@ -2098,7 +2189,7 @@ export default function SlateScreen({ treeColors }: Props) {
               return (
                 <svg key={`out-${s.id}`} width={BOARD_PX} height={BOARD_PX}
                   style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', overflow: 'visible' }}>
-                  <polygon points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={col}
+                  <path d={loops.map(points => `M ${points.map(p => p.join(' ')).join(' L ')} Z`).join(' ')} fill="none" stroke={col}
                     strokeWidth={conflict ? 3.5 : sel ? 3.5 : hov ? 2.5 : 2} strokeOpacity={conflict || sel ? 1 : hov ? 0.95 : 0.7} strokeLinejoin="round" />
                 </svg>
               )

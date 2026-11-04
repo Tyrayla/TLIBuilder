@@ -1,5 +1,5 @@
 import pytest
-from tools.season_importer import _effect_line, _make_display_name_key, import_crawler_tree
+from tools.season_importer import _effect_line, _make_display_name_key, _plain_text, import_crawler_tree
 
 
 # ── _make_display_name_key ──────────────────────────────────────────────────
@@ -13,6 +13,11 @@ def test_display_name_key_compound():
 
 
 # ── import_crawler_tree ─────────────────────────────────────────────────────
+
+def test_plain_text_strips_html_without_erasing_affix_placeholders():
+    assert _plain_text('<span class="highlight">Damage</span>') == "Damage"
+    assert _plain_text("<A Random Affix>") == "<A Random Affix>"
+
 
 _MINIMAL_NODE = {
     "talent_id": "01020100",
@@ -34,6 +39,7 @@ def test_col_row_adjustment():
     node = result["nodes"][0]
     assert node["column"] == 1   # 2 - 1
     assert node["row"] == 0      # 1 - 1
+    assert node["game_id"] == "01020100"
 
 
 def test_type_mapping():
@@ -145,6 +151,9 @@ def test_nether_king_unpositioned_pool_rows_become_distinct_core_choices():
     assert [ct["effects"][0]["text"] for ct in result["core_talents"]] == [
         "+5% damage", "+10% damage", "+15% damage", "+20% damage",
     ]
+    assert [ct["game_id"] for ct in result["core_talents"]] == [
+        "90000000", "90000001", "90000002", "90000003",
+    ]
     assert {ct["display_name_key"] for ct in result["core_talents"]} == {
         "nether_king_micro_nether_king_talent_node",
         "nether_king_medium_nether_king_talent_node",
@@ -203,6 +212,7 @@ def test_trait_replacement_talents_share_one_node_and_keep_both_variants():
     assert len(result["nodes"]) == 1
     node = result["nodes"][0]
     assert node["id"] == "arcanist_c4_r0"
+    assert node["game_id"] == "32050100"
     assert [effect["text"] for effect in node["effects"]] == [
         "+10 % Attack and Cast Speed when at Full Mana",
         "+15 % Max Mana",
@@ -211,11 +221,48 @@ def test_trait_replacement_talents_share_one_node_and_keep_both_variants():
         "trait_id": "wisdom_of_the_gods",
         "unlock_level": 60,
         "advanced_selection": "Prophecy of Revelation",
+        "game_id": "32050101",
         "effects": [{
             "text": "+3 % Attack and Cast Speed for each stack of Max Focus Blessing while at Full Mana . "
                     "Stacks up to 18 time(s)",
             "uuid": None,
             "pooling_uuid": None,
             "modifier_id": None,
+        }],
+    }]
+
+
+def test_trait_variant_strips_source_markup_and_keeps_max_divinity_metadata():
+    base = {
+        **_MINIMAL_NODE,
+        "talent_id": "32050100",
+        "name": "Legendary Medium Talent",
+        "type": "legendary_medium_talent",
+        "column": 5,
+        "row": 1,
+        "effects": ["+10 % Attack Speed"],
+    }
+    replacement = {
+        **base,
+        "talent_id": "32050101",
+        "effects": [
+            "+1 Max Tenacity Blessing stacks at Full Life (Max Active Divinity: 1) "
+            '<div class="prophecy"> Source:Hero Trait -Prophecy of Revelation</div>'
+        ],
+    }
+
+    result = import_crawler_tree({"nodes": [base, replacement]}, "Arcanist")
+
+    assert result["nodes"][0]["trait_variants"] == [{
+        "trait_id": "wisdom_of_the_gods",
+        "unlock_level": 60,
+        "advanced_selection": "Prophecy of Revelation",
+        "game_id": "32050101",
+        "effects": [{
+            "text": "+1 Max Tenacity Blessing stacks at Full Life (Max Active Divinity: 1)",
+            "uuid": None,
+            "pooling_uuid": None,
+            "modifier_id": None,
+            "max_divinity_effect": 1,
         }],
     }]

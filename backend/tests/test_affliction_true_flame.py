@@ -310,3 +310,192 @@ def test_fire_hit_and_dot_have_separate_vulnerability_breakdowns():
     assert offense.enemy_vuln_by_form == {"hit:fire": pytest.approx(1.65), "dot:fire": pytest.approx(2.0)}
     assert "true_flame_fire_hit_taken" in offense.enemy_vuln_sources_by_form["hit:fire"]
     assert "affliction_dot_taken" in offense.enemy_vuln_sources_by_form["dot:fire"]
+
+
+def test_true_flame_scales_fire_hit_dps_exactly_once():
+    # Regression guard for the double-count suspicion: 100 Affliction × 1% = 100% DoT bonus,
+    # × 65% True Flame = a single x1.65 Fire-hit factor on total DPS (not 1.65^2, not 2.30).
+    tf = ("65 % of the additional bonus to Damage Over Time taken from Affliction is also applied "
+          "to your Fire Hit Damage")
+
+    def dps(mods: list[str], ignited: bool = True) -> float:
+        r = _response("flame_slash", custom_mods=mods,
+                      extra_conditions={"affliction_stacks": 100, "enemy_ignited": ignited})
+        return r["offense"]["total_dps"]
+
+    base = dps([])
+    assert dps([tf]) / base == pytest.approx(1.65, rel=1e-9)
+    assert dps([tf], ignited=False) / base == pytest.approx(1.0, rel=1e-9)
+    # +50% increased and 20% additional Effect: 100% × 1.5 × 1.2 = 180% bonus, × 65% = 117%.
+    effect = ["+50 % Affliction Effect", "20 % additional Affliction Effect"]
+    assert dps([tf, *effect]) / dps(effect) == pytest.approx(2.17, rel=1e-9)
+
+
+_TF_RAW = ("[True Flame] When an enemy is Ignited , 65 % of the additional bonus to Damage Over Time "
+           "taken from Affliction is also applied to your Fire Hit Damage")
+_TF_PLAIN = _TF_RAW.split("] ", 1)[1]
+
+
+def _tf_response(gear: list[dict], custom_mods: list[str] | None = None) -> dict:
+    return _response("flame_slash", gear=gear, custom_mods=custom_mods or [],
+                     extra_conditions={"affliction_stacks": 100, "enemy_ignited": True})
+
+
+def _legendary(**extra) -> dict:
+    # The payload shape the app's buildGearPayload emits for a legendary "[True Flame] ..." affix:
+    # the bracket name rides in granted_talents AND the raw text lands in unresolved_texts.
+    return {"contributions": [], "item_name": "Mindflame", "slot": "helmet",
+            "unresolved_texts": [_TF_RAW], "granted_talents": ["True Flame"], **extra}
+
+
+def test_single_legendary_true_flame_is_counted_once():
+    # One item granting True Flame was ingested twice (core-talent grant AND plain gear affix text),
+    # which is where the owner's x1.3 conversion came from.
+    r = _tf_response([_legendary()])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(0.65)
+
+
+def test_magnus_mindflame_amulet_true_flame_is_not_doubled():
+    # Pinned from the owner's reported build (single Magnus' Mindflame amulet; showed x1.3 / 328.9%
+    # instead of x0.65 / 164.5%): the compound "True Flame ... +100 % Skill Area" affix.
+    text = _TF_RAW + " +100 % Skill Area"
+    amulet = {"contributions": [], "item_name": "Magnus' Mindflame", "slot": "amulet",
+              "unresolved_texts": [text], "granted_talents": ["True Flame"]}
+    r = _tf_response([amulet])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def _mindflame_amulet(**extra) -> dict:
+    return {"contributions": [], "item_name": "Magnus' Mindflame", "slot": "amulet",
+            "unresolved_texts": [_TF_RAW + " +100 % Skill Area"], "granted_talents": ["True Flame"], **extra}
+
+
+def test_mindflame_compound_affix_applies_true_flame_once_and_skill_area_once():
+    # bug-408: the trailing "+100 % Skill Area" of the compound affix was dropped.
+    r = _tf_response([_mindflame_amulet()])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(1.0)
+
+
+def test_mindflame_skill_area_not_repeated_on_dual_wield_second_slot():
+    second_slot_copy = {"contributions": [], "item_name": "Magnus' Mindflame",
+                        "unresolved_texts": [_TF_RAW + " +100 % Skill Area"], "same_item_slot_copy": True}
+    r = _tf_response([_mindflame_amulet(slot="weapon1"), second_slot_copy])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(1.0)
+
+
+def test_other_compound_legendary_affixes_keep_their_trailing_clause_once():
+    # Same mechanism for Gale (a talent the resolver fully resolves): its trailing Projectile Speed roll
+    # applies while the talent's own 60% conversion stays a single copy.
+    gale = ("[Gale] 60 % of the Projectile Speed bonus is also applied to the additional bonus for "
+            "Projectile Damage")
+    item = {"contributions": [], "item_name": "Gale Item", "slot": "helmet", "granted_talents": ["Gale"]}
+    r = _tf_response([{**item, "unresolved_texts": [gale + " +35 % Projectile Speed"]}])
+    assert r["core_talent_statuses"][0]["resolved"] is True
+    assert r["stats"]["proj_speed_to_proj_dmg"]["total"] == pytest.approx(0.6)
+    assert r["stats"]["projectile_speed_inc"]["total"] == pytest.approx(0.35)
+    bare = _tf_response([{**item, "unresolved_texts": [gale]}])
+    assert "projectile_speed_inc" not in bare["stats"]
+
+
+def test_unnamed_items_with_identical_companion_are_not_deduped():
+    # Dedup is only for the re-emitted same-item copy; unnamed distinct items each keep their companion.
+    a = {"contributions": [], "slot": "ring1", "granted_talents": ["True Flame"],
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    b = {"contributions": [], "slot": "ring2", "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    r = _tf_response([a, b])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(2.0)
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_distinct_same_named_items_keep_both_companion_affixes():
+    a = {"contributions": [], "item_name": "Mindflame", "slot": "ring1",
+         "granted_talents": ["True Flame"],
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    b = {"contributions": [], "item_name": "Mindflame", "slot": "ring2",
+         "unresolved_texts": [_TF_RAW + " +100 % Skill Area"]}
+    r = _tf_response([a, b])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(2.0)
+
+
+def test_companion_text_unit():
+    from engine.core_talent_resolver import companion_text
+    eff = ["A foo , 5 % bar (Max Active Divinity: 1)", "Baz qux."]
+    assert companion_text("[T] A foo, 5% bar Baz qux. +10 % Skill Area", eff) == "+10 % Skill Area"
+    assert companion_text("[T] A foo, 5% bar Baz qux.", eff) == ""
+    assert companion_text("[T] A foo, 5% bar +10 % Skill Area", eff) == "+10 % Skill Area"  # keep unmatched clauses
+    assert companion_text("[T] anything", []) is None
+
+
+def test_bracket_text_with_unknown_talent_name_is_still_parsed():
+    # A granted name the core-talent catalog cannot resolve must not erase the affix: the gear-text
+    # parse stays the fallback (never silently drop).
+    item = _legendary(granted_talents=["Not A Real Talent"])
+    r = _tf_response([item])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_same_item_dual_wield_does_not_repeat_true_flame():
+    # buildGearPayload re-emits the unresolved texts (without granted_talents) for the 2nd weapon slot.
+    second_slot_copy = {"contributions": [], "item_name": "Mindflame", "unresolved_texts": [_TF_RAW],
+                        "same_item_slot_copy": True}
+    r = _tf_response([_legendary(slot="weapon1"), second_slot_copy])
+    assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
+
+
+def test_unmatched_core_talent_text_is_retained_once_and_warned():
+    item = {"contributions": [], "item_name": "Mindflame", "slot": "helmet",
+            "granted_talents": ["True Flame"],
+            "unresolved_texts": ["[True Flame] changed catalog wording +10 % Skill Area"]}
+    r = _tf_response([item])
+    assert "skill_area_inc" not in r["stats"]
+    assert any(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"])
+
+
+def test_unresolved_core_grant_is_not_repeated_in_same_item_copy():
+    first = {"contributions": [], "item_name": "Unknown grant item", "slot": "weapon1",
+             "granted_talents": ["Unknown Grant"],
+             "unresolved_texts": ["[Unknown Grant] +10 % Skill Area"]}
+    second = {"contributions": [], "item_name": "Unknown grant item", "slot": "weapon2",
+              "unresolved_texts": ["[Unknown Grant] +10 % Skill Area"], "same_item_slot_copy": True}
+    r = _tf_response([first, second])
+    assert "skill_area_inc" not in r["stats"]
+    assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"]) == 1
+
+
+def test_unresolved_core_grant_does_not_stack_across_distinct_items():
+    first = {"contributions": [], "item_name": "Unknown grant one", "slot": "helmet",
+             "granted_talents": ["Unknown Grant"],
+             "unresolved_texts": ["[Unknown Grant] unmodeled talent effect +10 % Skill Area"]}
+    second = {"contributions": [], "item_name": "Unknown grant two", "slot": "ring1",
+              "granted_talents": ["Unknown Grant"],
+              "unresolved_texts": ["[Unknown Grant] unmodeled talent effect +10 % Skill Area"]}
+    r = _tf_response([first, second])
+    assert "skill_area_inc" not in r["stats"]
+    assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"]) == 1
+
+
+def test_catalogued_compound_core_talent_is_not_repeated_across_gear_items():
+    item = {"contributions": [], "item_name": "Poisoned Relief item", "slot": "helmet",
+            "granted_talents": ["Poisoned Relief"],
+            "unresolved_texts": ["[Poisoned Relief] +25 % Injury Buffer -15 % additional damage taken at Low Life"]}
+    r = _tf_response([item, {**item, "item_name": "Second Poisoned Relief", "slot": "ring1"}])
+    # The owner confirmed core talents do not stack, even when two items grant the same talent.
+    assert sum(status["name"] == "Poisoned Relief" for status in r["core_talent_statuses"]) == 1
+
+
+def test_true_flame_is_a_core_talent_and_never_stacks_across_sources():
+    # Core talents cannot stack (owner-confirmed): a granted talent plus an independent second source
+    # still applies a single 0.65, and DPS gets one x1.65 factor.
+    from tests.mock_build import DUAL_WEAPONS
+    r = _tf_response([*DUAL_WEAPONS, _legendary()], custom_mods=[_TF_PLAIN])
+    assert r["offense"]["affliction"]["true_flame_conversion"] == pytest.approx(0.65)
+    assert r["stats"]["true_flame_fire_hit_taken"]["total"] == pytest.approx(0.65)
+    base = _response("flame_slash", extra_conditions={"affliction_stacks": 100, "enemy_ignited": True})
+    assert r["offense"]["total_dps"] / base["offense"]["total_dps"] == pytest.approx(1.65, rel=1e-9)

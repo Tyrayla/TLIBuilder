@@ -550,6 +550,10 @@ def load_hero_memories(season: str) -> dict | None:
     return _load_singleton(season, "_hero_memories.json")
 
 
+def load_hero_memory_log_crosswalk(season: str) -> dict | None:
+    return _load_singleton(season, "_hero_memory_log_crosswalk.json")
+
+
 def delete_hero_memories(season: str) -> None:
     _delete_singleton(season, "_hero_memories.json")
 

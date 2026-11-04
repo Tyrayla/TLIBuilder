@@ -1,0 +1,470 @@
+# Importing a character from `UE_game.log` — investigation and design
+
+Status (2026-11-02): the Import Build modal scans selected UE_game logs and creates editable drafts.
+The importer maps gear, skills and supports, talent trees, Sage trait state and Scent Bottle choices,
+memories, character level, pact-spirit contracts, divinity slates, and Ethereal Prisms when the required
+catalog data is available. Some support rolls, prism rarity values, and pact-spirit ranks remain unknown
+when TLIDB lacks a mapping or the log section is capped. Raw logs remain gitignored and are never committed.
+
+**Clean-room statement.** An existing third-party log importer is source-available, not open source. Nothing here was
+copied or derived from its code or its ID dictionary. Everything marked **VERIFIED** was
+observed directly in one 2.9 MB capture (`UE_game.log`, 30,268 lines, one login) or by matching it against
+our own hydrated tli-data (`npm run fetch:data`, SS14 + `crosswalk/SS13`). Everything marked **HYPOTHESIS**
+was not proven by this single log. The three third-party write-ups were used only as leads, and every
+claim from them that we rely on was re-checked below.
+
+## 0. Coverage checklist
+
+This checklist records the original discovery pass. Its status column is not a current implementation
+report. Use sections 3 and 12 for current importer coverage and unresolved data gaps.
+
+Everything a character can have in TLI Builder, taken from the `Build` interface (`api/client.ts`),
+`KNOWN_BUILD_KEYS` (`buildCompat.ts`) and the planner screens, plus the extra concepts the third-party
+write-ups mention. Evidence column: **VERIFIED** = observed in our own captures with the field path;
+**HYPOTHESIS** = consistent with the captures but not proven; **NOT IN LOG** = no field carries it.
+"Bridge" = whether tli-data already carries the game id needed to name it (see section 2).
+Captures used: the owner's live log (local copies only), its two backups and one
+older dump; "live" below means the redacted fixture.
+
+| # | Item (Builder field) | Log source | Evidence | Bridge | Status |
+|---|---|---|---|---|---|
+| 1 | Hero (`traitId` hero) | `heroCharacterv3OverView.heroPurchaseId` (`18001`), `player.HeroId`, `FightMgr@RoleType` | VERIFIED | no (GAP-5) | id readable, no name table |
+| 2 | Hero trait selection (`traitId`, `advancedTraitSelections`, `traitTreeAllocations`) | `…pointOverView.activeId[]` = `1800011/21/31` | VERIFIED ids; meaning HYPOTHESIS | no (GAP-5) | ids only |
+| 3 | Trait slot levels (`traitSlotLevels`) | none found | NOT IN LOG | n/a | user input |
+| 4 | Hero memories (`heroMemories`, `baseMemory`) | `…reminiscenceOverView.reminiscence[1..3]`, `defaultReminis` | VERIFIED | 12/15 affixes | mostly importable |
+| 5 | Memory inventory (`memoryInventory`) | bag pages (30-cap) | VERIFIED but truncated | partial | not complete |
+| 6 | Gear: legendary (`gear[]`) | `bag.wearItems` page -1, `UniqueItmId`, `BaseAffix`/`Prefix`/`Suffix` | VERIFIED | 7/7 items, 30/30 affixes | importable |
+| 7 | Gear: rare / crafted (base type, affix tiers) | same, `Prefix`/`Suffix`/`…Slots`, `Status` | VERIFIED | **no** (GAP-1, GAP-2) | blocked on ids |
+| 8 | Corroded / desecration (`corrosion_type`, `corroded_explicit_indices`) | `Corrode`, affix `source` | VERIFIED field; meaning HYPOTHESIS | base affix 2/2 | partial |
+| 9 | Implicits (`implicit_count`, `base_stats`) | `FixedBaseAffix`, `BaseAttrAffix` | VERIFIED | 11/11 | importable (base ambiguity) |
+| 10 | Enchant affixes | `Item.EnchantAffixs`, `EnchantSlots` (1 item in live) | VERIFIED field, ids unresolved | no | blocked on ids |
+| 11 | Chip / extension affixes | `ChipAffix{1}{Id, DynArgs}` on a weapon is the **tower sequence** (F31, verified id to text). `extAffix` is not gear: it sits on a tree node under a prism (F20). | VERIFIED | 111/111 TOWER Sequence effect rows carry unique `modifier_id` values in the refreshed SS14 crawl | IDs now resolve; the selected sequence can map by modifier ID |
+| 12 | Belt blend (`beltBlend`) | `EnchantAffixs[1].Id` on the belt (`3401001`, `source` 13) = the blending-ritual `modifier_id` ("Restores 3 % of Life on defeat", owner-confirmed) | VERIFIED (F26) | yes (`blending_rituals.json`) | importable |
+| 12b | Tower sequence (`towerSequence`) | weapon `ChipAffix[1]`: `160419013` = "+20 % additional damage on Critical Strike" (Intermediate Sequence 1\|2\|5, owner-confirmed on weapon `1119`); two-weapon character: `160565034` = "+120 % Fearless Aura -20 % additional Fearless Sealed Mana Compensation" (Advanced 4\|4\|5\|6) by value match | VERIFIED (1 id) + matched (1); the refreshed index exposes IDs for all 111 effect rows | canonical SS14 entries preserve `modifier_id` (111 unique IDs expanded to 408 source-specific entries) | The catalog maps `160419009`; the exact logged ID `160419013` is still absent from TLIDB and cannot be mapped safely |
+| 12c | **Vorax gear** (`is_vorax`, graft item, `legendary_source`, slots) | `BaseId` joins to graft `game_id`; `BaseAttrAffix` and `BaseAffix` join to modifier IDs; `Prefix/Suffix[].source` 15 = Basic/Advanced, 16 = Ultimate, 17 = Legendary | Ring decoded against its tooltip; all ten graft IDs and the sample Digits affix IDs appear in the recrawl | Graft index supplies base IDs `800000`–`800002` and `172103200`; canonical SS14 data now includes them | The importer maps the synthetic Vorax item without item or affix warnings |
+| 13 | Active skills + slot (`skills[]`) | `bag.dressSkillItems`, `skills.skills`, `skillLayout.slots`; page -6 indices 1–5 | VERIFIED | 25/25 in the sample; SS14 catalog IDs now available | imported by exact `game_id` and slot index |
+| 14 | Supports / activation medium / noble / magnificent, `support_index` | page -6 slot ids (F11), item `BaseId` | VERIFIED | SS14 TLIDB `id:` lines; 784 unique IDs in `_skills.json` | imported by exact `game_id` and slot index |
+| 15 | Skill & support levels (`level`) | item `SkillItemLevel`/`Level` | VERIFIED | n/a | imported when present; 3/39 equipped skill objects were cut by the 30-cap in one capture (F9) |
+| 16 | Support rolls/tiers/ranks (`specific_rolls`, `rank`) | `Prefix[].{Id,DynArgs}` on skill items | VERIFIED field | no (GAP-3) | support identity/level imports; unmapped roll IDs warn and use Builder defaults |
+| 17 | Passive skills (slots 6–9) | page -6 slots 1001/1007/1013/1019 | VERIFIED on two characters | yes | imported to Builder slots 6–9; merge captures to recover capped records |
+| 18 | Talent trees (`slots[].nodeStates`) | `geniusInfos.info[].geniusList[]`; node id = tlidb `talent_id` (119/120 match); only rows with an explicit positive `point` count are allocated | VERIFIED | **yes, by id** (F27) | unallocated grid entries have no point count and must not import; 13 of 31 trees can lose 1-2 top-row nodes to the 30-cap (section 9; F36) |
+| 19 | Core talents (`coreTalentSelections`) | `geniusInfos.info[].bonusGeniusInfo[].value.geniusId` = core-talent `game_id` | VERIFIED id join (F27); the matched catalog option's `display_name_key` identifies its Builder slot | yes | imported by game ID and catalogued core slot |
+| 20 | **Prisms** (`prisms[]`, `prismInventory`) | `geniusInfos.info[].prismInfo/prismEffectPositions/prismGeniusId` | VERIFIED placement (F20) | partial | item, anchor, options, replacement id, and reflected allocations map by canonical game IDs |
+| 21 | Ethereal prism config (`EtherealConfig`) | prism item `Prefix`/`BaseAffix` ids | VERIFIED field, canonical IDs joined | partial | unsupported choices and unrepresentable rolls warn |
+| 22 | **Divinity slates** placed (`slates[]`) | `bag.dressingTalentBlocks`; effects are talent game IDs | VERIFIED against owner board screenshot (F21) | partial | known shapes and unique identities import; unknown shapes, kinds, categories, and unresolved layouts warn |
+| 23 | Slate inventory (`slateInventory`) | bag pages | VERIFIED but truncated | no | not complete |
+| 24 | Pactspirits (`pactSpirits`) | `ContractInfosV2.ContractDatas` + `ServantInfos`; ranks checked on screen (F18, F33); id/name pairs in F34 | VERIFIED (ranks 5/5; 3 certain + 3 medium pairs) | **no** (GAP-8) | 6 of 181 named |
+| 25 | Spirit ranks | `ServantInfos.servantData[].starLevel` | VERIFIED, but 30-cap (F18) | n/a | unreliable beyond 30 owned |
+| 26 | Rings / destinies / fates (`fates`, `undetermined`) | `ContractInfosV2.pointDatas[]` (`tattoInfo.BaseId`): micro `3500NN`, medium `3503NN`, NN = tlidb icon number | VERIFIED: all six of the owner's items found over 4 logins (F29) | no (GAP-9) | importable by merging logins |
+| 27 | Kismets installed | `3505NN`: `350503` at node 108 = Kismet: Guillotine (icon `Destiny3`) | VERIFIED (1 kismet, owner-confirmed) | no | importable by merging logins |
+| 28 | **Sage scent bottles** (`elixirIngredients`, slot 2 = Basic, 3 = Special; `licoricePreparedSkill`) | `customSkillSlots[]` (F24); prepared skill (Timid) is **not stored**, inferable from `skillPosRequirements` | VERIFIED bottles 5/5; prepared skill NOT IN LOG (inference only) | yes (`_hero_traits.json`) | bottles importable; prepared skill by inference or user input |
+| 29 | **Mercenaries / followers + skills** | not in the dump; the client has a mercenary UI (`SNMercenaryMain`, `SNMercenarySkillBag`) but opening it logs no data message (F30) | NOT IN LOG | n/a | not importable from the log |
+| 29b | **Non-Sage heroes** (hero, traits, memories, tree-style traits) | three other characters in the 206 MB log: `HeroId` 1700 (purchase `17002`), 900 (`5001`), and 700 (`3002`); no `activeId` or `customSkillSlots`, memories `Unlocked` but empty; the Dance of the Deep character has `treeActivatedNodes[{node_id}]` (F35) | VERIFIED | no (GAP-5) | ids readable, hero/trait names need the table |
+| 30 | Character level (`characterLevel`) | `player.Level`; fallback last `SetPlayerLv` | VERIFIED | n/a | importable |
+| 31 | Config: conditions, target/enemy, custom mods, notes, loadouts | none | NOT IN LOG | n/a | user input |
+| 32 | Account facts the importer must not touch | `player` ids, `otherInfo`, `guild`, IPs | VERIFIED present | n/a | never read |
+
+### Graft page check (2026-10-29)
+
+The [tlidb Graft index](https://tlidb.com/en/Graft#Item) lists the graft affix pools. Each graft page
+adds its full tier/range table and an `Info id`. The ten observed page IDs are Hands 380001, Legs
+380002, Aberrant Legs 380003, Chest 380004, Head 380005, Neck 380006, Waist 380007, Aberrant Waist
+380008, Digits 380009, and Aberrant Digits 380010. The two IDs already seen in the game log match
+their page IDs: Digits 380009 and Neck 380006. The [Digits page](https://tlidb.com/en/Vorax_Limb_Digits)
+shows the `380009` Info id and the Basic, Advanced, and Ultimate affix tiers.
+
+The crawler recrawled all ten graft pages and the Graft index on 2026-10-29. The index's `#Affix`
+table supplies Base Affix modifier IDs grouped by Source. Each graft item card supplies its
+`800000`–`800002` base-attribute IDs. The Digits record now contains 37 Base Affix rows, including
+`172103200` (Have Fervor) and `172103400` (+2 Spell Skill Level). Canonical SS14 graft data includes
+these rows and the item `game_id` values.
+
+## 1. Verified format facts
+
+| # | Fact | Evidence |
+|---|---|---|
+| F1 | The file starts with a UTF-8 BOM and uses CRLF. Decode as `utf-8-sig`, normalise `\r\n`. | first bytes `EF BB BF` |
+| F2 | The login dump is one block: `----Socket RecvMessage STT----GetPlayerData----SynId = N` … `----Socket RecvMessage End----`. This log has exactly one (lines 22156–26751), preceded by a `SendMessage … GetPlayerData` with `+clientLang [en]`. | grep |
+| F3 | The block's first line shares its line with the log prefix `[ts][frame]TLNetGame: Display: [Game] `; the tree body follows on the next physical lines (no per-line log prefix). | read |
+| F4 | Tree syntax: each line is `|`-padding then one or more `+key` segments, optionally ending in ` [value]`. The **column of each `+`** is the nesting depth. Rule that parses all 4,595 lines: a line whose first `+` is at column *c* pops every open key at column ≥ *c*; its parent is the top of what remains; the rest of the `+key` segments on that line each nest one deeper. Lists are keyed `1,2,3…`. A key with a value has a trailing space in the key text (strip it). | spike parser, whole dump parsed, 33 top-level keys |
+| F5 | **Every list is truncated at 30 elements**: the 31st is written as `+31+...` and the rest are dropped. Hit 20× in this dump (tasks, bag pages, skills, talents, pactspirits…). Any count-based logic must treat a 30-element list as "possibly more". | 20 `+...` markers |
+| F6 | **The Downloads capture has no `+player` block; two later captures do.** Checked on three more logs from the owner's game folder (live `UE_game.log`, and two `UE_game-backup-*.log` files): each has exactly one `GetPlayerData` dump with 34 top-level keys, the 33 above **plus `player`**, which carries `Name` (treated as opaque; the owner confirmed duplicate names may have a `#digits` suffix), `Level`, `HeroId`, `HeroPurchaseId`, `SeasonId`, `Exp`, `GeniusCareerId[1..4]`/`GeniusCareerIdStr`, `FollowServant`, plus ids (`PlayerId`, `UserId`, `ChannelId`). Why the Downloads dump lacks it is **not proven**: its Recv header, `SynId`, key set and bracket syntax are otherwise identical, and there is no `+player` anywhere in that file. Most likely the file was edited/redacted after capture (the block holds the name and ids); a different login path is the alternative. Either way an importer must not require `player`: **fallbacks** are the last `AttrUtils:SetPlayerLv = N` after the dump (earlier ones are `= 1` placeholders; Downloads log: 94), `PreLoadHeroId`/`RoleType`, and `geniusInfos.info[].geniusCareerId` (which lists the same careers as `player.GeniusCareerId`). The name is only ever in `player.Name`. | grep |
+| F7 | The selected hero is logged outside the dump: `FightMgr@RoleType = 1800` and `Loading@ PreLoadHeroId = 18001`; the dump repeats it as `heroCharacterv3OverView.heroPurchaseId = 18001`. | lines 20904, 20931 |
+| F8 | After the dump the client replays item state as `ItemChange@ Reset PageId=P` then `ItemChange@ Add Id=<ItemId> BagNum=1 in PageId=P SlotId=S` (and later `Update` for skills). Pages seen: `-1` gear (9 Adds), `-6` skills (36 Adds then 36 Updates), `-4` divinity slates (7), `-2`, `-10` (empty), `100–103` bags. The `Id` joins to the `+Id [...]` of an item object in the dump. | 269 lines |
+| F9 | **All equipped items are fully described in the dump** even though bags are truncated: every `-1` (9/9), `-6` (36/36) and `-4` (7/7) `ItemChange` Id has a full item object in the dump. Bag pages 101/102/103 list 39/58/67 items via `ItemChange` but only 30 each have data (F5). Equipped-state import is therefore complete; "inventory import" is not. **Correction (live fixture):** the equipped skill bar is larger than the 30-entry cap: `dressSkillItems`, `skillLayout` and `skills.skills` are each capped at 30, the live account has 39 equipped skill/support items, and the three lists are re-shuffled at every login. One dump therefore carries a full item object for 36 of 39 (searching all three lists), two logins carry all 39 (section 9). `BaseId` is always recoverable from the post-login `ItemChange` Id (`<BaseId>_<guid>`). | cross-check |
+| F10 | Gear slot ids (`wearItems[].Index`, `SlotId` on page -1), derived from the resolved base types: 1 helmet, 2 weapon, 4 chest, 5 amulet, 6 ring, 7 ring, 8 belt, 9 gloves, 10 boots (3 = off-hand, empty here). | resolved names |
+| F11 | Skill slot ids (page -6): `1–5` = the five active skills, `s01` = that skill's activation medium (`101,201,…,501`), `s02…s0n` = its supports (`102–103`, `202–204`, `302–304`, `402–403`, `502–505`); `1001,1007,1013,1019` = passive skills with supports `1002–1003`, `1008–1009`, `1014–1015`, `1020–1021`. | resolved names; **HYPOTHESIS** for the exact meaning of the passive block until a second build confirms it |
+| F12 | Talent grid: log `position{x,y}` ↔ TLI Builder `(column,row)` = **`(y−1, x−1)`** (transposed). 4 of 4 trees match a tree file's occupied-cell set exactly (25/25, 29/29, 30/30, 30/30). `geniusId` is the 8-digit number `PP·10⁶ + y·10⁴ + x·10²` (e.g. `40010300` = prefix 40, y=1, x=3), confirmed on all 120 ids against their `position`. | grid-match spike |
+| F13 | Career id → tree, by exact occupied-cell match (a 30-cell truncated list can tie): Downloads log `4` = God of War, `42` = Ronin, `62` = Steel Vanguard; live log (careers `1,12,62,54` per `player.GeniusCareerId`) `1` = God of Might, `12` = Onslaughter, `62` = Steel Vanguard (again), `54` = Lich. So the first digit is the god (1 Might, 4 War, 5 Deception, 6 Machines) and a second digit the hero within that god; a one-digit id is the god tree. Ties on truncated lists (`43`, `54` vs Ranger/Magister) are broken by that rule (`43` ≙ a War hero) and by `player.GeniusCareerId`. Remaining god digits (2, 3) and hero indexes are **HYPOTHESIS**. | grid-match |
+| F14 | `talentBlockInfluence` is keyed by the slate's item Id and lists `EffectTalentIds`: the **talent nodes (as geniusIds) each slate slot overrides**. That gives slot→node targets for every installed slate, but not the slate's shape or position on the board. | read |
+| F15 | A prism is `geniusInfos.info[n].prismInfo{geniusId, item}` + `prismEffectPositions`; the node under it has `inPrismArea=true`/`disable=true`. See F20 for the full placement rule. | read |
+| F16 | Core-talent choices are in `geniusInfos.info[n].bonusGeniusInfo[].value.geniusId` (e.g. `40001200` and `40002200` on career 4). The `isPrismSkill=true` entry is a Prism replacement, not a selected tree core talent. The importer joins each remaining ID to the canonical core pool, then matches its option key to the ordered `core_talent_slots` returned by `/tree/{name}`. | live log + catalog join |
+| F17 | Hero memories: `heroCharacterv3OverView.reminiscenceOverView.reminiscence[1..3]` with `BaseId` 71001/71002/71003, `BaseAttrAffix`, `BaseAffix`, `Suffix` arrays of `{Id, DynArgs[]}`. Hero traits: only `pointOverView.activeId = {1800011,1800021,1800031}`. | read |
+| F18 | **Pactspirits.** `ContractInfosV2.ContractDatas[]` holds 6 `{areaId, servantId}` entries in arbitrary order; `areaId` 1-3 are the battle slots, 4-6 the reserve. Owner names: slot 1 `5330` = **Preserver of Eternity**, slot 2 `18230` = **Kitty Express**, slot 3 `19230` = **Elixir Fairies**. The reserve is not constant in the file: dumps 1 and 3-6 show `15110/15120/15130`, dump 2 shows `6330/6130/19330` (the owner's Chalk Spirit, Captain Shadow, Twilight Sparks; see F34). `6130` and `6330` are different spirits that share family 6, and `15120`/`15130` look like different creatures, so **the family/tier/variant digits are a grouping, not a naming rule**: treat servant ids as opaque keys. `CPT_SLOT.TotalNum` is 3 on the live account and 1 on the older level-94 dump (which still lists six contracts), so usable battle slots are probably `min(3, CPT_SLOT.TotalNum)` (HYPOTHESIS). `ServantInfos.servantData[]` = `{servantId, starLevel?}` is the owned collection, capped at 30 and **re-shuffled at every login** (6 dumps: 108 distinct ids). **Rank rule verified on screen:** rank = `min(6, starLevel+1)`, and a present entry with no `starLevel` is rank 1: `5330` (starLevel 2) shows 3, `18230` (starLevel 5) shows 6, `19230` (no starLevel) shows 1, and the reserve `15120` (starLevel 4) shows 5 on the screenshots (F33). An id missing from every dump is unknown, not rank 1. `player.FollowServant` (`11230`, identical in all 6 dumps) is the **cosmetic pet that follows the character** (owner-confirmed), not a pactspirit and not the follower; it is not in `servantData` at all. | pacts spike, 6 dumps + owner screenshots |
+| F19 | The log contains personal data: platform account name, `playerId`/`userId`/device ids, IP addresses, guild id, chat-free but account-bound progress. | grep |
+| F20 | **Prism placement (VERIFIED on the live Onslaughter tree).** `prismInfo.geniusId` (`12060400`) is the anchor node. `prismEffectPositions[]` cells map log `x` to Builder row `x-1` and log `y` to Builder column `y-1`; the six observed cells (x 3–5, y 6–7) become columns 5–6 and rows 2–4. Logged allocations remain ordinary talent-tree allocations. `prismEffectPositions[]` sets the prism effect area dimensions; if they disagree with the catalog modifier's dimensions, the importer warns and follows the logged cells. The Builder's `boxAllocations` field is reserved for Inverse Image copies and stays empty for Ethereal Prisms. `prismGeniusId` (`80002000`) is preserved as `EtherealConfig.replacementTalentId`. Item and affix IDs join the current prism catalog. The observed rarity value 3 maps to rare; other values use the catalog default and warn until their mapping is verified. When active tree nodes lack `game_id`, the importer uses the F12 ID coordinate encoding and a verified career-to-tree mapping to resolve the same canonical grid node; unsupported career IDs warn and leave the prism unplaced. Unknown IDs/options and unrepresentable affix rolls warn. | read, one prism |
+| F21 | **Divinity slate placement fitted to the owner's 6x6 board.** `dressingTalentBlocks[]` are installed slates (`{Item, Index, PageId=-4}`); `Index` is `SlotId` encoded as `10*column+row` (both 1-based) and identifies an occupied cell, not a fixed top-left anchor. ShapeIds `1033`, `1035`, `1043`, and `1045` occur in captured data; `1045` was fitted to the Builder's L2 shape from the observed board and remains inferred. Base-slate shape/direction mappings remain inferred and the importer warns to confirm placements. Unique-slate direction values use the game's four-direction range; canonical unique footprints contain 1, 2, or 4 distinct quarter-turn rotations, so modulo selects a footprint-equivalent rotation; alignment of the logged direction to Builder orientation remains inferred and prompts a warning for every logged unique-slate direction. A Corner of Divinity still carries an orientation warning because its mapping is inferred. Nether King's Divinity has no logged shape or direction; its occupied cell and talent IDs are used to infer its layout. The crawler maps BaseIds 394004, 394005, and 394006 to Judgment, Contamination, and Banishment; this mapping has not been independently confirmed in-game. The captured Banishment-specific effect choice is not established. For Nether King, one exclusive �When <variant> is active� branded effect tag takes precedence over the unverified BaseId mapping; conflicting tags are warned and the BaseId mapping is retained when available. See F27 and F38 for talent identity and variant mapping. | owner screenshot + captured items; crawler capture (variant mapping, needs in-game verification) |
+| F22 | **Slate effects are TLIDB talent IDs.** `talentBlockInfluence[]` is keyed by the slate item Id and lists `EffectTalentIds` (`BaseTalentList` + enchant talents, in order), `TalentIdDevour`, `TalentIdInfluence` (e.g. `-30`) and, for base slates, `DevilLineBoostTalentIds/Influence` (`40`). Logged IDs join directly where canonical nodes carry `game_id`. When a tree node has no `game_id`, the first two ID digits select its career tree (F27), and the encoded grid position selects the node, using only nodes without a `game_id`. Examples include `43060400` = Ranger medium talent "+18 % Melee Damage", `42070500` = Ronin legendary medium talent "+20 % Fervor effect", and `63001300` = Alchemist core talent. Nether King `BaseTalentList` IDs fill fixed slots; its three `talentSlotList`/enchant entries fill branded slots 2-4. If `EnchantTalentList` is absent, a compact three-entry Nether King `talentSlotList` is shifted into slots 2-4 by an importer heuristic and the user receives a confirmation warning; the captured fields do not independently establish that compact indexing convention. Ordinary base slates retain explicit logged slot indices because no evidence supports the same shift for them. A single exclusive �When <variant> is active� branded effect tag takes precedence over the unverified BaseId variant mapping; multiple distinct tags produce a warning and leave the BaseId mapping in control when available. Preserve the logged slot-list membership even if a branded talent resolves to a regular tree node: the observed Psychic node `52040100` appears in a branded slot, and the Nether King `nodeType` alone does not distinguish fixed from branded talents. `Color` and `rarity` remain available per slot. | read + id join; compact slot shift is inferred |
+| F23 | **Installed destinies/fates/kismets live in `ContractInfosV2.pointDatas`.** `contractPointId` = `<areaId><2-digit node>`; `selectContract` 1 = empty, **2 = installed**, and then `tattoInfo` holds the item (`BaseId`, `Level`, `BaseAffix{Id, DynArgs}`). The list is capped at 30 and re-shuffled at each login. **Measured over the 6 dumps of one character:** distinct nodes seen 30, 45, 55, 60, 61, 62 after 1..6 logins; installed items found 3, 4, 6, 7, 7, 7. All of the owner's six items are on area 1 (the first battle spirit): lightning micro `350003` on nodes 103 and 104, fire micro `350001` on 105 and 106, **Kismet: Guillotine `350503` on 108**, medium fire `350301` on 109. That puts the micro nodes at 101-106 and the medium nodes at 107-110 (4 = `CPT_MIDDLE`), with the owner's "2nd kismet" = 108 and "3rd medium" = 109 (HYPOTHESIS for the numbering rule). A seventh item, a lightning micro `350003` on node 301 (area 3), was not in the owner's list. `unlockInfo` gives `CPT_SMALL` 9, `CPT_MIDDLE` 4, `CPT_SLOT` 3, `CPT_SECRET` 15. | 6 dumps + owner |
+| F24 | **Sage scent bottles (VERIFIED, 5/5 picks, both bottles).** `customSkillSlots[]` = `{id, customId, state?, materialSlots[]}`. **`id` is the Active Skill slot** (the Basic Scent Bottle is the 2nd Active Skill slot, the Special Scent Bottle the 3rd; `_hero_traits.json`, Licorice Note and Licorice Tincture Blend), `customId` 1 = Basic and 2 = Special, `state = CustomSlotState_Active` marks the bottle whose slot is currently in use (slot 2 holds the Elixir skill Tenacity Dew; slot 3 holds Whirlwind, which is why the Special bottle is not active). Each material slot is `{index, optionIds[3], chooseOptionId}` and **the third digit of an option id is the position of the ingredient in its tlidb category**: `1132` Damage #3 Scattered Spore, `1232` Defense #3 Prismatic Vine, `1312` Functional #1 Husk (Basic bottle, 3 slots), `2121` Special #2 Thunder Dragon Scale, `2231` Functional #3 Tumbleweed Seed (Special bottle, 2 slots). Second digit = slot, first = bottle; the fourth digit is bottle-specific (2 on Basic, 1 on Special) and unexplained. The slot counts prove the traits: the Basic bottle's 3rd ingredient exists only with **Pungent Stimulant Salt**, and the Special bottle exists only with **Licorice Tincture Blend**, so both advanced traits are active. **There is one mechanism, not two:** the "specialty elixir" is the Special Scent Bottle. Builder's `elixirIngredients` is `{2: {Damage, Defense, Functional}, 3: {Special, Functional}}`, which the log gives in full. **`licoricePreparedSkill` (owner: Timid) is not stored anywhere in the dump**: no key mentions a prepared skill, and Timid appears only as an ordinary active skill (slot 4) and in `skillLayout`/`skills`. The only hook is `skillPosRequirements.customSlotRequirementMap[2]` = `{tags: [6000420], types: [1]}`, a requirement on which skills the Basic bottle's slot accepts. Timid is the only equipped active with the Curse tag (Tenacity Dew and Scorpion Stinger Distillate are Elixir, Whirlwind is an Attack, Fearless Warcry a Warcry), so if tag `6000420` means Curse/Empower the prepared skill is **inferable** (HYPOTHESIS, one hero); otherwise it is user input. Builder holds a single value. | read + owner |
+| F25 | **Searched and NOT present in the dump:** mercenary/follower data (no key or text in any of the 34 top-level keys), `backupSkillDto` and `skillAdditionalAffix` (both empty), any destiny/kismet/ingredient/pactspirit **name**, and a `servantId` to name table. `tasks`, `functions`, `rewards`, `fashions`, `guideInfo`, `helpInfo`, `achievementInfos`, `growUpDto`, `SP3Base`, `userGem`, `otherInfo` and `SkillSlot` hold progression, shop or season-activity data only (`SP3Base` is a map-event state). | key-by-key read |
+| F26 | **Belt blend (owner 2026-10-28).** The belt (slot 8) is Omni-Elixir Notes (`UniqueItmId` 113342, a tlidb legendary `internal_id`). Its `EnchantAffixs[1]` = `{Id: 3401001, source: 13}` and `EnchantSlots[1].affixId` carry the **belt blend**: `3401001` is the `modifier_id` of the tlidb blending-ritual line "Restores 3 % of Life on defeat" (talent 340002), which is what the owner reported. The belt also has `Status = FORGE_PRECISE`. `Bind` marks bound items (the ring). | read + owner + crawler capture |
+| F27 | **TLIDB `talent_id` equals the game `geniusId`.** 119 of 120 tree node IDs (the miss is the prism core talent `80002000`), all 10 slate enchant talents, 13/14 base talents and all core-talent IDs in the live dump are `talent_id` values in `tlidb-crawler/output/SS13/talent_tree/*.json`. That gives the **complete career-prefix table directly from data** (first two digits): 10 God of Might, 11 The Brave, 12 Onslaughter, 13 Warlord, 14 Warrior; 20 Goddess of Hunting, 21 Marksman, 22 Bladerunner, 23 Druid, 24 Assassin; 30 Goddess of Knowledge, 31 Magister, 32 Arcanist, 33 Elementalist, 34 Prophet; 40 God of War, 41 Shadowdancer, 42 Ronin, 43 Ranger, 44 Sentinel; 50 Goddess of Deception, 51 Shadowmaster, 52 Psychic, 53 Warlock, 54 Lich; 60 God of Machines, 61 Machinist, 62 Steel Vanguard, 63 Alchemist, 64 Artisan; 70 New God; 90/92 Nether King. `geniusCareerId` in the log is the same prefix (`1`=10, `4`=40; the two-digit IDs are literal). The importer uses this table and the encoded grid position when the current season's regular tree nodes lack `game_id`. The crawler's `column`/`row` are 1-based (`12060400` = column 6, row 4); Builder coordinates are 0-based. | TLIDB ID join |
+| F28 | **Pactspirit, destiny and follower ids are not in the crawler captures.** `pactspirit` and `destiny` outputs carry no id field (`modifier_id`/`term_id` only), so the id join has to be added to the crawler (section 10). Pet art names appear in asset-load lines (`Pet_SSR_RedUmbrella`, `DreamWeaver`, `EternalCaller`, `YuanBoShi`, `Swordsman`) but they are session scenery, not tied to a servant id. | grep + crawler output |
+| F29 | **Destiny item ids follow the tlidb icon number.** Micro fates `3500NN` (`UI_S9Pet_SFate_N`), medium fates `3503NN` (`MFate_N`), **kismets `3505NN`** (`Destiny_N`): `350001` Micro Fate: Fire Resistance, `350003` Micro Fate: Lightning Resistance, `350301` Medium Fate: Fire Resistance, `350503` Kismet: Guillotine (`UI_S9Pet_Destiny3`). All four are owner-confirmed. Micro values equal the top of the tlidb range (7.0 of 5-7). The icon numbers skip some values (e.g. `SFate_7`, `Destiny4/5` are absent), so the mapping must come from the crawler's icon name or an id field, not from list position. | 6 dumps + owner |
+| F30 | **Followers/mercenaries and the pet (settled).** `player.FollowServant` (`11230`) is the **cosmetic pet** (owner-confirmed); it was identical in all 6 dumps and is not in `servantData`. The follower (mercenary, e.g. Ajax) is **not in the dump**: the client has a mercenary UI (`SNMercenaryMain`, `SNMercenarySkillBag`) but opening it logs no data message, and the only socket messages ever logged are `GetPlayerData` and `XchgSearchPrice`. The three follower skills (Tartarus: Life Tonic III, Shockwave Warcry III, Raging Warcry III) exist as normal skills but none is in the equipped set. Not importable from the log. | read + owner |
+| F31 | **Tower sequence = `ChipAffix` (corrected, owner-confirmed).** After the owner placed a sequence on the weapon (slot 2, `BaseId 1119`) the weapon gained `ChipAffix{1} = {Id: 160419013, DynArgs{1}: 20.0}`. The owner reads it as **"+20 % additional damage on Critical Strike", Intermediate Sequence 1|2|5** (the third row of the tower sequence list for Bow, Two-Handed Sword/Hammer/Axe, Cudgel, Musket, Fire Cannon, Crossbow and Tin Staff), so `160419013` is the id of that line (**VERIFIED id to text**). **This corrects the earlier guess** ("+20 % Attack Critical Strike Rating", sequence 1|4|7, the first row), which also carries a 20 but is a different line. The same-family value 20 is shared by several lines, so a value match alone is not enough to identify a sequence. A second character with two weapons (`BaseId 2219` x2) shows `160567034` (DynArgs 20.0) and `160565034` (DynArgs 120.0, -20.0); the second matches the tlidb line "+120 % Fearless Aura -20 % additional Fearless Sealed Mana Compensation" (Advanced Sequence 4|4|5|6) by both values (matched by text, not owner-confirmed). Structure from three ids: `1604xxxxx` = Intermediate, `1605xxxxx` = Advanced (HYPOTHESIS). The in-game feature: the weapon R&D at the tower (help DB: coloured **Chips** that must match a target sequence), so a chip is a coloured piece of that mini-game and `ChipAffix` is the sequence's result on the weapon. The SS14 page exposes `data-modifier-id` for 111 rows. It lists the same effect text under `160419009`, while the owner-confirmed game-log ID is `160419013`; that exact ID does not appear in the current page or canonical SS14 data. | owner + diff of dumps |
+| F32 | **Vorax gear, decoded line by line against the owner's ring (Vorax Limb: Digits, Lv 89, Vorax Gear (Finger)).** Dump ring (slot 7, `BaseId 380009`) vs tooltip: base `BaseAffix 172103200` (no `DynArgs`) = **Have Fervor** (a keyword base affix with no number; `_grafts.json` base affix tier 0); `BaseAttrAffix 800000/800001/800002` with `DynArgs 0.0` = three attribute slots that are zero on vorax gear (not shown on the tooltip). Prefix 1 `251471001`, source **16**, `DynArgs [2.0, -3.0]` = **T1 "Min Channeled Stacks +2, -3 (-3 to -1) % additional damage"** (Ultimate Affix, tier 1). Prefix 2 `251181602`, source **15**, `[41.0]` = **T2 "+41 (37-50) % damage"** (Basic Affix, tier 2). Prefix 3 `251181802`, source **15**, `[25.0, 35.0]` = **T2 "Adds 25 (25-27) - 35 (33-35) Erosion Damage to Attacks and Spells"** (Advanced Affix). Suffix 1 `252181602`, source **16**, `[13.0]` = **T2 "+13 (10-15) % additional damage for Main-Hand Weapons"** (Ultimate). Suffix 2 `252180102`, source **15**, `[18.0]` = **T2 "+18 (16-19) % Cold Resistance"** (Basic). Suffix 3 `51533751`, source **17**, `[1.0, 3.0]` = **"Dawn Break: +1 % additional damage per 3 (2-3) Fervor Rating"**, the legendary affix `51533751` of the legendary item **Dawn Break** (`_legendary_gear.json`, `internal_id 113337`). All six rolls fall in the tlidb tier ranges. **Decoded:** `source 15` = Basic or Advanced (Normal Organs), `16` = Ultimate (Special Organs), `17` = Legendary (Core Organs, the source item is named by the affix id). The two other vorax pieces (ring `380009` on another character, amulet `380006`) use all three sources exactly twice each, matching Builder's maximum of 2 Ultimate and 2 Legendary. The prefix/suffix split is in the id (`251...` prefix pool, `252...` suffix pool) and the **last two digits are the tier** (`..02` = T2, `..01` = T1), so Basic vs Advanced needs the affix family (`2511816` vs `2511818`), which is not in our data. **Builder's vorax model** (`GearScreen`, `_grafts.json`): `item_id` = one of 10 graft kinds (`vorax_limb_digits` is the owner's "Vorax Limb: Digits", so `380009` = `vorax_limb_digits` and `380006` is probably `vorax_limb_neck`; the other kinds' BaseIds are unseen), `base_affixes` slots (the ring has one: Have Fervor), 3 prefix + 3 suffix slots with `affix_type` Basic/Advanced/Ultimate and `Legendary` plus `legendary_source` (here Dawn Break) and `legendary_affix_count` (1), and the belt blend on belts. **Recoverable now:** graft kind (by `BaseId`), slot, which affixes are Ultimate/Legendary, the legendary source and affix text (id resolves), the tier of every affix (from the id), all rolls. **Missing:** Have Fervor's id (`172103200`), which the graft recrawl did not capture. The recrawled Digits page now maps all five sample Basic/Advanced/Ultimate ids. | owner screenshots + dump + tlidb |
+| F33 | **Owner's collection screenshots (10 images, default order, filter All).** Cards show art and a rank badge only, never a name. Frame colour matches the tlidb tier (orange = legendary, purple = rare, blue = magic). `E` marks equipped spirits (all six contract slots: 3 + 3); a cyan star with a teal frame appears on the selected card. **Is the order monotone in `servantId`? No.** Three anchored cards fix it: `5330` is card 1, `19230` card 3, `18230` card 4, which is neither ascending nor descending (`19230` precedes `18230`, and `5330` precedes both). Variants of one creature appear as adjacent colour sets (same art, three or four colours), so the in-game order follows the game's own config order, not the id. A rank-sequence alignment is therefore impossible; names need either the id/name observation of section 10 or an id field from tlidb. E-card ranks seen (3, 1, 6 in the first screen; 5, 1 in the seventh) match the six contract ranks {3, 6, 1, 5, 1, 6} for 5 of 6 (the sixth E card sits in a gap between two screenshots). | 10 screenshots |
+| F34 | **Pactspirit id/name pairs (owner order: battle 1-3 then reserve 4-6).** By `areaId`: 1 `5330` = **Preserver of Eternity** (certain), 2 `18230` = **Kitty Express** (certain), 3 `19230` = **Elixir Fairies** (certain); reserve in the dump of 12:49 UTC (dump 2): 4 `6330` = **Chalk Spirit**, 5 `6130` = **Captain Shadow**, 6 `19330` = **Twilight Sparks** (medium: it assumes the owner's slot order and that the owner's reserve was the one in dump 2). **The other reserve (`15130/15120/15110`, in dumps 1 and 3-6 incl. the one the screenshots were taken from) cannot be the owner's three names**, because on the screenshots the reserve E cards are a rare-tier (purple) card of rank 5 and a legendary card of rank 1, while Chalk Spirit, Captain Shadow and Twilight Sparks are all legendary-tier in tlidb and would give ranks 2, 3, 1 from the dump-2 `starLevel`s. So the owner swapped the reserve between logins. **The family/tier/variant formula is wrong as a naming rule:** `15120` and `15130` are not the same creature, `6130` and `6330` (same family) are two different spirits, and `19230` (Elixir Fairies) and `19330` (Twilight Sparks) share family 19 with different names. | owner + 6 dumps |
+| F35 | **Four characters in the 206 MB log (9 dumps over 3 launches).** Dumps 1-6 are the same level-98 Sage; dumps 7, 8, and 9 are separate characters at levels 98, 100, and 99. Two of four opaque character names have a `#digits` suffix, consistent with the owner's rule that duplicate names get a suffix. Group candidates using the character name and `HeroId`; never read or use `PlayerId` or `UserId` for grouping (F19). The level-98 non-Sage has `HeroId 1700`, `HeroPurchaseId 17002`, no `geniusInfos`, no `activeId`, no `customSkillSlots`, and three unlocked but empty memories. Its **`treeActivatedNodes[{node_id: 1710001}]`** records the Dance of the Deep style trait tree, which maps to `traitTreeAllocations`. The level-99 character has `HeroId 900`, `HeroPurchaseId 5001`; the level-100 character has `HeroId 700`, `HeroPurchaseId 3002`, and only two equipped items. Pact ids vary by character: the level-98 non-Sage has `8530`, `5330`, and `3330` in its battle slots, while the level-99 character has `5130`, `12130`, and `5330`. Names for the new ids remain unknown. `activeId` order changes between Sage logins. The other two belts have `EnchantAffixs` ids `3704005` and `3502002`, both present in the blending-ritual captures (3/3 with `3401001`). The level-98 character has another vorax ring (`380009`, Lv 90) and two chipped weapons. The level-99 character has an amulet-slot vorax item (`380006`, Lv 89). | 4 characters |
+| F36 | **Talent lists include unallocated grid nodes.** In the live `geniusList`, allocated entries carry a positive `point`; unallocated entries still carry `geniusId`, `prePointNeed`, and `position`, but no point count. Treat only explicit positive point counts as allocations. `bonusGeniusInfo[].value.geniusId` separately records selected core talents (F16). | live UE_game.log + regression |
+| F37 | **A missing slate section differs from an empty board.** If a capture has no `bag.dressingTalentBlocks`, it supplies no new slate snapshot and an earlier capture remains available. An explicit empty `dressingTalentBlocks` list in a complete capture means the character has removed every slate and replaces the earlier snapshot with an empty board. When the slate section is truncated, the earlier board is kept even if some slate entries were parsed. Truncation markers record their nearest parent section so unrelated `ServantInfos` truncation does not block complete slate, core-talent, or prism updates. | multi-capture regression |
+| F38 | **Nether King's Divinity has three layouts.** The owner's in-game screenshots show Judgment as three separated middle-corner cells, Contamination as three vertical cells, and Banishment as three diagonal cells. The Contamination tooltip states `-88% Effect for Projected Talents`; the Builder displays that rule but does not calculate projected effects. The crawler item capture `tlidb-crawler/output/SS13/nether_kings_divinity/nether_kings_divinity.json` maps BaseIds 394004/394005/394006 to Judgment/Contamination/Banishment; this mapping needs in-game verification. The importer uses that value to select the layout. The Banishment-specific effect choice is not established by the captured log fields. The log contains Index 52, and the owner identifies that occupied cell as Judgment's upper-right origin; the other Judgment origins are inferred from the owner-confirmed footprint, and Contamination/Banishment anchor offsets are inferred from their variant geometry. The importer warns users to review inferred variant placement. | owner screenshots + crawler item capture; Index 52 observed in log; variant IDs need in-game verification |
+| F39 | **Core choices follow the latest complete genius record.** A complete `geniusInfos.info[]` record with a valid career ID but no `bonusGeniusInfo` has no selected core choices and clears earlier choices for that career, even when it has no allocated nodes. A truncated record remains inconclusive and preserves the prior choice list. | live UE_game.log record shape + regression |
+
+Note (owner, 2026-10-28): a third-party desktop companion app (v2.0.1) only parses `GetPlayerData` gear sections
+(pages -1 and 100) for its profit/stats features; it has no `player` parsing and no log-to-build import,
+and it does not make the game write the dump. The web planner remains the only log-to-build importer known.
+
+## 2. ID bridge (this log vs our data)
+
+Rates are unique-ids-hit / unique-ids-in-log, searched across every numeric value and numeric key in
+SS12–SS14 + crosswalk (`docs/local/log-import/bridge*.py`).
+
+| Log ID kind | Hit | Where it lands in our data | Verdict |
+|---|---|---|---|
+| Legendary `UniqueItmId` | **7/7** | `_legendary_gear.json items[].game_id` | resolved |
+| Legendary affix ids (`51…`) | **30/30** | `_legendary_gear.json … variants.base.explicits[].modifier_id`; corroded: `variants.corroded.explicits[]` | resolved |
+| Gear implicits (`FixedBaseAffix`/`BaseAttrAffix`, e.g. `660002`) | 11/11 | `_craft_base_items.json base_items[].implicit_modifier_ids`; base items join by `game_id` | resolved |
+| Corrosion base affix (`600…`) | 2/2 | `_craft_base_types.json corrosion_base_affixes[].modifier_id` | resolved |
+| **Gear `BaseId`** (`1219,3011,4639...`) | **624/624 catalog rows** | `_craft_base_items.json base_items[].game_id`; importer resolves ordinary bases by `game_id` | resolved for catalogued bases |
+| **Crafted/rare gear affix IDs** | matched by `modifier_id` in refreshed SS14 craft tables | `_craft_base_types.json affixes[].modifier_id`; importer maps catalog matches | synthetic crafted gear mapped; representative real-log coverage remains to verify |
+| Affix `source` (`6`,`12`) and `Corrode` flag | n/a | `source` is a game flag (6 = corrosion/desecration base, 12 = a special source) — meaning not documented | **GAP-2b** |
+| Skill `BaseId` (all 36 equipped, 25 unique) | **25/25** | SS14 TLIDB page `id:` lines; crawler output has 969 skill pages and all IDs; canonical `_skills.json` has 784 unique `game_id` values | resolved by exact SS14 `game_id` |
+| Skill support categories | resolved | support / activation medium / noble all resolve by the same `gameId` (e.g. 8003–8006 mediums, 7746 noble) | resolved |
+| Archived-log skill ID `7493` | **0/1** | absent from current SS14 crawler pages, canonical SS14 skills, and the available SS13 crosswalk; no matching TLIDB page was found | unresolved older-season ID; importer warns and skips it |
+| Skill support **line choices/tiers** (`Prefix{Id,DynArgs}` `771031022…`) | **0/5** | none | **GAP-3** |
+| `customSkillSlots` option ids (`1132`, `2231`...) | 5/5 owner picks | resolved by structure: third digit = position in the tlidb ingredient category (F24) | resolved |
+| Hero memory `BaseId` 71001-71003 | 3/3 | `_hero_memories.json memory_types[].game_id` | resolved |
+| Memory affix ids (`4021…`, `4022…`) | **12/15** | `crosswalk/SS13/memory-affixes.json rows[].compendium.gameId` | mostly resolved; the 3 `4031…` BaseAttrAffix ids miss (**GAP-4**) |
+| Hero id (18001/1800) and trait ids (`1800011`...) | **0/4** | `crosswalk/SS13/hero-traits.json` `gameId` is null on all 27 rows | **GAP-5** |
+| `geniusId` | **119/120** | tlidb `talent_id` in `output/SS13/talent_tree/*.json` (F27); the geometry rule (F12) is only a cross-check | **resolved by id** |
+| Core talents (`bonusGeniusInfo`) | **all** | tlidb core-talent `talent_id` (`y=00`) | resolved by id; slot rule still HYPOTHESIS |
+| Slate `BaseId` (`2603xx`, `2605xx`, `2610xx`) | resolved for known base and legendary slates | `slate-mods.json` and the Nether King's Divinity record in canonical data | mapped kinds import; unknown IDs warn |
+| Slate talent ids (`BaseTalentList`, `EnchantTalentList`, `talentSlotList`) | join by canonical `game_id` where the ID names a tree node or slate-pool core option | SS14 tree nodes and Nether King core talents expose `game_id` | resolved for catalogued options |
+| `EffectTalentIds` (slate to node) | resolved by id | same `talent_id` join | resolved |
+| Ethereal Prism item and craft affix IDs | join by item `game_id` and affix `modifier_id` in the refreshed SS14 prism catalog | catalog rows carry item IDs; categorized craft pools carry modifier IDs | resolved when the catalog has the logged ID; unknown rarity values use the catalog default with a warning |
+| Pactspirit `servantId` | owner-confirmed IDs map through Builder overrides where the canonical catalog has no game ID | current account's three battle-spirit IDs and names were confirmed by the owner | mapped for known IDs; unknown IDs remain unresolved |
+
+**Current coverage:** the importer joins gear, skills, talents, memories, slates, prisms, and
+pact-spirit contracts against canonical IDs where available. Unknown support rolls and capped log
+sections can still leave data out; the importer reports those gaps. The older archived capture also
+contains skill ID `7493`, which has no match in the current SS14 TLIDB crawl or available crosswalk;
+keep it unmapped until a source page or authoritative older-season catalog supplies the ID.
+
+## 3. Mapping to the TLI Builder build model
+
+The importer creates a `Build` in the renderer and passes it through the existing open/save path. It
+does not change the frozen `tli1_` codec or `backend/build_code.py`.
+
+| Log data | Draft behavior |
+|---|---|
+| `bag.wearItems` on page `-1` | Maps Vorax grafts, unique items, and crafted bases by `game_id`. It maps affixes by `modifier_id`, custom rolls from `DynArgs`, belt blends, and Tower Sequence chips when IDs match. Unknown bases and affixes are omitted with warnings. |
+| Skill lists and slot layout on page `-6` | Maps active skills, passive skills, activation mediums, and supports by `game_id` and slot. It uses logged levels when present and reports missing levels. Unmapped support modifier IDs use Builder defaults and produce warnings. |
+| Repeated login captures | Groups by character name and `HeroId`. Later entries replace earlier data in the same gear, skill, memory, contract, or scent-bottle slot. Earlier captures fill missing slots. Talent allocations and servant inventory are combined; logged core choices replace earlier choices for that tree. `player.FollowServant` is a cosmetic pet field, not combat follower selection. |
+| `geniusInfos.info` | Talent allocation IDs join canonical talent `game_id` values and apply to the four talent trees. Unknown nodes are skipped with a concise warning. |
+| Hero memories and trait state | Maps Sage Licorice Note and its selected advanced traits, equipped memories, and the Progress base-slot memory. Memory base stats use the owner-verified tli-data crosswalk. |
+| `customSkillSlots` | Maps selected Scent Bottle ingredients by bottle slot, ingredient category, and option position using the canonical Licorice Note ingredient catalog. |
+| Slate and prism data | Known slate IDs and prism item/affix IDs join canonical data. Slate placement is fitted against the board; prism effect positions set the imported area. Unknown IDs or unverified prism rarities produce warnings. |
+| Pact spirits and contracts | Contract `servantId` joins canonical pact-spirit `game_id`; rank imports when the corresponding servant entry is available in the capture. |
+| Character level | Imports `player.Level` into `Build.characterLevel` and the initial condition state. |
+| Truncated lists | Reports truncation. Multiple captures can recover shuffled gear and skill entries, but cannot recover talent nodes cut from every captured dump. |
+
+The importer preserves user privacy by parsing files in the renderer and discarding log text after the scan. It does not read account identifiers or upload the log.
+## 4. Privacy and UX
+
+* **Client-side only.** Read the file in the renderer (`File.text()` / a main-process read for the
+  Electron app); never upload. Parse in memory, keep only the derived `Build`, discard the text. Do not
+  log or persist playerId/userId/account name/IPs (F19) — the importer should never read them.
+* **Finding the file.** Default Steam path hint (`…\Torchlight Infinite\UE_game\TorchLight\Saved\Logs\UE_game.log`),
+  a file picker (web build can only use a picker), and in Electron an optional "scan known Steam
+  libraries" button. Accept multiple files and sort by modification time, since the game rolls
+  `UE_game-backup-*.log` on each start; process newest dump first.
+* **Missing dump.** The block is only written at login (this log has one; whether the game rotates or overwrites the file on launch was not tested — HYPOTHESIS): if no
+  `GetPlayerData` block is found, say exactly that and tell the player to relaunch the game, log the
+  character in, and re-pick the file (the file must not be deleted by the game before the player picks it).
+* **Name is optional (F6).** Use `player.Name` as an opaque string. Never require or strip a `#NNNN` suffix. Group dumps by name and `HeroId` only when both are present. If the name is missing, label the dump by timestamp, hero, and level, and ask the player to choose without merging it automatically. One file can contain several logins and characters. Never display, store, or use account identifiers.
+* **Truncation notice (F5).** Show an import report ("found / partial / missing") that names which sections
+  were truncated at 30 entries, so users know the talent tree may be incomplete.
+* **Trust.** The log is untrusted input: bounded line counts, bounded tree depth, no `eval`, no keys
+  used as property names without a null-prototype map.
+
+## 5. Gaps and what fills them
+
+| Gap | Fill |
+|---|---|
+| GAP-1 gear base id | Resolved in the pending SS14 refresh: `_craft_base_items.json` has the `game_id` base IDs. The Builder importer joins them directly. |
+| GAP-2 crafted affix ids/tiers | Resolved in the pending SS14 refresh: `_craft_base_types.json` carries affix `modifier_id` and tier data. The Builder importer maps those fields. |
+| GAP-3 support line rolls | crawler: ids for support/medium `Prefix` lines; or accept engine midpoints |
+| GAP-4 memory base-attr ids | extend `memory-affixes.json` with the `4031…` base-stat ids |
+| GAP-5 hero + trait ids | Owner-confirmed hero and trait mappings are stored in the canonical crosswalk and used by the importer. |
+| GAP-6 slate ids | Known base and legendary slate IDs map through canonical slate data; unknown IDs still warn. |
+| GAP-7 prism ids | Prism item and affix IDs map through the canonical prism catalog; unknown IDs still warn. Rarity values beyond the confirmed value 3 remain unmapped. |
+| GAP-8 pactspirit ids | The importer maps owner-confirmed battle-spirit IDs where catalog data is absent. Other IDs still need an authoritative mapping; do not infer names from numeric patterns. |
+| GAP-9 destiny / kismet ids | micro `3500NN` and medium `3503NN` follow the tlidb icon number (F29); kismet range unseen. Crawler: add the `id:` line or the icon-number-derived id to `destiny.json` once confirmed on one page |
+| GAP-10 scent-bottle option ids | Importer resolves option positions through the canonical Licorice Note ingredient categories. |
+| F13/F16 | **resolved for core talent import**: `bonusGeniusInfo` IDs join to the catalog by `game_id`, and each option key locates its actual slot in the tree response. Prism replacement entries are excluded. |
+| Truncation (F5) | see section 9: lists are re-shuffled per login for skills, pacts and servants (merge logins), deterministic for talent trees (cut = the highest-id top-row nodes, at most 2 on 13 of 31 trees) |
+
+## 6. Remaining importer work
+
+1. Resolve support-roll IDs only when TLIDB or another allowed source exposes a reliable mapping.
+   The importer currently warns and omits unknown lines.
+2. Find authoritative mappings for remaining pact-spirit and destiny IDs. Do not infer a mapping
+   from numeric patterns alone.
+3. Confirm additional prism rarity values and remaining item/affix IDs against allowed sources.
+4. Compare every equipped slot and affix in representative real logs against TLIDB. Multi-capture
+   merging recovers gear and skills omitted by per-list caps, but talent lists can remain truncated.
+5. Keep the import client-side. Never store or display account identifiers, and report lists truncated
+   at 30 entries.
+
+The crawler now captures the SS14 `Follower`, `Tartarus Skill`, and `Origin Tartarus Skill` pages.
+These catalogs support future follower import, but the inspected game log does not contain the combat
+mercenary selection or follower skill loadout. `player.FollowServant` identifies a cosmetic pet.
+
+**Test fixtures (owner decision 2026-10-28): no log-derived file is ever committed to the tlibuilder repo.**
+The owner also rejected `tli-data` as a home for real logs. Do not create a fixture repository until the owner asks.
+
+* **Committed:** synthetic mini dumps written by hand (a few dozen lines each: one hero, a couple of skills and
+  supports, one tree, one slate, one pact contract, one vorax ring), covering every parser rule (F4 syntax, F5 caps and
+  `...` markers, ItemChange replay, two-dump merge). They contain invented ids and no account data, so tlibuilder CI stays
+  self-contained.
+* **Real-log suite (optional):** tests can read a private fixture from `TLI_LOG_FIXTURES`; an ad-hoc local
+  run can instead set `TLI_GAME_LOG` to one game-log file. Both skip when unset. Never commit either file.
+* **Private fixture repository proposal:** use a small dedicated private repo named `tlibuilder-log-fixtures`, with
+  trimmed extracts under `ue-log/SS14/<case>/`. Keep a short README beside each case with the capture date, dump count,
+  redaction steps, and expected parser counts. Do not store whole logs. The proposed extract keeps the latest dump plus
+  the relevant `ItemChange`, level, and hero lines. The current redactor produces about 0.5 MB per extract.
+* Replace names and player identifiers before storing an extract. Remove IPs and account lines. Real-log tests assert on
+  structure and counts, not on personal values. Public CI does not fetch the private repository; private runs set
+  `TLI_LOG_FIXTURES` explicitly.
+
+Rough total for a useful "skills + talents + legendary gear + level" import: ~1.5–2 weeks; full
+fidelity depends on step 5.
+
+## 7. Owner decisions and open questions
+
+1. The crawler and canonical-data refresh is in tli-data PR #20. The owner merges that PR; Builder CI must then be rerun against the updated `main` data.
+2. Import UX (section 11) is decided: never upload, web parses client-side, desktop picks or auto-detects once and offers re-import on relog.
+3. **Fixtures (decided):** no log-derived fixture is committed to tlibuilder. Use trimmed, redacted extracts in a small dedicated private repo named `tlibuilder-log-fixtures`, under `ue-log/SS14/<case>/` (see section 6). Tests load them from an optional path and skip when they are absent. Synthetic hand-written mini dumps with no player data may be committed. Do not create the repository until the owner asks.
+
+## 8. Owner experiments still needed
+
+1. The owner confirmed three battle Pact Spirits from the current log: Preserver of Eternity (`5330`, rank 3), Kitty Express (`18230`, rank 6), and Elixir Fairies (`19230`, rank 1). The owner corrected an earlier misidentification of `18230` as Captain Kitty of the Furious Sea. `ServantInfos` is truncated in the current captures, so the log does not supply those ranks.
+2. **Vorax data (F32):** the refreshed Graft crawl supplies the known base and affix IDs. Continue to report any game-log ID that is absent from TLIDB instead of inventing a mapping.
+3. **A tree with 31-32 non-core nodes** and the top-row legendary nodes allocated (Warrior, The Brave, Ranger, Magister, Warlock, Prophet, Marksman, Elementalist, Artisan, Arcanist, Alchemist), to measure the tree cutoff directly (section 9).
+4. **Other unobserved changes:** a hero-memory or trait change, and an ethereal prism.
+
+## 9. Truncation: what is lost, for whom, and what recovers it
+
+The cap is 30 list elements; the 31st is written as `...`. Only the lists that carry **equipped** state matter (the owner does not need unequipped items). Measured on the live character (39 equipped skill items) and the three older dumps:
+
+| List (equipped meaning) | Can exceed 30? | Order between logins | Typical endgame loss today |
+|---|---|---|---|
+| `bag.dressSkillItems`, `skills.skills`, `skillLayout` (skill and support objects) | **yes, for almost everyone**: 5 actives with an activation medium and 3-5 supports each plus 4 passives with 2-3 supports is about 36-45 items | **re-shuffled** each login | 3 of 39 objects missing in one dump (level and support rolls lost, name kept) |
+| `geniusInfos[].geniusList` (talent nodes) | only trees with more than 30 non-core nodes: 13 of 31 trees (32 nodes: Warrior, The Brave, Ranger, Magister; 31: Warlock, Prophet, Marksman, Elementalist, Artisan, Arcanist, Alchemist) | **deterministic**, sorted by `geniusId` | 1-2 top-row (row 7, highest x) legendary medium nodes, same ones every login |
+| `ContractInfosV2.pointDatas` (installed destinies) | yes: 6 areas x 11+ nodes | re-shuffled | about 45 % of nodes visible per login; installed destinies missed |
+| `ServantInfos.servantData` (pact rank) | yes (owned list, 74 distinct ids over 3 dumps) | re-shuffled | rank unknown for about 4-5 of the 6 contracted spirits |
+| `bag.dressingTalentBlocks` (slates) | no: at most 24 cells on the board (6 here) | stable | none |
+| `bag.wearItems` (gear) | no: 10 slots | stable | none |
+| `ContractInfosV2.ContractDatas`, `heroCharacterv3OverView` (3 memories, 3 traits), `customSkillSlots`, `bonusGeniusInfo` | no | stable | none |
+
+**Measured over 6 dumps of one character (the 58 MB snapshot, three relogs plus the logins before them):**
+
+| Logins merged | Skill objects (of 39 equipped) | Distinct `pointDatas` nodes (of about 64) | Installed destinies found (of 7) | Distinct owned spirits (`servantData`) |
+|---|---|---|---|---|
+| 1 | 36 | 30 | 3 | 30 |
+| 2 | **39** | 45 | 4 | 53 |
+| 3 | 39 | 55 | 6 | 83 |
+| 4 | 39 | 60 | **7** | 97 |
+| 6 | 39 | 62 | 7 | 108 |
+
+The talent `geniusList` was identical in all 6 dumps (same nodes, same order), so merging does not help trees. The owner's six installed items on the first battle spirit, including Kismet: Guillotine (`350503`, node 108), were all found by login 4; the first three logins found five of them. So a real importer should read every dump in the file and say how many it merged; **four logins is enough for destinies, two for skills**.
+
+**Plain-English version: what matters and what is filler.** Two lists in the dump look like a mess because the game writes only 30 of their entries, in a different random order each login, and most of what it writes does not matter to a build. `pointDatas` is the pact board: every node of all six spirit boards, almost all of them **empty**. What matters is only the handful of nodes that have an item installed (a destiny, fate or kismet) on the **3 battle spirits**, and for those you read the item id. `servantData` is your **whole collection** (about 100 spirits). What matters is the **rank of the 3 battle spirits** (and the 3 reserve ones if you want them); the other ~95 entries are filler that only crowd the 30-slot window and push the ones you care about out of view. Because the order changes each login, the missing ones show up on another login, which is why merging several logins fixes both. Everything else in these lists (empty nodes, other areas, unequipped spirits) can be ignored by the importer.
+
+Recovery routes, best first:
+
+1. **(a) Names from `ItemChange` (always works, 100 %).** The post-login `ItemChange@ Add/Update Id=<BaseId>_<guid> ... PageId=-6 SlotId=n` lines are not capped and cover every equipped skill and support, including slot ids. We lose level, `SkillItemLevel` and support line rolls only for objects not in the dump. Gear and slates likewise (`-1`, `-4`).
+2. **(b) Union the three skill lists inside one dump (reliability high, free).** `dressSkillItems` + `skills.skills` + `skillLayout` recovered 36/39 on the live account (`dressSkillItems` alone has 30/39).
+3. **(c) Merge several logins (reliability high, cheap).** Two logins of the same character recover 39/39 skill objects (the logout-to-character-select then login cycle writes another dump into the same `UE_game.log`; the file also holds one dump per launch in the backups). For `pointDatas` and `servantData` each additional login adds a fresh random 30; measured on 6 dumps: 30, 45, 55, 60, 61, 62 distinct nodes after 1 to 6 logins (see the table above). The importer should read every dump in every selected file, key objects by `Id`/`contractPointId`/`servantId`, and say how many logins it merged.
+4. **(d) Talent trees (reliability partial).** Order is deterministic so relogging does not help. The tree layout is known from tlidb (`talent_tree`), so the importer knows exactly which 1-2 nodes were cut. Their prerequisites narrow them: in the older Ranger dump the cut nodes `43070400` and `43070500` have prerequisites `43060400` (3 points, allocated) and `43060500` (unallocated, so `43070500` cannot be allocated). So at most one open question per cut node; the importer can mark "unknown" and ask the user. Total spent points per tree is not in the dump (checked `player`, `SP3Base`, `SkillSlot`).
+5. **(e) Owner experiments that might re-log a single item in full:** none found. The client logs `ItemChange` lines per equip event, but only the id, slot and count; panel opens (skill, pact, follower, talent) logged only UI and audio lines (F30). The only data messages ever logged are `GetPlayerData` and `XchgSearchPrice`. So there is no uncapped feed to find; merging logins is the fix.
+
+What a typical player loses today (single login, no merging): all names, gear, slates, prisms, belt blend, scent bottles, hero, level, memories (complete); about 0-3 skill/support levels and rolls; 1-2 top-row legendary talents on 13 of 31 trees (unknown, not wrong); most installed destinies and pact ranks. After (b)+(c) with 2-3 logins: all skill levels and rolls, most destinies; talents still ask about the 1-2 cut nodes; rank is unknown only for spirits never visible.
+
+## 10. ID spec: tli-data and crawler follow-ups (owner direction: store tlidb ids)
+
+tlidb already exposes the game id on several pages and our crawler already captures it in a few categories. Measured joins (live dump, 6 equipped legendary pieces, belt, slates, trees; crawler captures `output/SS13` plus `data/seasons/SS14`):
+
+| Category | Log field | Crawler/tli-data field | Join today | Follow-up |
+|---|---|---|---|---|
+| Talent nodes | `geniusInfos.info[].geniusList[]` IDs | `game_id` on season-tree nodes and trait variants | The importer joins logged IDs and applies known ranks to Builder tree nodes. Local data has 882 base-node IDs and 48 Thea variant IDs. | Merge the companion `tli-data` change before testing against the published catalog. |
+| Legendary gear | `UniqueItmId` | `legendary_gear.game_id` | **6/6 equipped + 7/7 earlier** | none |
+| Legendary affixes, base implicits | `Prefix/BaseAffix/FixedBaseAffix Id` | `modifier_id` | **30/30, `FixedBaseAffix` 6/6**, `BaseAttrAffix` 16/25 | extend `modifier_id` to the 9 `BaseAttrAffix` misses (`4031...` memory stats, `1204...` prism) |
+| Hero memories | `reminiscenceOverView.reminiscence[].BaseId` and modifier IDs | `hero_memories.game_id`, `modifier_id` | The catalog has all three memory types and all 1,263 crawler-backed modifier IDs. The importer does not yet build memory slots. | Map memory rarity, base affixes, and slot fields from a representative dump before adding conversion. |
+| Belt blend / blending rituals | `EnchantAffixs Id` | `blending_rituals.modifier_id`, `talent_id` | **2/2** | none |
+| Nether King slate | `BaseId` 394004 | `nether_kings_divinity.internal_id` | **match** (Judgment = 394004) | the other NK slates have `internal_id` too; add the base talent `9000006x` ids |
+| Skills, supports, mediums | `BaseId` | `skills.game_id` | 969 SS14 skill pages crawled; 784 unique catalog entries carry `game_id`; 25/25 IDs in the representative log resolve | importer reads all three capped skill lists, maps slot/level, and merges same-character captures; support `Prefix` modifiers and ranked-support values remain GAP-3 |
+| Gear base items | `BaseId` | `craft_base_items.game_id` | 624/624 base records have IDs | map equipped bases and verify each log ID |
+| Crafted/rare affix IDs | `Prefix/Suffix Id` | `craft_base_type.modifier_id` | synthetic gear matched refreshed SS14 data | compare every equipped affix in representative real logs |
+| Hero + trait ids | `heroPurchaseId`, `skillOverView.pointOverView.activeId` | no matching canonical fields | Not joined. The hero-trait catalog has no verified game-ID crosswalk. | Find a TLIDB ID field or collect an explicit verified ID-to-trait mapping. |
+| Divinity slates (base, legendary) | `BaseId`, `UniqueItmId`, `ShapeId` | `divinity_slate` (no ids) | 0 | capture `internal_id` and shape for every base/legendary slate kind |
+| Prisms | `BaseId` 360620, affix `1204...`, `1234...` | `ethereal_prism` (no ids) | 0 | capture `internal_id` and affix `modifier_id`s |
+| Pactspirits | `ServantInfos.servantData[].servantId` | `pactspirit` (no ids) | current sample has 30 IDs, including `16130`; none join to the current catalog | TLIDB has no matching IDs on available pages; keep the IDs visible and report the gap |
+| Destinies / kismets | `tattoInfo.BaseId` | `destiny` (no ids) | 0 as a field, but **4/4 by icon number** (`3500NN`, `3503NN`, `3505NN`, F29) | probe an `id:` line; add `internal_id` so the icon number is not needed |
+| Tower sequences | `ChipAffix{1}.Id` (`160419013`) | `tower_sequence.entries[].modifier_id` | 111/111 TLIDB page rows have IDs; game-log `160419013` is absent (matching text is `160419009`) | Exact game-log ID remains a TLIDB gap; importer leaves it out with a warning |
+| Vorax grafts and affixes | `BaseId`, affix IDs | `grafts.game_id`, `modifier_id` | ten graft IDs and sample affixes confirmed; base ID `172103200` found on Graft index | canonical SS14 catalog refreshed |
+| Followers and follower skills | `player.FollowServant`, `ServantInfos.servantData[].servantId`; variant `game_id`; linked skill paths | `_followers.json`, `_tartarus_skills.json`, `_origin_tartarus_skills.json` | 32 follower variants, 81 Tartarus skills, 54 Origin Tartarus skills; logged IDs `11230` and `16130` do not join to follower `game_id` values | TLIDB exposes recommendation-letter variants and skill paths, but no bridge from these logged IDs |
+
+The crawler now uses `game_id` for item and skill IDs and `modifier_id` for modifier lines. The SS14 Graft index supplies Vorax base-affix IDs, and canonical data contains the refreshed rows. Other unresolved ID bridges are listed below.
+
+**Pactspirit id table by observation** (current table: F34). The id space is unknown to us and the page may not expose it, so the owner's own panel is the ground truth. Procedure, cheapest first:
+
+1. Log out to character select and in (no restart), copy the log: the dump gives ids for the 6 contract slots and `FollowServant`. Each login can test 6 spirits; the owner puts 6 known spirits in the 6 slots (all names are on screen) before logging out. **Six id-name pairs per relog.** The collection has 181 spirits; the owner owns at least 74 ids (union of 3 dumps), so about 12-13 relogs cover everything owned, each taking about a minute plus the slot rearranging.
+2. **Alignment by order does not work.** The owner's screenshots show the default list order is not id order (anchors: `5330` first, then `19230` before `18230`, F33), the cards carry no names, and rank badges are too repetitive to align. So there is no shortcut from the collection page; observation (1) or a tlidb id field is the route. Current table, certain (owner-named): `5330` Preserver of Eternity, `18230` Kitty Express, `19230` Elixir Fairies. Medium confidence (owner's memory, slot order unverified): `6330`, `6130`, `19330` = Chalk Spirit, Captain Shadow, Twilight Sparks. Tier-only leads: `15120` is a rare-tier (purple) card of rank 5 and `15130` a legendary-tier card of rank 1.
+3. Each new player capture adds pairs for free if the importer asks users to name any unmatched spirit (opt-in), which keeps the table growing without owner work.
+
+## 11. Import UX: decisions and current draft importer
+
+**Decided by the owner (2026-10-28):**
+1. **We never take or upload the log file.** The file never leaves the player's device.
+2. **Web:** the log is parsed in the browser only (client-side), picker only.
+3. **Desktop:** the player picks or auto-detects the log once, then the app offers an "update build" re-import when they relog.
+
+The importer runs in the shared Import Build modal. The player picks one or more log files on both
+Electron and web. The current importer maps equipped Vorax, crafted, and unique gear, active and passive
+skills, support attachments, talent allocations, character level, Sage trait state, memories, and
+pact-spirit contracts when their IDs match the catalogs. It also maps logged levels, belt blends, Tower
+Sequence chips, and Scent Bottle ingredient choices. Across captures for the same character, later
+data replaces earlier values in the same slot, and earlier captures fill slots missing later. Talent
+allocations and servant inventory are combined. The multi-capture summary describes these rules before
+import.
+
+The current UI does not auto-detect the log or offer an update action after relogging. It reads the
+selected files in the renderer and does not upload or save their contents. See section 12 for the open
+ID and catalog gaps.
+
+To try it from this worktree, run `npm run dev:slot`, choose **Import Code**, open **Game log preview**,
+select `UE_game.log` or its backup files, choose a character, and click **Create draft build**. Review
+the import limits, then click **Import Anyway** to open the build. For the web build, run
+`node scripts/build-web-local-data.mjs` and `npm run web:slot`, then open the printed local URL. The
+local-data build makes the recrawled graft IDs available to web without deploying them. The renderer
+reads the log locally and does not upload or save it.
+
+Facts that decide it: the game writes `GetPlayerData` once per login and nothing else we can use (F25/F30); the dump lists are capped and re-shuffled per login (section 9), so extra captures can improve coverage; the importer groups names and HeroIds, uses the latest capture as the base, and merges the mapped lists across selected captures; the file is rewritten at every game launch with the previous one rotated to `UE_game-backup-*.log` (HYPOTHESIS for the rotation count: we saw one live file and two backups); post-login changes only update slot ids (`ItemChange`), never full objects; the file holds account ids and IPs (F19).
+
+| Option | What it gives | Cost / risk |
+|---|---|---|
+| One-shot file pick (desktop and web) | Simple, privacy-clear, no background activity. Result is a snapshot of the last login in that file. | User must repick after relogging; picks only the dumps in that file. |
+| Live watch (desktop) | Re-reads the file when it changes; picks up each new login dump automatically, so merging across logins (section 9) happens without effort. Slot-id changes between logins can be applied without a dump. | Needs a file watcher and a stored path; **it does not give live gear or skill rolls** because nothing writes full objects after login, so "live" really means "re-import on every login". Keeps a path (not content) on disk. |
+| Auto-detect Steam library (desktop) | Zero-setup: read `libraryfolders.vdf`, look for `Torchlight Infinite\UE_game\TorchLight\Saved\Logs`. | Reads outside our sandbox, only a main-process feature, Linux/macOS paths differ; always offer the picker as fallback and show the path being read before reading. |
+| Multi-file and multi-character logs | Groups captures by character name and `HeroId` in memory. The player chooses a character. Gear, skills, talents, and servant IDs are merged from the selected captures; do not show or store account identifiers. |
+| Web, client-side parse | Nothing leaves the browser. The parser scans files in chunks and retains the fields needed for a draft. The 206 MB sample has nine dumps for four characters. The importer discards raw log text after scanning. |
+| Real upload to a server | Allows server-side id tables and fixes without a client release. | Would send account ids and IPs; needs consent, retention rules and a redactor; no benefit for parsing, since the id tables can ship as data files. **Not recommended.** |
+
+Privacy copy (draft): "Your log stays on your device. We read only the character block and ignore account ids, IP addresses and chat. Nothing is uploaded. Close the file picker to cancel; we keep no copy of the log." On relog the user must re-import (one-shot) or the app picks up the new dump (watch).
+
+**Recommendation.** Keep file picking on both desktop and web, and keep parsing client-side. Improve the import report as more build fields gain verified mappings. On desktop, add auto-detection only as a proposed path and a re-import action. Do not build a server upload (decided above). The owner's desktop decision (pick or auto-detect once, offer "update build" on relog) supports a light watcher that only offers the re-import.
+
+
+## 12. Current SS14 import audit (2026-10-29)
+
+For the non-build account and game state carried by the same log payload, see [What a UE_game.log contains](UE_GAME_LOG_DATA_MAP.md).
+
+The crawler recrawled 344 SS14 legendary-gear pages and 38 craft-base-type pages. The Builder importer
+produced 337 distinct legendary items and 38 craft-base types. The canonical data refresh includes
+ordinary craft bases, craft affixes, Vorax grafts, unique gear, skills, followers, Tartarus skills,
+Origin Tartarus skills, Tower Sequence rows, and Thea's trait-replacement metadata. [tli-data PR #20](https://github.com/Tyrayla/tli-data/pull/20) merged on 2026-10-30 as `565197716d713853143e40294cb72f16bb26cd50`.
+
+The redacted representative log maps all 9 equipped gear identities and all 37 active, passive, and
+support identities when tested with the refreshed catalogs. Ordinary base-affix IDs `1507016`,
+`1502106`, `1501313`, and `1501311` are now in the refreshed SS14 craft-base catalog. Vorax base item
+`380009` and its known fixed and crafted affixes also resolve. Unique randomized modifiers `51434661`
+(Death's Touch) and `51525131` (Broken Sun Ring) come from older SS13 TLIDB item pages; current SS14
+pages omit those option groups. The canonical SS14 records preserve those rows. Belt blend `3401001`
+maps to talent `340002`. The Tower Sequence catalog includes 111 modifier IDs, including `160419009`.
+The representative log uses `160419013` for the same text. TLIDB does not expose that exact ID, so the
+importer warns and omits it rather than substituting another ID.
+
+The refreshed catalogs contain 32 follower variants, 81 Tartarus skills, and 54 Origin Tartarus
+skills. The log's `FollowServant` value is `11230`, the owner-confirmed cosmetic pet selection.
+The canonical talent trees contain 48 Thea "Prophecy of Revelation" replacement variants. Each now
+maps to `wisdom_of_the_gods` at unlock level 60, and all 25 variant effects with a max-divinity cap
+carry `max_divinity_effect`.
+TLIDB's [Pactspirit page](https://tlidb.com/en/Pactspirit) lists names and effects but no matching `servantId` field. The owner verified the current battle slots against the log and Pact Spirits screen: `5330` is Preserver of Eternity, `18230` is Kitty Express, and `19230` is Elixir Fairies. The owner corrected an earlier misidentification of `18230` as Captain Kitty of the Furious Sea. In this log, `ContractInfosV2.ContractDatas` has only `areaId` and `servantId`; the `ServantInfos` section is emitted as `...`, so equipped ranks are unavailable here. Other captures can include `ServantInfos.servantData[].starLevel`, which the importer converts to rank. `dropServantContractData[].starLevel` is drop configuration and does not identify the equipped spirits' ranks.
+
+### Gaps still visible in representative logs
+
+- The four ordinary base-affix IDs above resolve in merged canonical data. `1507016` is a STR Helmet affix,
+  `1502106` is a Ring affix, and `1501313` and `1501311` are Two-Handed Axe affixes. The merged
+  records include their TLIDB modifier IDs and text.
+- Support-roll IDs `771006001`, `771006021`, `771006022`, `771031022`, `771003001`, and `771003011`
+  are absent from the current canonical skill catalog. The crawler parser now retains TLIDB's
+  `data-modifier-id` on skill lines, but the SS14 skill pages still need to be recrawled and imported
+  before these values can be mapped.
+- Two support levels are absent from the selected login dump. The importer uses the Builder default
+  and reports each missing level.
+- Talent allocations now join by the logged game ID. A local synthetic import mapped two logged nodes
+  into the expected Builder tree. Some talent lists can still exceed the game's log cap, so a capped
+  login may omit allocations.
+- Sage's Licorice Note, the logged Scent of Ambition / Everlasting Nectar selections, and Scent Bottle
+  ingredient choices import from `customSkillSlots` through the canonical ingredient catalog. The
+  guaranteed Pungent Stimulant Salt node follows the imported level-2 trait slot.
+- Origin, Discipline, and Progress memories import with their logged base stats, affixes, and rolls.
+  The special Progress memory also imports in the Base Trait Slot with its 34% revival penalty. The
+  log-only base-stat IDs are crosswalked in canonical tli-data using the owner's in-game screenshots.
+- The owner screenshot verifies the column-major `Index` mapping and the Nether King's Divinity footprint:
+  three separated cells at the top-right, bottom-left, and bottom-right of its 4×4 footprint. `Index 52`
+  identifies the top-right origin cell. The Builder models Nether King's Divinity with two fixed talent-node
+  slots and three branded Nether King talent-node slots, using the same talent IDs as the game log. Imported
+  talent IDs are matched to tree nodes or the canonical core catalog in logged order; the log does not include
+  the selected Nether King variant, so the importer defaults to Judgment with a warning.
+- The three owner-confirmed battle Pact Spirits map to canonical `game_id` values. The current file
+  truncates `ServantInfos`, so rank defaults to 1 when the importer cannot find it. Additional
+  spirit-ID mappings remain unknown.
+- Ethereal Prism item and anchor IDs join to the refreshed item and talent catalogs. `EtherealConfig`
+  has no field for prism affix roll values, so the importer cannot preserve those rolls.
+- Mercenary selection and skills do not appear in the inspected login dumps.
+
+### CI data mismatch
+
+Builder PR #37's 2026-10-30 CI run passed typecheck and Vitest but failed two backend tests because it
+fetched `tli-data@main` before the merge above. The export test could not find `160419009`, and the
+pooling-partition test saw the older affix corpus. After `npm run fetch:data` hydrated the merged
+dataset, the full backend suite passed with 4,439 tests passed and 68 skipped. GitHub CI must rerun
+against the updated Builder branch. The separate logged Tower Sequence ID `160419013` remains absent
+from TLIDB and cannot be mapped safely.
+
+The multi-capture importer and corrected warning were driven in Electron and web with a synthetic log.
+The UI showed 3 equipped items from two captures and the same merge explanation on both targets.
+The redacted representative log was also driven earlier and produced matching Gear and Skills drafts.
+The web build used the local hydrated catalogs, not the live data CDN. No imported build was saved.
+
+### Slate and Ethereal Prism import follow-up (2026-11-01)
+
+The renderer reads equipped slate records from `bag.dressingTalentBlocks` and prism records from each
+`geniusInfos.info[]` entry. Slate talent IDs reuse selected tree nodes and `slate-pool-all` core options.
+Ethereal Prisms join item `BaseId` and anchor talent IDs to refreshed SS14 catalogs. The importer
+preserves prism rarity, recognized implicit and crafted affix choices, area dimensions, and logged
+allocations marked `inPrismArea`.
+
+The owner screenshot confirms the slate index mapping and the Nether King's Divinity origin and occupied
+cells. The importer uses that origin to resolve its four corner orientations even though this item has no
+`ShapeId` or `Direction`. It maps fixed talents from `BaseTalentList` and the three branded talents
+from `talentSlotList` into Builder slots 2-4. `EtherealConfig` has no field for prism affix roll values, so the importer preserves
+recognized affix choices but cannot store those rolls.
+
+The importer does not include combat follower or mercenary state. The inspected player dump does not
+expose that selection, and the owner excluded it from this task.

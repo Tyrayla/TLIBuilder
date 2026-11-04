@@ -109,6 +109,44 @@ def step_skills(season: str, crawl: str) -> str:
     return msg
 
 
+def _save_aux_skill_catalog(season: str, crawl: str, source_dir: str, filename: str) -> str:
+    from tools.skill_importer import import_crawler_skills
+
+    skills = import_crawler_skills(_load_items(crawl, source_dir))
+    path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), "..", "..", "data", "seasons", season, filename,
+    ))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as target:
+        json.dump({"season": season, "skill_count": len(skills), "skills": skills},
+                  target, indent=2, ensure_ascii=False)
+    return f"{len(skills)} skills -> {filename}"
+
+
+def step_tartarus_skills(season: str, crawl: str) -> str:
+    return _save_aux_skill_catalog(season, crawl, "tartarus_skill", "_tartarus_skills.json")
+
+
+def step_origin_tartarus_skills(season: str, crawl: str) -> str:
+    return _save_aux_skill_catalog(
+        season, crawl, "origin_tartarus_skill", "_origin_tartarus_skills.json",
+    )
+
+
+def step_followers(season: str, crawl: str) -> str:
+    followers = _load_items(crawl, "follower")
+    path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), "..", "..", "data", "seasons", season, "_followers.json",
+    ))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    variant_count = sum(len(item.get("variants") or []) for item in followers)
+    with open(path, "w", encoding="utf-8") as target:
+        json.dump({"season": season, "follower_count": len(followers),
+                   "variant_count": variant_count, "followers": followers},
+                  target, indent=2, ensure_ascii=False)
+    return f"{len(followers)} followers, {variant_count} variants -> _followers.json"
+
+
 def step_traits(season: str, crawl: str) -> str:
     from persistence import season_manager
     from tools.hero_trait_importer import import_crawler_hero_traits, merge_hero_traits
@@ -210,6 +248,9 @@ def step_filter(season: str, crawl: str) -> str:
 
 _STEPS: list[tuple[str, object]] = [
     ("trees", step_trees), ("gear", step_gear), ("skills", step_skills), ("traits", step_traits),
+    ("tartarus_skills", step_tartarus_skills),
+    ("origin_tartarus_skills", step_origin_tartarus_skills),
+    ("followers", step_followers),
     ("spirits", step_spirits), ("craft", step_craft), ("grafts", step_grafts), ("blends", step_blends),
     ("destiny", step_destiny), ("prism", step_prism), ("memories", step_memories),
     ("revival", step_revival), ("tower", step_tower), ("filter", step_filter),

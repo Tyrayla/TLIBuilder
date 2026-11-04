@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.6.14] - 2026-11-03
+
+### UE_game.log import
+- **Import an editable build from UE_game.log.** Builder imports gear, skills and supports, allocated talents, Hero Traits, Hero Memories, pact spirits, divinity slates, and Ethereal Prisms when the log and current data provide enough detail. Import warnings call out selections that need review.
+- **Import Hero Memory affixes across the current catalog.** The SS14 crosswalk maps all 1,257 legacy memory IDs and accounts for every current base-stat and affix family. When a mapping has no exact tier, Builder infers it from the logged roll and leaves ambiguous rolls unmatched. Two fixed-affix families have no IDs in the available legacy crosswalk.
+- **Combine log captures for the same character.** Builder fills gaps from partial captures without restoring stale data over a newer complete capture.
+- **Import Nether King's Divinity variants and talents from logs.** Judgment, Contamination, and Banishment keep their distinct footprints, mod pools, and locally served icons. Builder matches logged talents against the available trees and warns when it cannot confirm a variant or placement.
+
+### Improvements
+- **Open talent trees without waiting through the loading spinner again.** Builder caches trees and loads them in the background when you open a build.
+- **Search Config conditions.** Find conditions by name, group, or key, including conditions gated by their source.
+- **Keep web builds available after a refresh.** Builder restores editing sessions and loads reference data as you need it, so shared builds open sooner.
+- **Keep unsaved edits while imported gear finishes resolving.** Builder now completes affix lookups after the initial load without replacing your changes.
+
+### Damage calculations
+- **Avoid duplicate stats from core talents on gear.** Builder counts the talent once, keeps the item's other bonuses, and avoids repeating those bonuses when the same weapon fills both slots.
+
 ## [0.6.13] - 2026-10-19
 
 ### Season data

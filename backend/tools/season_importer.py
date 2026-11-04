@@ -2,6 +2,7 @@
 Imports crawler tree JSON into the season-stored tree format.
 """
 
+import html
 import re
 
 from engine.modifier_lines import slim
@@ -10,6 +11,11 @@ from engine.modifier_lines import slim
 # marking a once-per-Divinity-Slate cap.
 # It STAYS in the stored text; we also parse N structurally so the engine can enforce the cap from a
 # field instead of regex-matching English at aggregation time.
+_HTML_TAG_RE = re.compile(
+    r"</?(?:a|b|br|div|em|font|h[1-6]|i|img|li|ol|p|span|strong|sub|sup|u|ul)"
+    r"(?:\s+[a-zA-Z_:][\w:.-]*\s*=\s*[^>]+)*\s*/?>",
+    re.I,
+)
 _MAX_DIV_N_RE = re.compile(
     r"\(Max\s+(?:Active\s+)?Divinity(?:\s+Effect)?\s*:\s*(\d+)[^)]*\)\s*$", re.I
 )
@@ -17,6 +23,11 @@ _HERO_TRAIT_SOURCE_RE = re.compile(r"\s*Source:\s*Hero Trait\s*-\s*(.+?)\s*$", r
 _TRAIT_SOURCE_METADATA = {
     "prophecy of revelation": {"trait_id": "wisdom_of_the_gods", "unlock_level": 60},
 }
+
+
+def _plain_text(value: str) -> str:
+    """Remove recognized HTML tags without treating angle-bracket placeholders as markup."""
+    return _HTML_TAG_RE.sub(" ", html.unescape(value)).strip()
 
 
 def _effect_line(e) -> dict:
@@ -33,13 +44,14 @@ def _trait_variant(node: dict) -> dict | None:
     source_name = None
     effects = []
     for effect in (node.get("effects") or []):
-        text = effect.get("text", "") if isinstance(effect, dict) else str(effect or "")
+        raw_text = effect.get("text", "") if isinstance(effect, dict) else str(effect or "")
+        text = _plain_text(raw_text)
         match = _HERO_TRAIT_SOURCE_RE.search(text)
         if match:
-            source_name = match.group(1).strip()
+            source_name = _plain_text(match.group(1))
             text = text[:match.start()].rstrip()
         # Re-minting is not possible at this boundary. Do not carry identity UUIDs across changed wording.
-        effects.append(_effect_line(text) if not match else slim(text))
+        effects.append(_effect_line(text))
     if not source_name:
         return None
     metadata = _TRAIT_SOURCE_METADATA.get(source_name.casefold())
@@ -49,6 +61,7 @@ def _trait_variant(node: dict) -> dict | None:
     return {
         **metadata,
         "advanced_selection": source_name,
+        "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
         "effects": effects,
     }
 
@@ -110,6 +123,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
             core_talents.append({
                 "display_name_key": _make_display_name_key(tree_name, raw_name),
                 "name": raw_name,
+                "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
                 "uuid": node.get("uuid"),
                 "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "pts_required": node.get("pts_required"),
@@ -122,6 +136,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
             core_talents.append({
                 "display_name_key": _make_display_name_key(tree_name, raw_name),
                 "name": raw_name,
+                "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
                 "uuid": node.get("uuid"),
                 "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "pts_required": node.get("pts_required"),
@@ -170,6 +185,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str, existing_data: dict 
             raise ValueError(f"Multiple non-trait talent rows occupy {tree_name} position {pos}")
         base_node = {
             "id": node_id,
+            "game_id": str(node.get("talent_id")) if node.get("talent_id") is not None else None,
             "uuid": node.get("uuid"),
             "column": pos[0],
             "row": pos[1],

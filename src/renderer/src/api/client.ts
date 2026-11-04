@@ -6,6 +6,7 @@ import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
 import type { SharePreview } from './share'
 import { dec } from '../utils/num'
 import { errorFromResponse, normalizeError, TliError, type TliErrorCode } from '../errors/tliError'
+import { recordStartupMetric } from '../utils/startupDiagnostics'
 
 let BASE = ''
 let ipcMode = false
@@ -42,6 +43,8 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/hero-memories': 'hero_memories',
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
+  '/tower-sequence': 'tower_sequence',
+  '/belt-blends': 'belt_blends',
   '/verification-db': 'verification_db',
   '/glossary': 'glossary',
   '/help-db': 'help_db',
@@ -52,6 +55,9 @@ function staticCatalogUrl(path: string): string | null {
   const name = STATIC_CATALOGS[path]
   return name ? `${STATIC_DATA_BASE}/${staticSeason}/${name}.json` : null
 }
+
+// Share in-flight and fulfilled CDN requests across screens and the share importer.
+const staticCatalogRequests = new Map<string, Promise<unknown>>()
 
 // Host root for bundled entity icons (served by the Python backend at /icons/<category>/<file>.webp).
 // Images must load via a real URL even in IPC mode (an <img> can't go through the IPC bridge), so we
@@ -90,7 +96,13 @@ export async function initApi(): Promise<void> {
   // anything else still uses IPC/HTTP below.
   if (STATIC_DATA_BASE) {
     try {
-      const m = await (await fetch(`${STATIC_DATA_BASE}/manifest.json`)).json()
+      const manifestStarted = performance.now()
+      const manifestResponse = await fetch(`${STATIC_DATA_BASE}/manifest.json`)
+      const manifestReceived = performance.now()
+      const m = await manifestResponse.json()
+      recordStartupMetric('catalog.manifest', performance.now() - manifestStarted, {
+        responseMs: Math.round((manifestReceived - manifestStarted) * 10) / 10,
+      })
       staticSeason = m.season || ''
       rlog(`initApi — static data base ${STATIC_DATA_BASE}, season ${staticSeason}`)
       // Web build (no Electron IPC): run compute in the Pyodide worker. Kick off its load in the background;
@@ -152,11 +164,32 @@ async function get<T>(path: string, retries = 4): Promise<T> {
   const staticUrl = staticCatalogUrl(path)
   if (staticUrl) {
     rlog(`GET (static) ${staticUrl}`)
+    let request = staticCatalogRequests.get(staticUrl)
+    if (!request) {
+      request = (async () => {
+        const started = performance.now()
+        const res = await fetch(staticUrl)
+        if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
+        const received = performance.now()
+        const bytes = await res.arrayBuffer()
+        const parsedAt = performance.now()
+        const value = JSON.parse(new TextDecoder().decode(bytes)) as T
+        recordStartupMetric('catalog.static', performance.now() - started, {
+          path, responseMs: Math.round((received - started) * 10) / 10,
+          bodyMs: Math.round((parsedAt - received) * 10) / 10,
+          parseMs: Math.round((performance.now() - parsedAt) * 10) / 10,
+          decodedBytes: bytes.byteLength,
+        })
+        return value
+      })()
+      staticCatalogRequests.set(staticUrl, request)
+    } else {
+      recordStartupMetric('catalog.static-cache-hit', 0, { path })
+    }
     try {
-    const res = await fetch(staticUrl)
-    if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
-    return res.json()
+      return await request as T
     } catch (error) {
+      if (staticCatalogRequests.get(staticUrl) === request) staticCatalogRequests.delete(staticUrl)
       const code: TliErrorCode = error instanceof TypeError
         || (error instanceof DOMException && error.name === 'AbortError')
         ? 'TLI-NET-001'
@@ -310,6 +343,8 @@ export interface SavedSlate {
   slots: SavedSlateSlot[]
   treeType?: string
   mothDirection?: string
+  netherKingVariant?: 'judgment' | 'contamination' | 'banishment'
+  netherKingBanishmentEffect?: 'demolisher' | 'steep_strike' | 'shadow_strike' | 'spell_burst' | 'ill_omen' | 'quagmire' | 'projection' | 'provision' | 'tangle' | 'indomitable'
 }
 
 // A configured slate kept in the build's saved-slates inventory (no board placement) — re-placeable.
@@ -321,6 +356,8 @@ export interface SlateTemplate {
   slots: SavedSlateSlot[]
   treeType?: string
   mothDirection?: string
+  netherKingVariant?: 'judgment' | 'contamination' | 'banishment'
+  netherKingBanishmentEffect?: 'demolisher' | 'steep_strike' | 'shadow_strike' | 'spell_burst' | 'ill_omen' | 'quagmire' | 'projection' | 'provision' | 'tangle' | 'indomitable'
   // User label/title (like gear's displayName) — DISPLAY name only; the true kind name stays in the card/tooltip.
   // Cleared when the entered label is empty. Rides in the build/share payload.
   displayName?: string
@@ -330,6 +367,7 @@ export interface SlateTemplate {
 // A prism item from the imported catalog (GET /ethereal-prism). Inverse Image carries roll_ranges.
 export interface PrismCatalogItem {
   name: string
+  game_id?: number
   kind: 'inverse_image' | 'ethereal_prism'
   icon_url: string
   tags: string[]
@@ -346,6 +384,7 @@ export interface PrismImplicit {
 }
 export interface EtherealCatalogItem {
   name: string
+  game_id?: number
   short_name: string
   kind: 'ethereal_prism'
   icon_url: string
@@ -357,19 +396,23 @@ export interface EtherealCatalogItem {
   implicit: PrismImplicit
   replace_description: string   // replace prisms: the replacement Core Talent's effect text (from the glossary)
 }
-export interface AreaSizeAffix { modifier: string; cols: number; rows: number }
+export interface AreaSizeAffix { modifier: string; modifier_id?: string; modifier_ids?: string[]; cols: number; rows: number }
 export interface MiddleAffix {
   modifier: string
+  modifier_id?: string
+  modifier_ids?: string[]
   tier: 'micro' | 'medium' | 'legendary' | ''
   scaled: boolean   // true = the ×1.75 Phantasmagoria-only variant; false = base (every other prism)
 }
 export interface AdvancedAffix {
   modifier: string
+  modifier_id?: string
+  modifier_ids?: string[]
   kind: 'over_alloc' | 'ignore_prereq' | 'conditional'
   tier?: 'micro' | 'medium' | 'legendary' | ''
   count?: number
 }
-export interface DoNotReplaceAffix { modifier: string; penalty: string }
+export interface DoNotReplaceAffix { modifier: string; modifier_id?: string; modifier_ids?: string[]; penalty: string }
 export interface EtherealCatalog {
   items: EtherealCatalogItem[]
   area_size: AreaSizeAffix[]
@@ -382,7 +425,8 @@ export interface PrismCatalog {
   season: string | null
   items: PrismCatalogItem[]
   base_affixes: string[]
-  random_affixes: { modifier: string; type: string }[]
+  base_affix_modifiers?: { modifier: string; modifier_id: string | null; modifier_ids?: string[] }[]
+  random_affixes: { modifier: string; modifier_id?: string; modifier_ids?: string[]; type: string }[]
   catalog?: EtherealCatalog
 }
 // The three Inverse Image affix rolls (% multipliers; −100 = off/untempered).
@@ -403,6 +447,7 @@ export interface EtherealConfig {
   boxRows?: number
   middle?: string              // chosen Slot-2 middle-tier modifier
   advanced?: string            // chosen Slot-3 advanced/do-not-replace modifier (legendary only)
+  replacementTalentId?: string   // game talent ID granted by prismGeniusId
 }
 // A crafted prism kept in the build's prism inventory (no tree placement) — re-placeable, like SlateTemplate.
 // `rolls` is used by Inverse Image; `ethereal` by Ethereal Prisms.
@@ -414,8 +459,9 @@ export interface CraftedPrism {
   rolls: PrismRolls
   ethereal?: EtherealConfig
 }
-// A prism installed on a tree. anchorCol/anchorRow = the node it sits on; boxAllocations = points spent in the
-// reflected box (kept OUT of the DPS path in Plan 1), keyed by the existing node id at each reflected position.
+// A prism installed on a tree. anchorCol/anchorRow = its node. boxAllocations stores Inverse Image points
+// spent in the reflected box, keyed by Builder grid position as "column,row" (positions can be empty cells).
+// Ethereal Prism replacements leave this map empty; their effect area dimensions come from ethereal.boxCols/boxRows.
 export interface PlacedPrism {
   id: string
   templateId: string
@@ -534,13 +580,14 @@ export interface FolderManifest {
 
 export interface TreeNode {
   id: string
+  game_id?: string
   column: number
   row: number
   max_points: number
   node_type: string
   current_points: number
   effects: string[]
-  trait_variants?: { trait_id: string | null; unlock_level: number | null; advanced_selection: string; effects: string[] }[]
+  trait_variants?: { trait_id: string | null; unlock_level: number | null; advanced_selection: string; game_id?: string; effects: string[] }[]
   icon_url?: string | null   // CDN url; render via iconUrl('talent_tree', icon_url) → bundled webp
 }
 
@@ -611,6 +658,7 @@ export interface RebuildFilterResult {
 
 export interface SlateModifierOption {
   nodeId: string
+  game_id?: string
   treeName: string
   nodeType: string
   effects: string[]
@@ -618,8 +666,10 @@ export interface SlateModifierOption {
 
 export interface CoreTalentOption {
   key: string       // "{treeName}:{display_name_key}"
+  game_id?: string
   treeName: string
   name: string
+  nodeType?: string
   effects: string[]
 }
 
@@ -1818,6 +1868,7 @@ export interface PactSpiritRank {
 
 export interface PactSpirit {
   item_id: string
+  game_id?: number | null
   name: string
   description: string
   portrait_url?: string | null   // spirit's main icon; render via iconUrl('pactspirit', portrait_url)
@@ -2010,6 +2061,7 @@ export interface ResolvedAffixFields {
 }
 
 export interface CraftAffix {
+  modifier_id?: string | null
   raw_text: string
   expression: string
   condition: string | null
@@ -2029,6 +2081,8 @@ export interface CraftAffix {
 
 export interface CraftBaseItem {
   name: string
+  game_id?: number | null
+  implicit_modifier_ids?: string[]
   required_level: number
   armor: string | null
   implicits: string[]  // base item implicit stats (from crawler when available)
@@ -2050,6 +2104,7 @@ export interface CraftBaseItemGroup {
 }
 
 export interface GraftAffix {
+  modifier_id?: string | null
   raw_text: string
   expression: string
   condition: string | null
@@ -2071,6 +2126,7 @@ export interface GraftAffix {
 
 export interface Graft {
   item_id: string
+  game_id?: number
   name: string
   legendary_items: string[]
   base_affixes: GraftAffix[]
@@ -2083,6 +2139,7 @@ export interface DestinyItem {
 }
 
 export interface HeroMemoryAffix {
+  uuid?: string
   tier: number | null
   modifier: string
   level: number | null
@@ -2097,7 +2154,7 @@ export interface HeroMemoryAffix {
 
 export interface HeroMemoryType {
   name: string
-  internal_id: number | null
+  game_id: number | null
   icon_url: string
 }
 
@@ -2563,7 +2620,7 @@ export interface SkillTooltipSpec {
 export interface SkillItem {
   item_id: string
   name: string
-  internal_id?: number | null
+  game_id?: number | null
   skill_type?: string
   is_aura?: boolean
   description_lines: string[]
@@ -3158,7 +3215,7 @@ export interface LegendaryGearIndexItem {
 export interface LegendaryGearItem {
   item_id: string
   name: string
-  internal_id: number | null
+  game_id: number | null
   base_type: string
   required_level: number
   drop_level: number | null
@@ -3205,7 +3262,7 @@ export interface EquippedGearItem {
   // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
   beltBlend?: string | null
   // Selected Tower Sequence affix (crafted weapon/shield bases only) — the raw affix text itself,
-  // since _tower_sequence.json entries carry no stable id. Injected into the affix list at
+  // resolved from the logged modifier_id through _tower_sequence.json. Injected into the affix list at
   // stats-payload time (statsPayload.ts:_buildItemContributions), same injection point as a
   // mutation-resolved affix, and resolved backend-side by the generic modifier-text parser.
   towerSequence?: string | null
@@ -3214,6 +3271,7 @@ export interface EquippedGearItem {
 // One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
 export interface BeltBlend {
   talent_id: string
+  modifier_id?: string
   talent_type: 'core' | 'aromatic' | 'medium' | string
   talent_level: number
   talent_name: string | null
@@ -3222,10 +3280,12 @@ export interface BeltBlend {
 }
 
 // One entry from the Tower Sequence catalog (crafted-only, weapon/shield bases) — see backend
-// tools/singleton_importer.py:import_tower_sequence. No stable id; `affix` text is the identity.
+// tools/singleton_importer.py:import_tower_sequence; entries retain the TLIDB modifier ID.
 export interface TowerSequenceEntry {
   affix: string
   source: string
+  modifier_id?: string
+  log_modifier_ids?: string[]
 }
 
 export interface GearAffixContribution {
@@ -3275,6 +3335,8 @@ export interface GearEngineItem {
   slot?: string | null
   // Required by slot-local defense modifiers: distinguishes an off-hand shield from an off-hand weapon.
   is_shield?: boolean
+  // Marks unresolved global text re-emitted for another slot of the same array-slot item.
+  same_item_slot_copy?: boolean
 }
 
 export interface SeasonDiffNode {
@@ -3322,7 +3384,7 @@ export interface SeasonDiff {
 }
 
 export const api = {
-  getTrees: () => get<{ name: string; color: string; icon_url?: string | null }[]>('/trees'),
+  getTrees: () => get<{ name: string; color: string; icon_url?: string | null; nodes?: { id: string; game_id?: string; trait_variants?: { game_id?: string }[] }[] }[]>('/trees'),
 
   // Cross-tree node search for the overview — trees with nodes matching the query + per-tree match count.
   searchTrees: (q: string) => get<{ name: string; match_count: number }[]>(`/tree-search?q=${encodeURIComponent(q)}`),
@@ -3439,6 +3501,8 @@ export const api = {
     random_affixes: HeroMemoryAffix[]
     base_stats: HeroMemoryAffix[]
     base_stat_scaling?: HeroMemoryBaseStatScaling
+    log_base_stats?: { log_modifier_id: string; source: string; stat_name: string }[]
+    log_affixes?: { log_modifier_id: string; source: string; group: 'base_stats' | 'fixed_affixes' | 'random_affixes'; affix_uuid: string; tier?: number }[]
   }>('/hero-memories'),
 
   importMemoryRevival: (seasonName: string, data: object) =>

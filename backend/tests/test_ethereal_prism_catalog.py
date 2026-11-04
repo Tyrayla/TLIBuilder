@@ -11,7 +11,7 @@ _RAW = {
     "items": [
         {"name": "Ethereal Prism: Haze", "kind": "ethereal_prism", "icon_url": "haze.webp", "tags": [], "detail": []},
         {"name": "Ethereal Prism: Phantasmagoria", "kind": "ethereal_prism", "icon_url": "ph.webp", "tags": [], "detail": []},
-        {"name": "Ethereal Prism: Juggernaut", "kind": "ethereal_prism", "icon_url": "jug.webp", "tags": [], "detail": []},
+        {"name": "Ethereal Prism: Juggernaut", "game_id": 360620, "kind": "ethereal_prism", "icon_url": "jug.webp", "tags": [], "detail": []},
         {"name": "Inverse Image", "kind": "inverse_image", "icon_url": "inv.webp", "tags": [], "detail": []},
     ],
     "base_affixes": [
@@ -24,7 +24,8 @@ _RAW = {
     "random_affixes": [
         {"modifier": "The Effect Area expands to 3x4 Rectangle", "type": ""},
         {"modifier": "The Effect Area expands to 3x4 Rectangle", "type": ""},   # dup
-        {"modifier": "All Micro Talent within the area also gain: +6 % Attack Damage", "type": "Prism Gauge - Rare"},
+        {"modifier": "All Micro Talent within the area also gain: +6 % Attack Damage", "type": "Prism Gauge - Rare",
+         "modifier_id": "1204509011", "modifier_ids": ["1204509011", "1204509012"]},
         {"modifier": "All Legendary Medium Talent within the area also gain: +5 % Block Ratio", "type": "Prism Gauge - Rare"},
         {"modifier": "All Legendary Medium Talent within the area also gain: +9 % Block Ratio", "type": "Prism Gauge - Rare"},  # ×1.75 dupe
         {"modifier": "Points can be allocated to all Medium Talent within the area 1 additional time(s)", "type": "Prism Gauge - Legendary"},
@@ -40,6 +41,7 @@ def test_items_resolve_implicit_and_rarity():
     cat = categorize_prism_catalog(_RAW)
     by = {i["short_name"]: i for i in cat["items"]}
     assert "Inverse Image" not in by   # only ethereal items
+    assert by["Juggernaut"]["game_id"] == 360620
     assert by["Haze"]["rarities"] == ["rare"] and by["Haze"]["implicit"]["kind"] == "add_choice"
     assert len(by["Haze"]["implicit"]["options"]) == 2
     assert by["Phantasmagoria"]["rarities"] == ["legendary"] and by["Phantasmagoria"]["implicit"]["kind"] == "amplify"
@@ -52,6 +54,8 @@ def test_random_affix_pools_split_and_dedupe():
     cat = categorize_prism_catalog(_RAW)
     assert cat["area_size"] == [{"modifier": "The Effect Area expands to 3x4 Rectangle", "cols": 3, "rows": 4}]
     assert cat["middle"][0]["tier"] == "micro"
+    assert cat["middle"][0]["modifier_id"] == "1204509011"
+    assert cat["middle"][0]["modifier_ids"] == ["1204509011", "1204509012"]
     kinds = {a["kind"] for a in cat["advanced"]}
     assert {"over_alloc", "ignore_prereq"} <= kinds
     oa = next(a for a in cat["advanced"] if a["kind"] == "over_alloc")
@@ -60,6 +64,24 @@ def test_random_affix_pools_split_and_dedupe():
     # NOT the full "[Juggernaut] Gains huge Defense" tail — that mismatch hid DNR options for every prism.
     assert cat["do_not_replace"]["Juggernaut"][0]["penalty"] == "-8 % Defense"
     assert all("Gains huge Defense" not in k for k in cat["do_not_replace"])
+
+
+def test_area_size_matches_current_tlidb_wording():
+    modifier = "The area of effect expands to 2x4 Rectangle"
+    catalog = {
+        "items": [],
+        "base_affixes": [],
+        "random_affixes": [{"modifier": modifier, "type": "Random Affix", "modifier_id": "1234308061"}],
+    }
+
+    result = categorize_prism_catalog(catalog)
+
+    assert result["area_size"] == [{
+        "modifier": modifier,
+        "cols": 2,
+        "rows": 4,
+        "modifier_id": "1234308061",
+    }]
 
 
 def test_phantasmagoria_base_and_scaled_tagged_overalloc_counts_kept():

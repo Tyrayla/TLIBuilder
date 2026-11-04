@@ -6,6 +6,8 @@ import { useReferenceStore } from '../store/referenceStore'
 import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/context'
 import compendiumExportImg from '../assets/compendium-export.png'
 import { copyableErrorDetails, normalizeError, type TliErrorPayload } from '../errors/tliError'
+import { scanUeGameLog, type UeLogCharacterPreview } from '../importers/ueLog/parse'
+import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures, UE_LOG_CAREER_TREE_NAMES, UE_LOG_GAME_ID_TREE_NAMES } from '../importers/ueLog/toBuild'
 
 /**
  * Shared import UI used by BOTH the main-menu import modal (BuildSelectScreen) and the in-build Import/Export
@@ -19,7 +21,7 @@ interface Props {
 }
 
 export default function ImportPanel({ onImport, autoFocus }: Props) {
-  const [mode, setMode] = useState<'builder' | 'compendium'>('builder')
+  const [mode, setMode] = useState<'builder' | 'compendium' | 'game-log'>('builder')
   const [importCode, setImportCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [structuredError, setStructuredError] = useState<TliErrorPayload | null>(null)
@@ -27,12 +29,18 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
   const [pendingBuild, setPendingBuild] = useState<Build | null>(null)   // decoded/converted, awaiting "Import Anyway"
   const [importing, setImporting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const gameLogFileRef = useRef<HTMLInputElement>(null)
+  const [gameLogPreview, setGameLogPreview] = useState<ReturnType<typeof groupUeLogCaptures> | null>(null)
 
   const refLegendary = useReferenceStore(s => s.legendaryCatalog)
   const refSkills = useReferenceStore(s => s.skills)
+  const refCraftBaseItems = useReferenceStore(s => s.craftBaseItems)
   const refCraftBaseTypes = useReferenceStore(s => s.craftBaseTypes)
   const refGrafts = useReferenceStore(s => s.grafts)
   const refHeroMemoryScaling = useReferenceStore(s => s.heroMemories?.base_stat_scaling)
+  const refHeroMemories = useReferenceStore(s => s.heroMemories)
+  const refHeroTraits = useReferenceStore(s => s.heroTraits)
+  const refMemoryRevival = useReferenceStore(s => s.memoryRevival)
 
   const reset = () => { setError(null); setStructuredError(null); setWarnings([]); setPendingBuild(null) }
 
@@ -104,13 +112,132 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
     convertCompendium(o)
   }
 
-  const switchMode = (m: 'builder' | 'compendium') => { setMode(m); reset(); setImportCode('') }
+  const inspectGameLogs = async (files: FileList | null) => {
+    if (!files?.length) return
+    reset(); setGameLogPreview(null); setImporting(true)
+    try {
+      const all: Array<{ fileNumber: number; modifiedAt: number; preview: UeLogCharacterPreview }> = []
+      const problems: string[] = []
+      const orderedFiles = Array.from(files).map((file, index) => ({ file, index })).sort((a, b) => a.file.lastModified - b.file.lastModified)
+      for (const { file, index } of orderedFiles) {
+        if (file.size > 512_000_000) {
+          problems.push(`Selected file ${index + 1} is larger than the 512 MB limit.`)
+          continue
+        }
+        const result = await scanUeGameLog(file)
+        all.push(...result.characters.map(preview => ({ fileNumber: index + 1, modifiedAt: file.lastModified, preview })))
+        problems.push(...result.errors.map(problem => `File ${index + 1}: ${problem}`))
+      }
+      setGameLogPreview(groupUeLogCaptures(all))
+      setWarnings(problems)
+      if (!all.length && !problems.length) setError('No GetPlayerData login dumps were found in the selected files.')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not read the selected game log.')
+    } finally { setImporting(false) }
+  }
+
+  const createBuildFromLog = async (preview: UeLogCharacterPreview, loginCount: number) => {
+    if (!refGrafts || !refLegendary || !refCraftBaseItems || !refCraftBaseTypes || !refSkills) {
+      setError('Gear and skill data are still loading. Try again in a moment.')
+      return
+    }
+    reset()
+    setImporting(true)
+    try {
+      let towerSequences: Awaited<ReturnType<typeof api.getTowerSequence>>['entries'] = []
+      let beltBlends: Awaited<ReturnType<typeof api.getBeltBlends>>['blends'] = []
+      let treeSummaries: Awaited<ReturnType<typeof api.getTrees>> = []
+      let talentTrees: Array<Awaited<ReturnType<typeof api.getTree>> | Awaited<ReturnType<typeof api.getTrees>>[number]> = []
+      let pactSpiritCatalog: Awaited<ReturnType<typeof api.getPactSpirits>>['spirits'] = []
+      let etherealPrisms: Awaited<ReturnType<typeof api.getEtherealPrism>> | null = null
+      let slatePool: Awaited<ReturnType<typeof api.getSlatePoolAll>> | null = null
+      let catalogUnavailable = false
+      try { towerSequences = (await api.getTowerSequence()).entries }
+      catch { catalogUnavailable = true }
+      try { beltBlends = (await api.getBeltBlends()).blends }
+      catch { catalogUnavailable = true }
+      if (preview.talentTrees?.length || preview.slates?.length) {
+        try {
+          treeSummaries = await api.getTrees()
+        } catch { catalogUnavailable = true }
+      }
+      const hasCoreTalentSelections = preview.talentTrees?.some(tree => tree.coreTalentSelections?.length)
+      if (preview.slates?.length || hasCoreTalentSelections) {
+        try { slatePool = await api.getSlatePoolAll() }
+        catch { catalogUnavailable = true }
+      }
+      const relevantSlateIds = new Set((preview.slates ?? []).flatMap(slate => [
+        ...slate.baseTalentIds, ...slate.enchantTalentIds,
+        ...slate.talentSlots.flatMap(slot => slot.talentId ? [slot.talentId] : []),
+      ]))
+      const relevantTreeNodeIds = new Set([
+        ...relevantSlateIds,
+        ...(preview.talentTrees ?? []).flatMap(tree => [
+          ...tree.allocations.map(allocation => allocation.id),
+          ...(tree.prism?.anchorTalentId ? [tree.prism.anchorTalentId] : []),
+        ]),
+      ])
+      const treeNames = new Set((preview.talentTrees ?? []).flatMap(tree => tree.careerId === null
+        ? [] : [UE_LOG_CAREER_TREE_NAMES[tree.careerId] ?? '']))
+      for (const gameId of relevantSlateIds) {
+        const treeName = UE_LOG_GAME_ID_TREE_NAMES[gameId.slice(0, 2)]
+        if (treeName) treeNames.add(treeName)
+      }
+      for (const tree of treeSummaries) {
+        if (tree.nodes?.some(node => node.game_id && relevantTreeNodeIds.has(node.game_id))) treeNames.add(tree.name)
+      }
+      for (const option of [...(slatePool?.magic ?? []), ...(slatePool?.rare ?? []), ...(slatePool?.legendary ?? []), ...(slatePool?.core ?? [])]) {
+        if (option.game_id && relevantSlateIds.has(option.game_id)) treeNames.add(option.treeName)
+      }
+      for (const loggedTree of preview.talentTrees ?? []) {
+        for (const gameId of loggedTree.coreTalentSelections ?? []) {
+          const option = slatePool?.core.find(candidate => candidate.game_id === gameId)
+          if (option) treeNames.add(option.treeName)
+        }
+      }
+      treeNames.delete('')
+      talentTrees = [...treeSummaries]
+      if (treeNames.size) {
+        const trees = await Promise.all([...treeNames].map(name => api.getTree(name).catch(() => null)))
+        const detailedTrees = trees.filter((tree): tree is NonNullable<typeof tree> => !!tree)
+        const detailedByName = new Map(detailedTrees.map(tree => [tree.name, tree]))
+        talentTrees = talentTrees.map(tree => detailedByName.get(tree.name) ?? tree)
+        const knownTreeNames = new Set(talentTrees.map(tree => tree.name))
+        talentTrees.push(...detailedTrees.filter(tree => !knownTreeNames.has(tree.name)))
+        if (detailedTrees.length !== treeNames.size) catalogUnavailable = true
+      }
+      if (preview.talentTrees?.some(tree => tree.prism)) {
+        try { etherealPrisms = await api.getEtherealPrism() }
+        catch { catalogUnavailable = true }
+      }
+      if (preview.pactContracts?.length) {
+        try { pactSpiritCatalog = (await api.getPactSpirits()).spirits }
+        catch { catalogUnavailable = true }
+      }
+      const result = createUeLogBuild(preview, refGrafts, refLegendary, refCraftBaseItems, refCraftBaseTypes, towerSequences, refSkills, beltBlends, talentTrees, pactSpiritCatalog, {
+        memories: refHeroMemories,
+        traits: refHeroTraits,
+        revivalAffixes: refMemoryRevival,
+        etherealPrisms,
+        slatePool,
+      })
+      if (catalogUnavailable) result.warnings.push('A reference catalog could not be loaded; some Tower Sequence chips, belt blends, pact spirits, talents, slates, or prisms may be omitted.')
+      if (loginCount > 1) result.warnings.splice(1, 0, describeUeLogCaptureMerge(loginCount))
+      setPendingBuild(result.build)
+      setWarnings(result.warnings)
+    } finally { setImporting(false) }
+  }
+
+  const switchMode = (m: 'builder' | 'compendium' | 'game-log') => {
+    setMode(m); reset(); setImportCode(''); setGameLogPreview(null)
+  }
 
   return (
     <div className="import-panel">
       <div className="import-source-toggle">
         <button className={`import-source-tab${mode === 'builder' ? ' active' : ''}`} onClick={() => switchMode('builder')}>TLI Builder Code</button>
         <button className={`import-source-tab${mode === 'compendium' ? ' active' : ''}`} onClick={() => switchMode('compendium')}>TLI Compendium Build</button>
+        <button className={`import-source-tab${mode === 'game-log' ? ' active' : ''}`} onClick={() => switchMode('game-log')}>Game log</button>
       </div>
 
       {mode === 'builder' && (
@@ -141,6 +268,50 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
         </>
       )}
 
+      {mode === 'game-log' && (
+        <>
+          <p className="share-modal-hint">Select UE_game.log and any backup logs. They stay on this device. Choose a character to preview, then import it as a draft.</p>
+          <input ref={gameLogFileRef} type="file" accept=".log,text/plain" multiple style={{ display: 'none' }}
+            onChange={e => { void inspectGameLogs(e.target.files); e.target.value = '' }} />
+          <div className="import-file-row">
+            <button className="btn btn-primary" disabled={importing} onClick={() => gameLogFileRef.current?.click()}>
+              {importing ? 'Reading logs…' : 'Choose UE_game.log files…'}
+            </button>
+          </div>
+          {gameLogPreview && gameLogPreview.length === 0 && <p role="status">No login dumps were found.</p>}
+          {gameLogPreview?.map(({ fileNumber, preview, loginCount }) => {
+            const vorax = preview.gear.filter(item => refGrafts?.some(graft => graft.game_id === item.baseId))
+            return (
+              <section key={`${fileNumber}-${preview.dumpNumber}`} className="log-import-card">
+                <div className="log-import-card__heading">
+                  <div>
+                    <h4>{preview.characterName || `Hero ${preview.heroId ?? 'unknown'}`}</h4>
+                    <p>Level {preview.level ?? 'unknown'} · {loginCount} login {loginCount === 1 ? 'capture' : 'captures'} · File {fileNumber}</p>
+                  </div>
+                  <button className="btn btn-primary" disabled={importing} onClick={() => createBuildFromLog(preview, loginCount)}>Import this character</button>
+                </div>
+                <div className="log-import-card__summary">
+                  <span><strong>{preview.gear.length}</strong> equipped items detected</span>
+                  <span><strong>{preview.skills.length}</strong> equipped skills and supports detected</span>
+                  <span><strong>{vorax.length}</strong> Vorax items detected</span>
+                  {preview.truncatedSections.length > 0 && <span>Partial log capture</span>}
+                </div>
+                <details className="log-import-card__details">
+                  <summary>Review detected Vorax gear</summary>
+                  {vorax.length === 0 ? <p>No catalogued Vorax items were found in this login.</p> : vorax.map((item, index) => (
+                    <div key={`${item.baseId}-${index}`} className="log-import-card__item">
+                      <strong>{refGrafts?.find(graft => graft.game_id === item.baseId)?.name ?? `Vorax base ${item.baseId}`}</strong>
+                      <span>Slot {item.equippedSlot ?? 'unknown'} · Item level {item.itemLevel ?? 'unknown'}</span>
+                      <span>{[...item.prefixes, ...item.suffixes].length} affixes · Base affix {item.baseAffixIds.join(', ') || 'none'}</span>
+                    </div>
+                  ))}
+                </details>
+              </section>
+            )
+          })}
+        </>
+      )}
+
       {structuredError && (
         <div className="share-import-error" role="alert">
           <strong>{structuredError.title} ({structuredError.code}) — </strong>{structuredError.message}
@@ -150,19 +321,24 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       )}
       {error && !structuredError && <p className="share-import-error">{error}</p>}
       {warnings.length > 0 && (
-        <div className="share-import-warning">
+        mode === 'game-log' ? (
+          <details className="log-import-warnings">
+            <summary>Import details ({warnings.length})</summary>
+            <ul>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+          </details>
+        ) : <div className="share-import-warning">
           <p>{pendingBuild && mode === 'compendium'
             ? '⚠ Some items couldn’t be mapped and were skipped (also saved in the build’s notes):'
             : '⚠ This build may be from an older version:'}</p>
           <ul>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-          <p>Click <b>Import Anyway</b> to proceed.</p>
+          <p>Review these limits before you import the draft build.</p>
         </div>
       )}
 
       <div className="modal-actions import-panel-actions">
         {pendingBuild ? (
           <button className="btn btn-primary" onClick={() => onImport(pendingBuild)} disabled={importing}>
-            {importing ? 'Importing…' : 'Import Anyway'}
+            {importing ? 'Importing…' : mode === 'game-log' ? 'Import draft' : 'Import Anyway'}
           </button>
         ) : mode === 'builder' ? (
           <button className="btn btn-primary" onClick={importCodeNow} disabled={importing || !importCode.trim()}>

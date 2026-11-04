@@ -628,7 +628,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
       }
       // The 2nd copy's untyped global affixes/implicits (e.g. a wand's "+40% Spell Damage") stack too.
       if (u.length > 0) {
-        result.push({ contributions: [], item_name: item.name, unresolved_texts: u })
+        result.push({ contributions: [], item_name: item.name, unresolved_texts: u, same_item_slot_copy: true })
       }
     }
   }

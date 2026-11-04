@@ -381,14 +381,24 @@ def _core_effect_status(effect: str) -> dict:
 def get_trees():
     active = season_manager.get_active_season()
     icons = (season_manager.load_talent_tree_selector_icons(active) if active else None) or {}
-    return [
-        {
+    summaries = []
+    for name, entry in TREES.items():
+        tree_data = season_manager.load_season_tree(active, _tree_name_to_slug(name)) if active else None
+        summaries.append({
             "name": name,
             "color": entry["color"],
             "icon_url": icons.get(name.replace(" ", "_")),
-        }
-        for name, entry in TREES.items()
-    ]
+            "nodes": [
+                {
+                    "id": node["id"],
+                    **({"game_id": str(node["game_id"])} if node.get("game_id") is not None else {}),
+                    **({"trait_variants": node["trait_variants"]} if node.get("trait_variants") else {}),
+                }
+                for node in (tree_data or {}).get("nodes", [])
+                if node.get("game_id") is not None or any(v.get("game_id") is not None for v in node.get("trait_variants", []))
+            ],
+        })
+    return summaries
 
 
 @app.get("/api/tree-search")
@@ -432,6 +442,7 @@ def get_tree(name: str):
 
     effects_by_id: dict[str, list[str]] = {}
     trait_variants_by_id: dict[str, list[dict]] = {}
+    game_ids_by_id: dict[str, str] = {}
     active = season_manager.get_active_season()
     if active:
         slug = _tree_name_to_slug(name)
@@ -439,6 +450,8 @@ def get_tree(name: str):
         if season_data:
             for sn in season_data.get("nodes", []):
                 effects_by_id[sn["id"]] = sn.get("effects", [])
+                if sn.get("game_id") is not None:
+                    game_ids_by_id[sn["id"]] = str(sn["game_id"])
                 if sn.get("trait_variants"):
                     trait_variants_by_id[sn["id"]] = sn["trait_variants"]
 
@@ -446,6 +459,7 @@ def get_tree(name: str):
     for n in tree.nodes.values():
         nodes.append({
             "id": n.id,
+            **({"game_id": game_ids_by_id[n.id]} if n.id in game_ids_by_id else {}),
             "column": n.column,
             "row": n.row,
             "max_points": n.max_points,
@@ -522,7 +536,8 @@ def _collect_pool(tree_names: list[str]) -> dict:
             if mod_key in seen_mods:
                 continue
             seen_mods.add(mod_key)
-            entry = {"nodeId": node["id"], "treeName": tree_name, "nodeType": node["node_type"], "effects": effects}
+            entry = {"nodeId": node["id"], "game_id": str(node["game_id"]) if node.get("game_id") is not None else None,
+                     "treeName": tree_name, "nodeType": node["node_type"], "effects": effects}
             nt = node["node_type"]
             if nt == "Micro Talent":
                 magic_pool.append(entry)
@@ -550,14 +565,17 @@ def _collect_pool(tree_names: list[str]) -> dict:
             out_key = f"{tree_name}:{raw_key}" if n == 1 else f"{tree_name}:{raw_key}#{n}"
             # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
             display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
-            core_pool.append({"key": out_key, "treeName": tree_name, "name": display_name, "effects": effects})
+            node_type = ct.get("name") if tree_name == "Nether King" else None
+            core_pool.append({"key": out_key, "game_id": str(ct["game_id"]) if ct.get("game_id") is not None else None,
+                              "treeName": tree_name, "name": display_name, "effects": effects, "nodeType": node_type})
 
     for ct in (season_manager.load_new_god_talents(active) or []):
         name = ct.get("name", "")
         if not name or name in seen_core_names:
             continue
         seen_core_names.add(name)
-        core_pool.append({"key": f"new_god:{name}", "treeName": "New God", "name": name, "effects": ct.get("effects", [])})
+        core_pool.append({"key": f"new_god:{name}", "game_id": str(ct["game_id"]) if ct.get("game_id") is not None else None,
+                          "treeName": "New God", "name": name, "effects": ct.get("effects", [])})
 
     return {"magic": magic_pool, "rare": rare_pool, "legendary": legendary_pool, "core": core_pool}
 
@@ -1043,8 +1061,79 @@ def engine_stats(req: EngineStatsRequest):
     gear_resolved: list[dict] = []
     gear_mod_statuses: list[dict] = []
     affix_curses: list[dict] = []   # curses inflicted by gear affixes (craft bases / legendaries) → curse resolver
+    # A legendary "[Name] <effect>" affix grants a core talent. The raw text also arrives as an unresolved
+    # gear affix, so remove effect lines already applied by the core-talent resolver before parsing its remainder.
+    _core_effect_statuses: dict[str, list[dict]] = {}
+    for status in core_talent_statuses:
+        name = _norm_core_name(status.get("name"))
+        if name and status.get("text"):
+            _core_effect_statuses.setdefault(name, []).append(status)
+    _all_granted_core_names = {
+        _norm_core_name(n) for g in req.gear if isinstance(g, dict) for n in (g.get("granted_talents") or [])
+    }
+    # A compound legendary affix can append ordinary mods after the talent effect. Keep those mods, and
+    # collapse only the explicit same-item array-slot copy.
+    from engine.core_talent_resolver import companion_text_parts
+    _companions_seen: set[tuple[str, str]] = set()
+    _unresolved_core_effects_seen: set[tuple[str, str]] = set()
+    _unresolved_grants_seen: set[str] = set()
+
+    def _keep_unresolved_grant_once(name: str, raw_text: str) -> list[str]:
+        """Surface an unmatchable talent affix once; its talent/companion boundary is unknown."""
+        if name in _unresolved_grants_seen:
+            return []
+        _unresolved_grants_seen.add(name)
+        gear_mod_statuses.append({
+            "text": raw_text,
+            "resolved": False,
+            "stat_display": "Core talent text could not be matched to the current catalog; retained once because core talents do not stack.",
+        })
+        return []
+
+    def _gear_texts_minus_core(gi: dict) -> list[str]:
+        kept: list[str] = []
+        for t in gi.get("unresolved_texts") or []:
+            name = _bracket_core_name(t)
+            if name not in _all_granted_core_names:
+                kept.append(t)
+                continue
+            statuses = _core_effect_statuses.get(name, [])
+            if not statuses:
+                # Without the canonical effect text, we cannot safely separate a core talent
+                # from appended mods. Retain the raw body once and surface the ambiguity.
+                kept.extend(_keep_unresolved_grant_once(name, t))
+                continue
+            rest, matched_effects = companion_text_parts(t, [s.get("text") or "" for s in statuses])
+            if rest is None:
+                # The current catalog does not match this line's wording, so retain it once
+                # rather than guessing which clause is the talent and which clauses may stack.
+                kept.extend(_keep_unresolved_grant_once(name, t))
+                continue
+            matched = {_norm_core_name(effect) for effect in matched_effects}
+            for status in statuses:
+                effect = status.get("text") or ""
+                if status.get("resolved") or _norm_core_name(effect) not in matched:
+                    continue
+                key = (name, _norm_core_name(effect))
+                if key not in _unresolved_core_effects_seen:
+                    _unresolved_core_effects_seen.add(key)
+                    kept.append(effect)
+            if not rest:
+                continue   # no companion mods remain after accounting for known talent effects
+            # Only a second array-slot emission from the same item may be collapsed. Item names are not unique.
+            key = (name, _norm_core_name(rest))
+            if not gi.get("same_item_slot_copy") or key not in _companions_seen:
+                if not gi.get("same_item_slot_copy"):
+                    _companions_seen.add(key)
+                kept.append(rest)
+        return kept
+
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
+        if texts and _all_granted_core_names:
+            texts = _gear_texts_minus_core(gi)
+            if texts != (gi.get("unresolved_texts") or []):
+                gi = {**gi, "unresolved_texts": texts}
         if not texts:
             gear_resolved.append(gi)
             continue
@@ -2520,6 +2609,16 @@ def get_legendary_gear_index():
     return {"season": active, "items": items}
 
 
+def _norm_core_name(name: str | None) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def _bracket_core_name(text: str | None) -> str | None:
+    """Normalized core-talent name of a legendary "[Name] <effect>" affix text, else None."""
+    m = re.match(r"^\s*\[([^\]]+)\]", text or "")
+    return _norm_core_name(m.group(1)) if m else None
+
+
 def _resolve_gear_affix_clauses(text: str) -> list[dict]:
     """SINGLE source of truth for resolving a raw gear affix TEXT — used by BOTH the engine's gear loop (to build
     contributions + statuses) and the /api/map-modifiers badge endpoint (source='gear'). Because both call this,
@@ -3227,6 +3326,7 @@ def get_ethereal_prism():
         "season": active,
         "items": data.get("items", []),
         "base_affixes": data.get("base_affixes", []),
+        "base_affix_modifiers": data.get("base_affix_modifiers", []),
         "random_affixes": data.get("random_affixes", []),
         "catalog": categorize_prism_catalog(data),
     }
@@ -3248,12 +3348,14 @@ def get_hero_memories():
     # base_stat_scaling is season-independent (hand-authored top-level file) — include it even when no season /
     # no per-season memory data is loaded, so the creator's base-stat auto-scaling works regardless.
     empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": [],
-             "base_stat_scaling": _HERO_MEMORY_BASE_STATS}
+             "base_stat_scaling": _HERO_MEMORY_BASE_STATS, "log_base_stats": []}
     if not active:
         return empty
     data = season_manager.load_hero_memories(active)
+    log_crosswalk = season_manager.load_hero_memory_log_crosswalk(active) or {}
     if not data:
-        return {**empty, "season": active}
+        return {**empty, "season": active, "log_base_stats": log_crosswalk.get("base_stats", []),
+                "log_affixes": log_crosswalk.get("affixes", [])}
     return {
         "season": active,
         "memory_types": data.get("memory_types", []),
@@ -3261,6 +3363,8 @@ def get_hero_memories():
         "random_affixes": data.get("random_affixes", []),
         "base_stats": data.get("base_stats", []),
         "base_stat_scaling": _HERO_MEMORY_BASE_STATS,
+        "log_base_stats": log_crosswalk.get("base_stats", []),
+        "log_affixes": log_crosswalk.get("affixes", []),
     }
 
 

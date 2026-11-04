@@ -120,5 +120,6 @@ describe('buildGearPayload — same-item dual wield (array slot)', () => {
     const allUnresolved = payload.flatMap((g) => g.unresolved_texts ?? [])
     const spellDmgOccurrences = allUnresolved.filter((t) => t === '+40% Spell Damage').length
     expect(spellDmgOccurrences).toBe(2)   // unresolved text kept from both slot entries
+    expect(payload.filter((g) => g.same_item_slot_copy)).toHaveLength(1)
   })
 })

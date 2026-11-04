@@ -78,6 +78,24 @@ export function getItemAffixes(item: LegendaryGearItem | EquippedGearItem): Lege
   return affixes
 }
 
+export function getRandomAffixGroupForExplicit(
+  catalogItem: LegendaryGearItem | null,
+  explicitIndex: number,
+  corrodedExplicitIndices: number[],
+) {
+  if (!catalogItem) return null
+  const isCorroded = corrodedExplicitIndices.includes(explicitIndex)
+  const variantKey = isCorroded && catalogItem.random_affixes.corroded ? 'corroded' : 'base'
+  const groups = catalogItem.random_affixes[variantKey] ?? []
+  const variantExplicits = isCorroded
+    ? (catalogItem.variants.corroded?.explicits ?? catalogItem.variants.base?.explicits ?? [])
+    : (catalogItem.variants.base?.explicits ?? [])
+  const explicit = variantExplicits[explicitIndex]
+  if (!explicit || explicit.affix_kind !== 'placeholder') return null
+  const occurrence = variantExplicits.slice(0, explicitIndex).filter(affix => affix.affix_kind === 'placeholder').length
+  return groups[occurrence] ?? null
+}
+
 // Convert a catalog item into an equippable item assigned to `slot`, using default rolls (no
 // customization/corrosion) — enough to price a hypothetical equip. Mirrors the add-to-build
 // conversion in GearScreen.handleAddFromCatalog.

@@ -294,6 +294,47 @@ def _build_catalog(season_trees: dict, belt_blends: dict) -> dict[str, list[str]
     return cat
 
 
+def core_talent_effects(season_trees, belt_blends) -> dict[str, list[str]]:
+    """Public view of the name(normalized) → effect strings catalog used to resolve legendary grants."""
+    return _build_catalog(season_trees, belt_blends)
+
+
+def companion_text_parts(raw_text: str, effects) -> tuple[str | None, list[str]]:
+    """The part of a legendary "[Name] <effect> <extra>" affix text that is NOT the granted talent's own effect.
+
+    The core-talent resolver applies the talent's effects (once, never stacking). Compound legendary affixes
+    append further ordinary mods ("... Fire Hit Damage +100 % Skill Area") that the talent does not carry; those
+    must still be applied, exactly once. Each catalog effect is located whitespace-insensitively and removed.
+    Returns (leftover, matched_effects). The leftover is None when no catalog effect could be located.
+    Unmatched catalog effects stay in the leftover for normal gear parsing.
+    """
+    rest = re.sub(r"^\s*\[[^\]]+\]", "", raw_text or "", count=1)
+    found_any = False
+    matched: list[str] = []
+    for eff in effects or []:
+        eff = _strip_max_div(eff)
+        chars = [re.escape(c) for c in eff if not c.isspace()]
+        if not chars:
+            continue
+        m = re.search(r"\s*".join(chars), rest, re.I)
+        # Catalog wording can change by season, or only some parts of a compound talent may
+        # resolve in the engine. Remove each effect we actually applied and keep unmatched
+        # clauses for the ordinary gear parser.
+        if not m:
+            continue
+        found_any = True
+        matched.append(eff)
+        rest = rest[:m.start()] + " " + rest[m.end():]
+    if not found_any:
+        return None, []
+    return re.sub(r"\s+", " ", rest).strip(" \t.,;"), matched
+
+
+def companion_text(raw_text: str, effects) -> str | None:
+    """Compatibility wrapper returning only the text left after removing matched talent effects."""
+    return companion_text_parts(raw_text, effects)[0]
+
+
 def _collect(slots, slates, gear, season_trees, belt_blends) -> list[tuple[str, list[str], str | None]]:
     """Gather (name, effects, tree_name) candidates from all four grant sources, in priority order
     (tree → slate → legendary → belt blend). `tree_name` is the granting tree for tree-slot cores (drives
