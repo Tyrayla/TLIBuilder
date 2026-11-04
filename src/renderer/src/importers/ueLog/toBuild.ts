@@ -710,17 +710,38 @@ const MEMORY_RARITY_LABEL: Record<MemoryRarity, string> = {
   normal: 'Normal', magic: 'Magic', rare: 'Rare', epic: 'Epic', ultimate: 'Ultimate',
 }
 
+function memoryAffixMatchesLoggedValues(modifier: string, values: number[]): boolean {
+  const ranges = [...modifier.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*[–-]\s*(-?\d+(?:\.\d+)?)\s*\)/g)]
+  if (ranges.length > 0) {
+    return ranges.length === values.length && ranges.every((range, index) => {
+      const min = Number(range[1])
+      const max = Number(range[2])
+      const value = values[index]
+      return value >= Math.min(min, max) && value <= Math.max(min, max)
+    })
+  }
+
+  const fixedValue = modifier.match(/^\s*[+-]?\s*(\d+(?:\.\d+)?)/)?.[1]
+  return values.length === 1 && fixedValue !== undefined && Number(fixedValue) === values[0]
+}
+
 function loggedMemorySelection(
   row: UeLogMemory['fixedAffixes'][number], pool: HeroMemoryAffix[], source: string,
   group: 'base_stats' | 'fixed_affixes' | 'random_affixes', logAffixes: NonNullable<UeLogReferenceCatalogs['memories']>['log_affixes'],
   warnings: string[], label: string,
 ): MemorySlotSelection | null {
   const logAffix = logAffixes?.find(entry => entry.log_modifier_id === row.id && entry.source === source && entry.group === group)
-  const match = pool.find(candidate => candidate.source === source && (
-    (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id
-    || (!!logAffix && candidate.uuid === logAffix.affix_uuid
-      && (logAffix.tier === undefined || candidate.tier === logAffix.tier))
-  ))
+  const directMatches = pool.filter(candidate => candidate.source === source
+    && (candidate as HeroMemoryAffix & { modifier_id?: string | null }).modifier_id === row.id)
+  const uuidMatches = logAffix
+    ? pool.filter(candidate => candidate.source === source && candidate.uuid === logAffix.affix_uuid)
+    : []
+  const candidates = (directMatches.length > 0 ? directMatches : uuidMatches)
+    .filter(candidate => logAffix?.tier === undefined || candidate.tier === logAffix.tier)
+  const matchingRolls = candidates.filter(candidate => memoryAffixMatchesLoggedValues(candidate.modifier, row.values))
+  const match = candidates.length === 1
+    ? candidates[0]
+    : matchingRolls.length === 1 ? matchingRolls[0] : undefined
   if (!match) {
     warnings.push(`${label}: one logged memory affix could not be matched to TLIDB and was left out.`)
     return null
