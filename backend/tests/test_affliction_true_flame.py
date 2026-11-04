@@ -446,22 +446,26 @@ def test_same_item_dual_wield_does_not_repeat_true_flame():
     assert r["stats"]["affliction_dot_to_fire_hit"]["total"] == pytest.approx(0.65)
 
 
-def test_unmatched_core_talent_text_keeps_parseable_companion_effects():
+def test_unmatched_core_talent_text_is_retained_once_and_warned():
     item = {"contributions": [], "item_name": "Mindflame", "slot": "helmet",
             "granted_talents": ["True Flame"],
             "unresolved_texts": ["[True Flame] changed catalog wording +10 % Skill Area"]}
     r = _tf_response([item])
-    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
+    assert "skill_area_inc" not in r["stats"]
+    assert any(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"])
 
 
-def test_unresolved_core_grant_preserves_parseable_companion_once_for_same_item_copy():
+def test_unresolved_core_grant_is_not_repeated_in_same_item_copy():
     first = {"contributions": [], "item_name": "Unknown grant item", "slot": "weapon1",
              "granted_talents": ["Unknown Grant"],
              "unresolved_texts": ["[Unknown Grant] +10 % Skill Area"]}
     second = {"contributions": [], "item_name": "Unknown grant item", "slot": "weapon2",
               "unresolved_texts": ["[Unknown Grant] +10 % Skill Area"], "same_item_slot_copy": True}
     r = _tf_response([first, second])
-    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
+    assert "skill_area_inc" not in r["stats"]
+    assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"]) == 1
 
 
 def test_unresolved_core_grant_does_not_stack_across_distinct_items():
@@ -472,17 +476,20 @@ def test_unresolved_core_grant_does_not_stack_across_distinct_items():
               "granted_talents": ["Unknown Grant"],
               "unresolved_texts": ["[Unknown Grant] unmodeled talent effect +10 % Skill Area"]}
     r = _tf_response([first, second])
-    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
+    assert "skill_area_inc" not in r["stats"]
     assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
                for status in r["gear_mod_statuses"]) == 1
 
 
-def test_partially_resolved_core_talent_does_not_repeat_resolved_effects():
+def test_unmatched_compound_core_talent_is_retained_once_and_warned():
     item = {"contributions": [], "item_name": "Poisoned Relief item", "slot": "helmet",
             "granted_talents": ["Poisoned Relief"],
             "unresolved_texts": ["[Poisoned Relief] +25 % Injury Buffer -15 % additional damage taken at Low Life"]}
-    r = _tf_response([item])
-    assert r["stats"]["injury_buffer_inc"]["total"] == pytest.approx(0.25)
+    r = _tf_response([item, {**item, "item_name": "Second Poisoned Relief", "slot": "ring1"}])
+    assert "injury_buffer_inc" not in r["stats"]
+    assert "dmg_taken_additional" not in r["stats"]
+    assert sum(not status["resolved"] and "could not be matched" in status.get("stat_display", "")
+               for status in r["gear_mod_statuses"]) == 1
 
 
 def test_true_flame_is_a_core_talent_and_never_stacks_across_sources():
