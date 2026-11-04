@@ -1076,6 +1076,7 @@ def engine_stats(req: EngineStatsRequest):
     # collapse only the explicit same-item array-slot copy.
     from engine.core_talent_resolver import companion_text
     _companions_seen: set[tuple[str, str]] = set()
+    _unresolved_grant_texts_seen: set[tuple[str, str]] = set()
 
     def _gear_texts_minus_core(gi: dict) -> list[str]:
         kept: list[str] = []
@@ -1091,10 +1092,11 @@ def engine_stats(req: EngineStatsRequest):
                 # still lets us collapse only the re-emitted array-slot copy.
                 body = re.sub(r"^\s*\[[^\]]+\]\s*", "", t, count=1)
                 key = (name, _norm_core_name(body))
-                if gi.get("same_item_slot_copy") and key in _companions_seen:
+                # Without catalog effects we cannot split a talent line from any appended
+                # companion mods. Keep one copy of identical text for this non-stacking grant.
+                if key in _unresolved_grant_texts_seen:
                     continue
-                if not gi.get("same_item_slot_copy"):
-                    _companions_seen.add(key)
+                _unresolved_grant_texts_seen.add(key)
                 kept.append(body)
                 continue
             rest = companion_text(t, _resolved_core_effects.get(name))

@@ -464,6 +464,17 @@ def test_unresolved_core_grant_preserves_parseable_companion_once_for_same_item_
     assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
 
 
+def test_unresolved_core_grant_does_not_stack_across_distinct_items():
+    first = {"contributions": [], "item_name": "Unknown grant one", "slot": "helmet",
+             "granted_talents": ["Unknown Grant"],
+             "unresolved_texts": ["[Unknown Grant] +10 % Skill Area"]}
+    second = {"contributions": [], "item_name": "Unknown grant two", "slot": "ring1",
+              "granted_talents": ["Unknown Grant"],
+              "unresolved_texts": ["[Unknown Grant] +10 % Skill Area"]}
+    r = _tf_response([first, second])
+    assert r["stats"]["skill_area_inc"]["total"] == pytest.approx(0.1)
+
+
 def test_partially_resolved_core_talent_does_not_repeat_resolved_effects():
     item = {"contributions": [], "item_name": "Poisoned Relief item", "slot": "helmet",
             "granted_talents": ["Poisoned Relief"],
