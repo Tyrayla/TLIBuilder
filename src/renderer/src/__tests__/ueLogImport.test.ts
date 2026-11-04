@@ -870,20 +870,21 @@ describe('UE_game.log build conversion', () => {
           { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
         ] }],
     }
-    const trees = [{ name: 'Nether King', nodes: [{ id: 'nether_king_fixed_1', game_id: '42070500', node_type: 'Legendary Medium Nether King Talent Node', effects: ['+18 % Melee Damage'] }] }]
+    const trees = [{ name: 'Psychic', nodes: [{ id: 'psychic_fixed_1', game_id: '42070500', node_type: 'Legendary Medium Talent', effects: ['+18 % Melee Damage'] }] }]
     const slatePool = { magic: [], rare: [], legendary: [], core: [] }
-    const { build } = createUeLogBuild(character, [], [], [], [], [], [], [], trees, [], { slatePool } as any)
+    const { build, warnings } = createUeLogBuild(character, [], [], [], [], [], [], [], trees, [], { slatePool } as any)
 
-    expect(build.slates?.[0]?.slots[0]).toMatchObject({ canBeCore: true, isCore: false, selectedNodeId: 'nether_king_fixed_1' })
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({ canBeCore: true, isCore: false, selectedNodeId: 'psychic_fixed_1' })
+    expect(warnings).toContain("Nether King's Divinity at board index 52: fixed slot 0 contains talent 42070500, which is not recognized in the Nether King catalog; confirm the logged talent.")
   })
 
-  it('preserves a branded node when the log does not identify its Nether King variant', () => {
+  it('preserves the item variant while mapping a Nether King branded node', () => {
     const character: UeLogCharacterPreview = {
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
       gear: [], skills: [], truncatedSections: [], talentTrees: [],
       slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
-        rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
-          { color: null, talentId: '90000062', rarity: null, slotIndex: 2 },
+        rarityValue: 4, baseTalentIds: [], enchantTalentIds: ['90000062'], talentSlots: [
+          { color: null, talentId: '90000062', rarity: null, slotIndex: 0 },
         ] }],
     }
     const slatePool = { magic: [], rare: [], legendary: [], core: [{ key: 'Nether King:Contamination Brand', game_id: '90000062',
@@ -895,14 +896,34 @@ describe('UE_game.log build conversion', () => {
       effects: ['When Contamination is active, +12% Projection Effect'] })
     expect(build.slates?.[0]?.netherKingVariant).toBe('contamination')
     expect(build.slates?.[0]?.cells).toEqual([[1, 4], [2, 4], [3, 4]])
-    expect(warnings).not.toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
+    expect(warnings.some(warning => warning.includes("Nether King's Divinity at board index 52: the log does not identify its variant"))).toBe(false)
+    expect(warnings).toContain("Nether King's Divinity at board index 52: BaseId 394004 maps to judgment, but its branded talents identify contamination; using the branded talents. Confirm the crawler mapping in-game.")
   })
 
-  it('imports Banishment with its diagonal footprint when a branded node identifies the variant', () => {
+  it('warns when Nether King branded talents disagree even when a BaseId is available', () => {
     const character: UeLogCharacterPreview = {
       dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
       gear: [], skills: [], truncatedSections: [], talentTrees: [],
-      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+      slates: [{ index: 52, pageId: -4, baseId: 394005, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: [], enchantTalentIds: ['90000062', '90000117'], talentSlots: [
+          { color: null, talentId: '90000062', rarity: null, slotIndex: 2 },
+          { color: null, talentId: '90000117', rarity: null, slotIndex: 3 },
+        ] }],
+    }
+    const slatePool = { magic: [], rare: [], legendary: [], core: [
+      { key: 'Nether King:Contamination Brand', game_id: '90000062', treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node', name: 'Contamination Brand', effects: ['When Contamination is active, +12% Projection Effect'] },
+      { key: 'Nether King:Banishment Brand', game_id: '90000117', treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node', name: 'Banishment Brand', effects: ['When Banishment is active, +12% damage'] },
+    ] }
+    const { warnings } = createUeLogBuild(character, [], [], [], [], [], [], [], [], [], { slatePool } as any)
+
+    expect(warnings).toContain("Nether King's Divinity at board index 52: its branded talents identify conflicting variants; using contamination from BaseId 394005. Confirm the variant and board placement.")
+  })
+
+  it('imports Banishment with its diagonal footprint from its logged item variant', () => {
+    const character: UeLogCharacterPreview = {
+      dumpNumber: 1, characterName: 'Sage', level: 98, heroId: 1800, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [], talentTrees: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394006, uniqueItemId: 0, shapeId: null, direction: null,
         rarityValue: 4, baseTalentIds: [], enchantTalentIds: [], talentSlots: [
           { color: null, talentId: '90000117', rarity: null, slotIndex: 2 },
         ] }],
@@ -929,21 +950,250 @@ describe('UE_game.log build conversion', () => {
       expect(build.slates?.[0]?.kind).toBe(kind)
       if (kind === 'corner_of_divinity') {
         expect(warnings).toContain('A Corner of Divinity at board index 13: its direction mapping is inferred from other unique slates; confirm its orientation.')
-      } else expect(warnings).toEqual([])
+      } else expect(warnings).toContain('Slate 1003: game direction 1 to Builder orientation alignment is inferred; confirm orientation.')
     }
   })
 
-  it('leaves out unique slates when logged directions exceed verified rotations', () => {
-    for (const [uniqueItemId, direction] of [[1003, 3], [1010, 3]] as const) {
+  it('wraps four logged directions across unique slate shapes with fewer distinct rotations', () => {
+    for (const [uniqueItemId, direction, orientationIndex] of [[1003, 3, 0], [1010, 4, 1]] as const) {
       const { build, warnings } = createUeLogBuild({
         dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
         gear: [], skills: [], truncatedSections: [],
-        slates: [{ index: 13, pageId: -4, baseId: 261003, uniqueItemId, shapeId: 2020, direction,
+        slates: [{ index: 22, pageId: -4, baseId: 261003, uniqueItemId, shapeId: 2020, direction,
           rarityValue: 100, baseTalentIds: [], enchantTalentIds: [], talentSlots: [] }],
       }, [], [])
-      expect(build.slates ?? []).toEqual([])
-      expect(warnings).toContain(`Slate ${uniqueItemId}: logged direction ${direction} is outside the verified range and was left out.`)
+      expect(build.slates?.[0]?.orientationIndex).toBe(orientationIndex)
+      expect(build.slates?.[0]?.cells).toContainEqual([1, 1])
+      expect(warnings).toContain(`Slate ${uniqueItemId}: game direction ${direction} to Builder orientation alignment is inferred; confirm orientation.`)
+      expect(warnings).not.toContain(`Slate ${uniqueItemId}: logged direction ${direction} is outside the verified range and was left out.`)
     }
+  })
+
+  it('resolves logged slate talents by game-ID career prefix and grid position', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['14050100', '64050300'], enchantTalentIds: ['10070100', '43060300'], talentSlots: [] }],
+    }, [], [], [], [], [], [], [], [
+      { name: 'Warrior', nodes: [{ id: 'warrior_c4_r0', column: 4, row: 0, node_type: 'Micro Talent', effects: ['+9 % Attack Damage'] }] },
+      { name: 'Artisan', nodes: [{ id: 'artisan_c4_r2', column: 4, row: 2, node_type: 'Micro Talent', effects: ['+8 % Damage'] }] },
+      { name: 'God of Might', nodes: [{ id: 'god_of_might_c6_r0', column: 6, row: 0, node_type: 'Legendary Medium Talent', effects: ['+1 to Attack Skill Level'] }] },
+      { name: 'Ranger', nodes: [
+        { id: 'ranger_c4_r2', game_id: '43060200', column: 4, row: 2, node_type: 'Medium Talent', effects: ['+8 % Damage'] },
+        { id: 'ranger_c5_r2', column: 5, row: 2, node_type: 'Legendary Medium Talent', effects: ['+25 % chance to Mark the enemy on Critical Strike'] },
+      ] },
+    ], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({
+      selectedNodeId: 'warrior_c4_r0', effects: ['+9 % Attack Damage'], nodeType: 'Micro Talent',
+    })
+    expect(build.slates?.[0]?.slots.slice(1, 4).map(slot => slot.selectedNodeId)).toEqual([
+      'artisan_c4_r2', 'god_of_might_c6_r0', 'ranger_c5_r2',
+    ])
+    expect(warnings.some(warning => warning.includes('slate talent nodes were matched by inferred grid coordinates'))).toBe(true)
+  })
+
+  it('does not position-match a tree node that has a different game ID', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['43060300'], enchantTalentIds: [], talentSlots: [] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c5_r2_other', game_id: '43060399', column: 5, row: 2, node_type: 'Medium Talent', effects: ['+8 % Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]?.selectedNodeId).toBeNull()
+    expect(warnings).toContain('Slate at board index 22: talent 43060300 could not be matched to a current tree node and was left empty.')
+  })
+
+  it('leaves a talent unresolved when multiple game-ID-less nodes share its inferred position', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['43060300'], enchantTalentIds: [], talentSlots: [] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_node_a', column: 5, row: 2, node_type: 'Medium Talent', effects: ['+8 % Damage'] },
+      { id: 'ranger_node_b', column: 5, row: 2, node_type: 'Medium Talent', effects: ['+9 % Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]?.selectedNodeId).toBeNull()
+    expect(warnings).toContain('Slate at board index 22: talent 43060300 matches multiple game-ID-less nodes at its inferred coordinates and was left empty.')
+  })
+
+  it('keeps Nether King fixed and branded talent IDs in their respective Builder slots', () => {
+    const slatePool = { magic: [], rare: [], legendary: [], core: [
+      { key: 'Nether King:fixed', game_id: '90000202', treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node',
+        name: 'Ultimate Nether King Talent Node', effects: ['Triggers Lv. 1 Timid Curse when you or your Minions deal damage to enemies. Cooldown: 0.2 s'] },
+      { key: 'Nether King:brand-a', game_id: '92100017', treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node',
+        name: 'Ultimate Nether King Talent Node', effects: ['+14 % additional Cold Damage on Critical Strike'] },
+      { key: 'Nether King:brand-b', game_id: '92100011', treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node',
+        name: 'Ultimate Nether King Talent Node', effects: ['+1 Minion Skill Level', '+4 % additional Minion Damage'] },
+    ] }
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: ['90000202'], enchantTalentIds: ['92100017', '52040100', '92100011'], talentSlots: [
+          { color: null, talentId: '92100017', rarity: null, slotIndex: 0 },
+          { color: null, talentId: '52040100', rarity: null, slotIndex: 1 },
+          { color: null, talentId: '92100011', rarity: null, slotIndex: 2 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Psychic', nodes: [
+      { id: 'psychic_c3_r0', column: 3, row: 0, node_type: 'Medium Talent', effects: ['+20 % Critical Strike Rating'] },
+    ] }], [], { slatePool } as any)
+
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({ selectedCoreKey: 'Nether King:fixed', isCore: true })
+    expect(build.slates?.[0]?.slots[1]?.selectedNodeId).toBeNull()
+    expect(build.slates?.[0]?.slots[2]).toMatchObject({ selectedCoreKey: 'Nether King:brand-a', isCore: true })
+    expect(build.slates?.[0]?.slots[3]).toMatchObject({ selectedNodeId: 'psychic_c3_r0', effects: ['+20 % Critical Strike Rating'] })
+    expect(build.slates?.[0]?.slots[4]).toMatchObject({ selectedCoreKey: 'Nether King:brand-b', isCore: true })
+    expect(warnings).toContain("Nether King's Divinity at board index 52: variant judgment is mapped from BaseId 394004; confirm this crawler-derived mapping in-game.")
+  })
+
+  it('maps a compact Nether King talentSlotList to all three branded slots without EnchantTalentList', () => {
+    const core = ['92100017', '92100011', '92100012'].map((game_id, index) => ({
+      key: `Nether King:brand-${index}`, game_id, treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node',
+      name: `Brand ${index}`, effects: [`Branded effect ${index}`],
+    }))
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: ['90000202'], enchantTalentIds: [], talentSlots: [
+          { color: null, talentId: '92100017', rarity: null, slotIndex: 0 },
+          { color: null, talentId: '92100011', rarity: null, slotIndex: 1 },
+          { color: null, talentId: '92100012', rarity: null, slotIndex: 2 },
+        ] }],
+    }, [], [], [], [], [], [], [], [], [], { slatePool: { magic: [], rare: [], legendary: [], core } } as any)
+
+    expect(build.slates?.[0]?.slots.slice(2, 5).map(slot => slot.selectedCoreKey)).toEqual([
+      'Nether King:brand-0', 'Nether King:brand-1', 'Nether King:brand-2',
+    ])
+    expect(warnings).toContain("Nether King's Divinity at board index 52: its compact branded talent slot layout is inferred; confirm the three branded slots.")
+    expect(warnings).toContain("Nether King's Divinity at board index 52: variant judgment is mapped from BaseId 394004; confirm this crawler-derived mapping in-game.")
+  })
+
+  it('keeps base slate talentSlotList entries in logged slots without overwriting fixed IDs', () => {
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['42070500'], enchantTalentIds: [], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+          { color: 'Blue', talentId: '43060400', rarity: null, slotIndex: 2 },
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 3 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots.slice(0, 3).map(slot => slot.selectedNodeId)).toEqual([
+      'ranger_c3_r4', null, 'ranger_c4_r3',
+    ])
+    expect(build.slates?.[0]?.slots[3]?.selectedNodeId).toBeNull()
+  })
+
+  it('warns and leaves out a base slate talent that conflicts with a fixed slot ID', () => {
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['42070500', '43060400'], enchantTalentIds: [], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+          { color: 'Blue', talentId: '42070501', rarity: null, slotIndex: 1 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r4', game_id: '42070501', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots.slice(0, 2).map(slot => slot.selectedNodeId)).toEqual(['ranger_c3_r4', 'ranger_c4_r3'])
+    expect(warnings).toContain('Slate at board index 22: logged talent 42070501 conflicts with talent 43060400 in slot 1; the later talent was left out.')
+    expect(warnings.filter(warning => warning.includes('logged talent 42070501 conflicts with talent 43060400 in slot 1'))).toHaveLength(1)
+  })
+
+  it('does not silently overwrite a Nether King fixed talent when the slot list disagrees', () => {
+    const fixed = { key: 'Nether King:fixed', game_id: '90000202', treeName: 'Nether King', nodeType: 'Ultimate Nether King Talent Node',
+      name: 'Fixed', effects: ['Fixed effect'] }
+    const { build, warnings } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 52, pageId: -4, baseId: 394004, uniqueItemId: 0, shapeId: null, direction: null,
+        rarityValue: 4, baseTalentIds: ['90000202'], enchantTalentIds: [], talentSlots: [
+          { color: null, talentId: '90000203', rarity: null, slotIndex: 0 },
+        ] }],
+    }, [], [], [], [], [], [], [], [], [], { slatePool: { magic: [], rare: [], legendary: [], core: [fixed] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]).toMatchObject({ selectedCoreKey: 'Nether King:fixed', isCore: true })
+    expect(warnings).toContain('Slate at board index 52: logged talent 90000203 conflicts with talent 90000202 in slot 0; the later talent was left out.')
+  })
+
+  it('keeps a logged base slate talent when its fixed slot is otherwise empty', () => {
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['42070500'], enchantTalentIds: [], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+          { color: 'Blue', talentId: '43060400', rarity: null, slotIndex: 1 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots.slice(0, 2).map(slot => slot.selectedNodeId)).toEqual(['ranger_c3_r4', 'ranger_c4_r3'])
+  })
+
+  it('keeps base slate talents and enchant slots instead of dropping the fixed notes', () => {
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1045, direction: 3,
+        rarityValue: 3, baseTalentIds: ['12070200', '14050500'], enchantTalentIds: ['14040100', '13070500', '12070100'],
+        talentSlots: [
+          { color: 'Purple', talentId: '14040100', rarity: null, slotIndex: 0 },
+          { color: 'Orange', talentId: '13070500', rarity: null, slotIndex: 1 },
+          { color: 'Orange', talentId: '12070100', rarity: null, slotIndex: 2 },
+        ] }],
+    }, [], [], [], [], [], [], [], [
+      { name: 'Onslaughter', nodes: [
+        { id: 'onslaughter_c6_r1', column: 6, row: 1, node_type: 'Legendary Medium Talent', effects: ['+10 % additional Base Damage for Two-Handed Weapons'] },
+        { id: 'onslaughter_c6_r0', column: 6, row: 0, node_type: 'Legendary Medium Talent', effects: ['+10 % additional Base Damage'] },
+      ] },
+      { name: 'Warrior', nodes: [
+        { id: 'warrior_c4_r4', column: 4, row: 4, node_type: 'Legendary Medium Talent', effects: ['+10 % Damage'] },
+        { id: 'warrior_c3_r0', column: 3, row: 0, node_type: 'Medium Talent', effects: ['+6 % Damage'] },
+      ] },
+      { name: 'Warlord', nodes: [{ id: 'warlord_c6_r4', column: 6, row: 4, node_type: 'Legendary Medium Talent', effects: ['+8 % Damage'] }] },
+    ], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.shapeIndex).toBe(4)
+    expect(build.slates?.[0]?.slots.map(slot => slot.selectedNodeId)).toEqual([
+      'onslaughter_c6_r1', 'warrior_c4_r4', 'warrior_c3_r0', 'warlord_c6_r4', 'onslaughter_c6_r0',
+    ])
+  })
+
+  it('keeps EnchantTalentList when talentSlotList repeats a base slate talent', () => {
+    const { build } = createUeLogBuild({
+      dumpNumber: 1, characterName: 'Slate', level: 1, heroId: null, heroPurchaseId: null,
+      gear: [], skills: [], truncatedSections: [],
+      slates: [{ index: 22, pageId: -4, baseId: 260504, uniqueItemId: null, shapeId: 1035, direction: 1,
+        rarityValue: 3, baseTalentIds: ['42070500'], enchantTalentIds: ['43060400'], talentSlots: [
+          { color: 'Blue', talentId: '42070500', rarity: null, slotIndex: 0 },
+        ] }],
+    }, [], [], [], [], [], [], [], [{ name: 'Ranger', nodes: [
+      { id: 'ranger_c3_r4', game_id: '42070500', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+      { id: 'ranger_c4_r3', game_id: '43060400', node_type: 'Medium Talent', effects: ['+18 % Melee Damage'] },
+    ] }], [], { slatePool: { magic: [], rare: [], legendary: [], core: [] } } as any)
+
+    expect(build.slates?.[0]?.slots[0]?.selectedNodeId).toBe('ranger_c3_r4')
+    expect(build.slates?.[0]?.slots[2]?.selectedNodeId).toBe('ranger_c4_r3')
   })
 
   it('warns when an empty base slate has no tree association', () => {
@@ -1005,15 +1255,18 @@ describe('UE_game.log build conversion', () => {
     expect(build.slates?.map(slate => [slate.anchor, slate.cells])).toEqual([
       [[2, 0], [[2, 0], [3, 0]]],
       [[0, 1], [[0, 2], [0, 3], [1, 1], [1, 2], [1, 3], [2, 1], [2, 2]]],
+      [[3, 1], [[3, 1], [3, 2], [4, 2], [5, 2]]],
       [[2, 3], [[2, 3], [2, 4], [3, 3]]],
       [[4, 3], [[4, 3], [5, 3]]],
       [[1, 1], [[1, 4], [4, 1], [4, 4]]],
       [[3, 4], [[3, 4], [3, 5]]],
     ])
+    expect(build.slates).toHaveLength(7)
+    expect(warnings.some(warning => /left out|could not be matched|could not fit|ambiguous/.test(warning))).toBe(false)
     expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')).toMatchObject({ orientationIndex: 0, treeType: 'Nether King' })
     expect(warnings).not.toContain("Nether King's Divinity: the game log does not include its branded board shape, so it could not be placed.")
-    expect(warnings).toContain('Slate 1045: kind or ShapeId is not mapped from observed log data and was left out.')
-    expect(warnings).toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
+    expect(warnings).not.toContain('Slate 1045: kind or ShapeId is not mapped from observed log data and was left out.')
+    expect(warnings).not.toContain("Nether King's Divinity at board index 52: the log does not identify its variant; imported as Judgment. Confirm the variant and board placement.")
     expect(build.slates?.find(slate => slate.kind === 'nether_kings_divinity')?.netherKingVariant).toBe('judgment')
   })
 

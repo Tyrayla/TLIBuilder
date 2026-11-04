@@ -7,7 +7,7 @@ import { convertCompendiumBuild, resolveCompendiumSeason } from '../crosswalk/co
 import compendiumExportImg from '../assets/compendium-export.png'
 import { copyableErrorDetails, normalizeError, type TliErrorPayload } from '../errors/tliError'
 import { scanUeGameLog, type UeLogCharacterPreview } from '../importers/ueLog/parse'
-import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures, UE_LOG_CAREER_TREE_NAMES } from '../importers/ueLog/toBuild'
+import { createUeLogBuild, describeUeLogCaptureMerge, groupUeLogCaptures, UE_LOG_CAREER_TREE_NAMES, UE_LOG_GAME_ID_TREE_NAMES } from '../importers/ueLog/toBuild'
 
 /**
  * Shared import UI used by BOTH the main-menu import modal (BuildSelectScreen) and the in-build Import/Export
@@ -179,6 +179,10 @@ export default function ImportPanel({ onImport, autoFocus }: Props) {
       ])
       const treeNames = new Set((preview.talentTrees ?? []).flatMap(tree => tree.careerId === null
         ? [] : [UE_LOG_CAREER_TREE_NAMES[tree.careerId] ?? '']))
+      for (const gameId of relevantSlateIds) {
+        const treeName = UE_LOG_GAME_ID_TREE_NAMES[gameId.slice(0, 2)]
+        if (treeName) treeNames.add(treeName)
+      }
       for (const tree of treeSummaries) {
         if (tree.nodes?.some(node => node.game_id && relevantTreeNodeIds.has(node.game_id))) treeNames.add(tree.name)
       }

@@ -7,7 +7,7 @@
 ### UE_game.log import
 - **Import an editable build from UE_game.log.** Builder imports gear, skills and supports, allocated talents, Hero Traits, Hero Memories, pact spirits, divinity slates, and Ethereal Prisms when the log and current data provide enough detail. Import warnings call out selections that need review.
 - **Combine log captures for the same character.** Builder fills gaps from partial captures without restoring stale data over a newer complete capture.
-- **Import Nether King's Divinity variants with their own shapes and mod pools.** Judgment, Contamination, and Banishment use their distinct footprints and locally served icons.
+- **Import Nether King's Divinity variants and talents from logs.** Judgment, Contamination, and Banishment keep their distinct footprints, mod pools, and locally served icons. Builder matches logged talents against the available trees and warns when it cannot confirm a variant or placement.
 
 ### Improvements
 - **Open talent trees without waiting through the loading spinner again.** Builder caches trees and loads them in the background when you open a build.
