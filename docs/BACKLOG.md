@@ -860,7 +860,7 @@ build-code round trip + unsaved-changes guard. Run: `npm run test:e2e`. Remainin
   fetched data and serves it from the same origin (`/data`), so tests never touch the live CDN. Pyodide still
   loads from jsDelivr; mirroring it would make the target fully offline.
 - **CI job** — web: `.github/workflows/e2e-web.yml` runs before every production web deploy, on PRs into
-  `main`, and nightly on `dev`. Electron in CI is still open.
+  `main` and `staging`, and on demand (no nightly or `dev` runs). Electron in CI is still open.
 
 ### Findings surfaced by the E2E work (app-side, owner-acknowledged 2026-08-04)
 
