@@ -4,14 +4,12 @@ name: E2E (web)
 # from the same origin (scripts/build-web-local-data.mjs): the commit's own engine runs against the
 # current tli-data, and the run never depends on the live data CDN. Pyodide still loads from jsDelivr.
 #
-# Runs before every production web deploy (deploy-web.yml calls it), on pull requests into main,
-# nightly against dev, and on demand. Scheduled runs only start once this file is on the default branch.
+# Runs before every production web deploy (deploy-web.yml calls it), on pull requests into main or
+# staging, and on demand. There is no nightly or dev run.
 
 on:
   pull_request:
-    branches: [main]
-  schedule:
-    - cron: '0 9 * * *'   # nightly, against dev
+    branches: [main, staging]
   workflow_dispatch: {}
   workflow_call:
     secrets:
@@ -32,9 +30,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-        with:
-          # A scheduled run starts on the default branch; the nightly run tests dev.
-          ref: ${{ github.event_name == 'schedule' && 'dev' || '' }}
 
       - name: Setup Python
         uses: actions/setup-python@v7
