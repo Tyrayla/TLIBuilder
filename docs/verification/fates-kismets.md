@@ -3,27 +3,36 @@
 
 # Pact Fates / Kismets
 
-- **Status:** ⚠️ Unverified
+- **Status:** 🔶 Partial
 - **Mechanic tags:** pact-spirit, build-system
+- **Last verified:** 2026-10-27 by Tyra
+
+## Raw data points
+
+With two Star Trails in the same Pact Branch, three Micro Fates each rolled at +2% Max Fire Resistance combine to +6%; the 1.90 effect multiplier produces +11.4%, displayed in game as +11%.
 
 ## Derived / confirmed formula
 
-Unverified model (not measured in-game): for each Pact Spirit tree, let n = min(the number of Star Trails installed anywhere in that tree, 3), with the cap of three an unverified owner-approved working assumption. The game text says only "+45 % for the effects of Micro Fates in the same Pact Branch"; no stacking limit is stated in the data we hold. Model additive stacking as source value × (1 + 0.45 × n), with each modifier rounded to the nearest integer and exact halves rounded away from zero (for example, -43.5 to -44). This affects only Micro Fates in that same tree, including Micro slots in an Undetermined Fate assigned to that tree.
+Measured: three +2% Micro Fate values combine to +6%; two Star Trails give 1 + 0.45 * 2 = 1.90; +6% * 1.90 = +11.4%, displayed as +11%. The 4% talent source is independent and is not scaled. The existing cap of three Star Trails per branch and behavior at other stack counts remain unverified.
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Fates/Kismets/Dual/Undetermined install onto spirit ring nodes (replace effect); 9 micro / 4 medium limit; buildSpiritEffects substitution. Star Trail behavior is not yet verified in-game. The game text says only "+45 % for the effects of Micro Fates in the same Pact Branch"; no stacking limit is stated in the data we hold. Additive stacking is an unverified model with no in-game measurement. The cap of three Star Trails per tree is an unverified owner-approved working assumption, based only on the owner never having seen more than three used. To verify later, stack four Star Trails in one tree and check whether the fourth changes Micro Fate values. Per-source rounding (for example, 2% × 1.45 = 2.9 → 3) is a safe owner-approved assumption, not empirical verification; implementation rounds exact halves away from zero (for example, -43.5 to -44), also an unverified assumption.
+Fates and Kismets are modeled in the app. Star Trail is partially verified: two same-branch Trails scale three +2% Max Fire Resistance Micro Fates to an 11% displayed contribution (6% * 1.90 = 11.4%, floored). Every backend Star Trail regression input excludes the independent talent source. Other positive additive percentage stats are covered by engine regression but their in-game rounding is not independently verified. Negative/non-additive percentage rounding, flat-value rules, and the three-Trail cap remain unverified; implementation preserves prior behavior where applicable.
 
 ## Implementation (engine model)
 
-`tools/destiny_catalog.py::categorize_destiny` is a pure transform from the imported `_destiny.json` into installable fate items, run at serve time by `GET /api/destiny` (mirrors `prism_catalog.categorize_prism_catalog`). `_kind` classifies each by name prefix → `micro_fate` / `medium_fate` / `dual_kismet` / `kismet` / `undetermined`. `node_tier` (micro|medium) is read from the `detail[]` line `Install to replace a Micro/Medium Talent Node` via `_TIER_RE`, falling back to kind. `effect_text` joins the clean `implicit[]` lines; for `dual_kismet` the `Activates … when there are 2 of this Kismet …:` intro is stripped by `_DUAL_INTRO_RE` (the 2-of-a-kind gating is enforced in the UI/engine, not here). Output pools items into `micro` (micro nodes) and `medium` (Medium Fates + Kismets), plus the single `undetermined` expansion item. This module only builds the catalog; installation onto spirit-ring nodes and the 9-micro / 4-medium slot limits + `buildSpiritEffects` substitution are handled renderer-side. Verified via `test_destiny_catalog.py` (SS12: 50 micro_fate, 41 medium_fate, 46 kismet, 54 dual_kismet). Star Trail (TLIBuilder PR #11, commit 48c86ac): models additive stacking for every Star Trail installed in a tree, including an Undetermined Fate Medium slot; this is unverified modeling with no in-game measurement. It models a 45 percentage point increase per trail and uses a cap of three Star Trails per tree as an unverified owner-approved working assumption; verify by stacking four Star Trails in one tree and checking whether the fourth changes Micro Fate values. Each modifier is rounded to the nearest integer, with exact halves rounded away from zero (for example, -43.5 to -44); this rounding behavior remains an unverified assumption. Same-tree Undetermined Micro slots are affected; a different tree is not.
+Star Trail Micro Fate effects carry same-branch and multiplier metadata from buildSpiritEffects through server._resolve_effect_list. backend/engine/aggregator.py groups positive additive percentage contributions by Pact Branch, stat, scope, and slot; it sums matching Fate amounts, applies the multiplier once, then floors to whole percentage points. Grouped breakdown source names show the number of combined Fates. Negative or non-additive percentage rolls keep prior per-Fate rounding; known flat attribute/Command/Growth rolls keep prior whole-number rounding; other non-percent values remain unchanged pending verification. Tests cover three +2% Max Fire Resistance Micro Fates with two Trails and no talent (71% total max resistance), separate branches, a second percentage stat, negative and mixed-sign values, breakdown attribution, missing stat metadata, and legacy flat-stat rounding.
 
 ## Sources
 
+- backend/engine/aggregator.py
+- backend/server.py
+- src/renderer/src/api/client.ts
+- backend/tests/test_star_trail.py
 - backend/tools/destiny_catalog.py
 - backend/tests/test_destiny_catalog.py
 - memory: project_fates
 - data/seasons/SS12/_destiny.json:1414-1417
 - data/seasons/SS13/_destiny.json:1436-1439
 - TLIBuilder draft PR #11, commit 48c86ac38e3a4109021e1ff362424219c74a835e
-- Owner decision: same-tree scope; cap of three is an unverified working assumption; per-source rounding remains an unverified assumption
+- Owner in-game measurement, 2026-10-27: two Star Trails with three +2% Max Fire Resistance Micro Fates

@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**101 entries** — ✅ Confirmed: 19 · 🔶 Partial: 12 · ⬜ Pending: 9 · ⚠️ Unverified: 59
+**101 entries** — ✅ Confirmed: 19 · 🔶 Partial: 13 · ⬜ Pending: 9 · ⚠️ Unverified: 60
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -33,6 +33,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Flame Slash (+ supports) | Flame Slash | skill, slash-strike, shotgun, conversion, per-slot | 🔶 Partial | — | [flame-slash.md](flame-slash.md) |
 | Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
 | Multistrike + Wind Stalker | — | speed, attack | 🔶 Partial | 2026-06-22 | [multistrike.md](multistrike.md) |
+| Pact Fates / Kismets | — | pact-spirit, build-system | 🔶 Partial | 2026-10-27 | [fates-kismets.md](fates-kismets.md) |
 | Path of Flames | Path of Flames | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [path-of-flames.md](path-of-flames.md) |
 | Shadow Strike (delivery model) | Thunder Spike | shotgun, damage-pool, trigger | 🔶 Partial | 2026-07-15 | [shadow-strike.md](shadow-strike.md) |
 | Shotgun (Merge + Web) | Chain Lightning | shotgun, supports, damage-pool | 🔶 Partial | — | [shotgun.md](shotgun.md) |
@@ -85,6 +86,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Loadouts | — | build-system | ⚠️ Unverified | — | [loadouts.md](loadouts.md) |
 | Local Gear-Defense Affix Pooling (Armour / Energy Shield / Evasion) | — | defense, pooling, gear | ⚠️ Unverified | — | [local-gear-defense-pooling.md](local-gear-defense-pooling.md) |
 | Magnificent supports adding Origin of Spirit Magus effects | Fire Ward, Cold Ward, Lightning Ward, Unyielding, Plague Source | minion, spirit-magus, support, buff | ⚠️ Unverified | — | [magnificent-origin-effects.md](magnificent-origin-effects.md) |
+| Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
 | Minion Lucky damage (Queer Angle) | — | minion, lucky | ⚠️ Unverified | — | [minion-lucky-damage.md](minion-lucky-damage.md) |
 | Minion modifier coverage (parser + consumption + remap) | — | minion, modifier, parser | ⚠️ Unverified | — | [minion-mod-coverage.md](minion-mod-coverage.md) |
 | Minion Multistrike | — | minion, multistrike | ⚠️ Unverified | — | [minion-multistrike.md](minion-multistrike.md) |
@@ -92,7 +94,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Minion spell/attack pool separation | — | minion, damage-pool | ⚠️ Unverified | — | [minion-spell-attack-separation.md](minion-spell-attack-separation.md) |
 | Origin of Thunder (summoner buff) | Summon Thunder Magus | minion, spirit-magus, buff | ⚠️ Unverified | — | [origin-of-thunder.md](origin-of-thunder.md) |
 | Origin-effect scalar supports (Precise: Superpower / Friend of Spirit Magi) | Precise: Superpower, Friend of Spirit Magi, Precise: Friend of Spirit Magi | minion, spirit-magus, support | ⚠️ Unverified | — | [origin-effect-scalar-supports.md](origin-effect-scalar-supports.md) |
-| Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
 | Per-Attribute Scaling ("+X per N Strength/Dexterity/Intelligence") | — | breakpoint, condition, step-function | ⚠️ Unverified | — | [attribute-scaling-condition.md](attribute-scaling-condition.md) |
 | Periodic Burst averaged player buff | Periodic Burst, Spiral Strike | supports, uptime | ⚠️ Unverified | — | [periodic-burst.md](periodic-burst.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
@@ -106,7 +107,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
 | Steel Vanguard "Knowledgeable" — Focus Skills in Active Skill slots (soft-invalidation gating) | Focus skills (Focus-tagged) | core-talent, slot-gating, soft-invalidation, reservation, sealing, trigger | ⚠️ Unverified | — | [knowledgeable-focus-active-slots.md](knowledgeable-focus-active-slots.md) |
 | Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |
+| Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |
 | Torturer's Touch (Affliction + Reaping) — tuning math and frame-quantization theory | Affliction, Reaping | dot, stacking, true-damage, trigger, breakpoint, tick-rounding, damage-pool | ⚠️ Unverified | — | [torturers-touch-reaping.md](torturers-touch-reaping.md) |
 | Troublemaker - per-100-Growth damage + Attack/Cast Speed | Troublemaker | step-function, damage-pool | ⚠️ Unverified | — | [troublemaker-growth-scaling.md](troublemaker-growth-scaling.md) |
-| Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
-| Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |
