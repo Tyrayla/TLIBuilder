@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Engine & DPS
+- **Cicada Shell now adds Fire, Cold, and Lightning damage from your Max Energy Shield.** Its "Adds Elemental Damage equal to N% of Max Energy Shield to Attacks and Spells" line grants N% of your final Max Energy Shield as flat damage of each element (not split between them), for both Attacks and Spells. Its Energy Shield Charge Speed and Energy Shield Regain penalties now parse as well. The model awaits in-game verification.
+
 ### Bug fixes
 - **Youga 3's effects panel no longer overlaps the hero memory rail.** The Hero Trait screen keeps the tree at its full height and scrolls the effects below it.
 - **Talent trees now open without a loading spinner.** Your build's trees load in the background as soon as you open the build, and a tree you have opened stays loaded.
