@@ -144,3 +144,70 @@ def test_pen_raises_damage_vs_target():
     with_pen = _off(_gear(**flat, **res, trinity_hit_multiplier=5.0, elemental_pen_from_min_res=1.0))["total_dps_vs_target"]
     # dummy 30% res → 70% taken; 60% pen → 30% res − 60% = −30% → 130% taken. Ratio 1.3/0.7.
     assert with_pen / without == pytest.approx(1.3 / 0.7, rel=1e-3)
+
+
+# ── review follow-ups ───────────────────────────────────────────────────────────────────────────
+def test_parsed_item_text_end_to_end():
+    """Real item text → parser stat keys → engine damage number (no hand-written Trinity stat keys)."""
+    flat = _flat(fire=100, cold=100, lightning=100)
+    plain = _form_by_type(_off(_gear(**flat)))
+    gear = _gear(**flat)
+    contribs = gear[-1]["contributions"]
+    for text in ("Law of Trinity",
+                 "Gains Elemental Resistance Penetration equal to your minimum effective Elemental Resistance"):
+        for m in parse(text):
+            contribs.append({"stat": m["stat_key"], "display_value": m["amount"], "unit": "", "slot": "ring",
+                             "item_name": "X", "text": text})
+    law = _form_by_type(_off(gear))
+    assert sum(law.values()) == pytest.approx(5.0 * sum(plain[e] for e in ("fire", "cold", "lightning")) / 3.0,
+                                              rel=1e-6)
+
+
+def test_conversion_positive_control_and_ignored_under_trinity():
+    flat = _flat(fire=100, cold=100, lightning=100)
+    no_conv = _off(_gear(**flat))["total_dps_vs_target"]
+    conv = _off(_gear(**flat, physical_convert_to_fire=1.0))["total_dps_vs_target"]
+    assert conv != pytest.approx(no_conv, rel=1e-6)           # the key is real: conversion changes DPS normally
+    a = _off(_gear(**flat, trinity_hit_multiplier=5.0))["total_dps_vs_target"]
+    b = _off(_gear(**flat, trinity_hit_multiplier=5.0, physical_convert_to_fire=1.0))["total_dps_vs_target"]
+    assert b == pytest.approx(a, rel=1e-9)
+
+
+def test_zero_flat_zeroes_every_element_with_positive_control():
+    flat = _flat(fire=100, lightning=100)
+    assert _off(_gear(**flat))["total_dps"] > 0
+    by = _form_by_type(_off(_gear(**flat, trinity_hit_multiplier=5.0)))
+    assert by.get("fire", 0.0) == 0.0 and by.get("lightning", 0.0) == 0.0 and by.get("cold", 0.0) == 0.0
+
+
+def test_multiplier_does_not_stack_past_edict():
+    flat = _flat(fire=100, cold=100, lightning=100)
+    a = _off(_gear(**flat, trinity_hit_multiplier=6.0))["total_dps"]
+    b = _off(_gear(**flat, trinity_hit_multiplier=11.0))["total_dps"]
+    assert b == pytest.approx(a, rel=1e-9)
+
+
+def test_only_deal_type_loses_other_picks():
+    flat = _flat(fire=100, cold=100, lightning=100)
+    both = _form_by_type(_off(_gear(**flat, trinity_hit_multiplier=5.0)))
+    only = _form_by_type(_off(_gear(**flat, trinity_hit_multiplier=5.0, can_only_deal_fire=1.0)))
+    assert only["fire"] == pytest.approx(both["fire"], rel=1e-9)     # fire keeps just its own 1/3 share
+    assert only.get("cold", 0.0) == 0.0 and only.get("lightning", 0.0) == 0.0
+
+
+def test_hit_min_max_are_roll_if_picked():
+    flat = _flat(fire=100, cold=100, lightning=100)
+    base = _off(_gear(**flat))["hit_forms"][0]["hit_min_by_type"]["fire"]
+    law = _off(_gear(**flat, trinity_hit_multiplier=5.0))["hit_forms"][0]["hit_min_by_type"]["fire"]
+    assert law == pytest.approx(5.0 * base, rel=1e-6)
+
+
+def test_pen_negative_floors_at_zero_and_raised_cap_counts():
+    g = _gear(elemental_pen_from_min_res=1.0, fire_resistance=-0.2, cold_resistance=0.6, lightning_resistance=0.6)
+    assert _elemental_pen(g) == pytest.approx(0.0)
+    g2 = _gear(elemental_pen_from_min_res=1.0, fire_resistance=0.8, cold_resistance=0.8, lightning_resistance=0.8,
+               max_elemental_resistance_inc=0.15)
+    assert _elemental_pen(g2) == pytest.approx(0.75)
+    g3 = _gear(elemental_pen_from_min_res=1.0, fire_resistance=0.8, cold_resistance=0.8, lightning_resistance=0.8,
+               cold_resistance_max_inc=-0.1)
+    assert _elemental_pen(g3) == pytest.approx(0.50)

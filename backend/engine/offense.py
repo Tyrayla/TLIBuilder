@@ -2092,7 +2092,11 @@ def calculate_offense(
                        if f"can_only_deal_{t}" in _present and source.total(f"can_only_deal_{t}") > 0.0}
 
     # Law/Edict of Trinity hit multiplier (5x / 6x). Presence-gated like only_deal_types; 0.0 = not equipped.
-    trinity_mult = (source.total("trinity_hit_multiplier")
+    # Single chest slot → one source; clamp so duplicated/custom sources can never stack past Edict's 6x.
+    # Interactions (documented, owner ruling "only this type can be dealt"): `can_only_deal_<t>` applies AFTER the
+    # pick, so a pick of a disallowed element deals 0 (its probability mass is lost, not redistributed). The
+    # compulsory-elements branch (Chromatic Shot) does not model Trinity — unsupported, not silently combined.
+    trinity_mult = (min(source.total("trinity_hit_multiplier"), 6.0)
                     if "trinity_hit_multiplier" in _present else 0.0)
 
     # Rosa Unsullied Blade: "Spell Damage bonus + additional also apply to Attack Damage". Augment the DAMAGE-pool
