@@ -567,6 +567,24 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": f"can_only_deal_{m.group(1).lower()}", "amount": 1.0, "text": t}]
 
+    # Trinity (SS14 legendary chest). "Gains Elemental Resistance Penetration equal to your minimum effective
+    # Elemental Resistance" → flag; offense resolves it to min over fire/cold/lightning of min(res, max res). The
+    # corroded variant fuses a trailing "+N% additional Elemental Damage" onto the same line → emit both.
+    m = re.match(r'gains\s+elemental\s+resistance\s+penetration\s+equal\s+to\s+your\s+minimum\s+effective\s+'
+                 r'elemental\s+resistance\b\s*(?:\+\s*([\d.]+)\s*%\s*additional\s+elemental\s+damage)?\s*$', t, re.I)
+    if m:
+        out = [{"stat_key": "elemental_pen_from_min_res", "amount": 1.0, "text": t}]
+        if m.group(1):
+            out.append({"stat_key": "elemental_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t})
+        return out
+
+    # Law of Trinity (5x) / Edict of Trinity (6x): the hit's multiplier is stored as the stat amount (offense
+    # picks ONE element per hit, weighted inverse to its flat share; see offense._trinity_pick_weights).
+    m = re.match(r'\s*(law|edict)\s+of\s+trinity\s*$', t, re.I)
+    if m:
+        return [{"stat_key": "trinity_hit_multiplier", "amount": 5.0 if m.group(1).lower() == "law" else 6.0,
+                 "text": t}]
+
     # Self-consume drains → typed consume-rate stats (engine.consumption turns these into life/mana/ES per second).
     # Anchored on a LEADING "Consumes" so it never matches consumer lines ("… for every N Life CONSUMED recently").
     # Handles: pct vs flat, current vs Max, Life/Mana/Energy Shield (+ "and <pool>" compound), per-second vs

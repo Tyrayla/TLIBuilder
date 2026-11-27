@@ -708,6 +708,44 @@ TARGET_EROSION_RESIST = 0.30            # erosion
 TARGET_ENEMY_COUNT_WEIGHT = 5
 
 
+def _min_effective_elemental_res(source: BuildSource) -> float:
+    """Minimum over Fire/Cold/Lightning of the player's EFFECTIVE resistance, as a fraction. Effective =
+    min(resistance, that element's max resistance) — exactly the capped value the defense panel shows
+    (defense._elem_resist). 60/60/60 → 0.60; 80% res under a 75% max → 0.75. Floored at 0 (a negative
+    effective resistance is not modelled as negative penetration)."""
+    from engine.defense import _elem_resist
+    caps = [_elem_resist(source, f"{t}_resistance", f"{t}_resistance_max_inc")[0] for t in ("fire", "cold", "lightning")]
+    return max(0.0, min(caps) / 100.0)
+
+
+def _trinity_res_pen(source: BuildSource) -> float:
+    """Trinity: "Gains Elemental Resistance Penetration equal to your minimum effective Elemental Resistance".
+    Stacks as elemental_pen (Fire/Cold/Lightning only, never Erosion). Presence-gated (all_stats) so builds
+    without the item consume nothing and stay golden-identical. Flag value is a presence flag, not a scale."""
+    if "elemental_pen_from_min_res" not in source.all_stats() or source.total("elemental_pen_from_min_res") <= 0.0:
+        return 0.0
+    return _min_effective_elemental_res(source)
+
+
+_TRINITY_ELEMENTS = ("fire", "cold", "lightning")
+
+
+def _trinity_pick_weights(eff_flat: dict) -> dict[str, float]:
+    """Law/Edict of Trinity: probability each element is the one picked for a hit. Glossary: "The lower the
+    Flat Damage percentage of an Elemental Damage, the higher the chance of it being chosen". Owner ruling
+    2026-11-27: weights are INVERSE to the element's share of flat damage (P ∝ 1/share, and the shared
+    normalizer cancels so P ∝ 1/flat_e). An element with zero flat is picked with certainty (and then deals
+    0); several zero-flat elements split the pick evenly. No flat at all → even thirds. Flat is the post-
+    effectiveness average of (min, max) per element."""
+    flat = {e: (eff_flat.get(e, (0.0, 0.0))[0] + eff_flat.get(e, (0.0, 0.0))[1]) / 2.0 for e in _TRINITY_ELEMENTS}
+    zeros = [e for e in _TRINITY_ELEMENTS if flat[e] <= 0.0]
+    if zeros:
+        return {e: (1.0 / len(zeros) if e in zeros else 0.0) for e in _TRINITY_ELEMENTS}
+    inv = {e: 1.0 / flat[e] for e in _TRINITY_ELEMENTS}
+    tot = sum(inv.values())
+    return {e: inv[e] / tot for e in _TRINITY_ELEMENTS}
+
+
 def _target_effective(source: BuildSource, dtype: str) -> tuple[float, float]:
     """(effective_armor_reduction, effective_resistance) for `dtype` after the attacker's penetration.
 
@@ -730,7 +768,7 @@ def _target_effective(source: BuildSource, dtype: str) -> tuple[float, float]:
     else:  # fire / cold / lightning — elemental_pen stacks on top of the per-type pen
         base_res = tc.get(f"{dtype}_res", TARGET_ELEMENTAL_RESIST)
         eff_resist = (base_res - source.total(f"{dtype}_pen")
-                      - source.total("elemental_pen") + all_res_red)
+                      - source.total("elemental_pen") - _trinity_res_pen(source) + all_res_red)
     return eff_armor, eff_resist
 
 
@@ -776,7 +814,7 @@ def target_profile(source: BuildSource) -> dict:
         base = (tc.get("erosion_res", TARGET_EROSION_RESIST) if t == "erosion"
                 else tc.get(f"{t}_res", TARGET_ELEMENTAL_RESIST))
         pen = (source.total("erosion_pen") if t == "erosion"
-               else source.total(f"{t}_pen") + source.total("elemental_pen"))
+               else source.total(f"{t}_pen") + source.total("elemental_pen") + _trinity_res_pen(source))
         resist = base + all_red          # enemy's actual resistance (after reductions; multipliers go here)
         return {"base": base, "reduction": all_red, "pen": pen, "resist": resist, "effective": resist - pen}
 
@@ -794,7 +832,7 @@ def target_profile(source: BuildSource) -> dict:
         "pen": {
             "armor": armor_pen,
             "all_resistance_reduction": all_red,
-            "elemental": source.total("elemental_pen"),
+            "elemental": source.total("elemental_pen") + _trinity_res_pen(source),
             "fire": source.total("fire_pen"),
             "cold": source.total("cold_pen"),
             "lightning": source.total("lightning_pen"),
@@ -2053,6 +2091,10 @@ def calculate_offense(
     only_deal_types = {t for t in DAMAGE_TYPES
                        if f"can_only_deal_{t}" in _present and source.total(f"can_only_deal_{t}") > 0.0}
 
+    # Law/Edict of Trinity hit multiplier (5x / 6x). Presence-gated like only_deal_types; 0.0 = not equipped.
+    trinity_mult = (source.total("trinity_hit_multiplier")
+                    if "trinity_hit_multiplier" in _present else 0.0)
+
     # Rosa Unsullied Blade: "Spell Damage bonus + additional also apply to Attack Damage". Augment the DAMAGE-pool
     # tag set with "spell" for attack skills when the flag is present, so spell_dmg_inc/additional (+ per-element
     # spell damage) bridge to the attack's damage pools ONLY — crit/area/cast-speed keep plain mod_tags below.
@@ -2342,13 +2384,21 @@ def calculate_offense(
             # (1 + path increases) × (path additionals) × generic; per-final-type factors (enemy vuln,
             # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
             eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in form_flat.items()}
+            # Law/Edict of Trinity: damage cannot be converted (or added-as), so cascade with NO conversion; only
+            # Fire/Cold/Lightning can be dealt and ONE is picked per hit (see _trinity_pick_weights).
+            trin_weights = _trinity_pick_weights(eff_flat) if trinity_mult else None
             converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
-                                          convert_fracs, adds_fracs, _endpoint_mult)
+                                          {} if trinity_mult else convert_fracs,
+                                          {} if trinity_mult else adds_fracs, _endpoint_mult)
             for dtype, (smin, smax) in converted.items():
                 # "You can only deal <Type>" — a FINAL packet left as a non-allowed type deals zero (applied AFTER
                 # conversion, so damage that converted INTO an allowed type still counts).
                 if only_deal_types and dtype not in only_deal_types:
                     continue
+                if trin_weights is not None and dtype not in trin_weights:
+                    continue                                   # Trinity drops physical/erosion
+                # Trinity: the pick-weighted EV share and the 5x/6x multiplier on the picked element's final hit.
+                trin_share = (trin_weights[dtype] * trinity_mult) if trin_weights is not None else 1.0
                 # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
                 vuln = _enemy_vuln_mult(source, dtype, is_spell)
                 type_min = smin * above_mult * vuln * aug_factor * form_add_mult
@@ -2358,11 +2408,16 @@ def calculate_offense(
                 _lvl_t = (1 if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) else 0) \
                     - (1 if source.total(f"unlucky_{dtype}") > 0.0 else 0)
                 avg = ((type_min + type_max) / 2.0) * _luck_ratio(type_min, type_max, _lvl_t)
-                damage_by_type[dtype] = avg
-                hit_min_by_type[dtype] = type_min
-                hit_max_by_type[dtype] = type_max
-                avg_pre += avg
-                avg_pre_vs_target += avg * _target_mitigation(source, dtype)
+                if trin_weights is not None:
+                    # damage_by_type is the EXPECTED contribution; hit min/max are the roll IF this element is picked.
+                    hit_min_by_type[dtype] = type_min * trinity_mult
+                    hit_max_by_type[dtype] = type_max * trinity_mult
+                else:
+                    hit_min_by_type[dtype] = type_min
+                    hit_max_by_type[dtype] = type_max
+                damage_by_type[dtype] = avg * trin_share
+                avg_pre += avg * trin_share
+                avg_pre_vs_target += avg * trin_share * _target_mitigation(source, dtype)
 
         # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit. crit_factor
         # already reflects the effective crit chance (post Lucky/Unlucky crit).
