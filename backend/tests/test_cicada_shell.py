@@ -47,7 +47,15 @@ def test_corroded_line_parses_and_ranges_collapse_to_midpoints():
     keys = {p["stat_key"]: p["amount"]
             for p in _parse_custom_mod_text(CORRODED_LINE.format(pct="(1.3–1.6)"))}
     assert keys["max_es_as_elemental_dmg_pct"] == pytest.approx(0.0145)
-    assert "energy_shield_charge_speed_inc" in keys
+    # "(-40-40)" collapses to its midpoint, 0.
+    assert keys["energy_shield_charge_speed_inc"] == pytest.approx(0.0)
+
+
+def test_two_copies_sum():
+    gear = _gear(BASE_LINE.format(pct=1.0)) + _gear(BASE_LINE.format(pct=1.0), slot="chest2")
+    result = compute(BuildInput(slots=[], slates=[], season="test", gear=gear, character=[
+        {"stat": "max_energy_shield_flat", "amount": 8000.0, "label": "test"}]), {}, {})
+    assert result.stat_map["fire_attack_dmg_flat_min"]["total"] == pytest.approx(160.0)
 
 
 def test_line_is_resolved_for_the_gear_loop_and_badge():
