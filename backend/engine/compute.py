@@ -1265,6 +1265,28 @@ def compute(
         reservation = apply_reservation(
             source, skills_input, skills_by_id, build_input.attached_supports, active_booleans, numeric_vals)
 
+        # "Adds Elemental Damage equal to N% of Max Energy Shield to Attacks and Spells" (Cicada Shell): ordinary
+        # flat added damage of EACH of Fire, Cold and Lightning (not split), min = max = N% x FINAL Max ES. Runs
+        # after derive_stats + apply_reservation so Max ES already includes every inc/additional and Ward. Emitted
+        # into the real {type}_{attack,spell}_dmg_flat_{min,max} stats, so offense applies it with the skill's usual
+        # added-damage effectiveness. No circularity: nothing in the ES derivation reads flat damage. The source is
+        # rebuilt each pass, so this does not accumulate. One row per originating entry keeps the breakdown honest.
+        _es_dmg_entries = [e for e in source.source_log if e.stat == "max_es_as_elemental_dmg_pct"]
+        if _es_dmg_entries:
+            source.consumed_stats.add("max_es_as_elemental_dmg_pct")
+            _final_es = source.total("max_energy_shield")
+            for _e in _es_dmg_entries:
+                _amt = _e.amount * _final_es
+                if _amt <= 0:
+                    continue
+                for _dtype in ("fire", "cold", "lightning"):
+                    for _cls in ("attack", "spell"):
+                        for _mm in ("min", "max"):
+                            source.add_with_source(f"{_dtype}_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
+                                stat=f"{_dtype}_{_cls}_dmg_flat_{_mm}", amount=_amt,
+                                source_type=_e.source_type, label=_e.label, points=1,
+                                text=_e.text, source_name=_e.source_name, gear_slot=_e.gear_slot))
+
         # Stash converged Max/Unsealed Mana for the next pass's hero-trait apply() (Rosa Realm scaling tracks the
         # unsealed fraction). Runs after reservation each pass; converges with the loop. stash() (above) runs before
         # reservation, so this is the only place the trait can read accurate unsealed mana.

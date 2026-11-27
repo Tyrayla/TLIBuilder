@@ -739,6 +739,24 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "movement_speed_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
 
+    # Cicada Shell: "[-N % Energy Shield Charge Speed [-N % Energy Shield Regain]] Adds Elemental Damage equal to
+    # N % of Max Energy Shield to Attacks and Spells". The game text runs the lines together with no separator,
+    # so peel the trailing "Adds Elemental Damage …" clause (→ max_es_as_elemental_dmg_pct; compute.py folds it
+    # into flat Fire/Cold/Lightning for attacks AND spells once Max ES is final) and parse each leading
+    # "<signed value> % <stat>" piece on its own. A ranged value "(a–b)" collapses to its midpoint.
+    m = re.search(r'adds\s+elemental\s+damage\s+equal\s+to\s+\(?\s*(-?[\d.]+)(?:\s*[-–]\s*([\d.]+))?\s*\)?\s*%\s+'
+                  r'of\s+max(?:imum)?\s+energy\s+shield\s+to\s+attacks\s+and\s+spells\b', t, re.I)
+    if m:
+        lo = float(m.group(1))
+        hi = float(m.group(2)) if m.group(2) else lo
+        out = [{"stat_key": "max_es_as_elemental_dmg_pct", "amount": (lo + hi) / 2.0 / 100.0, "text": t}]
+        lead = re.sub(r'\(\s*(-?[\d.]+)\s*[-–]\s*(-?[\d.]+)\s*\)',
+                      lambda r: f"{(float(r.group(1)) + float(r.group(2))) / 2:g}", t[:m.start()].strip())
+        for piece in re.split(r'(?<=[A-Za-z])\s+(?=[+\-]\s*\d)', lead):
+            if piece.strip():
+                out.extend({**d, "text": t} for d in _parse_custom_mod_text(piece.strip()))
+        return out
+
     # "Adds N% of Max Life to Energy Shield" (Tortoise Shell) → max_life_as_es_pct (derive.py folds it into the ES
     # flat pool after Max Life is computed, so it then scales with ES inc/additional).
     m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+max\s+life\s+to\s+energy\s+shield\b', t, re.I)

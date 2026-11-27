@@ -3968,6 +3968,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="energy_shield",      stacking_rule="additive",
         ui_priority=31,                source_types=_T,
     ),
+    Stat.MAX_ES_AS_ELEMENTAL_DMG_PCT: StatMeta(
+        "Max Energy Shield as Elemental Damage", "Energy Shield", "added_flat", "%",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=32,                source_types=_T,
+    ),
     Stat.ES_BYPASS_PCT: StatMeta(
         "Damage Bypasses Energy Shield", "Defense", "added_flat", "%",
         subgroup="defense",            stacking_rule="additive",

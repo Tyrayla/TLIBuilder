@@ -1042,6 +1042,10 @@ class Stat(Enum):
     # % of Max Life added as flat Energy Shield (Tortoise Shell). Applied in derive.py AFTER Max Life is computed,
     # folded into the ES flat pool BEFORE max_energy_shield scales by ES inc/additional.
     MAX_LIFE_AS_ES_PCT = "max_life_as_es_pct"
+    # "Adds Elemental Damage equal to N% of Max Energy Shield to Attacks and Spells" (Cicada Shell): fraction of FINAL
+    # Max ES granted as flat Fire AND Cold AND Lightning (each = N% x Max ES, min = max, not split). Folded in
+    # engine/compute.py after Max ES is final into the real {fire,cold,lightning}_{attack,spell}_dmg_flat_{min,max}.
+    MAX_ES_AS_ELEMENTAL_DMG_PCT = "max_es_as_elemental_dmg_pct"
     # % of damage taken that bypasses Energy Shield (Tortoise Shell). FLAG only today — surfaced, not yet applied
     # (waiting on the defensive damage-taken pass). Stored so it is never silently dropped.
     ES_BYPASS_PCT = "es_bypass_pct"

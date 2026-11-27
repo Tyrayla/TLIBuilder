@@ -240,6 +240,9 @@ def consumable_universe() -> frozenset[str]:
                  for dtype in ("physical", "fire", "cold", "lightning", "erosion")
                  for attr in ("strength", "dexterity", "intelligence")
                  for cls in ("attack", "spell")}
+    # Cicada Shell: "% of Max Energy Shield as flat Elemental Damage" — folded in-loop (engine.compute) into the REAL
+    # {fire,cold,lightning}_{attack,spell}_dmg_flat_{min,max} stats, so whitelist the consumer to badge green.
+    consumed |= {"max_es_as_elemental_dmg_pct"}
     # Compensatory Life: increased Spell Damage + Mana Regeneration Speed per Mana consumed — folded in-loop into the
     # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
     consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",
